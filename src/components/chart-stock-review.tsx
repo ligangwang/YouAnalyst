@@ -24,6 +24,7 @@ export function ChartStockReview(props:Props){
  const locked=useRef(false);
  const [sector,setSector]=useState('');
  const [sectorsOpen,setSectorsOpen]=useState(false);
+ const [reviewSector,setReviewSector]=useState('');
  const watchlist:ChartWatchlist=props.watchlist??{
   ids:follows.user?follows.ids:guest.ids,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,session:!follows.user,
   change:async(id,follow)=>{if(follows.user)await follows.change(id,follow);else guest.change(id,follow);},refresh:()=>{void follows.refresh();},
@@ -37,6 +38,8 @@ export function ChartStockReview(props:Props){
  const sectors=current?stockSectors(current,props.graph,watchlist.ids):[];
  const selectedSector=sectors.find(item=>item.id===sector);
  const peers=selectedSector?stockSectorPeers(selectedSector,props.companyId,props.graph,watchlist.ids):[];
+ const activeReviewSector=sectors.find(item=>item.id===reviewSector)??sectors[0];
+ const reviewPeers=activeReviewSector?stockSectorPeers(activeReviewSector,props.companyId,props.graph,watchlist.ids):[];
  const saved=watchlist.ids.map(id=>byId.get(id)??fallback(id));
  const followed=watchlist.ids.includes(props.companyId);
  const close=()=>{setSector('');setSectorsOpen(false);props.closeTools();};
@@ -54,6 +57,13 @@ export function ChartStockReview(props:Props){
   </tr>)}</tbody>
  </table></div>;}
  return <>
+  {!props.hideReview&&sectors.length>0&&<section className={styles.review} aria-label={text('Sector companies','同板块公司')} data-chart-sectors>
+   <header><h3>{text('Sectors','所属板块')}</h3><small>{text('Select a company to switch its chart','点击公司切换图表')}</small></header>
+   <div className={styles.sectorTabs} role="group" aria-label={text('Select sector','选择板块')}>{sectors.map(item=><button type="button" key={item.id} aria-pressed={item.id===activeReviewSector?.id} onClick={()=>setReviewSector(item.id)}>{chinese?item.zh:item.en}</button>)}</div>
+   <p>{activeReviewSector&&(chinese?activeReviewSector.zh:activeReviewSector.en)} · {reviewPeers.length} {text('other covered companies','家已覆盖的其他公司')}</p>
+   {reviewPeers.length?rows(reviewPeers):<p>{text('No other covered companies in this sector.','当前覆盖数据中暂无其他同板块公司。')}</p>}
+   {activeReviewSector&&activeReviewSector.sources.length>0&&<details><summary>{text('Classification sources','分类依据')}</summary>{activeReviewSector.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>)}</details>}
+  </section>}
   {props.anchor&&<FloatingEventWindow anchor={props.anchor} title={text('Stock tools','股票工具')+(props.companyId?' · '+(selected.symbol??companyName(selected,locale)):'')} closeLabel={text('Close stock tools','关闭股票工具')} onClose={close}>
    <div className={styles.tools}>
     {selectedSector?<>

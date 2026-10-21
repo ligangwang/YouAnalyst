@@ -171,16 +171,16 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         <button type="button" onClick={() => setColorSymbol(colorSymbol === symbol ? null : symbol)} aria-expanded={colorSymbol === symbol} aria-controls="company-color-editor" aria-label={text(`Choose color for ${symbol}`, `选择 ${symbol} 的颜色`)}><i style={{ background: linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light") }}/>{symbol}</button>
         <button type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); if (colorSymbol === symbol) setColorSymbol(null); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><span aria-hidden="true">×</span></button>
       </div>)}</div>
-      <p className={styles.colorHint}>{text("Click a company to choose its color.", "点击公司名称即可选色或恢复默认颜色。")}</p>
+      <p className={styles.colorHint}>{text("Click a company to choose its color or restore its saved custom color.", "点击公司名称即可选色；“恢复自选色”还原你保存的自选颜色，“系统默认颜色”恢复模板配色。")}</p>
       {colorSymbol && draft.symbols.includes(colorSymbol) && <section id="company-color-editor" className={styles.inlineColor} aria-label={text(`Customize ${colorSymbol}`, `自定义 ${colorSymbol}`)}>
         <div className={styles.inlineColorHeading}><strong>{text(`Company color · ${colorSymbol}`, `公司颜色 · ${colorSymbol}`)}</strong><button type="button" onClick={() => setColorSymbol(null)} aria-label={text("Close color settings", "关闭颜色设置")}>×</button></div>
         {!preferences.signedIn ? <Link href={`/auth?${new URLSearchParams({ next: localizedPath(comparePath(styledConfig({ ...draft, style })), locale) })}`}>{text("Sign in or create an account to customize", "登录或注册以自定义")}</Link> : <>
           <fieldset disabled={!preferences.ready || preferences.status === "saving"}>
             <legend className="sr-only">{text("Company color", "公司颜色")}</legend>
-            <div className={styles.companyColors}><CompanyColorControl symbol={colorSymbol} appearance={appearance} light={displayTheme === "light"} colors={linkColors} onChange={changeAppearance}/></div>
-            <button type="button" onClick={() => void preferences.save(style, linkColors)}>{preferences.status === "saving" ? text("Saving…", "保存中…") : text("Save my defaults", "保存默认设置")}</button>
+            <div className={styles.companyColors}><CompanyColorControl symbol={colorSymbol} appearance={appearance} savedAppearance={preferences.savedAppearance} light={displayTheme === "light"} colors={linkColors} onChange={changeAppearance}/></div>
+            <button type="button" onClick={() => void preferences.save(style, linkColors)}>{preferences.status === "saving" ? text("Saving…", "保存中…") : text("Save custom colors", "保存自选色")}</button>
           </fieldset>
-          {preferences.status === "error" ? <p role="alert">{text("Could not load or save preferences. Your changes may not be saved.", "无法加载或保存偏好，修改可能尚未保存。")}{!preferences.ready && <button type="button" onClick={preferences.retry}>{text("Retry", "重试")}</button>}</p> : <p role="status">{preferences.status === "saved" ? text("Defaults saved to your account.", "默认设置已保存至账号。") : !preferences.ready ? text("Loading your preferences…", "正在加载偏好…") : text("Preview changes, then save your defaults.", "预览修改后保存默认设置。")}</p>}
+          {preferences.status === "error" ? <p role="alert">{text("Could not load or save preferences. Your changes may not be saved.", "无法加载或保存偏好，修改可能尚未保存。")}{!preferences.ready && <button type="button" onClick={preferences.retry}>{text("Retry", "重试")}</button>}</p> : <p role="status">{preferences.status === "saved" ? text("Custom colors saved to your account.", "自选色已保存至账号。") : !preferences.ready ? text("Loading your preferences…", "正在加载偏好…") : text("Preview changes, then save your custom colors.", "预览修改后保存自选色。")}</p>}
         </>}
       </section>}
       <div className={styles.settings}>

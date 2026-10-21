@@ -213,3 +213,53 @@ test('refresh failure keeps previously loaded watchlist rows visible and retry r
  await expect(review.getByRole('button',{name:'Could not refresh watchlist. Retry',exact:true})).toHaveCount(0);
  await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
 });
+
+
+for(const chinese of [false,true])test(`sector companies stay below the chart and switch peers (${chinese?'Chinese':'English'})`,async({page})=>{
+ const writes=await open(page,'&company=US%3AMU'+(chinese?'&lang=zh-CN':''),false,false);
+ const sector=page.locator('[data-chart-sectors]');
+ await expect(sector).toBeVisible();
+ await sector.getByRole('button',{name:chinese?'高带宽内存（HBM）':'High-bandwidth memory (HBM)',exact:true}).click();
+ await expect(sector.getByRole('button',{name:'SK hynix',exact:true})).toBeVisible();
+ await expect(sector.getByRole('button',{name:'Sandisk',exact:true})).toHaveCount(0);
+ await sector.getByRole('button',{name:'SK hynix',exact:true}).click();
+ await expect(page.locator('[data-company-timeline]')).toHaveAttribute('data-company-timeline','US:SKHY');
+ await expect(sector.getByRole('button',{name:chinese?'美光科技':'Micron',exact:true})).toBeVisible();
+ expect(writes).toEqual([]);
+});
+
+for(const chinese of [false,true])test(`volume and MACD open independent studies without leaving fullscreen (${chinese?'Chinese':'English'})`,async({page,isMobile})=>{
+ await open(page,chinese?'&lang=zh-CN':'',false,false);
+ const rows=Array.from({length:60},(_,index)=>({date:new Date(Date.UTC(2026,7,16+index)).toISOString().slice(0,10),open:100+index,high:105+index,low:98+index,close:102+index+Math.sin(index),volume:index===52?null:1000+index*100}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:AMD',start:'2026-09-14',end:'2026-10-14',currency:'USD',available:true,warmupPrices:rows.slice(0,40),prices:rows.slice(40)}}));
+ await page.reload();
+ const timeline=page.locator('[data-company-timeline]');
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(31);
+ await page.getByRole('button',{name:chinese?'全屏':'Full screen',exact:true}).click();
+ if(isMobile)await page.getByRole('button',{name:new RegExp(chinese?'放大成交量':'Expand volume')}).click();
+ else {const hit=timeline.locator('[data-indicator-hit="volume"]'),box=(await hit.boundingBox())!;await hit.dblclick({position:{x:box.width-8,y:box.height/2}});}
+ const volume=page.getByRole('dialog',{name:chinese?'成交量研究':'Volume study',exact:true});
+ await expect(volume).toBeVisible();
+ await volume.getByRole('checkbox',{name:chinese?'量能 MA5 / MA10':'Volume MA5 / MA10',exact:true}).check();
+ await expect(volume.locator('[data-volume-ma]')).toHaveCount(2);
+ const svg=volume.locator('svg');await svg.focus();await svg.press('End');
+ await expect(volume.locator('p')).toContainText('2026-10-14');
+ await expect(volume.locator('[data-study-crosshair]')).toHaveCount(1);
+ await volume.getByRole('checkbox',{name:chinese?'显示 K 线参照':'Show price context',exact:true}).uncheck();
+ await expect(volume.locator('[data-study-price]')).toHaveCount(0);
+ await volume.screenshot({path:test.info().outputPath('expanded-volume-study.png')});
+ await svg.press('Escape');await expect(volume).toHaveCount(0);
+ await expect(timeline).toHaveAttribute('data-chart-size','full');
+ await expect(timeline.locator('[data-volume-ma]')).toHaveCount(2);
+ await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
+ if(isMobile)await timeline.getByRole('button',{name:new RegExp(chinese?'放大 MACD':'Expand MACD')}).click();
+ else {const hit=timeline.locator('[data-indicator-hit="macd"]'),box=(await hit.boundingBox())!;await hit.dblclick({position:{x:box.width-8,y:box.height/2}});}
+ const macd=page.getByRole('dialog',{name:chinese?'MACD 研究':'MACD study',exact:true});await expect(macd).toBeVisible();
+ await expect(macd.locator('[data-study-macd] rect')).not.toHaveCount(0);
+ await macd.locator('svg').focus();await macd.locator('svg').press('End');await expect(macd.locator('p')).toContainText('DIF');
+ await macd.screenshot({path:test.info().outputPath('expanded-macd-study.png')});
+ const box=(await macd.boundingBox())!,view=page.viewportSize()!;expect(box.width).toBeLessThanOrEqual(view.width);expect(box.height).toBeLessThanOrEqual(view.height);
+ await macd.getByRole('button',{name:chinese?'关闭指标研究':'Close indicator study',exact:true}).click();
+ await expect(timeline).toHaveAttribute('data-chart-size','full');
+ await expect(page.locator('[data-chart-sectors]')).toBeVisible();
+});

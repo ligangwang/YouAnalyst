@@ -499,7 +499,7 @@ for(const zh of [false,true])test(`chart indicator switches, custom averages, ho
  await timeline.getByRole('button',{name:zh?'成交量':'Volume',exact:true}).click();await expect(svg.locator('[data-volume-bar]')).not.toHaveCount(0);
  const total=await svg.locator('[data-price-candle]').count();await svg.press('ArrowUp');await expect(svg.locator('[data-price-candle]')).not.toHaveCount(total);const first=await svg.locator('[data-price-candle]').first().getAttribute('data-price-candle');await svg.press('ArrowLeft');await expect(svg.locator('[data-price-candle]').first()).not.toHaveAttribute('data-price-candle',first!);await svg.press('ArrowDown');await expect(svg.locator('[data-price-candle]')).toHaveCount(total);
  if(info.project.name==='desktop'){
-  const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await svg.locator('[data-price-candle]').first().hover();await expect(details).toHaveAttribute('data-price-mode','hover');const before=(await details.boundingBox())!;await svg.locator('[data-price-candle]').nth(1).hover();const after=(await details.boundingBox())!;expect(after.x+after.width).toBeCloseTo(before.x+before.width,1);expect(after.y).toBeCloseTo(before.y,1);
+  const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await svg.locator('[data-price-candle]').first().hover();await expect(details).toHaveAttribute('data-price-mode','hover');const before=(await details.boundingBox())!;await svg.locator('[data-price-candle]').nth(1).hover();const after=(await details.boundingBox())!,candle=(await svg.locator('[data-price-candle]').nth(1).boundingBox())!,viewport=page.viewportSize()!;expect(Math.abs(after.x-before.x)+Math.abs(after.y-before.y)).toBeGreaterThan(1);expect(Math.min(Math.abs(after.x-(candle.x+candle.width/2)),Math.abs(after.x+after.width-(candle.x+candle.width/2)))).toBeLessThan(25);expect(after.x).toBeGreaterThanOrEqual(0);expect(after.y).toBeGreaterThanOrEqual(0);expect(after.x+after.width).toBeLessThanOrEqual(viewport.width);expect(after.y+after.height).toBeLessThanOrEqual(viewport.height);
   await page.evaluate(()=>{const original=window.matchMedia.bind(window);window.matchMedia=(query:string)=>query==='(pointer:coarse)'?{...original(query),matches:true} as MediaQueryList:original(query);});
   await svg.locator('[data-price-candle]').nth(1).click();await svg.hover({position:{x:5,y:5}});await expect(details).toHaveCount(0);
   const scroll=await page.evaluate(()=>scrollY);await page.mouse.wheel(0,-120);await expect(svg.locator('[data-price-candle]')).not.toHaveCount(total);expect(await page.evaluate(()=>scrollY)).toBe(scroll);await timeline.getByRole('button',{name:zh?'重置视图':'Reset view',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(total);
@@ -1792,4 +1792,40 @@ for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and 
  const legacy=page.getByRole('button',{name:zh?'清除内存与存储筛选':'Clear Memory & storage filter',exact:true});await expect(legacy).toBeVisible();await expect(list.locator('[data-list-company]')).toHaveCount(2);await legacy.click();await expect(legacy).toHaveCount(0);await expect(list.locator('[data-list-company]')).toHaveCount(7);
 
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+
+test('hover price details follow the pointer and fullscreen uses the available height',async({page},info)=>{
+ test.skip(info.project.name!=='desktop','Mouse hover placement');
+ await page.setViewportSize({width:1440,height:900});
+ await open(page);
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',open:100,high:110,low:95,close:108,volume:10},{date:'2026-09-29',open:108,high:112,low:99,close:100,volume:20},{date:'2026-09-30',open:101,high:107,low:98,close:105,volume:30}]}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');
+ await expect(timeline).toContainText('3 stored daily bars');
+ await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
+ const svg=timeline.locator('svg[role=img]');
+ await expect.poll(async()=>{const r=(await svg.boundingBox())!,sectors=await timeline.locator('[data-chart-sectors]').boundingBox(),controls=await timeline.locator('[data-indicator-study-controls]').boundingBox();return 900-r.y-r.height-(sectors?.height??0)-(controls?.height??0);}).toBeLessThan(90);
+ const hover=timeline.locator('[data-price-details][data-price-mode="hover"]');
+ for(const date of ['2026-09-28','2026-09-30']){
+  const candle=svg.locator(`[data-price-candle="${date}"] rect`);
+  const r=(await candle.boundingBox())!;
+  const x=r.x+r.width/2,y=r.y+r.height/2;
+  await page.mouse.move(x,y);
+  await expect(hover).toBeVisible();
+  const box=(await hover.boundingBox())!;
+  expect(Math.min(Math.abs(box.x-x),Math.abs(box.x+box.width-x))).toBeLessThan(25);
+  expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(1440);
+  expect(box.y).toBeGreaterThanOrEqual(0);expect(box.y+box.height).toBeLessThanOrEqual(900);
+  // Movement within one candle must reposition even though its date is unchanged.
+  await page.mouse.move(x,y+3);
+  await expect.poll(async()=>Math.abs((await hover.boundingBox())!.y-box.y)).toBeGreaterThan(1);
+ }
+ await page.screenshot({path:test.info().outputPath('fullscreen-pointer-price-details.png')});
+ await svg.press('Home');
+ await expect(timeline.locator('[data-price-details]')).toHaveAttribute('data-price-mode','pinned');
+ await expect(timeline.getByRole('button',{name:'Close price details'})).toBeVisible();
+ const pinned=(await timeline.locator('[data-price-details]').boundingBox())!,plot=(await svg.boundingBox())!;
+ expect(pinned.y-plot.y).toBeCloseTo(4,0);
 });

@@ -203,6 +203,8 @@ test('fit tree orbits the full overview, respects reduced motion and manual posi
  await expect(canvas).toHaveAttribute('data-user-positioned','true');
  await expect(canvas).toHaveAttribute('data-tour','paused');
  await expect(canvas).toHaveAttribute('data-tour-phase','full-tree');
+ const overviewNames=tree.locator('[data-tree-company][data-label-visible="true"]');
+ await expect.poll(()=>overviewNames.count()).toBeGreaterThan(1);
  const pose=await canvas.getAttribute('data-camera-position');
  await page.waitForTimeout(400);await expect(canvas).toHaveAttribute('data-camera-position',pose!);
  const target=await canvas.getAttribute('data-camera-target');
@@ -216,6 +218,8 @@ test('fit tree orbits the full overview, respects reduced motion and manual posi
  await expect(canvas).not.toHaveAttribute('data-camera-position',pose!);
  await expect(canvas).toHaveAttribute('data-camera-target',target!);
  expect(await distance()).toBeCloseTo(radius,1);
+ await expect.poll(()=>overviewNames.count()).toBeGreaterThan(1);
+ await tree.screenshot({path:test.info().outputPath('full-tree-company-names.png')});
  const bounds=(await canvas.boundingBox())!;
  await page.mouse.move(bounds.x+10,bounds.y+10);await page.mouse.down();
  await page.mouse.move(bounds.x+65,bounds.y+10,{steps:6});await page.mouse.up();

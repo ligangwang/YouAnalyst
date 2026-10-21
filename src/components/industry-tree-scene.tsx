@@ -353,10 +353,10 @@ function Scene(props:TreeSceneProps){
       }
       moving=true;
     }
-    // Manual disclosure takes precedence over distance culling and a paused
-    // presentation's last layer, so opening any sector visibly reveals names.
+    // Full-tree orbit and manual disclosure keep names visible at overview distance.
+    // Collision placement still hides overlapping labels as the camera turns.
     const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
-    const layerLabelsVisible=(layer?:string)=>Boolean(layer&&(disclosedLayers.current.has(layer)||layer===visitingLayer));
+    const layerLabelsVisible=(layer?:string)=>Boolean(layer&&(overviewOrbit.current||disclosedLayers.current.has(layer)||layer===visitingLayer));
     // Reserve one nearby company for the current tour layer or each disclosed
     // sector; on narrow screens its label may dock at the viewport edge.
     const primaryDisclosures=new Map<string,{id:string;distance:number}>();
