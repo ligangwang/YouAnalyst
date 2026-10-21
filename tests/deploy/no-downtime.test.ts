@@ -21,6 +21,7 @@ test('candidate checks reject wrong versions and failed pages before promotion',
     ? Response.json({status: 'ok', commitSha: 'abc', revision: 'rev-2'})
     : String(url).endsWith('/about') ? new Response('<html>Understand the companies behind your investments. 了解你所投资的公司。 <a href="mailto:support@youanalyst.com">Email</a><a href="https://x.com/knoics321">X</a></html>')
     : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]}})
+    : /\/(industries|investment-themes)\?/.test(String(url)) ? new Response('<html><h2 id="category-title">Semiconductors &amp; Related Devices 集成电路 Chips</h2></html>')
     : new Response('<html>' + 'x'.repeat(1100) + '</html>');
   await verifyCandidate({...options, request: ok});
   await assert.rejects(verifyCandidate({...options, commit: 'wrong', request: ok}), /commit mismatch/);
@@ -28,4 +29,5 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).endsWith('/api/compare/community') && init?.method !== 'POST' ? new Response('Index building', {status:503}) : ok(url, init)}), /ranking index readiness/);
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => init?.method === 'POST' ? new Response('Unexpected success', {status:201}) : ok(url, init)}), /require sign-in/);
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).endsWith('/about') ? new Response('<html>Missing contacts</html>') : ok(url, init)}), /missing About us content/);
+  await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).includes('/industries?') ? new Response('<html>Category not found</html>') : ok(url, init)}), /missing selected category/);
 });
