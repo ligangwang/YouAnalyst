@@ -105,4 +105,4 @@
 @media(max-width:850px) { .windowControls button,.regionFilter select,.browseSelectors>div>label { min-height:44px; } }
 
 /* Futurist dark: the floating company card becomes a glowing glass panel. */
-:global(:root:not([data-theme="light"])) .companyCard { background:linear-gradient(160deg,#1A2538f2,#131C2Bf7);backdrop-filter:blur(14px);border-color:#49D6E859;box-shadow:0 18px 50px #000a,0 0 28px #49D6E826; }
+:global(:root:not([data-theme="light"])) .companyCard { background:linear-gradient(160deg,#202B3Ff2,#1A2435f7);backdrop-filter:blur(14px);border-color:#49D6E859;box-shadow:0 18px 50px #000a,0 0 28px #49D6E826; }

@@ -182,13 +182,13 @@ a {
 
 /* Dark: a calm slate canvas with clearly raised panels; the glow stays on accents and the Universe graph. Light keeps its calm paper look. */
 :root:not([data-theme="light"]) {
-  --bg-canvas:#0E1522; --bg-surface:#151E2D; --bg-elevated:#1C2738;
-  --border-subtle:#283548; --border-control:#4A5F79;
+  --bg-canvas:#131B2A; --bg-surface:#1A2435; --bg-elevated:#222D40;
+  --border-subtle:#2F3D52; --border-control:#526882;
   --text-primary:#E3EAF3; --text-secondary:#A3B2C4; --text-muted:#A3B2C4;
   --accent-violet:#9B8CFF;
   --surface-hover:#49D6E812; --surface-selected:#49D6E81F;
   --graph-canvas:#070D19;
-  --glass-panel:linear-gradient(180deg,#172133,#131C2B);
+  --glass-panel:linear-gradient(180deg,#1C2639,#182233);
   --glow-cyan:#49D6E8; --glow-soft:0 0 14px #49D6E847;
 }
 :root:not([data-theme="light"]) header nav a[aria-current="page"] { text-shadow:0 0 14px #49D6E899;text-decoration-color:var(--glow-cyan); }
