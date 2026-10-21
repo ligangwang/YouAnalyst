@@ -3,10 +3,26 @@ import test from 'node:test';
 import {Timestamp,FieldValue,type Firestore} from 'firebase-admin/firestore';
 import type {Bucket} from '@google-cloud/storage';
 import {snapshotFiles} from '../../src/lib/entity-snapshots/storage';
+import {snapshotSource} from '../../src/lib/entity-snapshots/firestore-source';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {syncCollection,collections,type Files,type Source,type Snapshot,type Row} from '../../src/lib/entity-snapshots/sync';
 import {entityPatch,lifecycleFields} from '../../src/lib/entity-snapshots/lifecycle';
 const stamp=(n:number)=>new Timestamp(n,0);
+for(const incremental of [false,true])test(`snapshot pagination uses bounded scalar cursors (${incremental?'incremental':'initial'})`,async()=>{
+ const records=Array.from({length:751},(_,i)=>({id:String(i).padStart(4,'0'),data:{updatedAt:stamp(Math.floor(i/300)+1)}}));
+ const seen:string[]=[];let pages=0;
+ const query=(cursor?:unknown[],depth=0):unknown=>({
+   where:()=>query(cursor,depth),orderBy:()=>query(cursor,depth),limit:()=>query(cursor,depth),
+   startAfter:(...values:unknown[])=>{assert.equal(depth,0,'each page starts from the base query');assert.equal(values.length,incremental?2:1);assert.equal(typeof values.at(-1),'string');if(incremental)assert.ok(values[0] instanceof Timestamp);return query(values,depth+1);},
+   get:async()=>{pages++;const after=cursor?.at(-1) as string|undefined;
+     const slice=records.filter(row=>after===undefined||row.id>after).slice(0,250);seen.push(...slice.map(row=>row.id));
+     return {size:slice.length,docs:slice.map(row=>({id:row.id,data:()=>row.data,get:(key:string)=>row.data[key as 'updatedAt']}))};
+   },
+ });
+ const db={collection:()=>query()} as unknown as Firestore;
+ const rows=await snapshotSource(db).rows('companies',incremental?stamp(1):undefined,stamp(5));
+ assert.equal(pages,4);assert.deepEqual(rows.map(row=>row.id),records.map(row=>row.id));assert.equal(new Set(seen).size,751);
+});
 for(const collection of collections)test(`${collection}: initial load, incremental edit, soft delete, restore`,async()=>{
  let saved:Snapshot|undefined,delta:Row[]=[{id:'A',data:{updatedAt:stamp(1)}}];let now=2;
  const files:Files={load:async()=>({snapshot:saved,generation:'1'}),save:async(_c,s)=>{saved=s;}};

@@ -10,11 +10,16 @@ export function snapshotSource(db: Firestore): Source {
       // these files represent all entities, including the public directory.
       query=since?query.where('updatedAt','>=',since).where('updatedAt','<=',through).orderBy('updatedAt').orderBy(FieldPath.documentId()):query.orderBy(FieldPath.documentId());
       const rows: Row[]=[];
+      let cursor: unknown[] | undefined;
       for(;;){
-        const page=await query.limit(250).get();
-        for(const doc of page.docs)if(!doc.id.startsWith('_'))rows.push({id:doc.id,data:doc.data()});
+        // Reuse the base query and scalar cursor, without retaining prior SDK
+        // snapshots or accumulating cursor clauses across the full directory.
+        const page=await (cursor?query.startAfter(...cursor):query).limit(250).get();
+        const docs=page.docs;
+        for(const doc of docs)if(!doc.id.startsWith('_'))rows.push({id:doc.id,data:doc.data()});
         if(page.size<250)break;
-        query=query.startAfter(page.docs[page.docs.length-1]);
+        const last=docs[docs.length-1];
+        cursor=since?[last.get('updatedAt'),last.id]:[last.id];
       }
       return rows;
     },
