@@ -127,7 +127,7 @@ test("public A-share directory returns only published CN profiles and validates 
 
 test("CNI import preserves profiles without enqueueing retired AI research, and replays safely", async () => {
   const f = directoryFixture();
-  const companies = Array.from({ length: 4001 }, (_, i) => ({ id: `XSHG:${600000+i}`, name: `公司${i}`, legalName: `公司${i}`, classification: [1,2,3,4].map(n => ({code:`C${n}`,name:`行业${n}`})) }));
+  const companies = Array.from({ length: 4001 }, (_, i) => ({ id: `XSHG:${600000+i}`, name: `公司${i}`, legalName: `公司${i}`, classification: ['C08','C0803','C080301','C08030101'].map(code => ({code,name:code})) }));
   const payload = { source: "https://www.cnindex.com.cn/zh_information/data_resource/fljg/202605/test.xlsx", snapshot: "2026-6", sha256: "a".repeat(64), companies };
   f.data.set(`industry_research_candidates/XSHG:600000`, { id: "XSHG:600000", status: "DRAFT", attempts: 2, name: "Editorial" });
   f.data.set("companies/XSHG:600001", { name: "Published", status: "PUBLISHED" });

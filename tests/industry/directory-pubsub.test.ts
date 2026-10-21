@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import { pubsubFirestore } from "../helpers/pubsub-firestore";
 import { processDirectoryRequest, publishDirectoryRequest, type DirectoryRequest } from "../../src/lib/industry-research/directory-pubsub";
 import { importCniDirectory } from "../../src/lib/industry-research/directory-sync";
+import type {ClassificationMetadata} from '../../src/lib/industry-classification/model';
+import {industryPath} from '../../src/lib/industry-classification/catalog';
 
 const snapshot = () => ({ source: "https://www.cnindex.com.cn/zh_information/data_resource/fljg/test", snapshot: "2026-09", sha256: "a".repeat(64),
   companies: Array.from({ length: 4000 }, (_, i) => ({ id: `XSHG:${600000 + i}`, name: `Company ${i}`,
-    classification: Array.from({ length: 4 }, (_, level) => ({ code: `C${level}`, name: `Industry ${level}` })) })) });
+    classification: industryPath('CNI','C08030101','zh-CN') })) });
 async function setup() {
   const f = pubsubFirestore(), requests: DirectoryRequest[] = [];
   await publishDirectoryRequest(f.db, "execution-1", async r => { requests.push(r); });
@@ -31,6 +33,15 @@ test("directory retries use a frozen snapshot and atomically resume partial impo
   await assert.rejects(processDirectoryRequest(f.request, f.db, f.log, { download, deadline: Date.now() }), /incomplete/);
   const result = await processDirectoryRequest(f.request, f.db, f.log, { download });
   assert.equal(result.count, 4000); assert.equal(downloads, 1);
+  const company = f.rows.get('companies/XSHG:600000')!;
+  const metadata = company.classificationMetadata as ClassificationMetadata;
+  assert.deepEqual(company.classification, ['C08030101']);
+  assert.equal(company.taxonomy, 'CNI');
+  assert.equal(metadata.catalogVersion, 'cni-bilingual-2026-10-21');
+  assert.equal(metadata.sourceUrl, snapshot().source);
+  assert.equal(metadata.sourceSnapshot, '2026-09');
+  assert.ok(Number.isFinite(Date.parse(metadata.observedAt)));
+  assert.deepEqual(f.rows.get('company_directory/XSHG:600000')!.classificationMetadata, company.classificationMetadata);
   assert.equal(f.writes.filter(p => p === "company_directory/XSHG:600000").length, 1);
   assert.equal((await processDirectoryRequest(f.request, f.db, f.log, { download })).duplicate, true);
   assert.equal(downloads, 1);
@@ -42,4 +53,14 @@ test("older directory snapshots cannot overwrite a completed newer import", asyn
   Object.assign(f.rows.get("directory_syncs/CN_A_CNI")!, { snapshot: "2026-10", sha256: "b".repeat(64) });
   await assert.rejects(processDirectoryRequest(f.request, f.db, f.log, { download: async () => snapshot() }), /older snapshot/);
   assert.equal([...f.rows.keys()].filter(k => k.startsWith("company_directory/")).length, 0);
+});
+
+test('unchanged CNI snapshots do not rewrite companies to refresh observation time', async () => {
+  const f = pubsubFirestore();
+  await importCniDirectory(f.db, snapshot());
+  const writes = f.writes.length;
+  const metadata = f.rows.get('companies/XSHG:600000')!.classificationMetadata;
+  assert.equal((await importCniDirectory(f.db, snapshot())).unchanged, true);
+  assert.equal(f.writes.length, writes);
+  assert.deepEqual(f.rows.get('companies/XSHG:600000')!.classificationMetadata, metadata);
 });

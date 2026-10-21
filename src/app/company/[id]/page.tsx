@@ -1,4 +1,5 @@
 import { CompanyCountryFlag } from "@/components/company-country-flag";
+import { CompanyClassifications } from '@/components/company-classifications';
 import { CompanyResearchPanel } from "@/components/company-research-panel";
 import { CompanyOutlook } from "@/components/company-outlook";
 import { predictionInstrument } from "@/lib/predictions/instrument";
@@ -63,6 +64,7 @@ export default async function CompanyPage({ params, searchParams }: {
     <p className="mt-4 text-slate-400">{companyGeographyLabel(companyGeography(data), locale)}</p>
     {typeof data.editorialReviewedAt === "string" && <p className="mt-3 text-xs text-slate-400">{zh ? "编辑公司资料 · 复核于" : "Editorial company profile · reviewed"} {data.editorialReviewedAt}</p>}
     <CompanyProfileDetails profile={normalizeCompanyProfile(data.profile)} />
+    <CompanyClassifications companyId={id} data={data} />
     {callTicker && <CompanyOutlook ticker={callTicker} />}
     <CompanyResearchTimeline company={{ id, kind: "COMPANY", order: 0, name: data.name, names: reviewedCompanyNames(id, data.name, data.names), country: identity.country, market: "GLOBAL", listingStatus: identity.listingStatus, summary: String(data.description ?? "") }} />
     <CompanyResearchPanel companyId={id} />

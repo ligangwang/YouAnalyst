@@ -15,7 +15,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function CompanyResearchOverview({ company, fundamentals, comparison, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; fundamentals?: ReactNode; comparison?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
+export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
@@ -32,6 +32,7 @@ export function CompanyResearchOverview({ company, fundamentals, comparison, gra
         </dl>
         {company.listingUpdatedAt && <details className="mt-3 text-xs text-slate-400"><summary className="cursor-pointer"><UiText text="Listing source history" /></summary><p className="mt-2"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}. <UiText text="This is the listing record date, separate from quote updates." /></p></details>}
         <CompanyProfileDetails profile={company.profile} />
+        {classifications}
       </section>
       <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}

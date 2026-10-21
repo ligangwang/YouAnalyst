@@ -1,3 +1,4 @@
+import { CompanyClassifications } from './company-classifications';
 import { companyName } from "@/lib/knowledge-graph/model";
 import { localizedPath } from "@/lib/ui/i18n/urls";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
@@ -101,7 +102,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
     const [company, fundamentals] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId)]);
     const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A",company.slug), locale));
     const schema = { "@context": "https://schema.org", ...companyOrganizationSchema(company, locale, url, chinaId.split(":")[1], chinaId.startsWith("XSHG:") ? "SSE" : "SZSE") };
-    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={chinaId}/></Suspense>} /></>;
+    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage classifications={<Suspense fallback={null}><CompanyClassifications companyId={chinaId}/></Suspense>} company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={chinaId}/></Suspense>} /></>;
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
@@ -123,7 +124,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={earningsSummary} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`}/></Suspense>} company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={earningsSummary} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>

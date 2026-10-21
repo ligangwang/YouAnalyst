@@ -41,6 +41,16 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
   assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
   const graph=await graphResponse.json();
   assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
+  for (const [path, text] of [
+    ['/en/industries?taxonomy=SIC&code=3674', 'Semiconductors &amp; Related Devices'],
+    ['/zh-cn/industries?taxonomy=CNI&code=C08030101', '集成电路'],
+    ['/en/investment-themes?node=ai.chips', 'Chips'],
+  ]) {
+    const response = await request(`${url}${path}`, {signal:AbortSignal.timeout(60000)});
+    assert.equal(response.status, 200, `Candidate hierarchy ${path} failed`);
+    const html = await response.text();
+    assert(html.includes(text) && html.includes('category-title'), `Candidate hierarchy ${path} missing selected category`);
+  }
   console.log(`Candidate ${revision} verified before traffic promotion.`);
 }
 if(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
