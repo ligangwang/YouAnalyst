@@ -47,7 +47,6 @@ export function drawComparisonVideoFrame(ctx: CanvasRenderingContext2D, data: Co
   });
   ctx.restore(); ctx.fillStyle = muted; ctx.font = '16px sans-serif';
   ctx.fillText(`${data.dates[0]} → ${data.dates.at(-1)}`, 48, 654);
-  ctx.fillText(chinese ? '价格收益 · 股息不再投资 · 数据点间为动画插值' : 'Price returns · Dividends not reinvested · Motion between closes is interpolated', 48, 686);
   ctx.textAlign = 'right'; ctx.fillText('youanalyst.com', width - 48, 686); ctx.textAlign = 'left';
 }
 
