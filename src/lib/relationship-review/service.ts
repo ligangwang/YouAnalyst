@@ -142,7 +142,7 @@ export async function publicationPlan(db: Firestore, tx: Transaction, input: Pub
   const retainedThemes = before ? (Array.isArray(before.themeIds) ? before.themeIds.filter((t: unknown) => COMPANY_THEMES.includes(t as CompanyThemeId)) : ['ai']) as CompanyThemeId[] : [];
   const themes = [...new Set([...retainedThemes, ...input.themeIds])].sort() as CompanyThemeId[];
   const batch: ComputeBatch = {
-    batchId: auditId(input.candidateId), asOf: at.slice(0, 10),
+    batchId: automated ? `relationship-auto-${hash(input.candidateId).slice(0, 40)}` : auditId(input.candidateId), asOf: at.slice(0, 10),
     sources: candidate.evidence.map((e, i) => ({ id: `evidence-${i}`, url: e.url, title: e.title, summary: e.quote, sourceDate: e.sourceDate, retrievedAt: at.slice(0, 10) })),
     relationships: [{ source: n.source, target: n.target, type: n.type, facts: [{
       state: input.state === 'ANNOUNCED' ? 'ANNOUNCED' : 'DOCUMENTED', scope: input.summary,

@@ -32,7 +32,7 @@ test('valid news automatically publishes as provisional, with evidence and idemp
   const f = fixture(); f.state.delete('company_relationships/' + edgeId);
   const result = await autoPublishRelationship(f.db, candidate, at); assert(result.published);
   const published = f.state.get('company_relationships/' + edgeId)!;
-  assert.equal(published.publicationOrigin, 'AI'); assert.equal(published.status, 'PUBLISHED'); assert.deepEqual(published.themeIds, ['ai', 'robotics']);
+  assert.equal(f.state.get('research_batches/' + (published.researchBatchIds as string[])[0])?.kind, 'RELATIONSHIP_AUTO_PUBLICATION'); assert.equal(published.publicationOrigin, 'AI'); assert.equal(published.status, 'PUBLISHED'); assert.deepEqual(published.themeIds, ['ai', 'robotics']);
   assert.equal((published.researchFacts as { verificationStatus: string }[])[0].verificationStatus, 'PENDING');
   const size = f.state.size; assert.equal((await autoPublishRelationship(f.db, candidate, at)).published, false); assert.equal(f.state.size, size);
 });
