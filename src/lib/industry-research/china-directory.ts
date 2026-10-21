@@ -7,7 +7,13 @@ import {companyClassificationPaths} from '../industry-classification/catalog';
 
 export function publicChinaCompany(id: string, data: FirebaseFirestore.DocumentData) {
   if(data.market!=="CN_A" || !["PUBLISHED","DIRECTORY"].includes(data.status))return null;
-  const classification=companyClassificationPaths({...data,taxonomy:data.taxonomy??'CNI'},'zh-CN')[0]??[];
+  let classification:{name:string}[];
+  try{classification=companyClassificationPaths({...data,taxonomy:data.taxonomy??'CNI'},'zh-CN')[0]??[];}
+  catch{
+    // Historical editorial records can have names without codes. Keep them
+    // readable; importers and the migration still reject unverified assignments.
+    classification=Array.isArray(data.classification)?data.classification.filter(item=>item&&typeof item==='object'&&typeof item.name==='string'):[];
+  }
   return normalizeChinaCompany({ ...data, id,
     names: reviewedCompanyNames(id, String(data.name), data.names),
     stage: data.stage || classification[2]?.name || "A 股公司",
