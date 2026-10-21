@@ -192,7 +192,9 @@ test('expanded tree keeps company labels clear of headings and uses compact cust
 });
 
 test('fit tree orbits the full overview, respects reduced motion and manual positioning, and replay starts the tour',async({page,isMobile})=>{
- test.setTimeout(60000);
+ // Software WebGL must render both motion modes, a screenshot and a drag before
+ // replay. Keep assertion deadlines bounded while allowing the complete journey.
+ test.setTimeout(120000);
  if(!isMobile)await page.setViewportSize({width:1440,height:1000});
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture=treeFixture(['US:CEG','US:NVDA','US:MSFT','US:GOOGL','US:AAPL']);
