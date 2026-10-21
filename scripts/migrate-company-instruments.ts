@@ -3,6 +3,7 @@ import {getFirestore, FieldValue, type Timestamp, type DocumentData} from 'fireb
 import {readFile, writeFile, appendFile, mkdir} from 'node:fs/promises';
 import {resolve, join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {periodicWebsiteMigrationGuard} from './firestore/website-migration-guard';
 import {encode, decode} from '../src/lib/central-cache/codec';
 import {planInstrumentMigration, type CompanyRow, type InstrumentMigrationPlan} from '../src/lib/instruments/migration';
 import {validateInstrument, instrumentId, type Instrument} from '../src/lib/instruments/model';
@@ -57,7 +58,10 @@ async function main() {
   const finished=new Set(prior.split('\n').filter(Boolean).map(l=>JSON.parse(l).id));
   const all: {id:string; legacyId?:string; companyId:string; sourceUpdateTime:Timestamp; data?:Instrument}[]=phase==='instruments'?plan.instruments:plan.aliases;
   const pending=all.filter(r=>!finished.has(r.id)).slice(0,limit);let applied=0;
+  const guard=await periodicWebsiteMigrationGuard(projectId,process.env.MIGRATION_COMPATIBLE_REVISION);
+  await guard(true);
   for(let offset=0;offset<pending.length;offset+=batchSize){
+    await guard();
     const group=pending.slice(offset,offset+batchSize);
     await db.runTransaction(async tx=>{
       const sourceIds=[...new Set(group.flatMap(r=>[r.legacyId??r.id,r.companyId]))];
@@ -86,5 +90,6 @@ async function main() {
     if(applied%100===0||applied===pending.length)console.log(JSON.stringify({phase,applied,remaining:all.length-finished.size-applied}));
     await delay(delayMs);
   }
+  await guard(true);
 }
 main().catch(e=>{console.error(e instanceof Error?e.message:'Migration failed');process.exitCode=1});

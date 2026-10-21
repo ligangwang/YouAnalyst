@@ -61,7 +61,17 @@ export function instrumentNeedsSync(previous:DocumentData|undefined,next:Instrum
 /** Called by importers with their already-loaded company row; never on a page read. */
 export async function syncCompanyInstrument(db:Firestore,legacyId:string,company:DocumentData) {
   const next=instrumentFromCompany(legacyId,company,String(company.supersededByCompanyId??legacyId));
-  if(!next)return {changed:false};
+  if(!next){
+    if(company.listingStatus!=='PRIVATE')return {changed:false};
+    return db.runTransaction(async tx=>{
+      const ref=db.collection('instruments').doc(instrumentId(legacyId));
+      const [doc,source]=await tx.getAll(ref,db.collection('companies').doc(legacyId));
+      if(!doc.exists||doc.get('isDeleted')===true||doc.get('status')==='DELISTED'||source.get('listingStatus')!=='PRIVATE'||source.get('isDeleted')===true)return {changed:false};
+      if(doc.get('companyId')!==String(source.get('supersededByCompanyId')??legacyId))throw Error('Instrument issuer changed; review required');
+      tx.set(ref,entityPatch(doc.data(),{status:'DELISTED'})!,{merge:true});
+      return {changed:true};
+    });
+  }
   if(next.sourceMetadata.observedAt==='1970-01-01T00:00:00.000Z')next.sourceMetadata.observedAt=new Date().toISOString();
   validateInstrument(next);
   const ref=db.collection('instruments').doc(instrumentId(legacyId));

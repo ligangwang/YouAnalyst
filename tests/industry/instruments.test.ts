@@ -89,6 +89,20 @@ test('issuer financial statements never leak another share class valuation',asyn
   assert.equal(financialsForInstrument(financials,{isDeleted:true,marketCap:{value:50}}).marketCap,undefined);
 });
 
+test('daily sync delists a company that becomes private and rechecks current source state',async()=>{
+ const {syncSnapshotInstruments}=await import('../../src/lib/instruments/snapshot-sync');
+ const listed={name:'A',symbol:'A',active:true};const value=instrumentFromCompany('US:A',listed)!;
+ const company={...listed,listingStatus:'PRIVATE'};const path=`instruments/${instrumentId('US:A')}`;
+ const f=fixture({'companies/US:A':company,[path]:value});
+ const companies={version:1 as const,collection:'companies' as const,watermark:new Timestamp(1,0),rows:[{id:'US:A',data:company}]};
+ const instruments={version:1 as const,collection:'instruments' as const,watermark:new Timestamp(1,0),rows:[{id:instrumentId('US:A'),data:value}]};
+ assert.equal((await syncSnapshotInstruments(f.db,companies,instruments)).updated,1);
+ assert.equal(f.rows.get(path)!.status,'DELISTED');
+ assert.equal((await syncCompanyInstrument(f.db,'US:A',company)).changed,false);
+ f.rows.set('companies/US:A',listed);f.rows.set(path,value);
+ assert.equal((await syncCompanyInstrument(f.db,'US:A',company)).changed,false,'stale snapshot must not delist a public company');
+});
+
 test('global issuers with a verified listing migrate; private and ambiguous listings do not',()=>{
   const company={name:'Samsung',listingStatus:'PUBLIC',listings:[{exchange:'XKRX',symbol:'005930'}]};
   const value=instrumentFromCompany('ORG:SAMSUNG',company)!;

@@ -3,6 +3,7 @@ import {FieldPath, FieldValue, getFirestore} from 'firebase-admin/firestore';
 import {mkdir, writeFile} from 'node:fs/promises';
 import {resolve, join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {periodicWebsiteMigrationGuard} from './firestore/website-migration-guard';
 import {secRequest} from '../src/lib/sec-request';
 import {parseSecTickerMapping} from '../src/lib/sec-filings/source';
 import {buildSecCatalog, parseSecClassification, secCompanySyncPatch, normalizedCik} from '../src/lib/industry-classification/sec';
@@ -60,13 +61,17 @@ async function main() {
   const reportPath = join(output, `batch-${Date.now()}.json`);
   await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', {flag: 'wx'});
   let applied = 0;
+  const guard=apply?await periodicWebsiteMigrationGuard(projectId,process.env.MIGRATION_COMPATIBLE_REVISION):undefined;
+  if(guard)await guard(true);
   for (const {doc, patch} of changes) {
     if (!apply) break;
+    await guard!();
     // Fail closed on concurrent changes, including soft deletes. Never recreate.
     await doc.ref.update({...patch, updatedAt: FieldValue.serverTimestamp()}, {lastUpdateTime: doc.updateTime});
     applied++;
     await delay(1000);
   }
+  if(guard)await guard(true);
   console.log(JSON.stringify({...report, changes: undefined, applied, reportPath}));
 }
 main().catch(error => {console.error(error instanceof Error ? error.message : 'SIC population failed'); process.exitCode = 1;});

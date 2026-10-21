@@ -10,7 +10,13 @@ export async function syncSnapshotInstruments(db:Firestore,companies:Snapshot,ex
   let updated=0,unchanged=0;
   for(const row of companies.rows){
     const next=instrumentFromCompany(row.id,row.data,String(row.data.supersededByCompanyId??row.id));
-    if(!next)continue;
+    if(!next){
+      const previous=byId.get(instrumentId(row.id));
+      if(row.data.listingStatus==='PRIVATE'&&previous&&previous.isDeleted!==true&&previous.status!=='DELISTED'){
+        if((await syncCompanyInstrument(db,row.id,row.data)).changed)updated++;
+      }
+      continue;
+    }
     if(!instrumentNeedsSync(byId.get(instrumentId(row.id)),next)){unchanged++;continue;}
     if((await syncCompanyInstrument(db,row.id,row.data)).changed)updated++;
   }

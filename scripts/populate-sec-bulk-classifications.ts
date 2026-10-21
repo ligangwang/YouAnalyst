@@ -3,6 +3,7 @@ import {FieldValue, Timestamp, getFirestore} from 'firebase-admin/firestore';
 import {readFile, writeFile, appendFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
+import {periodicWebsiteMigrationGuard} from './firestore/website-migration-guard';
 import {buildSecCatalog, indexSecBulk, secCompanySyncPatch, normalizedCik, type SecCompanyPatch} from '../src/lib/industry-classification/sec';
 
 type SnapshotRow = {id: string; data: Record<string, unknown>; updateTime: {seconds: number; nanoseconds: number}};
@@ -58,7 +59,10 @@ async function main() {
   initializeApp({credential: applicationDefault(), projectId: plan.projectId});
   const db = getFirestore(); let processed = 0, applied = 0, conflicts = 0;
   const pending = plan.changes.filter(row => !finished.has(row.id)).slice(0, limit);
+  const guard=await periodicWebsiteMigrationGuard(plan.projectId,process.env.MIGRATION_COMPATIBLE_REVISION);
+  await guard(true);
   for (let offset = 0; offset < pending.length; offset += batchSize) {
+    await guard();
     const group = pending.slice(offset, offset + batchSize);
     for (const row of group) if (!/^US:[A-Z0-9.\-]+$/.test(row.id) || (row.patch.taxonomy && row.patch.taxonomy !== 'SIC')
       || (row.patch.cik !== undefined && !/^\d{10}$/.test(row.patch.cik)) || !Object.keys(row.patch).length) throw Error('Invalid plan row');
@@ -90,6 +94,7 @@ async function main() {
     if (processed % 100 === 0) console.log(JSON.stringify({processed, applied, conflicts, remaining: plan.changes.length - finished.size - processed}));
     await delay(delayMs);
   }
+  await guard(true);
   console.log(JSON.stringify({processed, applied, conflicts, remaining: plan.changes.length - finished.size - processed}));
 }
 main().catch(error => {console.error(error instanceof Error ? error.message : 'SEC bulk population failed'); process.exitCode = 1;});
