@@ -1,7 +1,9 @@
+import {collectionUniverse, type ThemedCompany} from '../src/lib/company-themes/model';
+import {createSecCompanySync} from '../src/lib/industry-classification/sec-sync';
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore, type DocumentData } from "../src/lib/firebase/firestore";
-import { loadCollectionCompanyScope } from "../src/lib/company-themes/service";
+import { loadCollectionCompanies } from "../src/lib/company-themes/service";
 import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
@@ -43,7 +45,10 @@ async function main() {
     if (result.status === "partial") throw new Error("Initial baseline incomplete; retry only the frozen snapshot");
     return;
   }
-  const companies = await loadCollectionCompanyScope(db, 'US');
+  const companyDocs = await loadCollectionCompanies(db, 'US');
+  const companies = collectionUniverse({nodes: [], relationships: [], sources: [], asOf: ''},
+    companyDocs.map(doc => ({...doc.data(), id: doc.id} as ThemedCompany)));
+  const companySync = createSecCompanySync(db, new Map(companyDocs.map(doc => [doc.id, doc.data() ?? {}])));
   const companyIds = companies.nodes.map(company => {
     const ticker = usFundamentalsTicker(company.id);
     if (!ticker) throw new Error(`Invalid US listing identity: ${company.id}`);
@@ -63,12 +68,17 @@ async function main() {
   for(const company of earningsCompanies())if(company.cik&&companyIds.includes(company.companyId.slice(3)))byCik.set(company.cik,[...(byCik.get(company.cik)??[]),company.companyId]);
   const disclosures=createMapSecObserver(db,byCik,{deadline,initialStates});
   const source = createSecFilingsSource(process.env.SEC_USER_AGENT, AbortSignal.timeout(timeoutMs), async(cik,value,archive)=>{
+    try { await companySync.observe(cik, value); }
+    catch (error) { log.emit('ERROR', 'sec_company_sync_failed', {cik, error: error instanceof Error ? error.message : String(error)}); }
     await disclosures.observe(cik,value,archive);
     await earnings?.observe(cik,value,archive);
   });
   const resolver=source.resolveCik.bind(source);
   source.resolveCik=async ticker=>{
-    const cik=await resolver(ticker),id=`US:${ticker}`,existing=byCik.get(cik)??[];
+    let mapped: string | undefined;
+    try { mapped = await resolver(ticker); }
+    catch (error) { if (!(error instanceof Error) || error.message !== `No SEC CIK mapping for ${ticker}`) throw error; }
+    const id=`US:${ticker}`,cik=companySync.register(id,mapped),existing=byCik.get(cik)??[];
     registerEarningsIssuer(id,cik);
     if(!existing.includes(id))byCik.set(cik,[...existing,id]);return cik;
   };

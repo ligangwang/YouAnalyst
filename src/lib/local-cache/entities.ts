@@ -34,7 +34,7 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
  const cache=s;
  // One-company requests create one group each. Keep fundamentals independently
  // of company traffic, with both ID and estimated payload limits for larger batches.
- const maxGroups=collection==='company_fundamentals'?256:32;
+ const maxGroups=256;
  const maxBytes=16*1024*1024, maxDocuments=960;
  const evict=()=>{
   let bytes=[...cache.groups].reduce((sum,group)=>sum+group.bytes,0);
@@ -50,7 +50,7 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
   const group:Group={users:0,ids:batch.map(id=>`${collection}/${id}`),bytes:0,watch:undefined as unknown as Group['watch']};
   group.watch=watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),docs=>{
    entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
-   group.bytes=docs.reduce((sum,doc)=>sum+dataBytes(doc.data()),0);
+   group.bytes=docs.reduce((sum,doc)=>sum+dataBytes(doc.data(),maxBytes),0);
    queueMicrotask(evict);
   });
   const close=group.watch.close.bind(group.watch);
@@ -67,7 +67,7 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
  for(const group of groups){group.users++;s.groups.delete(group);s.groups.add(group);}
  try {
  const values=await Promise.all([...groups].map(group=>group.watch.read()));
- const found=new Map(values.flatMap(value=>[...value]));
+ const found=new Map(values.flatMap(value=>[...value]).filter(([,doc])=>doc.data()?.isDeleted!==true));
  return ids.map(id=>found.get(id)??({id,exists:false,ref:db.collection(collection).doc(id),data:()=>undefined,get:()=>undefined} as unknown as DocumentSnapshot));
  } finally {
   for(const group of groups)group.users--;
@@ -80,7 +80,7 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
  if(ids)return documents(db,collection,ids);
  const source=collection==='companies'?db.collection(collection).where('themeIds','array-contains-any',['ai','robotics','space']):db.collection(collection);
  if(collection==='company_fundamentals')throw Error('Fundamentals cache requires company IDs');
- let rows=[...(await localQuery(db,collection,source,collection)).values()];
+ let rows=[...(await localQuery(db,collection,source,collection)).values()].filter(doc=>doc.data()?.isDeleted!==true);
  if(region)rows=rows.filter(doc=>doc.get('exchange_region')===region);
  if(query){
   if(query.status)rows=rows.filter(doc=>doc.get('status')===query.status);

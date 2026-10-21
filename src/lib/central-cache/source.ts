@@ -10,7 +10,7 @@ export function firestoreSource(db:Firestore):Source {
     boundary:async()=>{const doc=await db.collection('companies').limit(1).get();return {seconds:doc.readTime.seconds,nanoseconds:doc.readTime.nanoseconds};},
     initial:async(collection,ids)=>collection==='companies'?read(db.collection(collection).where('themeIds','array-contains-any',['ai','robotics','space']).orderBy(FieldPath.documentId())):collection==='company_fundamentals'?documents(collection,ids):read(db.collection(collection).orderBy(FieldPath.documentId())),
     changes:async(collection,since,through)=>{
-      const base=db.collection(collection).where('cacheUpdatedAt','>=',stamp(since)).where('cacheUpdatedAt','<=',stamp(through)).orderBy('cacheUpdatedAt').orderBy(FieldPath.documentId());
+      const base=db.collection(collection).where('updatedAt','>=',stamp(since)).where('updatedAt','<=',stamp(through)).orderBy('updatedAt').orderBy(FieldPath.documentId());
       const rows:Row[]=[];
       if(collection==='companies')rows.push(...await read(base.where('themeIds','array-contains-any',['ai','robotics','space'])));
       // Firestore disallows document-ID equality combined with timestamp ranges.
@@ -18,7 +18,7 @@ export function firestoreSource(db:Firestore):Source {
       else rows.push(...await read(base));
       // Durable tombstones in the existing collectors collection survive deployment
       // overlap. Re-read affected IDs so recreation always wins over an old deletion.
-      const deleted=await read(db.collection('collectors').where('cacheDeletedCollection','==',collection).where('cacheUpdatedAt','>=',stamp(since)).where('cacheUpdatedAt','<=',stamp(through)).orderBy('cacheUpdatedAt').orderBy(FieldPath.documentId()));
+      const deleted=await read(db.collection('collectors').where('cacheDeletedCollection','==',collection).where('updatedAt','>=',stamp(since)).where('updatedAt','<=',stamp(through)).orderBy('updatedAt').orderBy(FieldPath.documentId()));
       const deletedIds=deleted.map(row=>String(row.data.sourceId));
       const restored=new Map((await documents(collection,deletedIds)).map(row=>[row.id,row]));
       for(const id of deletedIds)rows.push(restored.get(id)??{id,data:{},deleted:true});

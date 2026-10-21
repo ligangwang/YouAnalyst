@@ -5,7 +5,8 @@ import { Watch, track } from './watch';
 // A fixed, validated set of 40 buckets bounds subscriptions. Retain compact paths
 // in application memory; Firestore's listener still retains its SDK snapshots.
 const prefixes = new Set(COMPANY_SITEMAP_BUCKETS.map(companyBucketPrefix));
-const stores = new WeakMap<Firestore, Map<string, Watch<readonly string[]>>>();
+declare global { var __youAnalystSitemapStoresV1: WeakMap<Firestore, Map<string, Watch<readonly string[]>>> | undefined; }
+const stores = globalThis.__youAnalystSitemapStoresV1 ??= new WeakMap<Firestore, Map<string, Watch<readonly string[]>>>();
 export async function loadSitemapPaths(db: Firestore, prefix: string): Promise<readonly string[]> {
   if (!prefixes.has(prefix)) throw new Error('Invalid sitemap prefix');
   let cache = stores.get(db);

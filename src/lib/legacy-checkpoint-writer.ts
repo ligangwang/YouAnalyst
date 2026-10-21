@@ -118,7 +118,7 @@ export async function applyCacheChange(db: Firestore, headers: Headers, project:
       const changedDoc=await db.collection(collection).doc(id).get();
       const themes=changedDoc.get('themeIds');
       if (!changedDoc.exists || (collection==='companies' && (!Array.isArray(themes) || !themes.some(theme=>['ai','robotics','space'].includes(theme))))) await db.collection('collectors')
-        .doc(`_cache_deleted_${companyChangeKey(`${collection}/${id}`)}`).set({cacheDeletedCollection:collection,sourceId:id,cacheUpdatedAt:FieldValue.serverTimestamp()});
+        .doc(`_cache_deleted_${companyChangeKey(`${collection}/${id}`)}`).set({cacheDeletedCollection:collection,sourceId:id,updatedAt:FieldValue.serverTimestamp()});
     }
     if (process.env.CENTRAL_CACHE_URL) {
       await db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT).set({versions:{[collection]:randomUUID()}},{merge:true});

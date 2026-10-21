@@ -38,8 +38,8 @@ test('company events share loads, receive changes and remain bounded', async t =
   listeners.get('US:AMD')!({ docs: [] });
   assert.equal((await load()).docs.length, 0);
   assert.equal(opens, 1, 'empty results and deletions remain cached');
-  for (let i = 0; i < 128; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
-  assert.equal(listeners.size, 128);
+  for (let i = 0; i < 256; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
+  assert.equal(listeners.size, 256);
   assert.equal(listeners.has('US:AMD'), false);
   const before = opens;
   await load(); assert.equal(opens, before + 1);

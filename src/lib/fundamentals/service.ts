@@ -19,9 +19,9 @@ export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stor
 export async function requestCompanyFundamentals(ticker: string, db: Database, now = Date.now(), missingOnly = false) {
   if (!validFundamentalsTicker(ticker)) return null;
   const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
-  const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.version === 1 && stored.value
+  const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.isDeleted !== true && stored?.version === 1 && stored.value
     ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
-  const needsRequest = (stored?: DocumentData) => !["error", "retry"].includes(stored?.outcome) && stored?.pending !== true
+  const needsRequest = (stored?: DocumentData) => stored?.isDeleted !== true && !["error", "retry"].includes(stored?.outcome) && stored?.pending !== true
     && (!missingOnly || (!valueOf(stored) && !stored?.requestedAt))
     && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now
       || needsShareMetadataUpgrade(stored));

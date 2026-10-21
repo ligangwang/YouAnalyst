@@ -1,4 +1,5 @@
 export const scheduledJobs = {
+  entitySnapshots: { name: "Company data snapshots", scheduler: "sync-entity-snapshots-production", worker: "sync-entity-snapshots-production", logJob: "sync-entity-snapshots", schedule: "Daily, 3 AM New York" },
   fundamentals: { name: "SEC fundamentals", scheduler: "refresh-sec-fundamentals-production", worker: "refresh-sec-fundamentals-production", logJob: "refresh-sec-fundamentals", schedule: "Daily, 9 PM New York" },
   fundamentalsBatches: { name: "SEC fundamentals batches", scheduler: null, worker: null, logJob: "sec-fundamentals-batch", schedule: "Processes company batches; failed companies require admin review" },
   companyGraph: { name: "Company graph requests", scheduler: "refresh-company-graph-production", worker: "refresh-company-graph-production", logJob: "refresh-company-graph", schedule: "Every 5 minutes, 1–5 requests per run; initially paused" },

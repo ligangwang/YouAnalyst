@@ -4,6 +4,7 @@ import { Watch, track } from './watch';
 declare global {
   var __youAnalystReadScopeV1: AsyncLocalStorage<boolean> | undefined;
   var __youAnalystSourceStoresV1: WeakMap<object, Set<Entry>> | undefined;
+  var __youAnalystSourceOwnersV1: WeakMap<object, Map<string, object>> | undefined;
 }
 const scope = globalThis.__youAnalystReadScopeV1 ??= new AsyncLocalStorage<boolean>();
 export const withSourceCache = <T>(work: () => Promise<T>): Promise<T> => scope.run(true, work);
@@ -13,9 +14,9 @@ const stores = globalThis.__youAnalystSourceStoresV1 ??= new WeakMap<object, Set
 const MAX_LISTENERS = 128, MAX_BYTES = 4 * 1024 * 1024;
 // Estimate retained user data without serializing SDK document references (which
 // contain the Firestore client and may be cyclic). Stop at the eviction budget.
-export function dataBytes(value: unknown): number {
+export function dataBytes(value: unknown, limit = MAX_BYTES): number {
   const pending: unknown[] = [value], seen = new WeakSet<object>(); let bytes = 0;
-  while (pending.length && bytes <= MAX_BYTES) {
+  while (pending.length && bytes <= limit) {
     const item = pending.pop();
     if (typeof item === 'string') {bytes += Buffer.byteLength(item); continue;}
     if (!item || typeof item !== 'object') {bytes += 8; continue;}
@@ -30,7 +31,7 @@ export function dataBytes(value: unknown): number {
 }
 /** Cache the exact query/document, including its filters and authorization scope.
  * No global version document, TTL, or request-time refresh query. */
-export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX_LISTENERS): Promise<any> | undefined {
+export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX_LISTENERS, maxBytes = MAX_BYTES): Promise<any> | undefined {
   if (!scope.getStore() || typeof source.onSnapshot !== 'function' || typeof source.isEqual !== 'function') return undefined;
   let entries = stores.get(owner);
   if (!entries) { entries = new Set(); stores.set(owner, entries); }
@@ -38,7 +39,7 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
   const evict = () => {
     let bytes = [...cache].reduce((sum, entry) => sum + entry.bytes, 0);
     for (const entry of cache) {
-      if (cache.size <= maxListeners && bytes <= MAX_BYTES) break;
+      if (cache.size <= maxListeners && bytes <= maxBytes) break;
       if (entry.users) continue;
       bytes -= entry.bytes; entry.watch.close();
     }
@@ -50,7 +51,7 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
     const created = entry;
     created.watch = track(new Watch<any>((next, error) => source.onSnapshot(value => {
       const docs = Array.isArray(value.docs) ? value.docs : [value];
-      created.bytes = docs.reduce((sum: number, doc: any) => sum + dataBytes(doc.data()), 0);
+      created.bytes = docs.reduce((sum: number, doc: any) => sum + dataBytes(doc.data(), maxBytes), 0);
       next(value); queueMicrotask(evict);
     }, error)));
     const close = created.watch.close.bind(created.watch);
@@ -60,4 +61,25 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
   entry.users++; cache.delete(entry); cache.add(entry);
   const selected = entry;
   return selected.watch.read().finally(() => {selected.users--; evict();});
+}
+
+// One partition per public source family, shared by independently bundled routes.
+// Keep company browsing and large chart histories from evicting health/status
+// subscriptions. Unknown/user-scoped sources retain the small default budget.
+const owners = globalThis.__youAnalystSourceOwnersV1 ??= new WeakMap<object, Map<string, object>>();
+const policies: Record<string, readonly [number, number]> = {
+  companies: [1024, 32 * 1024 * 1024],
+  instruments: [1024, 16 * 1024 * 1024],
+  collectors: [512, 8 * 1024 * 1024],
+  eod_prices: [256, 32 * 1024 * 1024],
+  events: [256, 16 * 1024 * 1024],
+};
+export function collectionSourceSnapshot(owner: object, source: Source, collection: string): Promise<any> | undefined {
+  const policy = Object.hasOwn(policies, collection) ? policies[collection] : undefined;
+  if (!policy) return sourceSnapshot(owner, source);
+  let partitions = owners.get(owner);
+  if (!partitions) { partitions = new Map(); owners.set(owner, partitions); }
+  let partition = partitions.get(collection);
+  if (!partition) { partition = {}; partitions.set(collection, partition); }
+  return sourceSnapshot(partition, source, policy[0], policy[1]);
 }

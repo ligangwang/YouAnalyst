@@ -29,8 +29,8 @@ test('enrollment updates fetch only new fundamentals and remove withdrawn compan
  const f=fixture();await f.cache.warm();f.stored.company_fundamentals.push({id:'B',data:{marketCap:2}});f.change([{id:'A',data:{themeIds:[]}},{id:'B',data:{themeIds:['space']}}]);await f.cache.refresh('companies','v1');assert.deepEqual(f.cache.read('company_fundamentals').map(r=>r.id),['B']);assert.ok(f.calls.includes('ids:company_fundamentals:B'));
 });
 test('stamp object/positional writes and merge masks without mutating caller arguments',()=>{
- const original={marketCap:1};const result=timestampWrite('set','company_fundamentals/A',[original,{mergeFields:['marketCap']}]);assert.deepEqual(original,{marketCap:1});assert.ok((result[0] as Record<string,unknown>).cacheUpdatedAt);assert.deepEqual((result[1] as {mergeFields:string[]}).mergeFields,['marketCap','cacheUpdatedAt']);
- const precondition={lastUpdateTime:new Timestamp(1,0)};const positional=timestampWrite('update','companies/A',['name','A',precondition]);assert.equal(positional[2],'cacheUpdatedAt');assert.equal(positional.at(-1),precondition);
+ const original={marketCap:1};const result=timestampWrite('set','company_fundamentals/A',[original,{mergeFields:['marketCap']}]);assert.deepEqual(original,{marketCap:1});assert.ok((result[0] as Record<string,unknown>).updatedAt);assert.deepEqual((result[1] as {mergeFields:string[]}).mergeFields,['marketCap','updatedAt']);
+ const precondition={lastUpdateTime:new Timestamp(1,0)};const positional=timestampWrite('update','companies/A',['name','A',precondition]);assert.equal(positional[2],'updatedAt');assert.equal(positional.at(-1),precondition);
  assert.deepEqual(timestampWrite('delete','companies/A',[]),[]);
 });
 test('cache wire preserves timestamps, nested arrays, buffers and null values',()=>{
@@ -58,4 +58,16 @@ test('operational fundamentals records do not receive data-cache timestamps',()=
  assert.equal(timestampWrite('set','company_fundamentals/_batch_123',args),args);
  assert.equal(timestampWrite('update','company_fundamentals/_lock_123',args),args);
  assert.notEqual(timestampWrite('set','company_fundamentals/US:NVDA',args),args);
+});
+
+test('updatedAt overrides caller dates without duplicate positional fields',()=>{
+ const payload={updatedAt:'old',cacheUpdatedAt:'legacy',name:'A'};
+ const result=timestampWrite('set','companies/A',[payload,{mergeFields:['name','updatedAt','cacheUpdatedAt']}]);
+ assert.notEqual((result[0] as Record<string,unknown>).updatedAt,'old');
+ assert.equal(Object.hasOwn(result[0] as object,'cacheUpdatedAt'),false);
+ assert.deepEqual((result[1] as {mergeFields:string[]}).mergeFields,['name','updatedAt']);
+ assert.equal(payload.updatedAt,'old');
+ const positional=timestampWrite('update','company_relationships/A',['updatedAt','old','cacheUpdatedAt','legacy','name','A']);
+ assert.deepEqual(positional.slice(0,3),['name','A','updatedAt']);
+ assert.equal(positional.length,4);
 });

@@ -11,8 +11,9 @@ import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type 
 import type { GraphBudgetSummary } from "@/lib/company-graph/budget";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
-const chineseNames: Record<JobId, string> = { companyGraph: "公司关系图请求", companyGraphBatches: "公司关系图处理", secFilings: "SEC 文件发现", cnFundamentalsChecks: "A 股财务检查", directoryImports: "中国目录导入", fundamentals: "SEC 财务数据", fundamentalsBatches: "SEC 财务批次", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
+const chineseNames: Record<JobId, string> = { entitySnapshots: "公司数据快照", companyGraph: "公司关系图请求", companyGraphBatches: "公司关系图处理", secFilings: "SEC 文件发现", cnFundamentalsChecks: "A 股财务检查", directoryImports: "中国目录导入", fundamentals: "SEC 财务数据", fundamentalsBatches: "SEC 财务批次", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
 const chineseSchedules: Partial<Record<JobId, string>> = {
+  entitySnapshots: "每日纽约时间凌晨 3 点",
   secFilings: "每 15 分钟一次；部署初期暂停调度并禁用采集",
   companyGraph: "每 5 分钟发布 1–5 个请求；部署初期暂停调度",
   companyGraphBatches: "处理排队请求和文件事件；部署初期禁用处理",

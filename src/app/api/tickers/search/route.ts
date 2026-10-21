@@ -1,3 +1,4 @@
+import {instrumentId, instrumentType, type InstrumentType} from '@/lib/instruments/model';
 import { COMPANY_SEARCH_VERSION } from '@/lib/market-companies/search';
 import { loadCollectionUniverse } from '@/lib/company-themes/service';
 import { changeCached } from '@/lib/change-cache';
@@ -9,6 +10,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
 type TickerSearchItem = {
+  instrumentId?: string; companyId?: string; instrumentType?: InstrumentType;
   slug?: string;
   id: string;
   kind: "ticker";
@@ -28,6 +30,7 @@ type ScoredSearchItem = {
 };
 
 type TickerDocument = {
+  supersededByCompanyId?: unknown; listingStatus?: unknown;
   slug?: unknown;
   symbol?: unknown;
   symbolLower?: unknown;
@@ -89,6 +92,8 @@ function toSearchItem(id: string, data: TickerDocument) {
 
   return {
     id,
+    companyId: readString(data.supersededByCompanyId) ?? id,
+    ...(/^(US:[A-Z0-9.-]+|XSHG:\d{6}|XSHE:\d{6}|XBSE:\d{6})$/.test(id) && data.listingStatus !== 'PRIVATE' ? {instrumentId:instrumentId(id),instrumentType:instrumentType(data.type)} : {}),
     kind: "ticker" as const,
     ...(readString(data.slug)?{slug:readString(data.slug)!}:{}),
     symbol,
@@ -134,13 +139,13 @@ export async function GET(request: NextRequest) {
         .filter(item => item.id.toLowerCase().includes(query) || item.symbolLower.includes(query) || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, '').includes(compact)))
         .sort((left, right) => scoreTicker(right, query) - scoreTicker(left, query) || left.name.localeCompare(right.name))
         .slice(0, limit)
-        .map(item => ({ id: item.id, kind: item.kind, symbol: item.symbol, name: nameLocale ? item.names[nameLocale] || item.name : item.name,
+        .map(item => ({ id: item.id, instrumentId:item.instrumentId, companyId:item.companyId, instrumentType:item.instrumentType, kind: item.kind, symbol: item.symbol, name: nameLocale ? item.names[nameLocale] || item.name : item.name,
           ...(item.slug ? { slug: item.slug } : {}), exchange: item.exchange, micCode: item.micCode, type: item.type, market: item.market }));
       return NextResponse.json({ items, total: companies.length }, { headers: { 'Cache-Control': 'no-store' } });
     }
     const db = getAdminFirestore();
     const collection = db.collection("companies");
-    const indexed = collection.select('slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus');
+    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus');
     // Return ranking/display metadata, not the potentially large prefix array.
     // Scalar symbol range keeps partial codes ahead of a full page of name matches.
     const symbolSearch = indexed.where('symbolLower', '>=', query).where('symbolLower', '<=', query + '\uf8ff').limit(50).get();
@@ -165,6 +170,7 @@ export async function GET(request: NextRequest) {
     }
 
     const tickerItems: ScoredSearchItem[] = [...candidateDocs, ...editorialDocs]
+      .filter(doc => doc.data().isDeleted !== true)
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
       .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
       .map((doc) => toSearchItem(doc.id, doc.data()))
@@ -181,6 +187,7 @@ export async function GET(request: NextRequest) {
       .map((item) => ({
         item: {
           id: item.id,
+          instrumentId:item.instrumentId, companyId:item.companyId, instrumentType:item.instrumentType,
           kind: item.kind,
           symbol: item.symbol,
           name: nameLocale ? item.names[nameLocale] || item.name : item.name,

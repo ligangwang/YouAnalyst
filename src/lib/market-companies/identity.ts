@@ -1,3 +1,4 @@
+/** Compatibility input for old directory records. New trading identity lives in instruments. */
 export type CompanyListing = { market: string; exchange: string; symbol: string };
 export type CompanyIdentity = {
   id: string;
@@ -9,6 +10,19 @@ export type CompanyIdentity = {
   listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN";
   listings?: CompanyListing[];
   identifiers?: { scheme: string; value: string }[];
+};
+/** Issuer model: existing IDs stay immutable; ticker/exchange are compatibility copies only. */
+export type Company = Omit<CompanyIdentity,'listings'> & Partial<import('../industry-classification/model').CompanyClassification> & {
+  cik?: string;
+  names?: Partial<Record<'en'|'zh-CN',string>>;
+  themeIds?: string[];
+  themeMemberships?: Record<string,import('../company-themes/model').ThemeMembership>;
+  status?: 'PUBLISHED'|'DIRECTORY'|'DRAFT';
+  slug?: string; slugAliases?: string[];
+  supersededByCompanyId?: string;
+  createdAt?: import('firebase-admin/firestore').Timestamp;
+  updatedAt?: import('firebase-admin/firestore').Timestamp;
+  isDeleted?: boolean; deletedAt?: import('firebase-admin/firestore').Timestamp;
 };
 const normalized = (s: string) => s.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 const identifierValue = (scheme: string, value: string) => normalized(scheme) === "cik" && /^\d+$/.test(value.trim()) ? value.trim().replace(/^0+(?=\d)/, "") : normalized(value);
