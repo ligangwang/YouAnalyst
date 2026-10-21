@@ -15,6 +15,7 @@ export type ReviewDecision = {
   note: string; auditId: string; relationshipId: string | null; themeIds: CompanyThemeId[];
 };
 export type ReviewCandidate = {
+  automaticValidation?: { reasons: string[]; checkedAt: string };
   id: string; version: string; kind: 'NEWS_OBSERVATION' | 'FILING_OBSERVATION';
   status: ReviewStatus; sourceName: string; targetName: string; sourceId: string; targetId: string;
   type: string; state: ReviewState; summary: string; createdAt: string;

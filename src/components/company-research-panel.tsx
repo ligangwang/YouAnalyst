@@ -13,6 +13,10 @@ export function RelationshipEvidence({ edge, graph }: { edge: GraphEdge; graph: 
   const { text, chinese, locale } = useLocale();
   const facts: GraphFact[] = edge.facts?.length ? edge.facts : [{ scope: edge.summary, state: edge.commercialStatus, sourceIds: edge.sourceIds }];
   return <div className="mt-3 space-y-3">
+    {edge.publicationOrigin === 'AI' && <p className="text-sm text-amber-200">{text('AI-extracted · Not community verified', 'AI 提取 · 尚未经社区核实')}</p>}
+    {Number(edge.communityOpenCount) > 0 && <p className="text-sm text-amber-200">{text('Disputed · Community review pending', '存在争议 · 等待社区复核')}</p>}
+    {!!edge.communityCredits?.length && <p className="text-xs text-slate-300">{text('Community contributors', '社区贡献者')}: {edge.communityCredits.map(c => c.name).join(', ')}</p>}
+    <Link className="inline-block text-sm text-cyan-200 underline" href={'/relationships/review?relationshipId=' + encodeURIComponent(edge.id)}>{text('Dispute or correct this relationship', '质疑或更正该关系')}</Link>
     {facts.map((fact, i) => <div key={fact.id ?? i} className="border-l-2 border-cyan-700 pl-3">
       <p className="text-xs text-cyan-200">{fact.verificationStatus && <><TrustBadge trust={{ status: fact.verificationStatus === "CONFIRMED" ? "VERIFIED" : fact.verificationStatus === "PENDING" ? "NEEDS_VERIFICATION" : "TERMINATED", reviewedAt: fact.reviewedAt }} /> · </>}<span>{fact.state === "ANNOUNCED" || edge.type === "PLANNED_ADOPTER_OF" ? text("Announced / planned — delivery not confirmed", "已宣布／计划中，尚不代表已交付") : text("Documented — status as described by source", "已有来源记录，以资料所述状态为准")}</span></p>
       {fact.editorialReviewedAt && <p className="mt-1 text-xs text-slate-400">{text("Editorial sources snapshot", "编辑来源快照")} · {fact.editorialReviewedAt}</p>}
@@ -69,6 +73,8 @@ export function CompanyResearchPanel({ companyId, initialGraph }: { companyId: s
         const planned = edge.type === "PLANNED_ADOPTER_OF" || edge.facts?.some(f => f.state === "ANNOUNCED") || edge.commercialStatus === "ANNOUNCED";
         return <article id={relationAnchor(edge.id)} key={edge.id} className="min-w-0 scroll-mt-28 rounded-xl border border-white/10 p-4 target:border-cyan-300">
           <div className="flex flex-wrap items-center gap-2">{other && <Link className="font-semibold text-cyan-200 hover:underline" href={researchCompanyUrl(other)}>{companyName(other, locale)}</Link>}<span className="text-xs text-slate-400">· {group === "suppliers" ? text("Supplier", "供应商") : group === "customers" ? text("Customer", "客户") : text("Partner / technology", "合作／技术")}</span>{planned && <span className="text-xs text-amber-200">{text("Includes announced / planned activity", "含已宣布／计划中事项")}</span>}</div>
+          {edge.publicationOrigin === 'AI' && <p className="mt-2 text-xs text-amber-200">{text('AI-extracted · Not community verified', 'AI 提取 · 尚未经社区核实')}</p>}
+          {Number(edge.communityOpenCount) > 0 && <p className="mt-2 text-xs text-amber-200">{text('Disputed · Community review pending', '存在争议 · 等待社区复核')}</p>}
           {relationshipTrust(edge).status !== "UNREVIEWED" && <p className="mt-2 text-xs"><TrustBadge trust={relationshipTrust(edge)} /></p>}{relationshipBusiness(edge, chinese) && <p className="mt-2 text-sm text-slate-300">{relationshipBusiness(edge, chinese)}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">{other && <><Link className="text-cyan-200 underline" href={researchCompanyUrl(other)}>{text("Open company", "查看公司")}</Link><CompanyFollowButton companyId={other.id} /></>}</div>
           <details onToggle={e => { if (e.currentTarget.open) trackEvent("company_evidence_view", {entry_point:"company_relationship"}); }} className="mt-3 text-sm" open={target === relationAnchor(edge.id) || undefined}><summary className="cursor-pointer text-cyan-200">{text("View sources", "查看来源")}</summary><RelationshipEvidence edge={edge} graph={graph} /></details>

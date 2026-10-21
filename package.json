@@ -12,7 +12,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "verify": "npm run verify:checks && npm run build",
-    "test:relationship-review": "tsx --test tests/graph/relationship-review.test.ts",
+    "test:relationship-review": "tsx --test tests/graph/relationship-review.test.ts tests/graph/relationship-community.test.ts",
     "test:firestore": "tsx --test tests/firestore-observability.test.ts tests/firestore-operation-report.test.ts tests/company-exchange-region.test.ts",
     "test:analytics": "tsx --test tests/analytics/*.test.ts",
     "test:auth": "tsx --test tests/auth/*.test.ts",

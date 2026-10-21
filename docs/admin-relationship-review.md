@@ -1,6 +1,6 @@
 # Admin relationship review
 
-Administrators open `/admin/relationships` from the Admin dashboard. The queue reads existing news and SEC filing observations from `company_relationships`.
+Administrators open `/admin/relationships` from the Admin dashboard. The default queue contains community disputes and corrections. “Extraction validation holds” opens the existing news and SEC filing observation queue from `company_relationships`.
 
 ## Review workflow
 
@@ -15,7 +15,9 @@ The queue scans batches of 30 records; search and source filters apply to the di
 
 ## Persistence and concurrency
 
-No new Firestore collections or provider calls are introduced.
+The community workflow uses the approved `relationship_contributions` collection. No additional provider calls are introduced.
+
+The user explicitly confirmed this collection on 2026-10-21 for community relationship reports/corrections, review decisions, and contribution-credit audit records.
 
 - `company_relationships/news:...` and `company_relationships/filing:...` remain observation records. Approval changes their status to `APPROVED`; rejection sets `REJECTED`. Both retain evidence and a `relationshipReview` decision.
 - Approval creates or merges a separate canonical `PUBLISHED` relationship. Existing evidence, facts and theme assignments are preserved. Untagged historical relationships retain AI placement. Explicit theme tags are authoritative in the AI graph.
@@ -42,3 +44,29 @@ Queries use existing single-field indexes: relationship status plus document ID,
 
 Browser tests use mocked identities and data, and never submit real review decisions.
 
+
+## Automatic provisional publication
+
+After news analysis, `scripts/collect-intelligence-news.ts` calls `autoPublishPendingRelationships`. This bounded sweep checks up to 30 pending observations per run, resumes using `collectors/relationship-auto-publication`, and cycles through held candidates again. It uses the existing scheduled collector; no additional scheduler or paid extraction call is needed. Deployment enables future sweeps; implementation tests do not publish production records.
+
+The deterministic policy requires confidence of at least 0.90, two explicit canonical company names, supported relationship language and direction, and a supported shared published theme. It rejects categories, uncertain or negative language, historical/terminated claims and ambiguous asset acquisitions. Planned events remain announced. News must match its saved analysis receipt and original article quotation; filings require a stored original section quotation and an exact, unique company identity. These checks reduce extraction errors without establishing factual certainty.
+
+Policy version 2 also holds passive directional claims for review, including reduced constructions such as “AMD, acquired by Arista”; name order does not establish the grammatical direction. “Powered by” and “built on” remain valid integration language.
+
+Eligible observations publish with `publicationOrigin: AI` and pending verification. Their public labels say “AI-extracted · Not community verified”; the displayed claim uses the source quotation. Existing editorial/community decisions, withdrawals and disputed edges cannot be overwritten by the automatic path. `research_batches/relationship-auto-<hash>` records the policy version and before/after audit. Ineligible observations remain held with reasons visible to admins.
+
+## Community disputes, corrections and credit
+
+Public evidence panels link to `/relationships/review?relationshipId=...`. Signed-in members submit a reason, HTTPS evidence URL and quotation. Corrections also specify endpoints, direction/type, evidence state, claim, limitations and themes. A report immediately flags the relationship; it remains published until review. Membership is required, reports are limited to 10 per member per UTC day, and one member can submit once per relationship version. Duplicate retries do not create additional reports.
+
+`relationship_contributions` stores the member, relationship snapshot/version, proposal, evidence, review decision, before/after audit and credited points. Client Firestore access remains denied; server APIs enforce member ownership for history and administrator access for the queue. Public views expose only opted-in names and points, never private member IDs or report contents.
+
+Admins independently check the evidence and enter a decision note. Accepting a dispute withdraws the edge. Accepting a correction publishes its structured replacement only when both companies already belong to each selected theme. Duplicate canonical edges, stale relationship versions and self-review are rejected. Other reports against a superseded version must be dismissed or resubmitted against the new version.
+
+Accepted corrections retain the submitted source quotation in the relationship's evidence item, so the public evidence response includes the original passage alongside its URL.
+
+Each accepted useful contribution earns **10 contribution points**, atomically with its decision. Dismissals and raw submission volume earn none. Points are recorded under the existing `users.relationshipCredit` field, with the award receipt in the contribution record; repeated/concurrent resolution cannot award twice. Points have no monetary value or publication privileges. Members can see their own totals and report status on the community review page. Public attribution on accepted corrections requires a separate opt-in; private contributors still earn points.
+
+The contribution queries use single-field status/document-ID and member-ID indexes. No bulk migration is required. Existing graph caches refresh on their normal schedule after publication or withdrawal.
+
+Run `npm run test:relationship-review` for policy, transaction, authorization, versioning, privacy and credit tests. Run `npx playwright test --config=playwright.conversion.config.ts relationship-community.spec.ts admin-relationship-review.spec.ts` for isolated desktop/mobile community and admin flows. All fixtures use synthetic sources and identities.

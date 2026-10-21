@@ -12,6 +12,7 @@ import {createEarningsRequestGate} from '../src/lib/earnings/live-transport';
 import {randomUUID} from 'node:crypto';
 import {translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
 import {analyzeCollectedNews} from '../src/lib/intelligence/collectors/news-analysis-worker';
+import {autoPublishPendingRelationships} from '../src/lib/relationship-review/automatic';
 import {collectCalendarSchedules} from '../src/lib/calendar/worker';
 import {runScheduledClassifications} from '../src/lib/events/classification-worker';
 
@@ -47,11 +48,12 @@ async function main(){
   // Reserve time for exchange, headline and calendar collectors; the analysis
   // cursor drains deferred articles on subsequent scheduled runs.
   const analysis=await analyzeCollectedNews(db,graph.nodes.filter(n=>n.kind==='COMPANY'),sources,{deadline:Math.min(deadline-7*60_000,Date.now()+4*60_000),monthlyBudgetUsd:Number(process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD??5)});
+  const relationships=await autoPublishPendingRelationships(db,Math.min(deadline-6*60_000,Date.now()+60_000));
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
   const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Math.min(deadline-4*60_000,Date.now()+6*60_000),runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
   const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
   const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline,companyCountries}):{disabled:true};
-  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines,analysis,classifications}));
+  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines,analysis,classifications,relationships}));
   if(results.some(result=>result.status==='failed'))process.exitCode=1;
   if('failed' in exchange&&exchange.failed)process.exitCode=1;
   if('failed' in calendar&&calendar.failed)process.exitCode=1;

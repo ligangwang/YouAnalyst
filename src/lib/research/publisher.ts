@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 
-type Source = { id: string; url: string; title: string; sourceDate: string | null; retrievedAt: string };
+type Source = { id: string; url: string; title: string; summary?: string; sourceDate: string | null; retrievedAt: string };
 type Fact = { verificationStatus?: "CONFIRMED" | "PENDING" | "TERMINATED"; eventDate?: string; state: "DOCUMENTED" | "ANNOUNCED"; scope: string; sourceIds: string[]; limitation: string };
 type Edge = { source: string; target: string; type: string; facts: Fact[] };
 export type ComputeBatch = { batchId: string; asOf: string; sources: Source[]; relationships: Edge[] };
