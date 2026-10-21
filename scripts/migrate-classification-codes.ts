@@ -5,6 +5,7 @@ import {mkdir,readFile,writeFile,appendFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import {classificationCodesPatch} from '../src/lib/industry-classification/migration';
+import {authenticatedMigrationRequest,discoverCacheSubscriptions,createWebsiteMigrationGuard} from './firestore/website-migration-guard';
 
 type Row={id:string;before:Record<string,unknown>;updateTime:{seconds:number;nanoseconds:number};patch:NonNullable<ReturnType<typeof classificationCodesPatch>>};
 async function main(){
@@ -39,7 +40,11 @@ async function main(){
  if(!Number.isInteger(limit)||limit<1||limit>3000||!Number.isInteger(batchSize)||batchSize<1||batchSize>50)throw Error('Invalid batch bounds');
  const logPath=join(directory,'applied.jsonl'),prior=await readFile(logPath,'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return '';throw e;});
  const finished=new Set(prior.split('\n').filter(Boolean).map(l=>JSON.parse(l).id));const pending=plan.rows.filter(r=>!finished.has(r.id)).slice(0,limit);let applied=0;
+ const request=authenticatedMigrationRequest(),subscriptions=await discoverCacheSubscriptions(projectId,process.env.GCP_REGION??'us-central1',request);
+ console.log(JSON.stringify({cacheBacklogSubscriptions:subscriptions,sourceListeners:subscriptions.length===0}));
+ const guard=createWebsiteMigrationGuard({project:projectId,startedAt:prior?JSON.parse(prior.split('\n').filter(Boolean)[0]).at:new Date(Date.now()-5*60000).toISOString(),subscriptions,request});
  for(let i=0;i<pending.length;i+=batchSize){const group=pending.slice(i,i+batchSize);
+  await guard();
   await db.runTransaction(async tx=>{const docs=await tx.getAll(...group.map(r=>db.doc(`companies/${r.id}`)),{fieldMask:['taxonomy','classification','classificationMetadata','isDeleted']});
    docs.forEach((doc,j)=>{const row=group[j],data=doc.data();if(!data)throw Error(`Company missing: ${row.id}`);
     if(isDeepStrictEqual(data,{...row.before,...row.patch}))return;
@@ -52,5 +57,6 @@ async function main(){
   await appendFile(logPath,group.map(r=>JSON.stringify({id:r.id,at:new Date().toISOString(),revision})).join('\n')+'\n');applied+=group.length;
   if(applied%100===0||applied===pending.length)console.log(JSON.stringify({applied,remaining:plan.rows.length-finished.size-applied}));await delay(1000);
  }
+ await guard();
 }
 main().catch(e=>{console.error(e instanceof Error?e.message:'Classification migration failed');process.exitCode=1;});
