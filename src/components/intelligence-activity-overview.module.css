@@ -27,4 +27,4 @@
 /* Futurist dark: chamfered HUD tiles with glowing mono readouts. */
 :global(:root:not([data-theme="light"])) .metrics>div { padding:10px 12px;border:1px solid #49D6E826;background:linear-gradient(135deg,#49D6E80f,#9B8CFF0a);clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px)); }
 :global(:root:not([data-theme="light"])) .metrics strong { color:#EAFBFF;text-shadow:0 0 18px #49D6E870; }
-:global(:root:not([data-theme="light"])) .metrics span { font:500 11px var(--font-data);letter-spacing:.12em;text-transform:uppercase;color:#7FA3C2; }
+:global(:root:not([data-theme="light"])) .metrics span { font:500 12px var(--font-ui);letter-spacing:0;color:var(--text-secondary); }
