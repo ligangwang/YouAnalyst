@@ -27,7 +27,7 @@ export function HierarchyBrowser({ kind, nodes, selectedId, companies = [], comp
       <Link href="/industries" aria-current={kind === 'industries' ? 'page' : undefined}>{text('Industries', '行业分类')}</Link>
     </nav>
     <header className={styles.header}>
-      <p className={styles.eyebrow}>YouAnalyst / {text('Discover', '探索')}</p>
+      <p className={styles.eyebrow}><span>YouAnalyst</span> / {text('Discover', '探索')}</p>
       <h1>{title}</h1>
       <p>{kind === 'industries' ? text('Explore SIC and CNI classifications by name or code.', '按名称或代码浏览 SIC 和 CNI 行业分类。') : text('Explore AI, Robotics and Space, from the big picture to the businesses behind them.', '探索人工智能、机器人与航天，从整体主题深入各个产业环节。')}</p>
     </header>
