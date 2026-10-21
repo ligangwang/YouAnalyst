@@ -53,7 +53,7 @@ test('localized profile restores account appearance and swaps only price directi
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'light',priceColors:'green-up'});
   await page.getByLabel('UI theme').selectOption('dark');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(5, 10, 22)');
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(19, 27, 42)');
   await page.getByLabel('Price color convention').selectOption('red-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');
   await page.getByRole('button',{name:'Change language',exact:true}).click();
@@ -70,7 +70,7 @@ test('legacy account appearance and failed account saves preserve price conventi
   await expect(page.getByRole('alert')).toContainText('Could not save');
   await expect(page.getByLabel('UI theme')).toHaveValue('dark');
   await expect(page.getByLabel('Price color convention')).toHaveValue('green-up');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(5, 10, 22)');
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(19, 27, 42)');
 });
 
 test('visitor appearance persists on reload without account writes and fits mobile', async ({page},testInfo) => {
