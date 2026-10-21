@@ -17,6 +17,8 @@ The queue scans batches of 30 records; search and source filters apply to the di
 
 The community workflow uses the approved `relationship_contributions` collection. No additional provider calls are introduced.
 
+The user explicitly confirmed this collection on 2026-10-21 for community relationship reports/corrections, review decisions, and contribution-credit audit records.
+
 - `company_relationships/news:...` and `company_relationships/filing:...` remain observation records. Approval changes their status to `APPROVED`; rejection sets `REJECTED`. Both retain evidence and a `relationshipReview` decision.
 - Approval creates or merges a separate canonical `PUBLISHED` relationship. Existing evidence, facts and theme assignments are preserved. Untagged historical relationships retain AI placement. Explicit theme tags are authoritative in the AI graph.
 - `research_batches/relationship-review-<hash>` stores a `RELATIONSHIP_REVIEW` audit, actor, input and before/after values. This uses the existing audit collection with a distinct record kind and ID prefix.
@@ -49,6 +51,8 @@ After news analysis, `scripts/collect-intelligence-news.ts` calls `autoPublishPe
 
 The deterministic policy requires confidence of at least 0.90, two explicit canonical company names, supported relationship language and direction, and a supported shared published theme. It rejects categories, uncertain or negative language, historical/terminated claims and ambiguous asset acquisitions. Planned events remain announced. News must match its saved analysis receipt and original article quotation; filings require a stored original section quotation and an exact, unique company identity. These checks reduce extraction errors without establishing factual certainty.
 
+Policy version 2 also holds passive directional claims for review, including reduced constructions such as “AMD, acquired by Arista”; name order does not establish the grammatical direction. “Powered by” and “built on” remain valid integration language.
+
 Eligible observations publish with `publicationOrigin: AI` and pending verification. Their public labels say “AI-extracted · Not community verified”; the displayed claim uses the source quotation. Existing editorial/community decisions, withdrawals and disputed edges cannot be overwritten by the automatic path. `research_batches/relationship-auto-<hash>` records the policy version and before/after audit. Ineligible observations remain held with reasons visible to admins.
 
 ## Community disputes, corrections and credit
@@ -58,6 +62,8 @@ Public evidence panels link to `/relationships/review?relationshipId=...`. Signe
 `relationship_contributions` stores the member, relationship snapshot/version, proposal, evidence, review decision, before/after audit and credited points. Client Firestore access remains denied; server APIs enforce member ownership for history and administrator access for the queue. Public views expose only opted-in names and points, never private member IDs or report contents.
 
 Admins independently check the evidence and enter a decision note. Accepting a dispute withdraws the edge. Accepting a correction publishes its structured replacement only when both companies already belong to each selected theme. Duplicate canonical edges, stale relationship versions and self-review are rejected. Other reports against a superseded version must be dismissed or resubmitted against the new version.
+
+Accepted corrections retain the submitted source quotation in the relationship's evidence item, so the public evidence response includes the original passage alongside its URL.
 
 Each accepted useful contribution earns **10 contribution points**, atomically with its decision. Dismissals and raw submission volume earn none. Points are recorded under the existing `users.relationshipCredit` field, with the award receipt in the contribution record; repeated/concurrent resolution cannot award twice. Points have no monetary value or publication privileges. Members can see their own totals and report status on the community review page. Public attribution on accepted corrections requires a separate opt-in; private contributors still earn points.
 

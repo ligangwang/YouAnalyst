@@ -1,7 +1,7 @@
 import type { CompanyThemeId } from '../company-themes/model';
 import type { ReviewType } from './model';
 
-export const AUTO_POLICY_VERSION = 1;
+export const AUTO_POLICY_VERSION = 2;
 export type ClaimCompany = { id: string; names: string[]; themes: CompanyThemeId[] };
 const normalize = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[®™]/g, '').replace(/\s+/g, ' ').trim();
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -35,6 +35,17 @@ export function validateAutomaticClaim(input: { source: ClaimCompany; target: Cl
   // Symmetric relationships do not have a supplier/customer direction.
   if (s && t && !['PARTNER_OF', 'COMPETES_WITH', 'ECOSYSTEM_PARTNER_OF'].includes(input.type)
     && !new RegExp(`${escape(s)}.{0,160}${verbs[input.type]}.{0,160}${escape(t)}`).test(q)) errors.push('Direction is not explicit');
+  // Name order alone reverses passive claims, including reduced constructions
+  // such as "AMD, acquired by Arista". Hold these for review rather than flip
+  // an extracted edge. "Powered by" and "built on" correctly identify a user
+  // of the target's technology, so are not reverse integration constructions.
+  const passive: Partial<Record<ReviewType, string>> = {
+    SUPPLIER_OF: '(?:supplied|provided|sold|delivered)', CUSTOMER_OF: '(?:bought|purchased|licensed)',
+    MANUFACTURES_FOR: '(?:manufactured|produced|assembled)', DISTRIBUTES_FOR: '(?:distributed|resold)',
+    INTEGRATES_TECHNOLOGY_FROM: '(?:integrated|used|deployed)', PLANNED_ADOPTER_OF: '(?:adopted|deployed|used|integrated)',
+    ACQUIRES: 'acquired',
+  };
+  if (s && t && passive[input.type] && new RegExp(`${escape(s)}.{0,160}\\b${passive[input.type]}\\b.{0,160}\\bby\\b.{0,160}${escape(t)}`).test(q)) errors.push('Passive relationship direction requires review');
   if (input.type === 'ACQUIRES' && /\b(portfolio|assets?|division|business|stake|interest|from)\b/.test(q)) errors.push('Acquisition target may be assets rather than the company');
   const thematic: Record<CompanyThemeId, RegExp> = { ai: /\b(ai|artificial intelligence|gpu|cpu|semiconductor|memory|chip|cloud|data.?center|inference|comput(?:e|ing)|silicon|ethernet|cxl)\b/, robotics: /\b(robot\w*|autonomous|automation|motion|sensor\w*|machine vision|physical ai)\b/, space: /\b(space\w*|satellite\w*|orbit\w*|rocket\w*|launch\w*|lunar|spacecraft)\b/ };
   const themes = input.source.themes.filter(theme => input.target.themes.includes(theme) && thematic[theme].test(q));

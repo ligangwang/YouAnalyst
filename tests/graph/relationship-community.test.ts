@@ -19,7 +19,7 @@ function fixture() { return memoryFirestore([
   ['events/' + receipt, { type: 'news_analysis', status: 'complete', content: quote, contentHash: articleHash(quote), sourceEventId: eventId, sourceUrl: url, title: 'AMD collaboration' }], ['events/' + eventId, { type: 'company_news', sourceType: 'company_ir', title: 'AMD collaboration', url }],
 ]); }
 const input = (r = edge(), kind = 'DISPUTE') => ({ relationshipId: edgeId, version: relationshipVersion(r), kind, reason: 'The source describes a different relationship.', evidenceUrl: url, evidenceQuote: quote, publicCredit: true });
-const policy = (type: PublicationInput['type'], q: string) => validateAutomaticClaim({ source: { id: 'US:AMD', names: ['AMD'], themes: ['ai'] }, target: { id: 'US:ANET', names: ['Arista'], themes: ['ai'] }, type, state: 'DOCUMENTED', quote: q, confidence: .97, category: false, date: at.slice(0, 10) });
+const policy = (type: PublicationInput['type'], q: string, state = 'DOCUMENTED') => validateAutomaticClaim({ source: { id: 'US:AMD', names: ['AMD'], themes: ['ai'] }, target: { id: 'US:ANET', names: ['Arista'], themes: ['ai'] }, type, state, quote: q, confidence: .97, category: false, date: at.slice(0, 10) });
 
 test('automatic policy rejects negation, co-mentions, reversed supply, asset acquisitions, missing theme and low confidence', () => {
   assert(policy('PARTNER_OF', quote).eligible);
@@ -27,6 +27,41 @@ test('automatic policy rejects negation, co-mentions, reversed supply, asset acq
   assert.equal(policy('PARTNER_OF', 'AMD and Arista collaborate on drug distribution.').eligible, false);
   const base = { source: { id: 'US:AMD', names: ['AMD'], themes: ['ai'] as const }, target: { id: 'US:ANET', names: ['Arista'], themes: ['ai'] as const } };
   for (const patch of [{ confidence: .89 }, { category: true }, { state: 'UNKNOWN' }]) assert.equal(validateAutomaticClaim({ source: { ...base.source, themes: ['ai'] }, target: { ...base.target, themes: ['ai'] }, type: 'PARTNER_OF', quote, state: 'DOCUMENTED', confidence: .97, category: false, date: at.slice(0, 10), ...patch }).eligible, false);
+});
+
+test('directional claims hold passive and reduced passive quotations for review', () => {
+  for (const [type, q] of [
+    ['ACQUIRES', 'AMD was acquired by Arista to expand AI chip offerings.'],
+    ['ACQUIRES', 'AMD has been acquired by Arista to expand AI chip offerings.'],
+    ['ACQUIRES', 'AMD, acquired by Arista, develops AI chips.'],
+    ['SUPPLIER_OF', 'AMD AI chips are sold by Arista.'],
+    ['CUSTOMER_OF', 'AMD AI chips are licensed by Arista.'],
+    ['MANUFACTURES_FOR', 'AMD manufactures AI chips that are produced by Arista.'],
+    ['DISTRIBUTES_FOR', 'AMD distributes AI chips that are resold by Arista.'],
+    ['INTEGRATES_TECHNOLOGY_FROM', 'AMD technology is used by Arista in AI systems.'],
+  ] as const) assert.equal(policy(type, q).eligible, false, q);
+  for (const [type, q] of [
+    ['ACQUIRES', 'AMD acquired Arista to expand AI chip offerings.'],
+    ['SUPPLIER_OF', 'AMD sold AI chips to Arista.'],
+    ['CUSTOMER_OF', 'AMD licenses AI technology from Arista.'],
+    ['MANUFACTURES_FOR', 'AMD manufactures AI chips for Arista.'],
+    ['DISTRIBUTES_FOR', 'AMD distributes AI chips for Arista.'],
+    ['INTEGRATES_TECHNOLOGY_FROM', 'AMD AI systems are powered by Arista.'],
+    ['INTEGRATES_TECHNOLOGY_FROM', 'AMD AI systems are built on Arista.'],
+  ] as const) assert.equal(policy(type, q).eligible, true, q);
+  assert.equal(policy('PLANNED_ADOPTER_OF', 'AMD plans to deploy AI technology that will be used by Arista.', 'ANNOUNCED').eligible, false);
+  assert.equal(policy('PLANNED_ADOPTER_OF', 'AMD plans to deploy Arista AI technology.', 'ANNOUNCED').eligible, true);
+});
+
+test('passive acquisition cannot publish an edge, approve its observation or create a receipt', async () => {
+  const f = fixture(); f.state.delete('company_relationships/' + edgeId);
+  const passive = 'AMD was acquired by Arista to expand AI chip offerings.';
+  Object.assign(f.state.get('company_relationships/' + candidate)!, { type: 'ACQUIRES', summary: passive, contentHash: articleHash(passive), evidence: [{ url, title: 'Acquisition', sourceDate: '2026-10-19', summary: passive }] });
+  Object.assign(f.state.get('events/' + receipt)!, { content: passive, contentHash: articleHash(passive) });
+  const before = structuredClone([...f.state]);
+  const result = await autoPublishRelationship(f.db, candidate, at);
+  assert.equal(result.published, false);
+  assert.deepEqual([...f.state], before);
 });
 test('valid news automatically publishes as provisional, with evidence and idempotent audit', async () => {
   const f = fixture(); f.state.delete('company_relationships/' + edgeId);
@@ -74,6 +109,8 @@ test('accepted correction publishes the replacement, retains audit, displays opt
   const a = await submitContribution(f.db, { ...input(), kind: 'CORRECTION', correction }, 'member', at), b = await submitContribution(f.db, input(), 'other', at);
   await resolve(f, a.id); const id = canonical('US:ANET', 'US:AMD', 'SUPPLIER_OF').id;
   const view = await communityRelationship(f.db, id); assert.equal(view.origin, 'COMMUNITY'); assert.equal(view.relationship.state, 'ANNOUNCED'); assert.deepEqual(view.credits, [{ name: 'Mira', points: 10 }]);
+  assert.equal(view.evidence[0].quote, quote);
+  assert.equal((f.state.get('company_relationships/' + id)!.evidence as { summary: string }[])[0].summary, quote);
   assert(f.state.get('relationship_contributions/' + a.id)!.before); await assert.rejects(resolve(f, b.id), /changed/); assert.equal(f.state.get('users/other')!.relationshipCredit, undefined);
 });
 test('server enforces daily contribution quota and administrator-only resolution before DB access', async () => {
@@ -100,7 +137,9 @@ test('private credit preference is honored while useful contributions still earn
   const f = fixture(), correction = { sourceId: 'US:AMD', targetId: 'US:ANET', type: 'PARTNER_OF', state: 'DOCUMENTED', summary: quote, limitation: quote, themeIds: ['ai'] };
   const c = await submitContribution(f.db, { ...input(), publicCredit: false, kind: 'CORRECTION', correction }, 'member', at);
   await resolve(f, c.id);
-  assert.deepEqual((await communityRelationship(f.db, edgeId)).credits, []);
+  const view = await communityRelationship(f.db, edgeId);
+  assert.deepEqual(view.credits, []);
+  assert.equal(view.evidence[0].quote, quote);
   assert.equal((await memberContributions(f.db, 'member')).points, 10);
 });
 
