@@ -191,6 +191,17 @@ a {
   --glass-panel:linear-gradient(180deg,#1C2639,#182233);
   --glow-cyan:#49D6E8; --glow-soft:0 0 14px #49D6E847;
 }
+/* A cool cyan wash and a very faint instrument grid keep the futurist mood without darkening the canvas. */
+:root:not([data-theme="light"]) body {
+  background:radial-gradient(1100px 560px at 88% -12%,#49D6E812,transparent 62%),radial-gradient(900px 520px at -8% 112%,#9B8CFF0c,transparent 60%),var(--bg-canvas);
+  background-attachment:fixed;
+}
+:root:not([data-theme="light"]) body::before {
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(#49D6E806 1px,transparent 1px),linear-gradient(90deg,#49D6E806 1px,transparent 1px);
+  background-size:44px 44px;
+  mask-image:radial-gradient(ellipse at 50% 40%,#000 0%,transparent 75%);
+}
 :root:not([data-theme="light"]) header nav a[aria-current="page"] { text-shadow:0 0 14px #49D6E899;text-decoration-color:var(--glow-cyan); }
 :root:not([data-theme="light"]) .ui-button[data-variant="primary"] { box-shadow:var(--glow-soft); }
 :root:not([data-theme="light"]) .ui-metadata { color:#D8F6FF; }

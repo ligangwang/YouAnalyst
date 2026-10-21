@@ -10,7 +10,7 @@
 @media(min-width:1024px) and (max-width:1279px) { .header>div>div>div:first-child>p { display:none; }.header nav { gap:0; }.header nav a { padding-inline:8px; }.header svg[aria-label="YouAnalyst"] { max-width:148px; } }
 @media(max-width:700px) { .header>div:first-child { padding:8px 16px 0; }.header nav a,.header summary { min-height:44px; }.header a[href$="/auth"],.header :is(button[aria-label="Change language"],button[aria-label="切换语言"]) { min-height:44px; }.header nav { font-size:13px; }.header p { font-size:12px; } }
 /* Futurist dark: a glass header over the page with a cyan-to-violet glow line. */
-:global(:root:not([data-theme="light"])) .header { background:color-mix(in srgb,var(--bg-canvas) 85%,transparent)!important;backdrop-filter:blur(14px);border-color:var(--border-subtle);box-shadow:none; }
+:global(:root:not([data-theme="light"])) .header { background:color-mix(in srgb,var(--bg-canvas) 85%,transparent)!important;backdrop-filter:blur(14px);border-color:transparent;box-shadow:0 1px 0 #49D6E824; }
 :global(:root:not([data-theme="light"])) .header nav a:hover { text-shadow:0 0 12px #49D6E880; }
 @media(min-width:375px) and (max-width:700px) { .header nav { flex-wrap:nowrap; }.header nav>div:first-child { flex-wrap:nowrap;gap:0; }.header nav a { padding-inline:4px;font-size:12px; }.header nav summary { padding-inline:4px;font-size:12px; } }
 
