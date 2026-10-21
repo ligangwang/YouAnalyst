@@ -1,0 +1,2847 @@
+{
+  "taxonomy": "CNI",
+  "version": "cni-bilingual-2026-10-21",
+  "sourceUrl": "https://www.cnindex.com.cn/zh_information/data_resource/fljg/",
+  "nodes": [
+    {
+      "code": "C01",
+      "name": "能源",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Energy",
+        "zh-CN": "能源"
+      }
+    },
+    {
+      "code": "C0101",
+      "name": "能源",
+      "parentCode": "C01",
+      "level": "level2",
+      "translations": {
+        "en": "Energy",
+        "zh-CN": "能源"
+      }
+    },
+    {
+      "code": "C010101",
+      "name": "能源设备与服务",
+      "parentCode": "C0101",
+      "level": "level3",
+      "translations": {
+        "en": "Energy Equipment & Services",
+        "zh-CN": "能源设备与服务"
+      }
+    },
+    {
+      "code": "C01010101",
+      "name": "能源设备",
+      "parentCode": "C010101",
+      "level": "level4",
+      "translations": {
+        "en": "Energy Equipment",
+        "zh-CN": "能源设备"
+      }
+    },
+    {
+      "code": "C01010102",
+      "name": "能源服务",
+      "parentCode": "C010101",
+      "level": "level4",
+      "translations": {
+        "en": "Energy Services",
+        "zh-CN": "能源服务"
+      }
+    },
+    {
+      "code": "C010102",
+      "name": "石油天然气",
+      "parentCode": "C0101",
+      "level": "level3",
+      "translations": {
+        "en": "Oil & Gas",
+        "zh-CN": "石油天然气"
+      }
+    },
+    {
+      "code": "C01010201",
+      "name": "石油天然气的勘探与生产",
+      "parentCode": "C010102",
+      "level": "level4",
+      "translations": {
+        "en": "Oil & Gas Exploration & Production",
+        "zh-CN": "石油天然气的勘探与生产"
+      }
+    },
+    {
+      "code": "C01010202",
+      "name": "石油天然气的炼制与销售",
+      "parentCode": "C010102",
+      "level": "level4",
+      "translations": {
+        "en": "Oil & Gas Refining & Marketing",
+        "zh-CN": "石油天然气的炼制与销售"
+      }
+    },
+    {
+      "code": "C01010203",
+      "name": "石油天然气的储存与运输",
+      "parentCode": "C010102",
+      "level": "level4",
+      "translations": {
+        "en": "Oil & Gas Storage & Transportation",
+        "zh-CN": "石油天然气的储存与运输"
+      }
+    },
+    {
+      "code": "C01010204",
+      "name": "综合性石油天然气企业",
+      "parentCode": "C010102",
+      "level": "level4",
+      "translations": {
+        "en": "Integrated Oil & Gas",
+        "zh-CN": "综合性石油天然气企业"
+      }
+    },
+    {
+      "code": "C010103",
+      "name": "煤炭",
+      "parentCode": "C0101",
+      "level": "level3",
+      "translations": {
+        "en": "Coal",
+        "zh-CN": "煤炭"
+      }
+    },
+    {
+      "code": "C01010301",
+      "name": "煤炭开采",
+      "parentCode": "C010103",
+      "level": "level4",
+      "translations": {
+        "en": "Coal Mining",
+        "zh-CN": "煤炭开采"
+      }
+    },
+    {
+      "code": "C01010302",
+      "name": "焦炭",
+      "parentCode": "C010103",
+      "level": "level4",
+      "translations": {
+        "en": "Coke",
+        "zh-CN": "焦炭"
+      }
+    },
+    {
+      "code": "C010104",
+      "name": "可替代能源",
+      "parentCode": "C0101",
+      "level": "level3",
+      "translations": {
+        "en": "Alternative Energy",
+        "zh-CN": "可替代能源"
+      }
+    },
+    {
+      "code": "C01010401",
+      "name": "可替代能源",
+      "parentCode": "C010104",
+      "level": "level4",
+      "translations": {
+        "en": "Alternative Energy",
+        "zh-CN": "可替代能源"
+      }
+    },
+    {
+      "code": "C02",
+      "name": "原材料",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Materials",
+        "zh-CN": "原材料"
+      }
+    },
+    {
+      "code": "C0201",
+      "name": "基础化工",
+      "parentCode": "C02",
+      "level": "level2",
+      "translations": {
+        "en": "Basic Chemicals",
+        "zh-CN": "基础化工"
+      }
+    },
+    {
+      "code": "C020101",
+      "name": "化学原料",
+      "parentCode": "C0201",
+      "level": "level3",
+      "translations": {
+        "en": "Chemical Raw Materials",
+        "zh-CN": "化学原料"
+      }
+    },
+    {
+      "code": "C02010101",
+      "name": "化学原料",
+      "parentCode": "C020101",
+      "level": "level4",
+      "translations": {
+        "en": "Chemical Raw Materials",
+        "zh-CN": "化学原料"
+      }
+    },
+    {
+      "code": "C020102",
+      "name": "化学制品",
+      "parentCode": "C0201",
+      "level": "level3",
+      "translations": {
+        "en": "Chemical Products",
+        "zh-CN": "化学制品"
+      }
+    },
+    {
+      "code": "C02010201",
+      "name": "涂料涂漆",
+      "parentCode": "C020102",
+      "level": "level4",
+      "translations": {
+        "en": "Coatings & Paints",
+        "zh-CN": "涂料涂漆"
+      }
+    },
+    {
+      "code": "C02010202",
+      "name": "塑料制品",
+      "parentCode": "C020102",
+      "level": "level4",
+      "translations": {
+        "en": "Plastic Products",
+        "zh-CN": "塑料制品"
+      }
+    },
+    {
+      "code": "C02010203",
+      "name": "印染化学品",
+      "parentCode": "C020102",
+      "level": "level4",
+      "translations": {
+        "en": "Dyeing & Printing Chemicals",
+        "zh-CN": "印染化学品"
+      }
+    },
+    {
+      "code": "C02010204",
+      "name": "其他化学制品",
+      "parentCode": "C020102",
+      "level": "level4",
+      "translations": {
+        "en": "Other Chemical Products",
+        "zh-CN": "其他化学制品"
+      }
+    },
+    {
+      "code": "C020103",
+      "name": "农用化工",
+      "parentCode": "C0201",
+      "level": "level3",
+      "translations": {
+        "en": "Agricultural Chemicals",
+        "zh-CN": "农用化工"
+      }
+    },
+    {
+      "code": "C02010301",
+      "name": "化肥",
+      "parentCode": "C020103",
+      "level": "level4",
+      "translations": {
+        "en": "Fertilizers",
+        "zh-CN": "化肥"
+      }
+    },
+    {
+      "code": "C02010302",
+      "name": "农药",
+      "parentCode": "C020103",
+      "level": "level4",
+      "translations": {
+        "en": "Pesticides",
+        "zh-CN": "农药"
+      }
+    },
+    {
+      "code": "C020104",
+      "name": "合成纤维",
+      "parentCode": "C0201",
+      "level": "level3",
+      "translations": {
+        "en": "Synthetic Fibers",
+        "zh-CN": "合成纤维"
+      }
+    },
+    {
+      "code": "C02010401",
+      "name": "合成纤维",
+      "parentCode": "C020104",
+      "level": "level4",
+      "translations": {
+        "en": "Synthetic Fibers",
+        "zh-CN": "合成纤维"
+      }
+    },
+    {
+      "code": "C0202",
+      "name": "基础材料",
+      "parentCode": "C02",
+      "level": "level2",
+      "translations": {
+        "en": "Basic Materials",
+        "zh-CN": "基础材料"
+      }
+    },
+    {
+      "code": "C020201",
+      "name": "建筑材料",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Construction Materials",
+        "zh-CN": "建筑材料"
+      }
+    },
+    {
+      "code": "C02020101",
+      "name": "建筑材料",
+      "parentCode": "C020201",
+      "level": "level4",
+      "translations": {
+        "en": "Construction Materials",
+        "zh-CN": "建筑材料"
+      }
+    },
+    {
+      "code": "C020202",
+      "name": "容器与包装",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Containers & Packaging",
+        "zh-CN": "容器与包装"
+      }
+    },
+    {
+      "code": "C02020201",
+      "name": "金属与玻璃容器",
+      "parentCode": "C020202",
+      "level": "level4",
+      "translations": {
+        "en": "Metal & Glass Containers",
+        "zh-CN": "金属与玻璃容器"
+      }
+    },
+    {
+      "code": "C02020202",
+      "name": "纸材料包装",
+      "parentCode": "C020202",
+      "level": "level4",
+      "translations": {
+        "en": "Paper Packaging",
+        "zh-CN": "纸材料包装"
+      }
+    },
+    {
+      "code": "C020203",
+      "name": "黑色金属",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Ferrous Metals",
+        "zh-CN": "黑色金属"
+      }
+    },
+    {
+      "code": "C02020301",
+      "name": "钢铁",
+      "parentCode": "C020203",
+      "level": "level4",
+      "translations": {
+        "en": "Iron & Steel",
+        "zh-CN": "钢铁"
+      }
+    },
+    {
+      "code": "C02020302",
+      "name": "钢铁制品",
+      "parentCode": "C020203",
+      "level": "level4",
+      "translations": {
+        "en": "Iron & Steel Products",
+        "zh-CN": "钢铁制品"
+      }
+    },
+    {
+      "code": "C020204",
+      "name": "有色金属",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Nonferrous Metals",
+        "zh-CN": "有色金属"
+      }
+    },
+    {
+      "code": "C02020401",
+      "name": "基本金属",
+      "parentCode": "C020204",
+      "level": "level4",
+      "translations": {
+        "en": "Base Metals",
+        "zh-CN": "基本金属"
+      }
+    },
+    {
+      "code": "C02020402",
+      "name": "贵金属",
+      "parentCode": "C020204",
+      "level": "level4",
+      "translations": {
+        "en": "Precious Metals",
+        "zh-CN": "贵金属"
+      }
+    },
+    {
+      "code": "C02020403",
+      "name": "稀有金属",
+      "parentCode": "C020204",
+      "level": "level4",
+      "translations": {
+        "en": "Rare Metals",
+        "zh-CN": "稀有金属"
+      }
+    },
+    {
+      "code": "C020205",
+      "name": "非金属材料与制品",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Nonmetallic Materials & Products",
+        "zh-CN": "非金属材料与制品"
+      }
+    },
+    {
+      "code": "C02020501",
+      "name": "非金属材料与制品",
+      "parentCode": "C020205",
+      "level": "level4",
+      "translations": {
+        "en": "Nonmetallic Materials & Products",
+        "zh-CN": "非金属材料与制品"
+      }
+    },
+    {
+      "code": "C020206",
+      "name": "纸类与林业产品",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Paper & Forest Products",
+        "zh-CN": "纸类与林业产品"
+      }
+    },
+    {
+      "code": "C02020601",
+      "name": "林业产品",
+      "parentCode": "C020206",
+      "level": "level4",
+      "translations": {
+        "en": "Forest Products",
+        "zh-CN": "林业产品"
+      }
+    },
+    {
+      "code": "C02020602",
+      "name": "纸制品",
+      "parentCode": "C020206",
+      "level": "level4",
+      "translations": {
+        "en": "Paper Products",
+        "zh-CN": "纸制品"
+      }
+    },
+    {
+      "code": "C020207",
+      "name": "合成金属",
+      "parentCode": "C0202",
+      "level": "level3",
+      "translations": {
+        "en": "Composite Metals",
+        "zh-CN": "合成金属"
+      }
+    },
+    {
+      "code": "C02020701",
+      "name": "合成金属",
+      "parentCode": "C020207",
+      "level": "level4",
+      "translations": {
+        "en": "Composite Metals",
+        "zh-CN": "合成金属"
+      }
+    },
+    {
+      "code": "C03",
+      "name": "工业",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Industrials",
+        "zh-CN": "工业"
+      }
+    },
+    {
+      "code": "C0301",
+      "name": "工业品",
+      "parentCode": "C03",
+      "level": "level2",
+      "translations": {
+        "en": "Industrial Products",
+        "zh-CN": "工业品"
+      }
+    },
+    {
+      "code": "C030101",
+      "name": "航天航空",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "Aerospace",
+        "zh-CN": "航天航空"
+      }
+    },
+    {
+      "code": "C03010101",
+      "name": "航天航空",
+      "parentCode": "C030101",
+      "level": "level4",
+      "translations": {
+        "en": "Aerospace",
+        "zh-CN": "航天航空"
+      }
+    },
+    {
+      "code": "C030102",
+      "name": "建筑产品",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "Building Products",
+        "zh-CN": "建筑产品"
+      }
+    },
+    {
+      "code": "C03010201",
+      "name": "建筑产品",
+      "parentCode": "C030102",
+      "level": "level4",
+      "translations": {
+        "en": "Building Products",
+        "zh-CN": "建筑产品"
+      }
+    },
+    {
+      "code": "C030103",
+      "name": "电气部件与设备",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "Electrical Components & Equipment",
+        "zh-CN": "电气部件与设备"
+      }
+    },
+    {
+      "code": "C03010301",
+      "name": "电气部件与设备",
+      "parentCode": "C030103",
+      "level": "level4",
+      "translations": {
+        "en": "Electrical Components & Equipment",
+        "zh-CN": "电气部件与设备"
+      }
+    },
+    {
+      "code": "C030104",
+      "name": "重型电气设备",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "Heavy Electrical Equipment",
+        "zh-CN": "重型电气设备"
+      }
+    },
+    {
+      "code": "C03010401",
+      "name": "重型电气设备",
+      "parentCode": "C030104",
+      "level": "level4",
+      "translations": {
+        "en": "Heavy Electrical Equipment",
+        "zh-CN": "重型电气设备"
+      }
+    },
+    {
+      "code": "C030105",
+      "name": "通用机械",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "General Machinery",
+        "zh-CN": "通用机械"
+      }
+    },
+    {
+      "code": "C03010501",
+      "name": "机床",
+      "parentCode": "C030105",
+      "level": "level4",
+      "translations": {
+        "en": "Machine Tools",
+        "zh-CN": "机床"
+      }
+    },
+    {
+      "code": "C03010502",
+      "name": "制冷设备",
+      "parentCode": "C030105",
+      "level": "level4",
+      "translations": {
+        "en": "Refrigeration Equipment",
+        "zh-CN": "制冷设备"
+      }
+    },
+    {
+      "code": "C03010503",
+      "name": "发动机与涡轮机",
+      "parentCode": "C030105",
+      "level": "level4",
+      "translations": {
+        "en": "Engines & Turbines",
+        "zh-CN": "发动机与涡轮机"
+      }
+    },
+    {
+      "code": "C03010504",
+      "name": "基础件",
+      "parentCode": "C030105",
+      "level": "level4",
+      "translations": {
+        "en": "Basic Mechanical Components",
+        "zh-CN": "基础件"
+      }
+    },
+    {
+      "code": "C03010505",
+      "name": "锅炉",
+      "parentCode": "C030105",
+      "level": "level4",
+      "translations": {
+        "en": "Boilers",
+        "zh-CN": "锅炉"
+      }
+    },
+    {
+      "code": "C03010506",
+      "name": "其他通用机械",
+      "parentCode": "C030105",
+      "level": "level4",
+      "translations": {
+        "en": "Other General Machinery",
+        "zh-CN": "其他通用机械"
+      }
+    },
+    {
+      "code": "C030106",
+      "name": "专用设备",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "Specialized Equipment",
+        "zh-CN": "专用设备"
+      }
+    },
+    {
+      "code": "C03010601",
+      "name": "农业与林业机械",
+      "parentCode": "C030106",
+      "level": "level4",
+      "translations": {
+        "en": "Agricultural & Forestry Machinery",
+        "zh-CN": "农业与林业机械"
+      }
+    },
+    {
+      "code": "C03010602",
+      "name": "建筑工程与运输机械",
+      "parentCode": "C030106",
+      "level": "level4",
+      "translations": {
+        "en": "Construction & Transportation Machinery",
+        "zh-CN": "建筑工程与运输机械"
+      }
+    },
+    {
+      "code": "C03010603",
+      "name": "纺织服装设备",
+      "parentCode": "C030106",
+      "level": "level4",
+      "translations": {
+        "en": "Textile & Apparel Machinery",
+        "zh-CN": "纺织服装设备"
+      }
+    },
+    {
+      "code": "C03010604",
+      "name": "采矿采石冶金机械",
+      "parentCode": "C030106",
+      "level": "level4",
+      "translations": {
+        "en": "Mining, Quarrying & Metallurgical Machinery",
+        "zh-CN": "采矿采石冶金机械"
+      }
+    },
+    {
+      "code": "C03010605",
+      "name": "其他专用设备",
+      "parentCode": "C030106",
+      "level": "level4",
+      "translations": {
+        "en": "Other Specialized Equipment",
+        "zh-CN": "其他专用设备"
+      }
+    },
+    {
+      "code": "C03010606",
+      "name": "环保设备",
+      "parentCode": "C030106",
+      "level": "level4",
+      "translations": {
+        "en": "Environmental Protection Equipment",
+        "zh-CN": "环保设备"
+      }
+    },
+    {
+      "code": "C030107",
+      "name": "工业集团企业",
+      "parentCode": "C0301",
+      "level": "level3",
+      "translations": {
+        "en": "Industrial Conglomerates",
+        "zh-CN": "工业集团企业"
+      }
+    },
+    {
+      "code": "C03010701",
+      "name": "工业集团企业",
+      "parentCode": "C030107",
+      "level": "level4",
+      "translations": {
+        "en": "Industrial Conglomerates",
+        "zh-CN": "工业集团企业"
+      }
+    },
+    {
+      "code": "C0302",
+      "name": "工业服务",
+      "parentCode": "C03",
+      "level": "level2",
+      "translations": {
+        "en": "Industrial Services",
+        "zh-CN": "工业服务"
+      }
+    },
+    {
+      "code": "C030201",
+      "name": "建筑与工程",
+      "parentCode": "C0302",
+      "level": "level3",
+      "translations": {
+        "en": "Construction & Engineering",
+        "zh-CN": "建筑与工程"
+      }
+    },
+    {
+      "code": "C03020101",
+      "name": "建筑施工",
+      "parentCode": "C030201",
+      "level": "level4",
+      "translations": {
+        "en": "Building Construction",
+        "zh-CN": "建筑施工"
+      }
+    },
+    {
+      "code": "C03020102",
+      "name": "装饰工程",
+      "parentCode": "C030201",
+      "level": "level4",
+      "translations": {
+        "en": "Interior & Exterior Finishing",
+        "zh-CN": "装饰工程"
+      }
+    },
+    {
+      "code": "C03020103",
+      "name": "园林工程",
+      "parentCode": "C030201",
+      "level": "level4",
+      "translations": {
+        "en": "Landscape Construction",
+        "zh-CN": "园林工程"
+      }
+    },
+    {
+      "code": "C03020104",
+      "name": "其他专业工程",
+      "parentCode": "C030201",
+      "level": "level4",
+      "translations": {
+        "en": "Other Specialized Engineering",
+        "zh-CN": "其他专业工程"
+      }
+    },
+    {
+      "code": "C030202",
+      "name": "工业贸易经销商",
+      "parentCode": "C0302",
+      "level": "level3",
+      "translations": {
+        "en": "Industrial Distributors",
+        "zh-CN": "工业贸易经销商"
+      }
+    },
+    {
+      "code": "C03020201",
+      "name": "工业贸易经销商",
+      "parentCode": "C030202",
+      "level": "level4",
+      "translations": {
+        "en": "Industrial Distributors",
+        "zh-CN": "工业贸易经销商"
+      }
+    },
+    {
+      "code": "C030203",
+      "name": "商业用品与服务",
+      "parentCode": "C0302",
+      "level": "level3",
+      "translations": {
+        "en": "Commercial Supplies & Services",
+        "zh-CN": "商业用品与服务"
+      }
+    },
+    {
+      "code": "C03020301",
+      "name": "商业印刷",
+      "parentCode": "C030203",
+      "level": "level4",
+      "translations": {
+        "en": "Commercial Printing",
+        "zh-CN": "商业印刷"
+      }
+    },
+    {
+      "code": "C03020302",
+      "name": "环境与设施服务",
+      "parentCode": "C030203",
+      "level": "level4",
+      "translations": {
+        "en": "Environmental & Facilities Services",
+        "zh-CN": "环境与设施服务"
+      }
+    },
+    {
+      "code": "C03020303",
+      "name": "各种商业与专业服务",
+      "parentCode": "C030203",
+      "level": "level4",
+      "translations": {
+        "en": "Diversified Commercial & Professional Services",
+        "zh-CN": "各种商业与专业服务"
+      }
+    },
+    {
+      "code": "C0303",
+      "name": "运输",
+      "parentCode": "C03",
+      "level": "level2",
+      "translations": {
+        "en": "Transportation",
+        "zh-CN": "运输"
+      }
+    },
+    {
+      "code": "C030301",
+      "name": "物流",
+      "parentCode": "C0303",
+      "level": "level3",
+      "translations": {
+        "en": "Logistics",
+        "zh-CN": "物流"
+      }
+    },
+    {
+      "code": "C03030101",
+      "name": "物流",
+      "parentCode": "C030301",
+      "level": "level4",
+      "translations": {
+        "en": "Logistics",
+        "zh-CN": "物流"
+      }
+    },
+    {
+      "code": "C030302",
+      "name": "航空运输",
+      "parentCode": "C0303",
+      "level": "level3",
+      "translations": {
+        "en": "Air Transportation",
+        "zh-CN": "航空运输"
+      }
+    },
+    {
+      "code": "C03030201",
+      "name": "航空运输",
+      "parentCode": "C030302",
+      "level": "level4",
+      "translations": {
+        "en": "Air Transportation",
+        "zh-CN": "航空运输"
+      }
+    },
+    {
+      "code": "C030303",
+      "name": "水上运输",
+      "parentCode": "C0303",
+      "level": "level3",
+      "translations": {
+        "en": "Water Transportation",
+        "zh-CN": "水上运输"
+      }
+    },
+    {
+      "code": "C03030301",
+      "name": "水上运输",
+      "parentCode": "C030303",
+      "level": "level4",
+      "translations": {
+        "en": "Water Transportation",
+        "zh-CN": "水上运输"
+      }
+    },
+    {
+      "code": "C030304",
+      "name": "陆运",
+      "parentCode": "C0303",
+      "level": "level3",
+      "translations": {
+        "en": "Ground Transportation",
+        "zh-CN": "陆运"
+      }
+    },
+    {
+      "code": "C03030401",
+      "name": "铁路运输",
+      "parentCode": "C030304",
+      "level": "level4",
+      "translations": {
+        "en": "Rail Transportation",
+        "zh-CN": "铁路运输"
+      }
+    },
+    {
+      "code": "C03030402",
+      "name": "公路运输",
+      "parentCode": "C030304",
+      "level": "level4",
+      "translations": {
+        "en": "Road Transportation",
+        "zh-CN": "公路运输"
+      }
+    },
+    {
+      "code": "C030305",
+      "name": "交通基本设施",
+      "parentCode": "C0303",
+      "level": "level3",
+      "translations": {
+        "en": "Transportation Infrastructure",
+        "zh-CN": "交通基本设施"
+      }
+    },
+    {
+      "code": "C03030501",
+      "name": "机场服务",
+      "parentCode": "C030305",
+      "level": "level4",
+      "translations": {
+        "en": "Airport Services",
+        "zh-CN": "机场服务"
+      }
+    },
+    {
+      "code": "C03030502",
+      "name": "公路与铁路",
+      "parentCode": "C030305",
+      "level": "level4",
+      "translations": {
+        "en": "Highways & Railways",
+        "zh-CN": "公路与铁路"
+      }
+    },
+    {
+      "code": "C03030503",
+      "name": "港口服务",
+      "parentCode": "C030305",
+      "level": "level4",
+      "translations": {
+        "en": "Port Services",
+        "zh-CN": "港口服务"
+      }
+    },
+    {
+      "code": "C04",
+      "name": "可选消费",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Consumer Discretionary",
+        "zh-CN": "可选消费"
+      }
+    },
+    {
+      "code": "C0401",
+      "name": "汽车与汽车零配件",
+      "parentCode": "C04",
+      "level": "level2",
+      "translations": {
+        "en": "Automobiles & Components",
+        "zh-CN": "汽车与汽车零配件"
+      }
+    },
+    {
+      "code": "C040101",
+      "name": "汽车零配件与设备",
+      "parentCode": "C0401",
+      "level": "level3",
+      "translations": {
+        "en": "Auto Components & Equipment",
+        "zh-CN": "汽车零配件与设备"
+      }
+    },
+    {
+      "code": "C04010101",
+      "name": "汽车零配件",
+      "parentCode": "C040101",
+      "level": "level4",
+      "translations": {
+        "en": "Auto Components",
+        "zh-CN": "汽车零配件"
+      }
+    },
+    {
+      "code": "C04010102",
+      "name": "轮胎",
+      "parentCode": "C040101",
+      "level": "level4",
+      "translations": {
+        "en": "Tires",
+        "zh-CN": "轮胎"
+      }
+    },
+    {
+      "code": "C040102",
+      "name": "汽车",
+      "parentCode": "C0401",
+      "level": "level3",
+      "translations": {
+        "en": "Automobiles",
+        "zh-CN": "汽车"
+      }
+    },
+    {
+      "code": "C04010201",
+      "name": "轿车",
+      "parentCode": "C040102",
+      "level": "level4",
+      "translations": {
+        "en": "Passenger Cars",
+        "zh-CN": "轿车"
+      }
+    },
+    {
+      "code": "C04010202",
+      "name": "商用车",
+      "parentCode": "C040102",
+      "level": "level4",
+      "translations": {
+        "en": "Commercial Vehicles",
+        "zh-CN": "商用车"
+      }
+    },
+    {
+      "code": "C04010203",
+      "name": "摩托车",
+      "parentCode": "C040102",
+      "level": "level4",
+      "translations": {
+        "en": "Motorcycles",
+        "zh-CN": "摩托车"
+      }
+    },
+    {
+      "code": "C0402",
+      "name": "耐用消费品",
+      "parentCode": "C04",
+      "level": "level2",
+      "translations": {
+        "en": "Consumer Durables",
+        "zh-CN": "耐用消费品"
+      }
+    },
+    {
+      "code": "C040201",
+      "name": "家用电器",
+      "parentCode": "C0402",
+      "level": "level3",
+      "translations": {
+        "en": "Household Appliances",
+        "zh-CN": "家用电器"
+      }
+    },
+    {
+      "code": "C04020101",
+      "name": "视听器材",
+      "parentCode": "C040201",
+      "level": "level4",
+      "translations": {
+        "en": "Audio & Video Equipment",
+        "zh-CN": "视听器材"
+      }
+    },
+    {
+      "code": "C04020102",
+      "name": "白色家电",
+      "parentCode": "C040201",
+      "level": "level4",
+      "translations": {
+        "en": "Major Household Appliances",
+        "zh-CN": "白色家电"
+      }
+    },
+    {
+      "code": "C04020103",
+      "name": "小家电",
+      "parentCode": "C040201",
+      "level": "level4",
+      "translations": {
+        "en": "Small Household Appliances",
+        "zh-CN": "小家电"
+      }
+    },
+    {
+      "code": "C04020104",
+      "name": "照明电器及其他",
+      "parentCode": "C040201",
+      "level": "level4",
+      "translations": {
+        "en": "Lighting Appliances & Other Appliances",
+        "zh-CN": "照明电器及其他"
+      }
+    },
+    {
+      "code": "C040202",
+      "name": "耐用家居用品",
+      "parentCode": "C0402",
+      "level": "level3",
+      "translations": {
+        "en": "Household Durables",
+        "zh-CN": "耐用家居用品"
+      }
+    },
+    {
+      "code": "C04020201",
+      "name": "家用器具与特殊消费品",
+      "parentCode": "C040202",
+      "level": "level4",
+      "translations": {
+        "en": "Housewares & Specialty Consumer Products",
+        "zh-CN": "家用器具与特殊消费品"
+      }
+    },
+    {
+      "code": "C04020202",
+      "name": "家庭装饰品",
+      "parentCode": "C040202",
+      "level": "level4",
+      "translations": {
+        "en": "Home Furnishings",
+        "zh-CN": "家庭装饰品"
+      }
+    },
+    {
+      "code": "C040203",
+      "name": "休闲设备与用品",
+      "parentCode": "C0402",
+      "level": "level3",
+      "translations": {
+        "en": "Leisure Equipment & Products",
+        "zh-CN": "休闲设备与用品"
+      }
+    },
+    {
+      "code": "C04020301",
+      "name": "休闲设备与用品",
+      "parentCode": "C040203",
+      "level": "level4",
+      "translations": {
+        "en": "Leisure Equipment & Products",
+        "zh-CN": "休闲设备与用品"
+      }
+    },
+    {
+      "code": "C0403",
+      "name": "纺织服装与奢侈品",
+      "parentCode": "C04",
+      "level": "level2",
+      "translations": {
+        "en": "Textiles, Apparel & Luxury Goods",
+        "zh-CN": "纺织服装与奢侈品"
+      }
+    },
+    {
+      "code": "C040301",
+      "name": "服装与配饰",
+      "parentCode": "C0403",
+      "level": "level3",
+      "translations": {
+        "en": "Apparel & Accessories",
+        "zh-CN": "服装与配饰"
+      }
+    },
+    {
+      "code": "C04030101",
+      "name": "服装",
+      "parentCode": "C040301",
+      "level": "level4",
+      "translations": {
+        "en": "Apparel",
+        "zh-CN": "服装"
+      }
+    },
+    {
+      "code": "C04030102",
+      "name": "鞋类",
+      "parentCode": "C040301",
+      "level": "level4",
+      "translations": {
+        "en": "Footwear",
+        "zh-CN": "鞋类"
+      }
+    },
+    {
+      "code": "C040302",
+      "name": "纺织品",
+      "parentCode": "C0403",
+      "level": "level3",
+      "translations": {
+        "en": "Textiles",
+        "zh-CN": "纺织品"
+      }
+    },
+    {
+      "code": "C04030201",
+      "name": "棉纺",
+      "parentCode": "C040302",
+      "level": "level4",
+      "translations": {
+        "en": "Cotton Textiles",
+        "zh-CN": "棉纺"
+      }
+    },
+    {
+      "code": "C04030202",
+      "name": "毛纺",
+      "parentCode": "C040302",
+      "level": "level4",
+      "translations": {
+        "en": "Wool Textiles",
+        "zh-CN": "毛纺"
+      }
+    },
+    {
+      "code": "C04030203",
+      "name": "其他纺织品",
+      "parentCode": "C040302",
+      "level": "level4",
+      "translations": {
+        "en": "Other Textiles",
+        "zh-CN": "其他纺织品"
+      }
+    },
+    {
+      "code": "C040303",
+      "name": "珠宝与奢侈品",
+      "parentCode": "C0403",
+      "level": "level3",
+      "translations": {
+        "en": "Jewelry & Luxury Goods",
+        "zh-CN": "珠宝与奢侈品"
+      }
+    },
+    {
+      "code": "C04030301",
+      "name": "珠宝与奢侈品",
+      "parentCode": "C040303",
+      "level": "level4",
+      "translations": {
+        "en": "Jewelry & Luxury Goods",
+        "zh-CN": "珠宝与奢侈品"
+      }
+    },
+    {
+      "code": "C0404",
+      "name": "消费者服务",
+      "parentCode": "C04",
+      "level": "level2",
+      "translations": {
+        "en": "Consumer Services",
+        "zh-CN": "消费者服务"
+      }
+    },
+    {
+      "code": "C040401",
+      "name": "酒店餐饮与休闲",
+      "parentCode": "C0404",
+      "level": "level3",
+      "translations": {
+        "en": "Hotels, Restaurants & Leisure",
+        "zh-CN": "酒店餐饮与休闲"
+      }
+    },
+    {
+      "code": "C04040101",
+      "name": "旅游",
+      "parentCode": "C040401",
+      "level": "level4",
+      "translations": {
+        "en": "Tourism",
+        "zh-CN": "旅游"
+      }
+    },
+    {
+      "code": "C04040102",
+      "name": "酒店",
+      "parentCode": "C040401",
+      "level": "level4",
+      "translations": {
+        "en": "Hotels",
+        "zh-CN": "酒店"
+      }
+    },
+    {
+      "code": "C04040103",
+      "name": "餐饮",
+      "parentCode": "C040401",
+      "level": "level4",
+      "translations": {
+        "en": "Restaurants & Catering",
+        "zh-CN": "餐饮"
+      }
+    },
+    {
+      "code": "C04040104",
+      "name": "休闲设施",
+      "parentCode": "C040401",
+      "level": "level4",
+      "translations": {
+        "en": "Leisure Facilities",
+        "zh-CN": "休闲设施"
+      }
+    },
+    {
+      "code": "C040402",
+      "name": "其他消费者服务",
+      "parentCode": "C0404",
+      "level": "level3",
+      "translations": {
+        "en": "Other Consumer Services",
+        "zh-CN": "其他消费者服务"
+      }
+    },
+    {
+      "code": "C04040201",
+      "name": "教育服务",
+      "parentCode": "C040402",
+      "level": "level4",
+      "translations": {
+        "en": "Education Services",
+        "zh-CN": "教育服务"
+      }
+    },
+    {
+      "code": "C04040202",
+      "name": "特殊消费者服务",
+      "parentCode": "C040402",
+      "level": "level4",
+      "translations": {
+        "en": "Specialized Consumer Services",
+        "zh-CN": "特殊消费者服务"
+      }
+    },
+    {
+      "code": "C0405",
+      "name": "传媒",
+      "parentCode": "C04",
+      "level": "level2",
+      "translations": {
+        "en": "Media",
+        "zh-CN": "传媒"
+      }
+    },
+    {
+      "code": "C040501",
+      "name": "传媒",
+      "parentCode": "C0405",
+      "level": "level3",
+      "translations": {
+        "en": "Media",
+        "zh-CN": "传媒"
+      }
+    },
+    {
+      "code": "C04050101",
+      "name": "广告",
+      "parentCode": "C040501",
+      "level": "level4",
+      "translations": {
+        "en": "Advertising",
+        "zh-CN": "广告"
+      }
+    },
+    {
+      "code": "C04050102",
+      "name": "广播与有线电视",
+      "parentCode": "C040501",
+      "level": "level4",
+      "translations": {
+        "en": "Broadcasting & Cable Television",
+        "zh-CN": "广播与有线电视"
+      }
+    },
+    {
+      "code": "C04050103",
+      "name": "电影与娱乐",
+      "parentCode": "C040501",
+      "level": "level4",
+      "translations": {
+        "en": "Movies & Entertainment",
+        "zh-CN": "电影与娱乐"
+      }
+    },
+    {
+      "code": "C04050104",
+      "name": "出版",
+      "parentCode": "C040501",
+      "level": "level4",
+      "translations": {
+        "en": "Publishing",
+        "zh-CN": "出版"
+      }
+    },
+    {
+      "code": "C0406",
+      "name": "零售业",
+      "parentCode": "C04",
+      "level": "level2",
+      "translations": {
+        "en": "Retail",
+        "zh-CN": "零售业"
+      }
+    },
+    {
+      "code": "C040601",
+      "name": "消费品经销商",
+      "parentCode": "C0406",
+      "level": "level3",
+      "translations": {
+        "en": "Consumer Goods Distributors",
+        "zh-CN": "消费品经销商"
+      }
+    },
+    {
+      "code": "C04060101",
+      "name": "消费品经销商",
+      "parentCode": "C040601",
+      "level": "level4",
+      "translations": {
+        "en": "Consumer Goods Distributors",
+        "zh-CN": "消费品经销商"
+      }
+    },
+    {
+      "code": "C040602",
+      "name": "网络零售",
+      "parentCode": "C0406",
+      "level": "level3",
+      "translations": {
+        "en": "Online Retail",
+        "zh-CN": "网络零售"
+      }
+    },
+    {
+      "code": "C04060201",
+      "name": "网络零售",
+      "parentCode": "C040602",
+      "level": "level4",
+      "translations": {
+        "en": "Online Retail",
+        "zh-CN": "网络零售"
+      }
+    },
+    {
+      "code": "C040603",
+      "name": "百货商店",
+      "parentCode": "C0406",
+      "level": "level3",
+      "translations": {
+        "en": "Department Stores",
+        "zh-CN": "百货商店"
+      }
+    },
+    {
+      "code": "C04060301",
+      "name": "百货商店",
+      "parentCode": "C040603",
+      "level": "level4",
+      "translations": {
+        "en": "Department Stores",
+        "zh-CN": "百货商店"
+      }
+    },
+    {
+      "code": "C040604",
+      "name": "专营零售",
+      "parentCode": "C0406",
+      "level": "level3",
+      "translations": {
+        "en": "Specialty Retail",
+        "zh-CN": "专营零售"
+      }
+    },
+    {
+      "code": "C04060401",
+      "name": "电脑与电子产品零售",
+      "parentCode": "C040604",
+      "level": "level4",
+      "translations": {
+        "en": "Computer & Electronics Retail",
+        "zh-CN": "电脑与电子产品零售"
+      }
+    },
+    {
+      "code": "C04060402",
+      "name": "汽车零售",
+      "parentCode": "C040604",
+      "level": "level4",
+      "translations": {
+        "en": "Automotive Retail",
+        "zh-CN": "汽车零售"
+      }
+    },
+    {
+      "code": "C04060403",
+      "name": "其他专营零售",
+      "parentCode": "C040604",
+      "level": "level4",
+      "translations": {
+        "en": "Other Specialty Retail",
+        "zh-CN": "其他专营零售"
+      }
+    },
+    {
+      "code": "C05",
+      "name": "主要消费",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Consumer Staples",
+        "zh-CN": "主要消费"
+      }
+    },
+    {
+      "code": "C0501",
+      "name": "食品与主要用品零售",
+      "parentCode": "C05",
+      "level": "level2",
+      "translations": {
+        "en": "Food & Staples Retail",
+        "zh-CN": "食品与主要用品零售"
+      }
+    },
+    {
+      "code": "C050101",
+      "name": "食品与主要用品零售",
+      "parentCode": "C0501",
+      "level": "level3",
+      "translations": {
+        "en": "Food & Staples Retail",
+        "zh-CN": "食品与主要用品零售"
+      }
+    },
+    {
+      "code": "C05010102",
+      "name": "食品与日用品零售",
+      "parentCode": "C050101",
+      "level": "level4",
+      "translations": {
+        "en": "Food & Daily Necessities Retail",
+        "zh-CN": "食品与日用品零售"
+      }
+    },
+    {
+      "code": "C05010103",
+      "name": "食品分销商",
+      "parentCode": "C050101",
+      "level": "level4",
+      "translations": {
+        "en": "Food Distributors",
+        "zh-CN": "食品分销商"
+      }
+    },
+    {
+      "code": "C0502",
+      "name": "农牧渔产品",
+      "parentCode": "C05",
+      "level": "level2",
+      "translations": {
+        "en": "Agricultural, Livestock & Fishery Products",
+        "zh-CN": "农牧渔产品"
+      }
+    },
+    {
+      "code": "C050201",
+      "name": "农牧渔产品",
+      "parentCode": "C0502",
+      "level": "level3",
+      "translations": {
+        "en": "Agricultural, Livestock & Fishery Products",
+        "zh-CN": "农牧渔产品"
+      }
+    },
+    {
+      "code": "C05020101",
+      "name": "农业产品",
+      "parentCode": "C050201",
+      "level": "level4",
+      "translations": {
+        "en": "Agricultural Products",
+        "zh-CN": "农业产品"
+      }
+    },
+    {
+      "code": "C05020102",
+      "name": "畜牧产品",
+      "parentCode": "C050201",
+      "level": "level4",
+      "translations": {
+        "en": "Livestock Products",
+        "zh-CN": "畜牧产品"
+      }
+    },
+    {
+      "code": "C05020103",
+      "name": "渔业产品",
+      "parentCode": "C050201",
+      "level": "level4",
+      "translations": {
+        "en": "Fishery Products",
+        "zh-CN": "渔业产品"
+      }
+    },
+    {
+      "code": "C0503",
+      "name": "食品饮料与烟草",
+      "parentCode": "C05",
+      "level": "level2",
+      "translations": {
+        "en": "Food, Beverages & Tobacco",
+        "zh-CN": "食品饮料与烟草"
+      }
+    },
+    {
+      "code": "C050301",
+      "name": "食品",
+      "parentCode": "C0503",
+      "level": "level3",
+      "translations": {
+        "en": "Food",
+        "zh-CN": "食品"
+      }
+    },
+    {
+      "code": "C05030101",
+      "name": "包装食品与肉类",
+      "parentCode": "C050301",
+      "level": "level4",
+      "translations": {
+        "en": "Packaged Foods & Meats",
+        "zh-CN": "包装食品与肉类"
+      }
+    },
+    {
+      "code": "C05030102",
+      "name": "调味品与食品添加剂",
+      "parentCode": "C050301",
+      "level": "level4",
+      "translations": {
+        "en": "Condiments & Food Additives",
+        "zh-CN": "调味品与食品添加剂"
+      }
+    },
+    {
+      "code": "C05030103",
+      "name": "乳制品",
+      "parentCode": "C050301",
+      "level": "level4",
+      "translations": {
+        "en": "Dairy Products",
+        "zh-CN": "乳制品"
+      }
+    },
+    {
+      "code": "C050302",
+      "name": "饮料",
+      "parentCode": "C0503",
+      "level": "level3",
+      "translations": {
+        "en": "Beverages",
+        "zh-CN": "饮料"
+      }
+    },
+    {
+      "code": "C05030201",
+      "name": "白酒",
+      "parentCode": "C050302",
+      "level": "level4",
+      "translations": {
+        "en": "Baijiu",
+        "zh-CN": "白酒"
+      }
+    },
+    {
+      "code": "C05030202",
+      "name": "啤酒",
+      "parentCode": "C050302",
+      "level": "level4",
+      "translations": {
+        "en": "Beer",
+        "zh-CN": "啤酒"
+      }
+    },
+    {
+      "code": "C05030203",
+      "name": "其他酿酒商",
+      "parentCode": "C050302",
+      "level": "level4",
+      "translations": {
+        "en": "Other Alcoholic Beverage Producers",
+        "zh-CN": "其他酿酒商"
+      }
+    },
+    {
+      "code": "C05030204",
+      "name": "软饮料",
+      "parentCode": "C050302",
+      "level": "level4",
+      "translations": {
+        "en": "Soft Drinks",
+        "zh-CN": "软饮料"
+      }
+    },
+    {
+      "code": "C0504",
+      "name": "家庭与个人用品",
+      "parentCode": "C05",
+      "level": "level2",
+      "translations": {
+        "en": "Household & Personal Products",
+        "zh-CN": "家庭与个人用品"
+      }
+    },
+    {
+      "code": "C050401",
+      "name": "家常用品",
+      "parentCode": "C0504",
+      "level": "level3",
+      "translations": {
+        "en": "Household Products",
+        "zh-CN": "家常用品"
+      }
+    },
+    {
+      "code": "C05040101",
+      "name": "家常用品",
+      "parentCode": "C050401",
+      "level": "level4",
+      "translations": {
+        "en": "Household Products",
+        "zh-CN": "家常用品"
+      }
+    },
+    {
+      "code": "C050402",
+      "name": "个人用品",
+      "parentCode": "C0504",
+      "level": "level3",
+      "translations": {
+        "en": "Personal Products",
+        "zh-CN": "个人用品"
+      }
+    },
+    {
+      "code": "C05040201",
+      "name": "个人用品",
+      "parentCode": "C050402",
+      "level": "level4",
+      "translations": {
+        "en": "Personal Products",
+        "zh-CN": "个人用品"
+      }
+    },
+    {
+      "code": "C06",
+      "name": "医药卫生",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Health Care",
+        "zh-CN": "医药卫生"
+      }
+    },
+    {
+      "code": "C0601",
+      "name": "医疗设备与服务",
+      "parentCode": "C06",
+      "level": "level2",
+      "translations": {
+        "en": "Health Care Equipment & Services",
+        "zh-CN": "医疗设备与服务"
+      }
+    },
+    {
+      "code": "C060101",
+      "name": "医疗设备与用品",
+      "parentCode": "C0601",
+      "level": "level3",
+      "translations": {
+        "en": "Health Care Equipment & Supplies",
+        "zh-CN": "医疗设备与用品"
+      }
+    },
+    {
+      "code": "C06010101",
+      "name": "医疗设备",
+      "parentCode": "C060101",
+      "level": "level4",
+      "translations": {
+        "en": "Medical Equipment",
+        "zh-CN": "医疗设备"
+      }
+    },
+    {
+      "code": "C06010102",
+      "name": "医疗用品",
+      "parentCode": "C060101",
+      "level": "level4",
+      "translations": {
+        "en": "Medical Supplies",
+        "zh-CN": "医疗用品"
+      }
+    },
+    {
+      "code": "C060102",
+      "name": "医疗保健提供商与服务",
+      "parentCode": "C0601",
+      "level": "level3",
+      "translations": {
+        "en": "Health Care Providers & Services",
+        "zh-CN": "医疗保健提供商与服务"
+      }
+    },
+    {
+      "code": "C06010201",
+      "name": "医疗保健机构与服务",
+      "parentCode": "C060102",
+      "level": "level4",
+      "translations": {
+        "en": "Health Care Facilities & Services",
+        "zh-CN": "医疗保健机构与服务"
+      }
+    },
+    {
+      "code": "C0602",
+      "name": "制药",
+      "parentCode": "C06",
+      "level": "level2",
+      "translations": {
+        "en": "Pharmaceuticals",
+        "zh-CN": "制药"
+      }
+    },
+    {
+      "code": "C060201",
+      "name": "化学原料药",
+      "parentCode": "C0602",
+      "level": "level3",
+      "translations": {
+        "en": "Active Pharmaceutical Ingredients",
+        "zh-CN": "化学原料药"
+      }
+    },
+    {
+      "code": "C06020101",
+      "name": "化学原料药",
+      "parentCode": "C060201",
+      "level": "level4",
+      "translations": {
+        "en": "Active Pharmaceutical Ingredients",
+        "zh-CN": "化学原料药"
+      }
+    },
+    {
+      "code": "C060202",
+      "name": "化学制剂",
+      "parentCode": "C0602",
+      "level": "level3",
+      "translations": {
+        "en": "Chemical Pharmaceutical Preparations",
+        "zh-CN": "化学制剂"
+      }
+    },
+    {
+      "code": "C06020201",
+      "name": "化学制剂",
+      "parentCode": "C060202",
+      "level": "level4",
+      "translations": {
+        "en": "Chemical Pharmaceutical Preparations",
+        "zh-CN": "化学制剂"
+      }
+    },
+    {
+      "code": "C060203",
+      "name": "中药",
+      "parentCode": "C0602",
+      "level": "level3",
+      "translations": {
+        "en": "Traditional Chinese Medicine",
+        "zh-CN": "中药"
+      }
+    },
+    {
+      "code": "C06020301",
+      "name": "中药",
+      "parentCode": "C060203",
+      "level": "level4",
+      "translations": {
+        "en": "Traditional Chinese Medicine",
+        "zh-CN": "中药"
+      }
+    },
+    {
+      "code": "C060204",
+      "name": "药品流通",
+      "parentCode": "C0602",
+      "level": "level3",
+      "translations": {
+        "en": "Pharmaceutical Distribution",
+        "zh-CN": "药品流通"
+      }
+    },
+    {
+      "code": "C06020401",
+      "name": "药品流通",
+      "parentCode": "C060204",
+      "level": "level4",
+      "translations": {
+        "en": "Pharmaceutical Distribution",
+        "zh-CN": "药品流通"
+      }
+    },
+    {
+      "code": "C0603",
+      "name": "生物科技",
+      "parentCode": "C06",
+      "level": "level2",
+      "translations": {
+        "en": "Biotechnology",
+        "zh-CN": "生物科技"
+      }
+    },
+    {
+      "code": "C060301",
+      "name": "生物科技",
+      "parentCode": "C0603",
+      "level": "level3",
+      "translations": {
+        "en": "Biotechnology",
+        "zh-CN": "生物科技"
+      }
+    },
+    {
+      "code": "C06030101",
+      "name": "生物制品",
+      "parentCode": "C060301",
+      "level": "level4",
+      "translations": {
+        "en": "Biological Products",
+        "zh-CN": "生物制品"
+      }
+    },
+    {
+      "code": "C06030102",
+      "name": "生命科学工具和服务",
+      "parentCode": "C060301",
+      "level": "level4",
+      "translations": {
+        "en": "Life Sciences Tools & Services",
+        "zh-CN": "生命科学工具和服务"
+      }
+    },
+    {
+      "code": "C07",
+      "name": "金融",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Financials",
+        "zh-CN": "金融"
+      }
+    },
+    {
+      "code": "C0701",
+      "name": "银行",
+      "parentCode": "C07",
+      "level": "level2",
+      "translations": {
+        "en": "Banks",
+        "zh-CN": "银行"
+      }
+    },
+    {
+      "code": "C070101",
+      "name": "银行",
+      "parentCode": "C0701",
+      "level": "level3",
+      "translations": {
+        "en": "Banks",
+        "zh-CN": "银行"
+      }
+    },
+    {
+      "code": "C07010101",
+      "name": "综合性银行",
+      "parentCode": "C070101",
+      "level": "level4",
+      "translations": {
+        "en": "Diversified Banks",
+        "zh-CN": "综合性银行"
+      }
+    },
+    {
+      "code": "C07010102",
+      "name": "区域性银行",
+      "parentCode": "C070101",
+      "level": "level4",
+      "translations": {
+        "en": "Regional Banks",
+        "zh-CN": "区域性银行"
+      }
+    },
+    {
+      "code": "C0702",
+      "name": "综合金融",
+      "parentCode": "C07",
+      "level": "level2",
+      "translations": {
+        "en": "Diversified Financials",
+        "zh-CN": "综合金融"
+      }
+    },
+    {
+      "code": "C070201",
+      "name": "证券",
+      "parentCode": "C0702",
+      "level": "level3",
+      "translations": {
+        "en": "Securities",
+        "zh-CN": "证券"
+      }
+    },
+    {
+      "code": "C07020101",
+      "name": "证券",
+      "parentCode": "C070201",
+      "level": "level4",
+      "translations": {
+        "en": "Securities",
+        "zh-CN": "证券"
+      }
+    },
+    {
+      "code": "C070202",
+      "name": "保险",
+      "parentCode": "C0702",
+      "level": "level3",
+      "translations": {
+        "en": "Insurance",
+        "zh-CN": "保险"
+      }
+    },
+    {
+      "code": "C07020201",
+      "name": "人身保险",
+      "parentCode": "C070202",
+      "level": "level4",
+      "translations": {
+        "en": "Life & Personal Insurance",
+        "zh-CN": "人身保险"
+      }
+    },
+    {
+      "code": "C07020202",
+      "name": "财产保险",
+      "parentCode": "C070202",
+      "level": "level4",
+      "translations": {
+        "en": "Property Insurance",
+        "zh-CN": "财产保险"
+      }
+    },
+    {
+      "code": "C07020203",
+      "name": "多元化保险",
+      "parentCode": "C070202",
+      "level": "level4",
+      "translations": {
+        "en": "Diversified Insurance",
+        "zh-CN": "多元化保险"
+      }
+    },
+    {
+      "code": "C070203",
+      "name": "投资信托",
+      "parentCode": "C0702",
+      "level": "level3",
+      "translations": {
+        "en": "Investment Trusts",
+        "zh-CN": "投资信托"
+      }
+    },
+    {
+      "code": "C07020301",
+      "name": "投资信托",
+      "parentCode": "C070203",
+      "level": "level4",
+      "translations": {
+        "en": "Investment Trusts",
+        "zh-CN": "投资信托"
+      }
+    },
+    {
+      "code": "C070204",
+      "name": "其他金融服务",
+      "parentCode": "C0702",
+      "level": "level3",
+      "translations": {
+        "en": "Other Financial Services",
+        "zh-CN": "其他金融服务"
+      }
+    },
+    {
+      "code": "C07020401",
+      "name": "其他金融服务",
+      "parentCode": "C070204",
+      "level": "level4",
+      "translations": {
+        "en": "Other Financial Services",
+        "zh-CN": "其他金融服务"
+      }
+    },
+    {
+      "code": "C070205",
+      "name": "消费金融",
+      "parentCode": "C0702",
+      "level": "level3",
+      "translations": {
+        "en": "Consumer Finance",
+        "zh-CN": "消费金融"
+      }
+    },
+    {
+      "code": "C07020501",
+      "name": "消费金融",
+      "parentCode": "C070205",
+      "level": "level4",
+      "translations": {
+        "en": "Consumer Finance",
+        "zh-CN": "消费金融"
+      }
+    },
+    {
+      "code": "C0703",
+      "name": "资本市场服务",
+      "parentCode": "C07",
+      "level": "level2",
+      "translations": {
+        "en": "Capital Markets Services",
+        "zh-CN": "资本市场服务"
+      }
+    },
+    {
+      "code": "C070301",
+      "name": "资本市场服务",
+      "parentCode": "C0703",
+      "level": "level3",
+      "translations": {
+        "en": "Capital Markets Services",
+        "zh-CN": "资本市场服务"
+      }
+    },
+    {
+      "code": "C07030103",
+      "name": "期货市场服务",
+      "parentCode": "C070301",
+      "level": "level4",
+      "translations": {
+        "en": "Futures Market Services",
+        "zh-CN": "期货市场服务"
+      }
+    },
+    {
+      "code": "C07030104",
+      "name": "金融数据服务",
+      "parentCode": "C070301",
+      "level": "level4",
+      "translations": {
+        "en": "Financial Data Services",
+        "zh-CN": "金融数据服务"
+      }
+    },
+    {
+      "code": "C08",
+      "name": "信息技术",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Information Technology",
+        "zh-CN": "信息技术"
+      }
+    },
+    {
+      "code": "C0801",
+      "name": "软件与互联网",
+      "parentCode": "C08",
+      "level": "level2",
+      "translations": {
+        "en": "Software & Internet",
+        "zh-CN": "软件与互联网"
+      }
+    },
+    {
+      "code": "C080101",
+      "name": "互联网软件与服务",
+      "parentCode": "C0801",
+      "level": "level3",
+      "translations": {
+        "en": "Internet Software & Services",
+        "zh-CN": "互联网软件与服务"
+      }
+    },
+    {
+      "code": "C08010101",
+      "name": "互联网软件与服务",
+      "parentCode": "C080101",
+      "level": "level4",
+      "translations": {
+        "en": "Internet Software & Services",
+        "zh-CN": "互联网软件与服务"
+      }
+    },
+    {
+      "code": "C080102",
+      "name": "信息技术服务",
+      "parentCode": "C0801",
+      "level": "level3",
+      "translations": {
+        "en": "Information Technology Services",
+        "zh-CN": "信息技术服务"
+      }
+    },
+    {
+      "code": "C08010201",
+      "name": "数据处理与外包服务",
+      "parentCode": "C080102",
+      "level": "level4",
+      "translations": {
+        "en": "Data Processing & Outsourcing Services",
+        "zh-CN": "数据处理与外包服务"
+      }
+    },
+    {
+      "code": "C08010202",
+      "name": "信息科技咨询与其他服务",
+      "parentCode": "C080102",
+      "level": "level4",
+      "translations": {
+        "en": "IT Consulting & Other Services",
+        "zh-CN": "信息科技咨询与其他服务"
+      }
+    },
+    {
+      "code": "C080103",
+      "name": "计算机软件",
+      "parentCode": "C0801",
+      "level": "level3",
+      "translations": {
+        "en": "Computer Software",
+        "zh-CN": "计算机软件"
+      }
+    },
+    {
+      "code": "C08010301",
+      "name": "应用软件",
+      "parentCode": "C080103",
+      "level": "level4",
+      "translations": {
+        "en": "Application Software",
+        "zh-CN": "应用软件"
+      }
+    },
+    {
+      "code": "C08010302",
+      "name": "系统软件",
+      "parentCode": "C080103",
+      "level": "level4",
+      "translations": {
+        "en": "Systems Software",
+        "zh-CN": "系统软件"
+      }
+    },
+    {
+      "code": "C0802",
+      "name": "技术硬件与设备",
+      "parentCode": "C08",
+      "level": "level2",
+      "translations": {
+        "en": "Technology Hardware & Equipment",
+        "zh-CN": "技术硬件与设备"
+      }
+    },
+    {
+      "code": "C080201",
+      "name": "电脑与外围设备",
+      "parentCode": "C0802",
+      "level": "level3",
+      "translations": {
+        "en": "Computers & Peripherals",
+        "zh-CN": "电脑与外围设备"
+      }
+    },
+    {
+      "code": "C08020101",
+      "name": "电脑硬件",
+      "parentCode": "C080201",
+      "level": "level4",
+      "translations": {
+        "en": "Computer Hardware",
+        "zh-CN": "电脑硬件"
+      }
+    },
+    {
+      "code": "C08020102",
+      "name": "电脑存储与外围设备",
+      "parentCode": "C080201",
+      "level": "level4",
+      "translations": {
+        "en": "Computer Storage & Peripherals",
+        "zh-CN": "电脑存储与外围设备"
+      }
+    },
+    {
+      "code": "C080202",
+      "name": "电子设备及服务",
+      "parentCode": "C0802",
+      "level": "level3",
+      "translations": {
+        "en": "Electronic Equipment & Services",
+        "zh-CN": "电子设备及服务"
+      }
+    },
+    {
+      "code": "C08020201",
+      "name": "电子设备与仪器",
+      "parentCode": "C080202",
+      "level": "level4",
+      "translations": {
+        "en": "Electronic Equipment & Instruments",
+        "zh-CN": "电子设备与仪器"
+      }
+    },
+    {
+      "code": "C08020202",
+      "name": "电子制造服务",
+      "parentCode": "C080202",
+      "level": "level4",
+      "translations": {
+        "en": "Electronics Manufacturing Services",
+        "zh-CN": "电子制造服务"
+      }
+    },
+    {
+      "code": "C08020203",
+      "name": "技术产品经销商",
+      "parentCode": "C080202",
+      "level": "level4",
+      "translations": {
+        "en": "Technology Distributors",
+        "zh-CN": "技术产品经销商"
+      }
+    },
+    {
+      "code": "C080203",
+      "name": "电子元器件",
+      "parentCode": "C0802",
+      "level": "level3",
+      "translations": {
+        "en": "Electronic Components",
+        "zh-CN": "电子元器件"
+      }
+    },
+    {
+      "code": "C08020301",
+      "name": "电子元器件",
+      "parentCode": "C080203",
+      "level": "level4",
+      "translations": {
+        "en": "Electronic Components",
+        "zh-CN": "电子元器件"
+      }
+    },
+    {
+      "code": "C080204",
+      "name": "光电子器件",
+      "parentCode": "C0802",
+      "level": "level3",
+      "translations": {
+        "en": "Optoelectronic Devices",
+        "zh-CN": "光电子器件"
+      }
+    },
+    {
+      "code": "C08020401",
+      "name": "光电子器件",
+      "parentCode": "C080204",
+      "level": "level4",
+      "translations": {
+        "en": "Optoelectronic Devices",
+        "zh-CN": "光电子器件"
+      }
+    },
+    {
+      "code": "C0803",
+      "name": "半导体",
+      "parentCode": "C08",
+      "level": "level2",
+      "translations": {
+        "en": "Semiconductors",
+        "zh-CN": "半导体"
+      }
+    },
+    {
+      "code": "C080301",
+      "name": "半导体",
+      "parentCode": "C0803",
+      "level": "level3",
+      "translations": {
+        "en": "Semiconductors",
+        "zh-CN": "半导体"
+      }
+    },
+    {
+      "code": "C08030101",
+      "name": "集成电路",
+      "parentCode": "C080301",
+      "level": "level4",
+      "translations": {
+        "en": "Integrated Circuits",
+        "zh-CN": "集成电路"
+      }
+    },
+    {
+      "code": "C08030102",
+      "name": "分立器件",
+      "parentCode": "C080301",
+      "level": "level4",
+      "translations": {
+        "en": "Discrete Devices",
+        "zh-CN": "分立器件"
+      }
+    },
+    {
+      "code": "C09",
+      "name": "电信业务",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Telecommunications",
+        "zh-CN": "电信业务"
+      }
+    },
+    {
+      "code": "C0901",
+      "name": "电信服务",
+      "parentCode": "C09",
+      "level": "level2",
+      "translations": {
+        "en": "Telecommunication Services",
+        "zh-CN": "电信服务"
+      }
+    },
+    {
+      "code": "C090101",
+      "name": "电信运营",
+      "parentCode": "C0901",
+      "level": "level3",
+      "translations": {
+        "en": "Telecommunication Operators",
+        "zh-CN": "电信运营"
+      }
+    },
+    {
+      "code": "C09010101",
+      "name": "电信运营",
+      "parentCode": "C090101",
+      "level": "level4",
+      "translations": {
+        "en": "Telecommunication Operators",
+        "zh-CN": "电信运营"
+      }
+    },
+    {
+      "code": "C090102",
+      "name": "电信增值服务",
+      "parentCode": "C0901",
+      "level": "level3",
+      "translations": {
+        "en": "Value-Added Telecommunication Services",
+        "zh-CN": "电信增值服务"
+      }
+    },
+    {
+      "code": "C09010201",
+      "name": "电信增值服务",
+      "parentCode": "C090102",
+      "level": "level4",
+      "translations": {
+        "en": "Value-Added Telecommunication Services",
+        "zh-CN": "电信增值服务"
+      }
+    },
+    {
+      "code": "C0902",
+      "name": "通信设备及技术服务",
+      "parentCode": "C09",
+      "level": "level2",
+      "translations": {
+        "en": "Communication Equipment & Technical Services",
+        "zh-CN": "通信设备及技术服务"
+      }
+    },
+    {
+      "code": "C090201",
+      "name": "通信设备",
+      "parentCode": "C0902",
+      "level": "level3",
+      "translations": {
+        "en": "Communication Equipment",
+        "zh-CN": "通信设备"
+      }
+    },
+    {
+      "code": "C09020101",
+      "name": "通信设备",
+      "parentCode": "C090201",
+      "level": "level4",
+      "translations": {
+        "en": "Communication Equipment",
+        "zh-CN": "通信设备"
+      }
+    },
+    {
+      "code": "C090202",
+      "name": "通信技术服务",
+      "parentCode": "C0902",
+      "level": "level3",
+      "translations": {
+        "en": "Communication Technical Services",
+        "zh-CN": "通信技术服务"
+      }
+    },
+    {
+      "code": "C09020201",
+      "name": "通信技术服务",
+      "parentCode": "C090202",
+      "level": "level4",
+      "translations": {
+        "en": "Communication Technical Services",
+        "zh-CN": "通信技术服务"
+      }
+    },
+    {
+      "code": "C10",
+      "name": "公用事业",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Utilities",
+        "zh-CN": "公用事业"
+      }
+    },
+    {
+      "code": "C1001",
+      "name": "公用事业",
+      "parentCode": "C10",
+      "level": "level2",
+      "translations": {
+        "en": "Utilities",
+        "zh-CN": "公用事业"
+      }
+    },
+    {
+      "code": "C100101",
+      "name": "电力公用事业",
+      "parentCode": "C1001",
+      "level": "level3",
+      "translations": {
+        "en": "Electric Utilities",
+        "zh-CN": "电力公用事业"
+      }
+    },
+    {
+      "code": "C10010101",
+      "name": "电力公用事业",
+      "parentCode": "C100101",
+      "level": "level4",
+      "translations": {
+        "en": "Electric Utilities",
+        "zh-CN": "电力公用事业"
+      }
+    },
+    {
+      "code": "C100102",
+      "name": "燃气公用事业",
+      "parentCode": "C1001",
+      "level": "level3",
+      "translations": {
+        "en": "Gas Utilities",
+        "zh-CN": "燃气公用事业"
+      }
+    },
+    {
+      "code": "C10010201",
+      "name": "燃气公用事业",
+      "parentCode": "C100102",
+      "level": "level4",
+      "translations": {
+        "en": "Gas Utilities",
+        "zh-CN": "燃气公用事业"
+      }
+    },
+    {
+      "code": "C100103",
+      "name": "水公用事业",
+      "parentCode": "C1001",
+      "level": "level3",
+      "translations": {
+        "en": "Water Utilities",
+        "zh-CN": "水公用事业"
+      }
+    },
+    {
+      "code": "C10010301",
+      "name": "水公用事业",
+      "parentCode": "C100103",
+      "level": "level4",
+      "translations": {
+        "en": "Water Utilities",
+        "zh-CN": "水公用事业"
+      }
+    },
+    {
+      "code": "C100104",
+      "name": "复合型公用事业",
+      "parentCode": "C1001",
+      "level": "level3",
+      "translations": {
+        "en": "Multi-Utilities",
+        "zh-CN": "复合型公用事业"
+      }
+    },
+    {
+      "code": "C10010401",
+      "name": "复合型公用事业",
+      "parentCode": "C100104",
+      "level": "level4",
+      "translations": {
+        "en": "Multi-Utilities",
+        "zh-CN": "复合型公用事业"
+      }
+    },
+    {
+      "code": "C11",
+      "name": "房地产",
+      "parentCode": null,
+      "level": "level1",
+      "translations": {
+        "en": "Real Estate",
+        "zh-CN": "房地产"
+      }
+    },
+    {
+      "code": "C1101",
+      "name": "房地产开发和管理",
+      "parentCode": "C11",
+      "level": "level2",
+      "translations": {
+        "en": "Real Estate Development & Management",
+        "zh-CN": "房地产开发和管理"
+      }
+    },
+    {
+      "code": "C110101",
+      "name": "住宅地产开发和管理",
+      "parentCode": "C1101",
+      "level": "level3",
+      "translations": {
+        "en": "Residential Real Estate Development & Management",
+        "zh-CN": "住宅地产开发和管理"
+      }
+    },
+    {
+      "code": "C11010101",
+      "name": "住宅地产开发和管理",
+      "parentCode": "C110101",
+      "level": "level4",
+      "translations": {
+        "en": "Residential Real Estate Development & Management",
+        "zh-CN": "住宅地产开发和管理"
+      }
+    },
+    {
+      "code": "C110102",
+      "name": "商业地产开发和管理",
+      "parentCode": "C1101",
+      "level": "level3",
+      "translations": {
+        "en": "Commercial Real Estate Development & Management",
+        "zh-CN": "商业地产开发和管理"
+      }
+    },
+    {
+      "code": "C11010201",
+      "name": "商业地产开发和管理",
+      "parentCode": "C110102",
+      "level": "level4",
+      "translations": {
+        "en": "Commercial Real Estate Development & Management",
+        "zh-CN": "商业地产开发和管理"
+      }
+    },
+    {
+      "code": "C110103",
+      "name": "工业地产开发和管理",
+      "parentCode": "C1101",
+      "level": "level3",
+      "translations": {
+        "en": "Industrial Real Estate Development & Management",
+        "zh-CN": "工业地产开发和管理"
+      }
+    },
+    {
+      "code": "C11010301",
+      "name": "工业地产开发和管理",
+      "parentCode": "C110103",
+      "level": "level4",
+      "translations": {
+        "en": "Industrial Real Estate Development & Management",
+        "zh-CN": "工业地产开发和管理"
+      }
+    },
+    {
+      "code": "C1102",
+      "name": "房地产服务",
+      "parentCode": "C11",
+      "level": "level2",
+      "translations": {
+        "en": "Real Estate Services",
+        "zh-CN": "房地产服务"
+      }
+    },
+    {
+      "code": "C110202",
+      "name": "房地产租赁",
+      "parentCode": "C1102",
+      "level": "level3",
+      "translations": {
+        "en": "Real Estate Leasing",
+        "zh-CN": "房地产租赁"
+      }
+    },
+    {
+      "code": "C11020201",
+      "name": "房地产租赁",
+      "parentCode": "C110202",
+      "level": "level4",
+      "translations": {
+        "en": "Real Estate Leasing",
+        "zh-CN": "房地产租赁"
+      }
+    },
+    {
+      "code": "C110203",
+      "name": "其他房地产服务",
+      "parentCode": "C1102",
+      "level": "level3",
+      "translations": {
+        "en": "Other Real Estate Services",
+        "zh-CN": "其他房地产服务"
+      }
+    },
+    {
+      "code": "C11020301",
+      "name": "其他房地产服务",
+      "parentCode": "C110203",
+      "level": "level4",
+      "translations": {
+        "en": "Other Real Estate Services",
+        "zh-CN": "其他房地产服务"
+      }
+    }
+  ]
+}

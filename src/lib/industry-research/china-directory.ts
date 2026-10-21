@@ -3,12 +3,15 @@ import { chinaSupplyChain } from "../industry-graph/china";
 import { MARKET_COMPANIES, normalizeChinaCompany, validChinaId } from "./china";
 import { companyFields } from "../market-companies/model";
 import { reviewedCompanyNames } from "../market-companies/reviewed-names";
+import {companyClassificationPaths} from '../industry-classification/catalog';
 
 export function publicChinaCompany(id: string, data: FirebaseFirestore.DocumentData) {
-  return data.market === "CN_A" && ["PUBLISHED", "DIRECTORY"].includes(data.status) ? normalizeChinaCompany({ ...data, id,
+  if(data.market!=="CN_A" || !["PUBLISHED","DIRECTORY"].includes(data.status))return null;
+  const classification=companyClassificationPaths({...data,taxonomy:data.taxonomy??'CNI'},'zh-CN')[0]??[];
+  return normalizeChinaCompany({ ...data, id,
     names: reviewedCompanyNames(id, String(data.name), data.names),
-    stage: data.stage || data.classification?.[2]?.name || "A 股公司",
-    description: data.description || data.classification?.map((c: {name:string}) => c.name).join(" / ") || data.name }) : null;
+    stage: data.stage || classification[2]?.name || "A 股公司",
+    description: data.description || classification.map(c => c.name).join(" / ") || data.name });
 }
 
 // Explicit migration only: public reads must never create or restore records.
