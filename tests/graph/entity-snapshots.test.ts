@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {Readable,Writable} from 'node:stream';
 import {Timestamp,FieldValue,type Firestore} from 'firebase-admin/firestore';
 import type {Bucket} from '@google-cloud/storage';
 import {snapshotFiles} from '../../src/lib/entity-snapshots/storage';
@@ -97,19 +98,25 @@ test('snapshot storage preserves timestamps and refuses a stale publisher',async
  let generation=0,content='';
  const bucket={file:(name:string,options?:{generation:string})=>({name,
    getMetadata:async()=>{if(!generation)throw Object.assign(Error('missing'),{code:404});return [{generation:String(generation)}];},
-   download:async()=>{assert.equal(options?.generation,String(generation));return [Buffer.from(content)];},
-   save:async(text:string,config:{preconditionOpts:{ifGenerationMatch:string}})=>{
-     if(config.preconditionOpts.ifGenerationMatch!==String(generation))throw Object.assign(Error('conflict'),{code:412});
-     content=text;generation++;
+   createReadStream:()=>{assert.equal(options?.generation,String(generation));return Readable.from([content]);},
+   createWriteStream:(config:{preconditionOpts:{ifGenerationMatch:string}})=>{
+     let text='';return new Writable({
+       write(chunk,_encoding,done){text+=chunk.toString();done();},
+       final(done){if(config.preconditionOpts.ifGenerationMatch!==String(generation)){done(Object.assign(Error('conflict'),{code:412}));return;}
+         content=text;generation++;done();},
+     });
    },
  })} as unknown as Bucket;
  const files=snapshotFiles(bucket);
  assert.equal((await files.load('companies')).generation,'0');
  const initial:Snapshot={version:1,collection:'companies',watermark:new Timestamp(12,345),rows:[{id:'A',data:{updatedAt:new Timestamp(11,789)}}]};
  await files.save('companies',initial,'0');const loaded=await files.load('companies');
+ assert.equal(JSON.parse(content).rows.length,1,'streamed file remains valid JSON');
  assert.equal(loaded.snapshot!.watermark.nanoseconds,345);
  assert.equal(loaded.snapshot!.rows[0].data.updatedAt.nanoseconds,789);
  await files.save('companies',{...initial,watermark:stamp(13)},loaded.generation);
  await assert.rejects(files.save('companies',initial,loaded.generation),/conflict/);
  assert.equal((await files.load('companies')).snapshot!.watermark.seconds,13);
+ content=content.slice(0,content.lastIndexOf(']}'));
+ await assert.rejects(files.load('companies'),/Incomplete/);
 });
