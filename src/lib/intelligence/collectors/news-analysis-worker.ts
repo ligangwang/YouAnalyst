@@ -12,7 +12,7 @@ import {NEWS_ANALYSIS_VERSION,NEWS_ANALYSIS_MODEL,articleHash,newsArticleInput,c
 
 type Options={deadline:number;now?:()=>number;maxCalls?:number;monthlyBudgetUsd?:number;records?:DocumentSnapshot[];download?:(source:CalendarSource)=>Promise<string>;analyze?:(title:string,content:string)=>Promise<NewsAnalysisResponse>};
 /** Existing event receipts hold reusable article snapshots. New edges are review
- * candidates in the existing relationship collection, never auto-published. */
+ * candidates in the existing relationship collection; the scheduled validation sweep promotes eligible claims. */
 export async function analyzeCollectedNews(db:Firestore,companies:readonly GraphNode[],sources:readonly NewsSource[],options:Options){
  const now=options.now??Date.now,result={scanned:0,paid:0,complete:0,candidates:0,cached:0,failed:0,deferred:0,budgetBlocked:0};
  if(!options.analyze&&!process.env.OPENAI_API_KEY)return {...result,disabled:true};

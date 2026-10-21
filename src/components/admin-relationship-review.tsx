@@ -82,6 +82,7 @@ function ReviewEditor({ detail, api, onSaved }: { detail: ReviewDetail; api: Api
       {detail.sourceText && <details><summary>{text('Read saved article text', '阅读已保存的文章全文')}</summary><pre>{detail.sourceText}</pre></details>}
     </section>
     {c.decision ? <section className={styles.receipt}><h3>{c.decision.decision === 'APPROVED' ? text('Approved and published', '已批准并发布') : text('Rejected', '已拒绝')}</h3><p>{c.decision.note}</p><small>{c.decision.reviewedBy} · {new Date(c.decision.reviewedAt).toLocaleString(locale)}</small>{c.decision.themeIds.map(t => <a key={t} href={'/?' + new URLSearchParams({ theme: t, relationship: c.decision!.relationshipId ?? '' })}>{themeName(t, chinese)} ↗</a>)}</section> : <>
+      {c.automaticValidation && <p className={styles.warning}>{text('Automatic publication held', '自动发布暂缓')}: {c.automaticValidation.reasons.join('; ')}</p>}
       {c.category && <p className={styles.warning}>{text('This extraction names an industry category rather than a company. It can be rejected, but cannot be published as a company relationship.', '此提取结果是行业类别而非公司，可以拒绝，但不能发布为公司关系。')}</p>}
       <fieldset disabled={busy} className={styles.form}>
         <legend>{text('Review the relationship', '审核关系')}</legend>

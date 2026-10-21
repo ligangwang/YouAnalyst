@@ -41,6 +41,7 @@ function observation(id: string, data: Row): ReviewCandidate {
     direction: filing ? str(data.direction) : 'source_to_target', category: data.targetType === 'category',
     eventDate: date(data.eventDate) ? data.eventDate : null,
     decision: data.relationshipReview ? data.relationshipReview as ReviewDecision : null,
+    ...(Array.isArray(row(data.automaticValidation).reasons) ? { automaticValidation: { reasons: (row(data.automaticValidation).reasons as unknown[]).filter((v): v is string => typeof v === 'string').slice(0, 20), checkedAt: str(row(data.automaticValidation).checkedAt) } } : {}),
   };
 }
 function company(id: string, data: Row): ReviewCompany {
@@ -110,7 +111,7 @@ export function parsePublication(raw: unknown): PublicationInput {
 }
 const auditId = (id: string) => `relationship-review-${hash(id).slice(0, 40)}`;
 
-async function publicationPlan(db: Firestore, tx: Transaction, input: PublicationInput, at: string) {
+export async function publicationPlan(db: Firestore, tx: Transaction, input: PublicationInput, at: string, automated = false) {
   const candidateRef = db.collection('company_relationships').doc(input.candidateId);
   const data = (await tx.get(candidateRef)).data();
   if (!data) fail(404, 'Candidate not found');
@@ -135,6 +136,7 @@ async function publicationPlan(db: Firestore, tx: Transaction, input: Publicatio
   if (matches.length > 1) fail(409, 'Duplicate published relationships require reconciliation before approval');
   const existing = matches[0] ?? await tx.get(db.collection('company_relationships').doc(n.id));
   const before = existing.exists ? existing.data()! : null;
+  if (automated && before && (before.communityOpenCount || before.communityReviewedAt || before.publicationOrigin !== 'AI')) fail(409, 'Existing editorial or community decision requires review');
   if (before && (before.status !== 'PUBLISHED' || canonical(str(before.source), str(before.target), str(before.type)).id !== n.id || ['NEWS_OBSERVATION', 'FILING_OBSERVATION'].includes(str(before.recordKind)))) fail(409, 'Existing relationship has a conflicting identity or editorial decision');
   const id = existing.exists ? existing.id : n.id;
   const retainedThemes = before ? (Array.isArray(before.themeIds) ? before.themeIds.filter((t: unknown) => COMPANY_THEMES.includes(t as CompanyThemeId)) : ['ai']) as CompanyThemeId[] : [];
@@ -145,12 +147,13 @@ async function publicationPlan(db: Firestore, tx: Transaction, input: Publicatio
     relationships: [{ source: n.source, target: n.target, type: n.type, facts: [{
       state: input.state === 'ANNOUNCED' ? 'ANNOUNCED' : 'DOCUMENTED', scope: input.summary,
       sourceIds: candidate.evidence.map((_, i) => `evidence-${i}`), limitation: input.limitation,
-      verificationStatus: input.state === 'TERMINATED' ? 'TERMINATED' : input.state === 'ANNOUNCED' ? 'PENDING' : 'CONFIRMED',
+      verificationStatus: automated ? 'PENDING' : input.state === 'TERMINATED' ? 'TERMINATED' : input.state === 'ANNOUNCED' ? 'PENDING' : 'CONFIRMED',
       ...(eventDate ? { eventDate } : {}),
     }] }],
   };
   // The admin policy validates all extraction types; the existing external batch API keeps its narrower allowlist.
   const after = { ...mergeEdge(batch, batch.relationships[0], before), id, themeIds: themes,
+    publicationOrigin: automated ? 'AI' : 'EDITORIAL',
     topic: before?.topic ?? themes.join(', '), researchReviewedAt: at, commercialStatus: input.state,
     researchBatchIds: [...new Set([...(Array.isArray(before?.researchBatchIds) ? before.researchBatchIds : []), batch.batchId])],
     ...(before ? {} : { publishedAt: at }),
