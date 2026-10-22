@@ -86,6 +86,7 @@ jobs:
 
       - name: Verify app
         run: |
+          node scripts/check-build-secret-isolation.mjs
           npm run verify:checks
           if [[ "${{ github.event_name }}" == 'pull_request' ]]; then npm run build; fi
 
