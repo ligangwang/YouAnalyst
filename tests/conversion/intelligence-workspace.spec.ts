@@ -1806,7 +1806,7 @@ test('hover price details follow the pointer and fullscreen uses the available h
  await expect(timeline).toContainText('3 stored daily bars');
  await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
  const svg=timeline.locator('svg[role=img]');
- await expect.poll(async()=>{const r=(await svg.boundingBox())!,sectors=await timeline.locator('[data-chart-sectors]').boundingBox(),controls=await timeline.locator('[data-indicator-study-controls]').boundingBox();return 900-r.y-r.height-(sectors?.height??0)-(controls?.height??0);}).toBeLessThan(90);
+ await expect.poll(async()=>{const r=(await svg.boundingBox())!,sectors=await timeline.locator('[data-chart-sectors]').boundingBox(),controlsLocator=timeline.locator('[data-indicator-study-controls]'),controls=await controlsLocator.count()?await controlsLocator.boundingBox():null;return 900-r.y-r.height-(sectors?.height??0)-(controls?.height??0);}).toBeLessThan(90);
  const hover=timeline.locator('[data-price-details][data-price-mode="hover"]');
  for(const date of ['2026-09-28','2026-09-30']){
   const candle=svg.locator(`[data-price-candle="${date}"] rect`);
