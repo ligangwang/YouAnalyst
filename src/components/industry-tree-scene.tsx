@@ -530,10 +530,13 @@ function Scene(props:TreeSceneProps){
     }
     if(moving)invalidate();
   });
+  // Zooming out stops a little beyond the whole-tree view, so the tree never
+  // shrinks into a speck among the mountains.
+  const maxDistance=props.vertical?Math.round(treeOverviewShot(all,size.width,size.height).position[2]*1.25):60000;
   return <>
     <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
-      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} dollySpeed={props.vertical?.45:1} minDistance={props.vertical?700:180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
+      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} dollySpeed={props.vertical?.45:1} minDistance={props.vertical?700:180} maxDistance={maxDistance} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
       <TreeMeadowEnvironment nodes={renderedNodes} layoutNodes={all} paused={props.paused}/>
       {/* Starlit dusk: cool sky fill, a warm afterglow rim from behind the tree and soft moonlight in front. */}
