@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { COMPARE_TEMPLATES, DEFAULT_COMPARE_APPEARANCE, companyCompareColor, parseCompareAppearance, type CompareAppearance } from "@/lib/compare-appearance";
 import type { CompareStyle } from "@/lib/compare";
 import { useOptionalAuth } from "@/components/providers/auth-provider";
@@ -83,20 +83,24 @@ export function CompareCustomization({ preferences, symbols, style, light, color
   </details>;
 }
 
-export function CompanyColorControl({ symbol, appearance, savedAppearance, light, colors, onChange }: {
-  symbol: string; appearance: CompareAppearance; savedAppearance: CompareAppearance; light: boolean; colors: Record<string, string>; onChange: (appearance: CompareAppearance) => void;
+export function CompanyColorControl({ symbol, appearance, savedAppearance, light, colors, onChange, saveControl }: {
+  symbol: string; appearance: CompareAppearance; savedAppearance: CompareAppearance; light: boolean; colors: Record<string, string>; onChange: (appearance: CompareAppearance) => void; saveControl?: ReactNode;
 }) {
   const { text } = useLocale();
   const savedColor = companyCompareColor(symbol, savedAppearance, light);
   const currentColor = colors[symbol] ?? companyCompareColor(symbol, appearance, light);
-  return <div role="group" aria-label={text(`${symbol} color settings`, `${symbol} 颜色设置`)}>
+  const customActions = <>
     <label><input type="color" aria-label={text(`Color for ${symbol}`, `${symbol} 的颜色`)} value={currentColor} onChange={event => onChange({ ...appearance, companyColors: { ...appearance.companyColors, ...colors, [symbol]: event.target.value } })}/>{symbol}</label>
+    {saveControl}
     <button type="button" disabled={currentColor === savedColor} onClick={() => {
       const companyColors = { ...appearance.companyColors, ...colors };
       if (savedAppearance.companyColors[symbol] || savedAppearance.template !== appearance.template) companyColors[symbol] = savedColor;
       else delete companyColors[symbol];
       onChange({ ...appearance, companyColors });
     }}>{text("Restore custom color", "恢复自选色")}</button>
+  </>;
+  return <div role="group" className={saveControl ? styles.inlineColorControl : undefined} aria-label={text(`${symbol} color settings`, `${symbol} 颜色设置`)}>
+    {saveControl ? <div className={styles.colorActionsRow}>{customActions}</div> : customActions}
     <button type="button" disabled={!appearance.companyColors[symbol] && !colors[symbol]} onClick={() => {
       const companyColors = { ...appearance.companyColors, ...colors }; delete companyColors[symbol]; onChange({ ...appearance, companyColors });
     }}>{text("System default color", "系统默认颜色")}</button>
