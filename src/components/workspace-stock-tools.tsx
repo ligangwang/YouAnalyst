@@ -7,13 +7,14 @@ import {MA_PERIODS,movingAveragePeriods} from '@/lib/ui/technical-indicators';
 import {ChartStockReview,type ChartWatchlist} from './chart-stock-review';
 import {FloatingEventWindow,type EventWindowAnchor} from './event-details-window';
 import {useIndustryBrowseParam,updateIndustryBrowse} from './industry-browse-state';
+import {useChartRangePreference} from './chart-range-preference';
 import {useLocale} from './providers/locale-provider';
 import styles from './company-timeline.module.css';
 
 /** Workspace preferences remain usable before a stock chart is mounted. */
 export function WorkspaceStockTools({anchor,onClose,graph,watchlist,onSelect,companyId=''}:{anchor:EventWindowAnchor|null;onClose:()=>void;graph:KnowledgeGraph;watchlist:ChartWatchlist;onSelect:(id:string)=>void;companyId?:string}){
  const {text}=useLocale();
- const chartRange=useIndustryBrowseParam('chartRange'),chartInterval=useIndustryBrowseParam('chartInterval'),chartStyle=useIndustryBrowseParam('chartStyle'),chartMA=useIndustryBrowseParam('chartMA'),chartMacd=useIndustryBrowseParam('chartMacd'),chartIndicator=useIndustryBrowseParam('chartIndicator'),chartActivity=useIndustryBrowseParam('chartActivity'),chartEvents=useIndustryBrowseParam('chartEvents');
+ const chartRange=useChartRangePreference(),chartInterval=useIndustryBrowseParam('chartInterval'),chartStyle=useIndustryBrowseParam('chartStyle'),chartMA=useIndustryBrowseParam('chartMA'),chartMacd=useIndustryBrowseParam('chartMacd'),chartIndicator=useIndustryBrowseParam('chartIndicator'),chartActivity=useIndustryBrowseParam('chartActivity'),chartEvents=useIndustryBrowseParam('chartEvents');
  const showWatchlist=useIndustryBrowseParam('chartWatchlist')==='1';
  const settings=parseSharedChart(new URLSearchParams({chartRange,chartInterval,chartStyle,chartMA,chartMacd,chartIndicator,chartActivity,chartEvents}));
  const changeSettings=(patch:Partial<SharedChart>)=>updateIndustryBrowse(sharedChartParams({...settings,...patch}));
