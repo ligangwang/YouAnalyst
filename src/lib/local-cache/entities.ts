@@ -3,6 +3,7 @@ import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Collection, RelationshipQuery } from '../central-cache/store';
 import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
+import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader} from './company-directory';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
 type DocumentStore={documents:Map<string,Group>;groups:Set<Group>};
@@ -17,6 +18,7 @@ function watchQuery(query:Query,changed:(docs:DocumentSnapshot[])=>void){return 
   changed(snapshot.docs);next(new Map(snapshot.docs.map(doc=>[doc.id,doc])));
 },error)));}
 export async function localQuery(db:Firestore,key:string,query:Query,collection:string='companies'){
+ if(companyDirectoryEnabled(db))return new Map((await query.get()).docs.map(doc=>[doc.id,doc]));
  const s=store(db);let watch=s.queries.get(key);
  if(!watch){
   watch=watchQuery(query,()=>s.versions.set(collection,(s.versions.get(collection)??0)+1));
@@ -76,11 +78,23 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
 }
 /** Undefined is reserved for non-listening test adapters, never network failures. */
 export async function localDocuments(db:Firestore,collection:Collection,ids?:string[],query?:RelationshipQuery,_projection?:'marketCap',region?:ExchangeRegion):Promise<DocumentSnapshot[]|undefined>{
+ enableCompanyDirectoryForReader(db);
+ if(ids&&companyDirectoryEnabled(db))return ids.length?db.getAll(...ids.map(id=>db.collection(collection).doc(id))):[];
  if(typeof db.collection(collection).onSnapshot!=='function')return undefined;
  if(ids)return documents(db,collection,ids);
  const source=collection==='companies'?db.collection(collection).where('themeIds','array-contains-any',['ai','robotics','space']):db.collection(collection);
  if(collection==='company_fundamentals')throw Error('Fundamentals cache requires company IDs');
- let rows=[...(await localQuery(db,collection,source,collection)).values()].filter(doc=>doc.data()?.isDeleted!==true);
+ let selected:DocumentSnapshot[];
+ if(collection==='company_relationships'&&companyDirectoryEnabled(db)&&query&&(query.companyIds||query.exactIds)){
+  const found=new Map<string,DocumentSnapshot>();
+  for(const field of ['source','target'])for(let start=0;start<(query.companyIds?.length??0);start+=30){
+   const page=await source.where(field,'in',query.companyIds!.slice(start,start+30)).get();
+   for(const doc of page.docs)found.set(doc.id,doc);
+  }
+  if(query.exactIds?.length)for(const doc of await db.getAll(...query.exactIds.map(id=>db.collection(collection).doc(id))))if(doc.exists)found.set(doc.id,doc);
+  selected=[...found.values()];
+ }else selected=[...(await localQuery(db,collection,source,collection)).values()];
+ let rows=selected.filter(doc=>doc.get('isDeleted')!==true);
  if(region)rows=rows.filter(doc=>doc.get('exchange_region')===region);
  if(query){
   if(query.status)rows=rows.filter(doc=>doc.get('status')===query.status);
@@ -91,4 +105,4 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
  return rows;
 }
 
-export function localEntityVersions(db:Firestore){const s=store(db);return Object.fromEntries(['companies','company_fundamentals','company_relationships'].map(name=>[name,`local:${s.versions.get(name)??0}`]));}
+export function localEntityVersions(db:Firestore){const s=store(db);return Object.fromEntries(['companies','company_fundamentals','company_relationships'].map(name=>[name,companyDirectoryEnabled(db)?companyDirectoryVersion(db,name as import('../entity-snapshots/sync').Collection):`local:${s.versions.get(name)??0}`]));}

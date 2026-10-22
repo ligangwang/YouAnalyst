@@ -1,13 +1,14 @@
 import { FieldPath, Timestamp, type Firestore, type Query, type DocumentData } from 'firebase-admin/firestore';
 import type { Collection, Row, Source, Stamp } from './store';
+import {withLiveCompanyReads} from '../local-cache/company-directory';
 const stamp=(value:Stamp)=>new Timestamp(value.seconds,value.nanoseconds);
 const row=(doc:{id:string;data():DocumentData|undefined}):Row=>({id:doc.id,data:doc.data()!});
 export function firestoreSource(db:Firestore):Source {
-  const read=async(query:Query)=>{const rows:Row[]=[];let cursor;
-    for(;;){const page=await (cursor?query.startAfter(cursor):query).limit(200).get();rows.push(...page.docs.map(row));if(page.size<200)break;cursor=page.docs.at(-1)!;}return rows;};
-  const documents=async(collection:Collection,ids:string[])=>{const rows:Row[]=[];for(let i=0;i<ids.length;i+=100){const docs=await db.getAll(...ids.slice(i,i+100).map(id=>db.collection(collection).doc(id)));rows.push(...docs.filter(d=>d.exists).map(row));}return rows;};
+  const read=async(query:Query)=>withLiveCompanyReads(async()=>{const rows:Row[]=[];let cursor;
+    for(;;){const page=await (cursor?query.startAfter(cursor):query).limit(200).get();rows.push(...page.docs.map(row));if(page.size<200)break;cursor=page.docs.at(-1)!;}return rows;});
+  const documents=async(collection:Collection,ids:string[])=>withLiveCompanyReads(async()=>{const rows:Row[]=[];for(let i=0;i<ids.length;i+=100){const docs=await db.getAll(...ids.slice(i,i+100).map(id=>db.collection(collection).doc(id)));rows.push(...docs.filter(d=>d.exists).map(row));}return rows;});
   return {
-    boundary:async()=>{const doc=await db.collection('companies').limit(1).get();return {seconds:doc.readTime.seconds,nanoseconds:doc.readTime.nanoseconds};},
+    boundary:async()=>withLiveCompanyReads(async()=>{const doc=await db.collection('companies').limit(1).get();return {seconds:doc.readTime.seconds,nanoseconds:doc.readTime.nanoseconds};}),
     initial:async(collection,ids)=>collection==='companies'?read(db.collection(collection).where('themeIds','array-contains-any',['ai','robotics','space']).orderBy(FieldPath.documentId())):collection==='company_fundamentals'?documents(collection,ids):read(db.collection(collection).orderBy(FieldPath.documentId())),
     changes:async(collection,since,through)=>{
       const base=db.collection(collection).where('updatedAt','>=',stamp(since)).where('updatedAt','<=',stamp(through)).orderBy('updatedAt').orderBy(FieldPath.documentId());

@@ -3,7 +3,9 @@ FROM node:20-bookworm-slim AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && npm ci \
+  && rm -rf /var/lib/apt/lists/*
 
 FROM base AS builder
 WORKDIR /app

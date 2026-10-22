@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK snapshots retain their public shape. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Watch, track } from './watch';
+import {companySourceSnapshot,liveCompanyReads,isSnapshotCollection} from './company-directory';
 declare global {
   var __youAnalystReadScopeV1: AsyncLocalStorage<boolean> | undefined;
   var __youAnalystSourceStoresV1: WeakMap<object, Set<Entry>> | undefined;
@@ -75,6 +76,11 @@ const policies: Record<string, readonly [number, number]> = {
   events: [256, 16 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string): Promise<any> | undefined {
+  if(isSnapshotCollection(collection)){
+    if(liveCompanyReads())return undefined;
+    const cached=companySourceSnapshot(owner as import('firebase-admin/firestore').Firestore,source);
+    if(cached)return cached;
+  }
   const policy = Object.hasOwn(policies, collection) ? policies[collection] : undefined;
   if (!policy) return sourceSnapshot(owner, source);
   let partitions = owners.get(owner);

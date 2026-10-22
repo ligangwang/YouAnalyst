@@ -42,24 +42,34 @@ test('subscriptions are bounded and eviction never cancels an active initial loa
 });
 
 
-test('sitemap caches retain three buckets, share reads and push renames/removals', async t => {
- t.after(closeLocalCaches);
- const { loadSitemapPaths } = await import('../../src/lib/local-cache/sitemaps');
- const listeners: {prefix:string; next:(snapshot:unknown)=>void; closed:boolean}[]=[];
- const db={collection:()=>{let prefix='';const query={orderBy:()=>query,startAt:(p:string)=>{prefix=p;return query;},endBefore:()=>query,onSnapshot:(next:(snapshot:unknown)=>void)=>{const l={prefix,next,closed:false};listeners.push(l);return ()=>{l.closed=true;};}};return query;}} as unknown as Firestore;
- const doc=(id:string,name:string,slug:string)=>({id,data:()=>({name,slug,status:'PUBLISHED'})});
- const first=loadSitemapPaths(db,'US:M'),concurrent=loadSitemapPaths(db,'US:M');
- assert.equal(listeners.length,1);
- listeners[0].next({docs:[doc('US:MSFT','Microsoft','microsoft')]});
- const initial=await first;assert.deepEqual(await concurrent,initial);assert.ok(initial.length);assert.ok(Object.isFrozen(initial));
- for(const prefix of ['XSHG:6','ORG:']){const result=loadSitemapPaths(db,prefix);listeners.at(-1)!.next({docs:[]});await result;}
- assert.deepEqual(await loadSitemapPaths(db,'US:M'),initial);assert.equal(listeners.length,3);assert.ok(listeners.every(l=>!l.closed));
- listeners[0].next({docs:[doc('US:MSFT','Microsoft','microsoft-new')]});
- assert.notDeepEqual(await loadSitemapPaths(db,'US:M'),initial);
- listeners[0].next({docs:[]});assert.deepEqual(await loadSitemapPaths(db,'US:M'),[]);
- await assert.rejects(loadSitemapPaths(db,'arbitrary'),/Invalid sitemap prefix/);assert.equal(listeners.length,3);
- closeLocalCaches();assert.ok(listeners.every(l=>l.closed));
- const reopened=loadSitemapPaths(db,'US:M');assert.equal(listeners.length,4);listeners[3].next({docs:[]});await reopened;
+test('sitemap shares a file load across buckets, caches in memory, and refreshes daily',async()=>{
+ const {loadSitemapPaths}=await import('../../src/lib/local-cache/sitemaps');
+ const db={collection:()=>{throw Error('Firestore must not be used');}} as unknown as Firestore;
+ let reads=0,now=0;let paths=new Map([['US:M',Object.freeze(['/company/microsoft'])],['ORG:',Object.freeze(['/company/openai'])]]);
+ const options={file:async()=>{reads++;return paths;},now:()=>now};
+ const [a,b]=await Promise.all([loadSitemapPaths(db,'US:M',options),loadSitemapPaths(db,'ORG:',options)]);
+ assert.deepEqual(a,['/company/microsoft']);assert.deepEqual(b,['/company/openai']);assert.equal(reads,1);
+ await loadSitemapPaths(db,'US:M',options);assert.equal(reads,1);
+ now+=24*60*60*1000;paths=new Map([['US:M',Object.freeze([])]]);
+ assert.deepEqual(await loadSitemapPaths(db,'US:M',options),[]);assert.equal(reads,2);
+ await assert.rejects(loadSitemapPaths(db,'arbitrary',options),/Invalid sitemap prefix/);
+});
+
+test('missing sitemap file falls back once; an empty file and file errors do not',async()=>{
+ const {loadSitemapPaths}=await import('../../src/lib/local-cache/sitemaps');
+ let reads=0;
+ const q={select:()=>q,orderBy:()=>q,limit:()=>q,get:async()=>{reads++;return {size:2,docs:[
+  {id:'US:MSFT',data:()=>({name:'Microsoft',slug:'microsoft'})},
+  {id:'US:META',data:()=>({name:'Meta',slug:'meta',isDeleted:true})},
+ ]};}};
+ const db={collection:()=>q} as unknown as Firestore;
+ const options={file:async()=>undefined};
+ const [a,b]=await Promise.all([loadSitemapPaths(db,'US:M',options),loadSitemapPaths(db,'ORG:',options)]);
+ assert.equal(a.length,1);assert.deepEqual(b,[]);assert.equal(reads,1);
+ await loadSitemapPaths(db,'US:M',options);assert.equal(reads,1);
+ const cold={collection:()=>{throw Error('Unexpected Firestore read');}} as unknown as Firestore;
+ await assert.rejects(loadSitemapPaths(cold,'US:M',{file:async()=>{throw Error('permission denied');}}),/permission denied/);
+ assert.deepEqual(await loadSitemapPaths(cold,'US:M',{file:async()=>new Map()}),[]);
 });
 
 test('fundamentals survive individual-company browsing and company-cache churn',async t=>{

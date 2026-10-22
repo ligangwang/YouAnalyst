@@ -14,16 +14,12 @@ function bundle(entry: string) {
  };
 }
 
-test('separately bundled sitemap routes share the same bucket subscription', async t => {
- t.after(closeLocalCaches);
+test('separately bundled sitemap routes share one file load across buckets', async () => {
  const load=bundle('src/lib/local-cache/sitemaps.ts');
  const first=load(),second=load();let opens=0;
- const db={collection:()=>{
-  const query={orderBy:()=>query,startAt:()=>query,endBefore:()=>query,
-   onSnapshot:(next:(snapshot:unknown)=>void)=>{opens++;queueMicrotask(()=>next({docs:[]}));return ()=>{};}};
-  return query;
- }};
- await Promise.all([first.loadSitemapPaths(db,'US:A'),second.loadSitemapPaths(db,'US:A')]);
+ const db={collection:()=>{throw Error('Unexpected Firestore read');}};
+ const options={file:async()=>{opens++;return new Map();}};
+ await Promise.all([first.loadSitemapPaths(db,'US:A',options),second.loadSitemapPaths(db,'US:M',options)]);
  assert.equal(opens,1);
 });
 
