@@ -23,7 +23,7 @@ export const withLiveCompanyReads=<T>(work:()=>T):T=>state.live.run(true,work);
 export const liveCompanyReads=()=>state.live.getStore()===true;
 export function enableCompanyDirectory(db:Firestore,raw:Firestore,options:Options={}){if(!state.clients.has(db))state.clients.set(db,{raw,options});}
 /** Collector/graph readers use the same directory; unwrapped test adapters are unchanged. */
-export function enableCompanyDirectoryForReader(db:Firestore){if(state.sources.has(db.collection('companies')))enableCompanyDirectory(db,db);}
+export function enableCompanyDirectoryForReader(db:Firestore){if(typeof db.getAll==='function'&&state.sources.has(db.collection('companies')))enableCompanyDirectory(db,db);}
 export function companyDirectoryEnabled(db:Firestore){return state.clients.has(db)&&!state.live.getStore();}
 export function registerCompanySource(source:object,id:string|undefined,steps:Step[],collection:Collection='companies'){state.sources.set(source,{id,steps,collection});}
 export function companyDirectoryVersion(db:Firestore,collection:Collection='companies'){const entry=state.entries.get(db)?.get(collection);return `${entry?.version??0}:${entry&&Date.now()>=entry.expires?'expired':'current'}`;}

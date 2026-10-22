@@ -94,7 +94,7 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
   if(query.exactIds?.length)for(const doc of await db.getAll(...query.exactIds.map(id=>db.collection(collection).doc(id))))if(doc.exists)found.set(doc.id,doc);
   selected=[...found.values()];
  }else selected=[...(await localQuery(db,collection,source,collection)).values()];
- let rows=selected.filter(doc=>doc.get('isDeleted')!==true);
+ let rows=selected.filter(doc=>(typeof doc.get==='function'?doc.get('isDeleted'):doc.data()?.isDeleted)!==true);
  if(region)rows=rows.filter(doc=>doc.get('exchange_region')===region);
  if(query){
   if(query.status)rows=rows.filter(doc=>doc.get('status')===query.status);
