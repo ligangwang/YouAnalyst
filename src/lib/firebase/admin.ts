@@ -40,7 +40,7 @@ export async function verifyIdToken(token: string): Promise<admin.auth.DecodedId
 
 export function getAdminFirestore(): admin.firestore.Firestore {
   const raw=getAdminApp().firestore(),db=observeFirestore(raw);
-  if(typeof raw.projectId==='string')enableCompanyDirectory(db,db);
+  if(typeof raw.settings==='function')enableCompanyDirectory(db,db);
   return db;
 }
 
