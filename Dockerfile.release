@@ -1,9 +1,22 @@
+FROM node:20-bookworm-slim AS native
+WORKDIR /native
+# CI's Ubuntu native binding can require a newer glibc than production.
+# Compile the exact packaged SQLite version against the runtime base instead.
+COPY app/node_modules/better-sqlite3/package.json ./sqlite-package.json
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && version=$(node -p "require('./sqlite-package.json').version") \
+  && npm install --no-save --build-from-source "better-sqlite3@$version"
+COPY app /app
+# Next also traces the binding into hashed .next/node_modules directories.
+RUN find /app -type f -name better_sqlite3.node -exec cp /native/node_modules/better-sqlite3/build/Release/better_sqlite3.node '{}' ';'
+
 FROM node:20-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
-# Already compiled and checked on the Linux release runner.
-COPY app ./
+# Application code is prebuilt; native bindings match this runtime image.
+COPY --from=native /app ./
+RUN node -e "const db = new (require('better-sqlite3'))(':memory:'); if (db.prepare('SELECT 1 AS ready').get().ready !== 1) process.exit(1); db.close()"
 EXPOSE 8080
 CMD ["node", "server.js"]
