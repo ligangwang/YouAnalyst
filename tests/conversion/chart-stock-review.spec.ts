@@ -43,6 +43,41 @@ async function open(page:Page,query='',fail=false,showReview=true){
  return writes;
 }
 
+test('chart range persists across companies, reloads and locales without share links replacing the default',async({page})=>{
+ await open(page,'',false,false);
+ const range=page.getByRole('combobox',{name:'Price history range',exact:true});
+ await expect(range).toHaveValue('30');
+ await range.selectOption('365');
+ await page.goto('http://review.test/en?company=US%3ANVDA');
+ await expect(range).toHaveValue('365');
+ await page.reload();
+ await expect(range).toHaveValue('365');
+ await page.goto('http://review.test/zh-cn?company=US%3AMU&lang=zh-CN');
+ const chineseRange=page.getByRole('combobox',{name:'股价时间范围',exact:true});
+ await expect(chineseRange).toHaveValue('365');
+ await page.goto('http://review.test/en?company=US%3AAMD&chartRange=90');
+ await expect(range).toHaveValue('90');
+ await page.goto('http://review.test/en?company=US%3ANVDA');
+ await expect(range).toHaveValue('365');
+ await range.selectOption('ytd');
+ await page.goto('http://review.test/en?company=US%3AAMD');
+ await expect(range).toHaveValue('ytd');
+});
+
+test('chart range ignores invalid saved values and works when browser storage is blocked',async({page})=>{
+ await page.addInitScript(()=>localStorage.setItem('youanalyst.chartRange','invalid'));
+ await open(page,'&chartRange=invalid',false,false);
+ const range=page.getByRole('combobox',{name:'Price history range',exact:true});
+ await expect(range).toHaveValue('30');
+ await page.evaluate(()=>{
+  Storage.prototype.getItem=()=>{throw new Error('Storage blocked');};
+  Storage.prototype.setItem=()=>{throw new Error('Storage blocked');};
+ });
+ await range.selectOption('365');
+ await expect(range).toHaveValue('365');
+ await expect(page).toHaveURL(/chartRange=365/);
+});
+
 test('quote table preserves price color preferences in dark and light themes',async({page})=>{
  await open(page,'&lang=zh-CN',false,false);
  await page.addStyleTag({content:readFileSync('src/app/globals.css','utf8').replace('@import "tailwindcss";','')});

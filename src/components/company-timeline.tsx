@@ -21,6 +21,7 @@ import { CompanySearch } from "./company-search";
 import type { SearchSuggestion } from "./ticker-search-input";
 import { ChartStockReview, type ChartWatchlist } from './chart-stock-review';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
+import { useChartRangePreference, rememberChartRange } from './chart-range-preference';
 
 export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, closed:controlledClosed, onClosedChange, watchlist, onSelectCompany, stockToolsRequest, onCloseStockToolsRequest }: { stockToolsRequest?:{companyId:string;anchor:EventWindowAnchor}|null; onCloseStockToolsRequest?:()=>void; watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; closed?:boolean; onClosedChange?:(closed:boolean)=>void; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
@@ -47,7 +48,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const categoryColor = (color: string) => `color-mix(in srgb, ${color} var(--event-color-weight,100%), var(--ui-text,${color}))`;
   const chartHelpId = useId();
   const now = useRelativeTimeClock();
-  const chartRange = useIndustryBrowseParam('chartRange');
+  const chartRange = useChartRangePreference();
   const chartInterval = useIndustryBrowseParam('chartInterval');
   const chartStyle = useIndustryBrowseParam('chartStyle');
   const chartMA = useIndustryBrowseParam('chartMA');
@@ -66,7 +67,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const [expandedIndicators,setExpandedIndicators]=useState<Array<'volume'|'macd'|'kdj'|'boll'>>([]);
   const [shareResult,setShareResult] = useState<{url:string;copied:boolean}|null>(null);
   const changeSettings = (patch: Partial<SharedChart>) => { updateIndustryBrowse(sharedChartParams({...settings,...patch})); setShareResult(null); };
-  const setDays = (range: TimelineRange) => changeSettings({range});
+  const setDays = (range: TimelineRange) => { rememberChartRange(range); changeSettings({range}); };
   const setChartMode = (style: 'candles'|'line') => changeSettings({style});
   const setAverages = (change: (values:number[])=>number[]) => changeSettings({averages:change(averages)});
   const setShowEvents = (change: (value:boolean)=>boolean) => changeSettings({events:change(showEvents)});
