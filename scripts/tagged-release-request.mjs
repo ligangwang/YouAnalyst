@@ -17,4 +17,5 @@ export async function taggedReleaseRequest(url, options, {
     await beforeRetry();
     await sleep(interval);
   }
+  throw new Error('Tagged release probe exhausted without a response');
 }
