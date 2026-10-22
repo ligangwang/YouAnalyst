@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
+: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
 : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
@@ -50,7 +52,7 @@ gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-sec-fundamentals.cjs --min-instances 0 --max-instances 1 \
   --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_RESULT_TOPIC=$result|FUNDAMENTALS_SUBSCRIPTION=$subscription$filing_env|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --set-env-vars "^|^ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_RESULT_TOPIC=$result|FUNDAMENTALS_SUBSCRIPTION=$subscription$filing_env|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"

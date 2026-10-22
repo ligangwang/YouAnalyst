@@ -27,7 +27,7 @@ esac
 `);
   chmodSync(path.join(dir, "gcloud"), 0o755);
   const env = (extra: Record<string, string>) =>
-    ({ NODE_ENV: "test", PATH: `${dir}:${process.env.PATH}`, GCLOUD_LOG: log, GCP_PROJECT_ID: "demo", FAKE_JOB_SA: runtime, ...extra }) as NodeJS.ProcessEnv;
+    ({ NODE_ENV: "test", PATH: `${dir}:${process.env.PATH}`, GCLOUD_LOG: log, ENTITY_SNAPSHOT_BUCKET: "demo-snapshots", GCP_PROJECT_ID: "demo", FAKE_JOB_SA: runtime, ...extra }) as NodeJS.ProcessEnv;
   return { dir, env, calls: () => readFileSync(log, "utf8").trim().split("\n").filter(Boolean) };
 }
 
