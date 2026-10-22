@@ -50,7 +50,7 @@ function run(script: string, extra: Record<string, string> = {}) {
       export -f gcloud
       if [[ -n "\${TARGET:-}" ]]; then bash "$SCRIPT" "$TARGET"; else bash "$SCRIPT"; fi
     `], { encoding: 'utf8', timeout: 10000, env: { ...process.env,
-      CALLS: path.join(dir, 'calls'), ENV_CAPTURE: path.join(dir, 'env'), ENV_PATHS: path.join(dir, 'env-paths'), SCRIPT: script, GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit',
+      CALLS: path.join(dir, 'calls'), ENV_CAPTURE: path.join(dir, 'env'), ENV_PATHS: path.join(dir, 'env-paths'), SCRIPT: script, ENTITY_SNAPSHOT_BUCKET: 'demo-snapshots', GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit',
       FUNDAMENTALS_IMAGE: 'example/image@sha256:abcdef', SEC_USER_AGENT: 'test contact', OPENAI_API_KEY: 'test-existing-key', OPENAI_MODEL: 'test-existing-model',
       WEB_RUNTIME_SERVICE_ACCOUNT: 'web@demo.iam.gserviceaccount.com', CENTRAL_CACHE_URL: '',
       ENABLE_SEC_FILING_PIPELINE: '1', PUBSUB_BOOTSTRAP_IAM: '0', SEC_FILINGS_COLLECTOR_ENABLED: '0',
@@ -235,4 +235,13 @@ test('enabled routine financial releases retain all EOD and SEC workers plus bot
   const disabled = run('scripts/deploy-background-jobs.sh', { TARGET: 'fundamentals', ENABLE_SEC_FILING_PIPELINE: '0', OPENAI_API_KEY: '' });
   assert.equal(disabled.status, 0, disabled.stderr);
   assert.doesNotMatch(disabled.calls, /company-graph|sec-filings-discovered|collect-sec-filings/);
+});
+
+test('SEC collector requires and passes the SQLite snapshot bucket', () => {
+ const r=run('scripts/deploy-sec-filings.sh',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:'fallback-snapshots'});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.calls,/ENTITY_SNAPSHOT_BUCKET=fallback-snapshots/);
+ const missing=run('scripts/deploy-sec-filings.sh',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''});
+ assert.notEqual(missing.status,0);
+ assert.equal(missing.calls,'');
 });

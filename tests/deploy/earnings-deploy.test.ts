@@ -63,7 +63,7 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
       if [[ -n "$ARG" ]]; then bash "$SCRIPT" "$ARG"; else bash "$SCRIPT"; fi
     `], { encoding: "utf8", timeout: 10000, env: {
       ...process.env, CALLS: path.join(dir, "calls"), ENV_CAPTURE: path.join(dir, "env"), ENV_PATHS: path.join(dir, "env-paths"),
-      SCRIPT: script, ARG: arg, GCP_PROJECT_ID: "demo", GIT_SHA: sha,
+      SCRIPT: script, ARG: arg, ENTITY_SNAPSHOT_BUCKET: "demo-snapshots", GCP_PROJECT_ID: "demo", GIT_SHA: sha,
       FUNDAMENTALS_IMAGE: "example/image@sha256:abcdef", SEC_USER_AGENT: "test contact",
       WEB_RUNTIME_SERVICE_ACCOUNT: "web@demo.iam.gserviceaccount.com",
       EARNINGS_PIPELINE_ENABLED: "1", EARNINGS_BOOTSTRAP_IAM: "0", EARNINGS_COLLECTION_ENABLED: "0", EARNINGS_PROCESSING_ENABLED: "0",
@@ -355,7 +355,7 @@ if (a[0] === 'run' && a[2] === 'describe') {
 `, { mode: 0o755 });
     const result = spawnSync("bash", ["scripts/operate-earnings.sh", operation], { encoding: "utf8", timeout: 15000, env: {
       ...process.env, PATH: `${path.join(dir, "bin")}:${process.env.PATH}`, OP_STATE: path.join(dir, "state.json"), OP_CALLS: path.join(dir, "calls"),
-      GCP_PROJECT_ID: "demo", GIT_SHA: sha, EARNINGS_OPERATION_APPROVED_SHA: sha, ...extra,
+      ENTITY_SNAPSHOT_BUCKET: "demo-snapshots", GCP_PROJECT_ID: "demo", GIT_SHA: sha, EARNINGS_OPERATION_APPROVED_SHA: sha, ...extra,
     } });
     assert.ifError(result.error);
     const calls: string[][] = existsSync(path.join(dir, "calls")) ? readFileSync(path.join(dir, "calls"), "utf8").trim().split("\n").filter(Boolean).map(line => JSON.parse(line)) : [];
@@ -492,3 +492,13 @@ test("canary-only readback is required before live execution or activation resum
     if (operation === "activate") assert.match(r.stderr, /rollback could not be fully verified/);
   }
 });
+
+ test("earnings deploy carries SQLite bucket to job and subscriber and rejects missing config", () => {
+  const r = run({ ENTITY_SNAPSHOT_BUCKET: "", EODHD_BULK_EOD_BUCKET: "fallback-snapshots" });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(r.configs.length > 0);
+  for (const config of r.configs) assert.equal(config.ENTITY_SNAPSHOT_BUCKET, "fallback-snapshots");
+  const missing = run({ ENTITY_SNAPSHOT_BUCKET: "", EODHD_BULK_EOD_BUCKET: "" });
+  assert.notEqual(missing.status, 0);
+  assert.equal(missing.calls, "");
+ });

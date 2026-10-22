@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
+: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
 : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/filing-pipeline-deploy.sh"
@@ -23,6 +25,6 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_re
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
   --command node --args dist/collect-sec-filings.cjs,--apply \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|SEC_USER_AGENT=$SEC_USER_AGENT|SEC_FILINGS_TOPIC=sec-filings-discovered|SEC_FILINGS_COLLECTOR_ENABLED=${SEC_FILINGS_COLLECTOR_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=$earnings_collection|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --set-env-vars "^|^ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|SEC_USER_AGENT=$SEC_USER_AGENT|SEC_FILINGS_TOPIC=sec-filings-discovered|SEC_FILINGS_COLLECTOR_ENABLED=${SEC_FILINGS_COLLECTOR_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=$earnings_collection|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 pipeline_job_invokers "$job"
 pipeline_schedule "$job" '*/15 * * * *'
