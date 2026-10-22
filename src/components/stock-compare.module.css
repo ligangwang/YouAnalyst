@@ -147,6 +147,9 @@
 .customization button:disabled { opacity:.5;cursor:default; }
 .templateOptions,.companyColors { display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px; }
 .companyColors>div,.companyColors label { display:flex;align-items:center;gap:8px;font-size:13px; }
+.companyColors>.inlineColorControl { display:block; }
+.colorActionsRow { display:flex;flex-wrap:wrap;align-items:center;gap:8px; }
+.inlineColorControl>button { margin-top:12px; }
 .companyColors input { width:36px;height:36px;border:1px solid var(--color-line);border-radius:6px;padding:2px;background:transparent;cursor:pointer; }
 
 /* The work surface is quiet so series colors, dates and selection carry emphasis. */

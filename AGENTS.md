@@ -4,6 +4,12 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Design principles
+
+User-defined design principles: simple and easy to use, visually delightful, and strikingly futuristic, with an experience that goes beyond conventional financial platforms.
+
+Apply these principles to all future interface and interaction design. Make primary actions intuitive and effortless, minimizing cognitive load and unnecessary steps. Keep the visual experience clear, comfortable, and refined, using color, lighting, spatial depth, and restrained motion to create a compelling sense of future technology. Visual effects should support understanding and interaction. Preserve simplicity and usability as new features are added.
+
 ## Firestore collection changes
 
 Ask the user to confirm the exact name and purpose before creating any new Firestore collection. Explicit authorization in the current conversation satisfies this requirement. Never infer permission for additional collections from a related task.

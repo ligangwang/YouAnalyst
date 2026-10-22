@@ -177,8 +177,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         {!preferences.signedIn ? <Link href={`/auth?${new URLSearchParams({ next: localizedPath(comparePath(styledConfig({ ...draft, style })), locale) })}`}>{text("Sign in or create an account to customize", "登录或注册以自定义")}</Link> : <>
           <fieldset disabled={!preferences.ready || preferences.status === "saving"}>
             <legend className="sr-only">{text("Company color", "公司颜色")}</legend>
-            <div className={styles.companyColors}><CompanyColorControl symbol={colorSymbol} appearance={appearance} savedAppearance={preferences.savedAppearance} light={displayTheme === "light"} colors={linkColors} onChange={changeAppearance}/></div>
-            <button type="button" onClick={() => void preferences.save(style, linkColors)}>{preferences.status === "saving" ? text("Saving…", "保存中…") : text("Save custom colors", "保存自选色")}</button>
+            <div className={styles.companyColors}><CompanyColorControl symbol={colorSymbol} appearance={appearance} savedAppearance={preferences.savedAppearance} light={displayTheme === "light"} colors={linkColors} onChange={changeAppearance} saveControl={<button type="button" onClick={() => void preferences.save(style, linkColors)}>{preferences.status === "saving" ? text("Saving…", "保存中…") : text("Save custom colors", "保存自选色")}</button>}/></div>
           </fieldset>
           {preferences.status === "error" ? <p role="alert">{text("Could not load or save preferences. Your changes may not be saved.", "无法加载或保存偏好，修改可能尚未保存。")}{!preferences.ready && <button type="button" onClick={preferences.retry}>{text("Retry", "重试")}</button>}</p> : <p role="status">{preferences.status === "saved" ? text("Custom colors saved to your account.", "自选色已保存至账号。") : !preferences.ready ? text("Loading your preferences…", "正在加载偏好…") : text("Preview changes, then save your custom colors.", "预览修改后保存自选色。")}</p>}
         </>}
