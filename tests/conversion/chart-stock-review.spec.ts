@@ -310,6 +310,8 @@ for(const chinese of [false,true])test(`indicators expand inline and restore on 
     await timeline.getByRole('button',{name:label,exact:true}).click();
    }
    const panel=timeline.locator(`[data-${kind}-panel]`),hit=timeline.locator(`[data-indicator-hit="${kind}"]`);
+   await expect(timeline.locator('[data-indicator-study-controls]')).toHaveCount(0);
+   await expect(timeline.getByRole('button',{name:/^(Expand|放大) (MACD|KDJ|BOLL)/})).toHaveCount(0);
    await expect(panel).toHaveAttribute('data-expanded','false');
    const originalHeight=Number(await hit.getAttribute('height'));
    const geometry=await candleGeometry();
@@ -330,6 +332,11 @@ for(const chinese of [false,true])test(`indicators expand inline and restore on 
    await expect(panel).toHaveAttribute('data-expanded','false');
    expect(Number(await hit.getAttribute('height'))).toBe(originalHeight);
    expect(await candleGeometry()).toEqual(geometry);
+   if(kind!=='volume'){
+    const label=panel.getByRole('button',{name:chinese?`${kind.toUpperCase()} 副图`:`${kind.toUpperCase()} panel`,exact:true});
+    await label.press('Enter');await expect(panel).toHaveAttribute('data-expanded','true');
+    await label.press('Space');await expect(panel).toHaveAttribute('data-expanded','false');
+   }
   }
  }
  await expect(timeline).toHaveAttribute('data-chart-size','full');

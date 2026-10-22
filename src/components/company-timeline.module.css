@@ -86,8 +86,7 @@
 .chart svg:focus-visible { outline:2px solid var(--selection-outline,#79cfe9); outline-offset:2px; }
 @media(pointer:coarse) { .priceDetailsHeader button { min-width:44px; min-height:44px; } }
 
-.studyControls{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-top:8px;font-size:12px}.studyControls button{padding:5px 10px;min-height:32px;border:1px solid var(--ui-line,#30485a);border-radius:5px;background:transparent;color:var(--ui-text,#dbeaf6);cursor:pointer}.studyControls label{display:flex;align-items:center;gap:6px;cursor:pointer;min-height:32px}.studyControls small{color:var(--ui-muted,#9db4c8);font-size:11px}.studyControls :is(button,input):focus-visible{outline:2px solid var(--selection-outline,#a7e9fa);outline-offset:2px}
-.studyControls button[aria-pressed=true]{background:var(--ui-selected,#24516a);border-color:var(--selection-outline,#a7e9fa)}
+.chart text[role=button]:focus-visible{outline:2px solid var(--selection-outline,#a7e9fa);outline-offset:2px}
 .timeline[data-chart-size=full] [data-chart-sectors]{display:flex;flex-direction:column;max-height:220px;overflow:hidden;min-height:0}
 .timeline[data-chart-size=full] [data-chart-sectors]>:not([data-chart-review-rows]){flex-shrink:0}
 .timeline[data-chart-size=full] [data-chart-sectors]>[data-chart-review-rows]{flex:1 1 auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
