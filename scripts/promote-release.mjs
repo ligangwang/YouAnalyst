@@ -1,3 +1,4 @@
+import {taggedReleaseRequest} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -22,12 +23,23 @@ export async function promoteRelease({service,project,region,revision,commit,
   assert(candidate?.revisionName===revision&&candidate.url,'Pinned candidate changed');
   const tag=`retain-${previous}`;
   assert(tag.length<64,'Retention tag too long');
-  update(['--update-tags',`${tag}=${previous}`]);
+  if(!initial.status.traffic.some(item=>item.tag===tag&&item.revisionName===previous)) {
+    update(['--update-tags',`${tag}=${previous}`]);
+  }
   const retained=describe().status.traffic.find(item=>item.tag===tag);
   assert(retained?.revisionName===previous&&retained.url,'Predecessor retention was not applied');
+  async function publicHealth(requireCandidate=false) {
+    const response=await request(`${initial.status.url}/api/health`,{signal:AbortSignal.timeout(30000),cache:'no-store'});
+    assert.equal(response.status,200,`Public health failed during rollout: HTTP ${response.status}`);
+    const body=await response.json();
+    assert.equal(body.status,'ok');
+    assert([previous,revision].includes(body.revision),'Unexpected public revision');
+    if(body.revision===revision)assert.equal(body.commitSha,commit,'Public commit mismatch');
+    if(requireCandidate)assert.equal(body.revision,revision,'Public traffic did not converge to candidate');
+  }
   async function health(url,expected,expectedCommit) {
-    const response=await request(`${url}/api/health`,{signal:AbortSignal.timeout(30000),cache:'no-store'});
-    assert.equal(response.status,200,`Health failed for ${expected}`);
+    const response=await taggedReleaseRequest(`${url}/api/health`,{}, {request,sleep,log,beforeRetry:()=>publicHealth()});
+    assert.equal(response.status,200,`Tagged health failed for ${expected}: HTTP ${response.status}`);
     const body=await response.json();
     assert.equal(body.status,'ok');assert.equal(body.revision,expected);
     if(expectedCommit)assert.equal(body.commitSha,expectedCommit);
@@ -58,8 +70,7 @@ export async function promoteRelease({service,project,region,revision,commit,
         await sleep(interval);
         await health(retained.url,previous);
         await health(candidate.url,revision,commit);
-        const publicResponse=await request(`${initial.status.url}/api/health`,{signal:AbortSignal.timeout(30000),cache:'no-store'});
-        assert.equal(publicResponse.status,200,'Public health failed during rollout');
+        await publicHealth(sample===samples-1);
         active();
         if(sample%3===2||sample===samples-1)errors();
         log(JSON.stringify({at:new Date(now()).toISOString(),percent,sample:sample+1,previous,revision,predecessorActive:true}));

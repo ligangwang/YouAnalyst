@@ -1,6 +1,9 @@
+import {taggedReleaseRequest} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 export async function verifyCandidate({url, revision, commit, request=fetch}) {
+  const rawRequest=request;
+  request=(input,options)=>taggedReleaseRequest(input,options,{request:rawRequest});
   assert(url && revision && commit, 'Candidate URL, revision and commit required');
   const health = await request(`${url}/api/health`, {signal:AbortSignal.timeout(60000)});
   assert.equal(health.status, 200, 'Candidate health check failed; existing traffic stays unchanged');
