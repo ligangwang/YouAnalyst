@@ -12,7 +12,8 @@ check_maintenance_job_iam "$job"
 # Reuse private storage; never make entity data public or create new collections.
 gcloud storage buckets describe "gs://$ENTITY_SNAPSHOT_BUCKET" --project "$GCP_PROJECT_ID" >/dev/null
 gcloud storage buckets add-iam-policy-binding "gs://$ENTITY_SNAPSHOT_BUCKET" --project "$GCP_PROJECT_ID" --member "serviceAccount:$maintenance_runtime_account" --role roles/storage.objectUser --quiet >/dev/null
-gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" --member "serviceAccount:$maintenance_runtime_account" --role roles/datastore.viewer --condition=None --quiet >/dev/null
+# The shared maintenance runtime already has Firestore access provisioned during
+# setup. Routine releases must not require project-wide IAM administration.
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --command node --args dist/sync-entity-snapshots.cjs --tasks 1 --parallelism 1 --max-retries 0 --task-timeout 30m --memory 4Gi --cpu 1 --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID,ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET,ENTITY_TIMESTAMP_MIGRATION_COMPLETE=1,NODE_OPTIONS=--max-old-space-size=3072" --quiet
 ensure_maintenance_job_iam "$job"
 operation=create
