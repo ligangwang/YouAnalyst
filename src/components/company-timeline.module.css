@@ -10,6 +10,8 @@
 .ranges button[aria-pressed=true] { background:var(--ui-selected,#24516a); color:var(--ui-text,#e5f7ff); border-color:var(--ui-line,#77bacf); }
 .chart { position:relative; width:100%; height:160px; touch-action:pan-y; }
 .chart svg { display:block; width:100%; height:160px; overflow:visible; }
+.chart :is([data-volume-panel],[data-macd-panel],[data-kdj-panel],[data-boll-panel]){user-select:none}
+.chart [data-indicator-hit]{cursor:ns-resize}
 .chart text { fill:var(--ui-muted,#9db4c8); font-size:11px; }
 .priceTooltip { position:absolute; z-index:2; transform:translateX(-50%); pointer-events:auto; display:flex; flex-direction:column; gap:3px; padding:7px 10px; border:1px solid var(--ui-line,#79cfe9); border-radius:6px; background:var(--ui-surface,#102638); color:var(--ui-text,#e5f7ff); font-size:12px; width:max-content; max-width:min(280px,calc(100% - 16px)); box-sizing:border-box; white-space:normal; overflow-wrap:anywhere; box-shadow:0 3px 12px #0006; }
 .timeline .marker { min-width:0; min-height:0; position:absolute; transform:translate(-50%,-50%); width:26px; height:26px; padding:0; border:1px solid var(--ui-line,#76b8c0); border-radius:50%; background:var(--ui-surface,#112639); color:var(--ui-text,#9ce7ef); font-size:13px; cursor:pointer; }
@@ -85,4 +87,8 @@
 @media(pointer:coarse) { .priceDetailsHeader button { min-width:44px; min-height:44px; } }
 
 .studyControls{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-top:8px;font-size:12px}.studyControls button{padding:5px 10px;min-height:32px;border:1px solid var(--ui-line,#30485a);border-radius:5px;background:transparent;color:var(--ui-text,#dbeaf6);cursor:pointer}.studyControls label{display:flex;align-items:center;gap:6px;cursor:pointer;min-height:32px}.studyControls small{color:var(--ui-muted,#9db4c8);font-size:11px}.studyControls :is(button,input):focus-visible{outline:2px solid var(--selection-outline,#a7e9fa);outline-offset:2px}
-.timeline[data-chart-size=full] [data-chart-sectors]{max-height:220px;overflow:auto;overscroll-behavior:contain;min-height:0}.timeline[data-chart-size=full] [data-chart-sectors] table thead th{z-index:1}
+.studyControls button[aria-pressed=true]{background:var(--ui-selected,#24516a);border-color:var(--selection-outline,#a7e9fa)}
+.timeline[data-chart-size=full] [data-chart-sectors]{display:flex;flex-direction:column;max-height:220px;overflow:hidden;min-height:0}
+.timeline[data-chart-size=full] [data-chart-sectors]>:not([data-chart-review-rows]){flex-shrink:0}
+.timeline[data-chart-size=full] [data-chart-sectors]>[data-chart-review-rows]{flex:1 1 auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
+.timeline[data-chart-size=full] [data-chart-sectors] table thead th{z-index:1}

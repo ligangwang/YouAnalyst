@@ -1,6 +1,7 @@
 import type { CompanyListing } from "../market-companies/identity";
 import type { PrivateValuation } from "../fundamentals/private-valuations";
 import type { DailyPrice } from '../intelligence/price-performance';
+import { chineseDisplayTranslation } from './company-display-translations';
 export type GraphPrivateValuation = PrivateValuation & { verification: "source_checked" | "reviewed"; reviewPending: boolean };
 export type Market = "US" | "CN_A" | "GLOBAL";
 // `value` is always USD so map sizing is comparable across markets; A-shares also
@@ -31,7 +32,12 @@ export function combineGraphs(graphs: (KnowledgeGraph & { id: string; language: 
 }
 
 export function companyName(company: Pick<GraphNode, "id" | "name" | "names">, locale: string): string {
-  return company.names?.[locale === "zh-CN" ? "zh-CN" : "en"]?.trim() || company.name || company.id;
+  const localized = company.names?.[locale === "zh-CN" ? "zh-CN" : "en"]?.trim();
+  if (locale === 'zh-CN' && !/[\u3400-\u9fff]/u.test(localized || company.name || '')) {
+    const translated = chineseDisplayTranslation(company.id, company.names?.en?.trim() || localized || company.name || '');
+    if (translated) return translated;
+  }
+  return localized || company.name || company.id;
 }
 
 export function companySummary(company: Pick<GraphNode, "summary" | "summaryZh">, locale: string): string {
@@ -44,7 +50,7 @@ export function relationshipSummary(edge: Pick<GraphEdge, "summary" | "summaryZh
 
 export function companySearchText(graph: KnowledgeGraph, company: GraphNode): string {
   const stages = graph.nodes.filter(n => n.kind === "STAGE" && company.stageIds?.includes(n.id.slice(6)));
-  return [company.id, company.name, ...Object.values(company.names ?? {}), ...(company.aliases ?? []), company.symbol, company.summary, company.summaryZh, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
+  return [company.id, company.name, companyName(company, 'zh-CN'), ...Object.values(company.names ?? {}), ...(company.aliases ?? []), company.symbol, company.summary, company.summaryZh, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
 }
 
 export function matchesCompanySearch(searchText: string, query: string): boolean {
