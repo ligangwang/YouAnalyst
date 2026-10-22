@@ -1,9 +1,12 @@
-FROM node:20-bookworm-slim
+# CI's Ubuntu-built native addons require glibc 2.38 or newer.
+FROM node:20-trixie-slim
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 # Already compiled and checked on the Linux release runner.
 COPY app ./
+# Fail the image build if a traced SQLite binary cannot load in this runtime.
+RUN find /app -name better_sqlite3.node -print0 | xargs -0 -r node -e 'for (const file of process.argv.slice(1)) require(file)'
 EXPOSE 8080
 CMD ["node", "server.js"]
