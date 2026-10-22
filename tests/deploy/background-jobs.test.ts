@@ -146,5 +146,6 @@ test('verified timestamp migration enables a private daily snapshot job without 
  assert.match(r.calls,/run jobs deploy sync-entity-snapshots-production .*--args dist\/sync-entity-snapshots.cjs/);
  assert.match(r.calls,/scheduler jobs update http sync-entity-snapshots-production .*--schedule 0 3 \* \* \* --time-zone America\/New_York/);
  assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/private-snapshots/);
+ assert.doesNotMatch(r.calls,/projects add-iam-policy-binding/);
  assert.doesNotMatch(r.calls,/run jobs execute|allUsers|storage buckets create/);
 });
