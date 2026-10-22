@@ -1,4 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
+import {readFileSync} from 'node:fs';
 import {componentFixtureHtml} from './fixtures/component-html';
 
 let html:string;
@@ -12,7 +13,7 @@ const graph={asOf:'2026-10-14',relationships:[],sources:[],nodes:[
  {id:'US:SNDK',kind:'COMPANY',order:6,symbol:'SNDK',name:'Sandisk',stageIds:['memory'],market:'US'},
 ]};
 test.beforeAll(async()=>{
- html=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';createRoot(document.getElementById('root')).render(<CompanyTimeline companyId={new URLSearchParams(location.search).get('company')||'US:AMD'} graph={${JSON.stringify(graph)}} events={[]}/>);`,{jsx:'automatic',plugins:[{name:'chart-review-services',setup(build){
+ html=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';const graph=${JSON.stringify(graph)};if(new URLSearchParams(location.search).has('crowded'))graph.nodes.push(...Array.from({length:30},(_,index)=>({id:'US:PEER'+index,kind:'COMPANY',order:index+7,symbol:'PEER'+index,name:'Market peer '+index,stageIds:['energy'],market:'US'})));createRoot(document.getElementById('root')).render(<CompanyTimeline companyId={new URLSearchParams(location.search).get('company')||'US:AMD'} graph={graph} events={[]}/>);`,{jsx:'automatic',plugins:[{name:'chart-review-services',setup(build){
   build.onResolve({filter:/auth-provider$|locale-provider$/},args=>({path:args.path,namespace:'review-mock'}));
   build.onLoad({filter:/.*/,namespace:'review-mock'},args=>({loader:'tsx',contents:args.path.endsWith('auth-provider')?`const user={uid:'viewer'};const token=async()=>'fixture-token';export function useAuth(){return {user:new URLSearchParams(location.search).has('guest')?null:user,loading:false,getIdToken:token}}`:`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}}`}));
  }}]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}');
@@ -41,6 +42,28 @@ async function open(page:Page,query='',fail=false,showReview=true){
  }
  return writes;
 }
+
+test('quote table preserves price color preferences in dark and light themes',async({page})=>{
+ await open(page,'&lang=zh-CN',false,false);
+ await page.addStyleTag({content:readFileSync('src/app/globals.css','utf8').replace('@import "tailwindcss";','')});
+ const sector=page.locator('[data-chart-sectors]');
+ const row=sector.getByRole('row').filter({has:page.getByRole('button',{name:'英伟达',exact:true})});
+ await expect(row).toBeVisible();
+ await expect(row).toContainText('200 USD');
+ for(const theme of ['dark','light']){
+  await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;},theme);
+  for(const preference of ['green-up','red-up']){
+   await page.evaluate(preference=>{document.documentElement.dataset.priceColors=preference;},preference);
+   const actual=await row.locator('td').nth(3).evaluate(el=>getComputedStyle(el).color);
+   const expected=await page.evaluate(preference=>{
+    const sample=document.createElement('span');sample.style.color=preference==='red-up'?'var(--price-green)':'var(--price-red)';document.body.append(sample);
+    const color=getComputedStyle(sample).color;sample.remove();return color;
+   },preference);
+   expect(actual).toBe(expected);
+  }
+  await sector.screenshot({path:test.info().outputPath(`sector-palette-${theme}.png`)});
+ }
+});
 
 for(const chinese of [false,true])test(`grouped stock sectors show sourced Micron concepts and precise peers in ${chinese?'Chinese':'English'}`,async({page})=>{
  await open(page,'&company=US%3AMU'+(chinese?'&lang=zh-CN':''),false,false);
@@ -228,38 +251,87 @@ for(const chinese of [false,true])test(`sector companies stay below the chart an
  expect(writes).toEqual([]);
 });
 
-for(const chinese of [false,true])test(`volume and MACD open independent studies without leaving fullscreen (${chinese?'Chinese':'English'})`,async({page,isMobile})=>{
+test('Chinese sector heading and filters stay visible when fullscreen peer rows scroll',async({page})=>{
+ await open(page,'&company=US%3AMU&lang=zh-CN&crowded=1',false,false);
+ const timeline=page.locator('[data-company-timeline]');
+ const sector=timeline.locator('[data-chart-sectors]');
+ await page.getByRole('button',{name:'半屏',exact:true}).click();
+ const market=sector.getByRole('button',{name:'美股',exact:true});
+ await market.click();
+ await expect(market).toHaveAttribute('aria-pressed','true');
+ await page.getByRole('button',{name:'全屏',exact:true}).click();
+ await expect(timeline).toHaveAttribute('data-chart-size','full');
+ const rows=sector.locator('[data-chart-review-rows]');
+ await expect.poll(()=>rows.evaluate(el=>el.scrollHeight>el.clientHeight)).toBe(true);
+ await rows.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+ await sector.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+ await expect.poll(()=>sector.getByRole('heading',{name:'所属板块',exact:true}).evaluate(el=>{
+  const panel=el.closest('[data-chart-sectors]')!.getBoundingClientRect(),heading=el.getBoundingClientRect();
+  return heading.top>=panel.top&&heading.bottom<=panel.bottom;
+ })).toBe(true);
+ await expect(market).toBeInViewport();
+ await expect(market).toHaveAttribute('aria-pressed','true');
+ const headingBox=(await sector.getByRole('heading',{name:'所属板块',exact:true}).boundingBox())!;
+ const marketBox=(await market.boundingBox())!;
+ expect(headingBox.y+headingBox.height/2).toBeCloseTo(marketBox.y+marketBox.height/2,0);
+ await sector.screenshot({path:test.info().outputPath('fullscreen-sector-filters.png')});
+ await page.getByRole('button',{name:'半屏',exact:true}).click();
+ await expect(market).toHaveAttribute('aria-pressed','true');
+});
+
+for(const chinese of [false,true])test(`indicators expand inline and restore on double click while candles stay fixed (${chinese?'Chinese':'English'})`,async({page})=>{
  await open(page,chinese?'&lang=zh-CN':'',false,false);
  const rows=Array.from({length:60},(_,index)=>({date:new Date(Date.UTC(2026,7,16+index)).toISOString().slice(0,10),open:100+index,high:105+index,low:98+index,close:102+index+Math.sin(index),volume:index===52?null:1000+index*100}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:AMD',start:'2026-09-14',end:'2026-10-14',currency:'USD',available:true,warmupPrices:rows.slice(0,40),prices:rows.slice(40)}}));
  await page.reload();
  const timeline=page.locator('[data-company-timeline]');
  await expect(timeline.locator('[data-price-candle]')).toHaveCount(31);
- await page.getByRole('button',{name:chinese?'全屏':'Full screen',exact:true}).click();
- if(isMobile)await page.getByRole('button',{name:new RegExp(chinese?'放大成交量':'Expand volume')}).click();
- else {const hit=timeline.locator('[data-indicator-hit="volume"]'),box=(await hit.boundingBox())!;await hit.dblclick({position:{x:box.width-8,y:box.height/2}});}
- const volume=page.getByRole('dialog',{name:chinese?'成交量研究':'Volume study',exact:true});
- await expect(volume).toBeVisible();
- await volume.getByRole('checkbox',{name:chinese?'量能 MA5 / MA10':'Volume MA5 / MA10',exact:true}).check();
- await expect(volume.locator('[data-volume-ma]')).toHaveCount(2);
- const svg=volume.locator('svg');await svg.focus();await svg.press('End');
- await expect(volume.locator('p')).toContainText('2026-10-14');
- await expect(volume.locator('[data-study-crosshair]')).toHaveCount(1);
- await volume.getByRole('checkbox',{name:chinese?'显示 K 线参照':'Show price context',exact:true}).uncheck();
- await expect(volume.locator('[data-study-price]')).toHaveCount(0);
- await volume.screenshot({path:test.info().outputPath('expanded-volume-study.png')});
- await svg.press('Escape');await expect(volume).toHaveCount(0);
- await expect(timeline).toHaveAttribute('data-chart-size','full');
- await expect(timeline.locator('[data-volume-ma]')).toHaveCount(2);
- await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
- if(isMobile)await timeline.getByRole('button',{name:new RegExp(chinese?'放大 MACD':'Expand MACD')}).click();
- else {const hit=timeline.locator('[data-indicator-hit="macd"]'),box=(await hit.boundingBox())!;await hit.dblclick({position:{x:box.width-8,y:box.height/2}});}
- const macd=page.getByRole('dialog',{name:chinese?'MACD 研究':'MACD study',exact:true});await expect(macd).toBeVisible();
- await expect(macd.locator('[data-study-macd] rect')).not.toHaveCount(0);
- await macd.locator('svg').focus();await macd.locator('svg').press('End');await expect(macd.locator('p')).toContainText('DIF');
- await macd.screenshot({path:test.info().outputPath('expanded-macd-study.png')});
- const box=(await macd.boundingBox())!,view=page.viewportSize()!;expect(box.width).toBeLessThanOrEqual(view.width);expect(box.height).toBeLessThanOrEqual(view.height);
- await macd.getByRole('button',{name:chinese?'关闭指标研究':'Close indicator study',exact:true}).click();
+ await expect(timeline.locator('[data-volume-ma="5"]')).toHaveCount(1);
+ await expect(timeline.locator('[data-volume-ma="10"]')).toHaveCount(1);
+ await expect(timeline.getByRole('checkbox',{name:/Volume MA5|量能 MA5/})).toHaveCount(0);
+ await expect(timeline.getByRole('button',{name:/Expand volume|放大成交量/})).toHaveCount(0);
+ const volumeLabel=timeline.locator('[data-volume-panel]').getByRole('button',{name:chinese?'成交量副图':'Volume panel',exact:true});
+ await expect(volumeLabel.locator('title')).toContainText(chinese?'双击放大':'Double-click to enlarge');
+ await volumeLabel.focus();await volumeLabel.press('Enter');
+ await expect(timeline.locator('[data-volume-panel]')).toHaveAttribute('data-expanded','true');
+ await volumeLabel.press('Space');
+ await expect(timeline.locator('[data-volume-panel]')).toHaveAttribute('data-expanded','false');
+ const candleGeometry=()=>timeline.locator('[data-price-candle]').evaluateAll(nodes=>nodes.map(node=>node.innerHTML));
+ async function doubleClickPanel(kind:string){
+  const hit=timeline.locator(`[data-indicator-hit="${kind}"]`),box=(await hit.boundingBox())!;
+  // Use the unchanged top edge so enlargement does not scroll the price plot into view.
+  await page.mouse.dblclick(box.x+box.width-8,box.y+6);
+ }
+ for(const size of ['compact','half','full']){
+  if(size!=='compact')await page.getByRole('button',{name:size==='full'?(chinese?'全屏':'Full screen'):(chinese?'半屏':'Half screen'),exact:true}).click();
+  for(const kind of ['volume','macd','kdj','boll']){
+   if(kind!=='volume'){
+    const label=kind==='macd'?'MACD (12,26,9)':kind==='kdj'?'KDJ (9,3,3)':'BOLL (20,2)';
+    await timeline.getByRole('button',{name:label,exact:true}).click();
+   }
+   const panel=timeline.locator(`[data-${kind}-panel]`),hit=timeline.locator(`[data-indicator-hit="${kind}"]`);
+   await expect(panel).toHaveAttribute('data-expanded','false');
+   const originalHeight=Number(await hit.getAttribute('height'));
+   const geometry=await candleGeometry();
+   const priceBottom=await timeline.locator('svg[role="img"]').getAttribute('data-price-bottom');
+   const firstCandle=(await timeline.locator('[data-price-candle]').first().boundingBox())!;
+   await doubleClickPanel(kind);
+   await expect(panel).toHaveAttribute('data-expanded','true');
+   await expect(timeline.locator('[data-volume-ma]')).toHaveCount(2);
+   expect(Number(await hit.getAttribute('height'))).toBe(originalHeight+160);
+   expect(await candleGeometry()).toEqual(geometry);
+   expect(await timeline.locator('svg[role="img"]').getAttribute('data-price-bottom')).toBe(priceBottom);
+   const enlargedCandle=(await timeline.locator('[data-price-candle]').first().boundingBox())!;
+   expect(enlargedCandle.y).toBeCloseTo(firstCandle.y,0);
+   expect(enlargedCandle.height).toBeCloseTo(firstCandle.height,0);
+   await expect(page.getByRole('dialog',{name:/study|研究/})).toHaveCount(0);
+   if(size==='full'&&kind==='volume')await timeline.screenshot({path:test.info().outputPath('inline-volume-expanded.png')});
+   await doubleClickPanel(kind);
+   await expect(panel).toHaveAttribute('data-expanded','false');
+   expect(Number(await hit.getAttribute('height'))).toBe(originalHeight);
+   expect(await candleGeometry()).toEqual(geometry);
+  }
+ }
  await expect(timeline).toHaveAttribute('data-chart-size','full');
  await expect(page.locator('[data-chart-sectors]')).toBeVisible();
 });

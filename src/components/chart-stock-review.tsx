@@ -48,18 +48,20 @@ export function ChartStockReview(props:Props){
   locked.current=true;setPending(true);setFailed(false);
   try{await watchlist.change(props.companyId,!followed);}catch{setFailed(true);}finally{locked.current=false;setPending(false);}
  }
- function rows(nodes:GraphNode[]){return <div className={styles.scroll}><table>
+ function rows(nodes:GraphNode[]){return <div className={styles.scroll} data-chart-review-rows><table>
   <thead><tr><th>{text('Company','公司')}</th><th>{text('Ticker','代码')}</th><th>{text('Last close','最新收盘')}</th><th>{text('Change','涨跌幅')}</th><th>{text('Price date','行情日期')}</th></tr></thead>
   <tbody>{nodes.map(node=><tr key={node.id} aria-selected={node.id===props.companyId}>
-   <td><button type="button" onClick={()=>{close();props.selectCompany(node);}}>{companyName(node,locale)}</button></td><td>{node.symbol??node.id}</td>
-   <td>{node.dailyPrice?`${new Intl.NumberFormat(locale,{maximumFractionDigits:2}).format(node.dailyPrice.close)} ${node.dailyPrice.currency}`:'—'}</td>
-   <td className={node.dailyPrice?.change==null?undefined:node.dailyPrice.change>0?'price-up':node.dailyPrice.change<0?'price-down':undefined}>{node.dailyPrice?.change==null?'—':signedPercent(node.dailyPrice.change)}</td><td>{node.dailyPrice?.tradingDate??'—'}</td>
+   <td><button type="button" onClick={()=>{close();props.selectCompany(node);}}>{companyName(node,locale)}</button></td><td className={styles.ticker}>{node.symbol??node.id}</td>
+   <td className={styles.quote}>{node.dailyPrice?<>{new Intl.NumberFormat(locale,{maximumFractionDigits:2}).format(node.dailyPrice.close)} <span className={styles.currency}>{node.dailyPrice.currency}</span></>:<span className={styles.missing}>—</span>}</td>
+   <td className={`${styles.change} ${node.dailyPrice?.change==null||node.dailyPrice.change===0?styles.missing:node.dailyPrice.change>0?'price-up':'price-down'}`}>{node.dailyPrice?.change==null?'—':signedPercent(node.dailyPrice.change)}</td><td className={styles.priceDate}>{node.dailyPrice?.tradingDate??'—'}</td>
   </tr>)}</tbody>
  </table></div>;}
  return <>
   {!props.hideReview&&sectors.length>0&&<section className={styles.review} aria-label={text('Sector companies','同板块公司')} data-chart-sectors>
-   <header><h3>{text('Sectors','所属板块')}</h3><small>{text('Select a company to switch its chart','点击公司切换图表')}</small></header>
-   <div className={styles.sectorTabs} role="group" aria-label={text('Select sector','选择板块')}>{sectors.map(item=><button type="button" key={item.id} aria-pressed={item.id===activeReviewSector?.id} onClick={()=>setReviewSector(item.id)}>{chinese?item.zh:item.en}</button>)}</div>
+   <header className={styles.sectorHeader}><h3>{text('Sectors','所属板块')}</h3>
+    <div className={styles.sectorTabs} role="group" aria-label={text('Select sector','选择板块')}>{sectors.map(item=><button type="button" key={item.id} aria-pressed={item.id===activeReviewSector?.id} onClick={()=>setReviewSector(item.id)}>{chinese?item.zh:item.en}</button>)}</div>
+    <small>{text('Select a company to switch its chart','点击公司切换图表')}</small>
+   </header>
    <p>{activeReviewSector&&(chinese?activeReviewSector.zh:activeReviewSector.en)} · {reviewPeers.length} {text('other covered companies','家已覆盖的其他公司')}</p>
    {reviewPeers.length?rows(reviewPeers):<p>{text('No other covered companies in this sector.','当前覆盖数据中暂无其他同板块公司。')}</p>}
    {activeReviewSector&&activeReviewSector.sources.length>0&&<details><summary>{text('Classification sources','分类依据')}</summary>{activeReviewSector.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>)}</details>}
