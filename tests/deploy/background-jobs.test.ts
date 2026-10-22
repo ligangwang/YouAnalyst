@@ -11,6 +11,15 @@ function run(target:string,extra:Record<string,string>={}) {
     const result=spawnSync('bash',['-c',`
       gcloud() {
         echo "$*" >> "$CALLS"
+        if [[ "$1 $2 $3 $4" == "run jobs deploy collect-intelligence-news-production" ]]; then
+          local previous=""
+          for argument in "$@"; do
+            if [[ "$previous" == "--env-vars-file" ]]; then
+              node -e 'const fs=require("fs");console.log("snapshotBucket="+JSON.parse(fs.readFileSync(process.argv[1],"utf8")).ENTITY_SNAPSHOT_BUCKET)' "$argument" >> "$CALLS"
+            fi
+            previous="$argument"
+          done
+        fi
         case "$*" in
           "pubsub topics describe"*|"pubsub subscriptions describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
           "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
@@ -148,4 +157,13 @@ test('verified timestamp migration enables a private daily snapshot job without 
  assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/private-snapshots/);
  assert.doesNotMatch(r.calls,/projects add-iam-policy-binding/);
  assert.doesNotMatch(r.calls,/run jobs execute|allUsers|storage buckets create/);
+});
+
+
+test('news worker receives the SQLite bucket including legacy fallback and rejects absent configuration',()=>{
+ const standard=run('intelligence-news');assert.equal(standard.status,0,standard.stderr);assert.match(standard.calls,/snapshotBucket=demo-snapshots/);
+ const fallback=run('intelligence-news',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:'fallback-snapshots'});
+ assert.equal(fallback.status,0,fallback.stderr);assert.match(fallback.calls,/snapshotBucket=fallback-snapshots/);
+ const missing=run('intelligence-news',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''});
+ assert.notEqual(missing.status,0);assert.doesNotMatch(missing.calls,/run jobs deploy/);
 });
