@@ -70,7 +70,7 @@ test('explicit live reads bypass file cache',async()=>{
 });
 test('committed company updates replace memory and survive an older daily file',async()=>{
  let time=0;const sdk=new Firestore({projectId:'test-write-refresh'}),db=observeFirestore(sdk,()=>{});
- let live={name:'New',isDeleted:false};
+ let live={name:'New',isDeleted:false,searchPrefixes:Array.from({length:150},(_,i)=>String(i))};
  const raw={collection:()=>({doc:(id:string)=>({id})}),getAll:async(...refs:{id:string}[])=>refs.map(ref=>({id:ref.id,exists:true,data:()=>({...live})}))} as unknown as Firestore;
  enableCompanyDirectory(db,raw,{file:async()=>records(),now:()=>time});
  const ref=db.collection('companies').doc('US:A');assert.equal((await ref.get()).get('name'),'Alpha');

@@ -127,11 +127,18 @@ export function openEntitySqlite(path:string,directory?:string,collection:Collec
   rows.candidateIds=(field,operator,value)=>{
    if(!lifetime.db.open)throw Error('Entity SQLite reader is closed');
    const array=operator==='array-contains'||operator==='array-contains-any';
-   const scalar=operator==='=='||operator==='in';
-   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&scalarFields.includes(field)))return undefined;
+   const range=['<','<=','>','>='].includes(operator);
+   const scalar=operator==='=='||operator==='in'||range;
+   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&(scalarFields.includes(field)||field==='__name__')))return undefined;
    const values=operator==='in'||operator==='array-contains-any'?value:[value];
    if(!Array.isArray(values)||values.some(v=>typeof v!=='string'))return undefined;
    const found=new Set<string>();
+   if(range||field==='__name__'){
+    const op=range?operator:'=';
+    const statement=field==='__name__'?db.prepare(`SELECT seq AS company_seq FROM companies WHERE id ${op} ?`):db.prepare(`SELECT company_seq FROM lookups WHERE field=? AND value ${op} ?`);
+    for(const v of values)for(const row of (field==='__name__'?statement.all(v):statement.all(field,v)) as {company_seq:number}[]){const id=ids.get(row.company_seq);if(id)found.add(id);}
+    return found;
+   }
    for(const v of values){
     const statement=field==='searchPrefixes'&&[...v].length>=3&&!v.includes('\0')?search:lookup;
     const entries=(statement===search?search.all('"'+v.replaceAll('"','""')+'"'):lookup.all(field,v)) as {company_seq:number}[];

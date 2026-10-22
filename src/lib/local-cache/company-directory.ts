@@ -31,7 +31,7 @@ export function companyDirectoryVersion(db:Firestore,collection:Collection='comp
 export async function refreshCompanyDirectoryIds(db:Firestore,ids:string[],collection:Collection='companies'){
  const client=state.clients.get(db),entry=state.entries.get(db)?.get(collection);if(!client||!entry||!ids.length)return;
  const docs=await withLiveCompanyReads(()=>client.raw.getAll(...[...new Set(ids)].map(id=>client.raw.collection(collection).doc(id))));
- applyChanges(entry,docs.map(doc=>({id:doc.id,data:doc.exists?compact(doc.data()!):{isDeleted:true}})));
+ applyChanges(entry,docs.map(doc=>({id:doc.id,data:doc.exists?doc.data()!:{isDeleted:true}})));
 
 }
 
@@ -59,6 +59,7 @@ async function fileRows(reason:'cold'|'refresh',collection:Collection):Promise<R
 // Prefix arrays dominate the directory size. Retain them losslessly compressed;
 // ordinary company/graph/sitemap reads never need to expand this search index.
 function compact(data:DocumentData):DocumentData {
+ if(Object.getOwnPropertyDescriptor(data,'searchPrefixes')?.get)return data;
  if(Array.isArray(data.searchPrefixes)&&data.searchPrefixes.length>100){
   const bytes=gzipSync(JSON.stringify(data.searchPrefixes));
   delete data.searchPrefixes;

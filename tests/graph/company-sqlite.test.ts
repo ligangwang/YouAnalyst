@@ -74,7 +74,7 @@ test('opening and sitemap decode zero companies; requested records are decoded o
   enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async()=>opened.rows});
   assert.ok((await loadSitemapPaths(db,'US:N')).some(path=>path.includes('nvidia')));
   assert.equal(opened.rows.decodedCount!(),0);
-  const query=db.collection('companies').where('slug','==','nvidia');
+  const query=db.collection('companies').where('symbolLower','>=','nv').where('symbolLower','<=','nv\uf8ff').orderBy('symbolLower').limit(50);
   assert.equal((await query.get()).docs[0].data().symbol,'NVDA');
   assert.equal(opened.rows.decodedCount!(),1);
   await query.get();assert.equal(opened.rows.decodedCount!(),1);
