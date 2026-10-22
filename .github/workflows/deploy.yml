@@ -86,6 +86,7 @@ jobs:
 
       - name: Verify app
         run: |
+          node scripts/check-build-secret-isolation.mjs
           npm run verify:checks
           if [[ "${{ github.event_name }}" == 'pull_request' ]]; then npm run build; fi
 
@@ -328,7 +329,7 @@ jobs:
           CLOUD_BUILD_SOURCE_STAGING_DIR: ${{ env.CLOUD_BUILD_SOURCE_STAGING_DIR }}
           CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING: ${{ vars.CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           echo "GitHub environment: staging"
           echo "Project: ${GOOGLE_CLOUD_PROJECT}"
           echo "Region: ${GOOGLE_CLOUD_REGION}"
@@ -451,7 +452,7 @@ jobs:
               --uri "$uri" \
               --http-method POST \
               --update-headers "$headers" \
-              --message-body "$body"
+              --message-body "$body" --format='value(name)'
           else
             gcloud scheduler jobs create http "$job_name" \
               --project "$GCP_PROJECT_ID" \
@@ -461,7 +462,7 @@ jobs:
               --uri "$uri" \
               --http-method POST \
               --headers "$headers" \
-              --message-body "$body"
+              --message-body "$body" --format='value(name)'
           fi
 
           # The two US deliveries share processing; their IDs keep retries idempotent.
@@ -471,12 +472,12 @@ jobs:
             gcloud scheduler jobs update http "$early_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "30 16 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$early_body"
+              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$early_body" --format='value(name)'
           else
             gcloud scheduler jobs create http "$early_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "30 16 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --headers "$headers" --message-body "$early_body"
+              --uri "$uri" --http-method POST --headers "$headers" --message-body "$early_body" --format='value(name)'
           fi
 
           # A-share EOD maintenance runs once each weekday at 8 AM New York time.
@@ -486,12 +487,12 @@ jobs:
             gcloud scheduler jobs update http "$china_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "0 8 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$china_body"
+              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$china_body" --format='value(name)'
           else
             gcloud scheduler jobs create http "$china_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "0 8 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body"
+              --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body" --format='value(name)'
           fi
 
       - name: Cache Playwright browser download
@@ -598,7 +599,7 @@ jobs:
           CLOUD_BUILD_SOURCE_STAGING_DIR: ${{ env.CLOUD_BUILD_SOURCE_STAGING_DIR }}
           CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING: ${{ vars.CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING }}
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           echo "GitHub environment: production"
           echo "Project: ${GOOGLE_CLOUD_PROJECT}"
           echo "Region: ${GOOGLE_CLOUD_REGION}"
@@ -725,7 +726,7 @@ jobs:
               --uri "$uri" \
               --http-method POST \
               --update-headers "$headers" \
-              --message-body "$body"
+              --message-body "$body" --format='value(name)'
           else
             gcloud scheduler jobs create http "$job_name" \
               --project "$GCP_PROJECT_ID" \
@@ -735,7 +736,7 @@ jobs:
               --uri "$uri" \
               --http-method POST \
               --headers "$headers" \
-              --message-body "$body"
+              --message-body "$body" --format='value(name)'
           fi
 
           # The two US deliveries share processing; their IDs keep retries idempotent.
@@ -745,12 +746,12 @@ jobs:
             gcloud scheduler jobs update http "$early_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "30 16 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$early_body"
+              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$early_body" --format='value(name)'
           else
             gcloud scheduler jobs create http "$early_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "30 16 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --headers "$headers" --message-body "$early_body"
+              --uri "$uri" --http-method POST --headers "$headers" --message-body "$early_body" --format='value(name)'
           fi
 
           # A-share EOD maintenance runs once each weekday at 8 AM New York time.
@@ -760,12 +761,12 @@ jobs:
             gcloud scheduler jobs update http "$china_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "0 8 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$china_body"
+              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$china_body" --format='value(name)'
           else
             gcloud scheduler jobs create http "$china_job" \
               --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
               --schedule "0 8 * * 1-5" --time-zone "America/New_York" \
-              --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body"
+              --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body" --format='value(name)'
           fi
 
       - name: Cache Playwright browser download
