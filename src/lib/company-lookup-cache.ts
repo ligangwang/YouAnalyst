@@ -1,8 +1,8 @@
 import type { DocumentReference, DocumentSnapshot, Firestore, Query, QuerySnapshot } from 'firebase-admin/firestore';
 import { collectionSourceSnapshot, withSourceCache } from './local-cache/read-scope';
 
-// Share exact lookups across requests, including empty results. The source cache
-// bounds listener count/memory and applies pushed creations, edits and removals.
+// Website clients resolve these lookups from the shared file-backed directory.
+// Legacy/test clients retain their source subscription behavior.
 export function readCompanyLookup(db: Firestore, source: DocumentReference): Promise<DocumentSnapshot>;
 export function readCompanyLookup(db: Firestore, source: Query): Promise<QuerySnapshot>;
 export function readCompanyLookup(db: Firestore, source: DocumentReference | Query): Promise<DocumentSnapshot | QuerySnapshot> {

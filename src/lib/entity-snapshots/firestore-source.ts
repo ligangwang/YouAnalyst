@@ -1,10 +1,11 @@
 import { FieldPath, type Firestore, type Query } from 'firebase-admin/firestore';
 import type { Row, Source } from './sync';
+import {withLiveCompanyReads} from '../local-cache/company-directory';
 
 export function snapshotSource(db: Firestore): Source {
   return {
-    boundary:async()=>(await db.collection('companies').limit(1).get()).readTime,
-    rows:async(collection,since,through)=>{
+    boundary:async()=>withLiveCompanyReads(async()=>(await db.collection('companies').limit(1).get()).readTime),
+    rows:async(collection,since,through)=>withLiveCompanyReads(async()=>{
       let query: Query=db.collection(collection);
       // Inclusive boundary replays equal timestamps safely. No theme filter:
       // these files represent all entities, including the public directory.
@@ -22,6 +23,6 @@ export function snapshotSource(db: Firestore): Source {
         cursor=since?[last.get('updatedAt'),last.id]:[last.id];
       }
       return rows;
-    },
+    }),
   };
 }

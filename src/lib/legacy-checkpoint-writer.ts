@@ -1,5 +1,6 @@
 // Rolling-release bridge only. Disabled after old consumers drain.
 import { localEntityVersions } from './local-cache/entities';
+import {withLiveCompanyReads} from './local-cache/company-directory';
 import { Watch, track } from './local-cache/watch';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import {AsyncLocalStorage} from 'node:async_hooks';
@@ -115,7 +116,7 @@ export async function applyCacheChange(db: Firestore, headers: Headers, project:
       // Persist hard deletions even before callers switch to the central service.
       // Persist hard deletions before publishing the collection version. Existing
       // collectors collection; underscore IDs are excluded from event recursion.
-      const changedDoc=await db.collection(collection).doc(id).get();
+      const changedDoc=await withLiveCompanyReads(()=>db.collection(collection).doc(id).get());
       const themes=changedDoc.get('themeIds');
       if (!changedDoc.exists || (collection==='companies' && (!Array.isArray(themes) || !themes.some(theme=>['ai','robotics','space'].includes(theme))))) await db.collection('collectors')
         .doc(`_cache_deleted_${companyChangeKey(`${collection}/${id}`)}`).set({cacheDeletedCollection:collection,sourceId:id,updatedAt:FieldValue.serverTimestamp()});

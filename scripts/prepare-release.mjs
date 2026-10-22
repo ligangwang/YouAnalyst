@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { cp, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
@@ -33,6 +34,12 @@ const port = "3187";
 // the build's node_modules or follow aliases back into the build directory.
 const isolated = await mkdtemp(`${tmpdir()}/youanalyst-release-`);
 await cp(`${root}/app`, isolated, { recursive: true, verbatimSymlinks: true });
+// Exercise the native SQLite binding from the isolated Linux release itself.
+const Sqlite = createRequire(`${isolated}/server.js`)('better-sqlite3');
+const sqliteProbe = new Sqlite(':memory:');
+try { assert.equal(sqliteProbe.prepare('SELECT 1 AS ready').get().ready, 1); }
+finally { sqliteProbe.close(); }
+
 // A read-only fixture exists only in the temporary test copy, never the artifact.
 // Exercise the compiled page: Next may encode page params differently from metadata.
 const fixture = `${isolated}/company-fixture.cjs`;

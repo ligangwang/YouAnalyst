@@ -1,13 +1,14 @@
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
+import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, registerCompanySource, refreshCompanyDirectoryIds } from '../local-cache/company-directory';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
 import { timestampWrite } from '../central-cache/write-timestamps';
 import { isEntityPath, lifecycleFields } from '../entity-snapshots/lifecycle';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, FieldPath } from 'firebase-admin/firestore';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 
 type Kind = 'db' | 'query' | 'doc' | 'aggregate' | 'batch' | 'transaction';
-type Shape = { collection: string; clauses: string[] };
+type Shape = { collection: string; clauses: string[]; steps?:{method:string;args:unknown[]}[] };
 type Pending = { operation: string; collection: string; caller: string };
 type Deferred = { method:string; args:any[]; site:string };
 type EntityTransaction = { reads:Map<string,any>; writes:Deferred[] };
@@ -46,7 +47,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     try {
       sink({ severity: fields.status === 'error' ? 'WARNING' : 'INFO', event: 'firestore_operation',
         message: `Firestore ${operation}: ${shape.collection}`, schemaVersion: 1,
-        queryId: createHash('sha256').update(JSON.stringify([operation, shape, site])).digest('hex').slice(0, 20),
+        queryId: createHash('sha256').update(JSON.stringify([operation, {collection:shape.collection,clauses:shape.clauses}, site])).digest('hex').slice(0, 20),
         operation, collection: shape.collection, queryShape, caller: site,
         job: process.env.CLOUD_RUN_JOB ?? process.env.K_SERVICE ?? process.argv[1]?.replaceAll('\\', '/').split('/').at(-1) ?? 'unknown',
         execution: process.env.CLOUD_RUN_EXECUTION, taskIndex: process.env.CLOUD_RUN_TASK_INDEX,
@@ -122,11 +123,20 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
           return wrap(result, 'doc', { collection: result.path ? documentCollection(result.path) : kind === 'query' ? shape.collection : documentCollection(String(args[0])), clauses: [] });
         }
         if (['where', 'orderBy', 'limit', 'limitToLast', 'offset', 'select', 'startAt', 'startAfter', 'endAt', 'endBefore', 'withConverter', 'count', 'aggregate'].includes(method)) {
+          let result;
+          if(isSnapshotCollection(shape.collection)&&companyDirectoryEnabled(observed)&&['startAt','startAfter','endAt','endBefore'].includes(method)&&args[0]?.get&&args[0]?.ref){
+            const orders=(shape.steps??[]).filter(s=>s.method==='orderBy');
+            let query=object;
+            if(!orders.some(s=>s.args[0] instanceof FieldPath&&(s.args[0] as FieldPath).isEqual(FieldPath.documentId()))){
+              const direction=orders.at(-1)?.args[1]??'asc';query=query.orderBy(FieldPath.documentId(),direction);orders.push({method:'orderBy',args:[FieldPath.documentId(),direction]});
+            }
+            result=query[method](...orders.map(s=>s.args[0] instanceof FieldPath&&(s.args[0] as FieldPath).isEqual(FieldPath.documentId())?args[0].id:args[0].get(s.args[0])));
+          }else result=invoke();
           const detail = method === 'where' ? `${String(args[0])} ${typeof args[1] === 'string' ? args[1] : ''} ?`
             : method === 'orderBy' ? `${String(args[0])} ${args[1] ?? 'asc'}`
             : ['limit', 'limitToLast', 'offset'].includes(method) ? String(args[0]) : '';
-          return wrap(invoke(), ['count', 'aggregate'].includes(method) ? 'aggregate' : kind,
-            { ...shape, clauses: [...shape.clauses, `${method}(${detail})`] });
+          return wrap(result, ['count', 'aggregate'].includes(method) ? 'aggregate' : kind,
+            { ...shape, clauses: [...shape.clauses, `${method}(${detail})`], steps:[...(shape.steps??[]),{method,args}] });
         }
         if(method==='onSnapshot'){
           const [next,error,...rest]=args;
@@ -141,9 +151,9 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         }
         if (method === 'batch') return wrap(invoke(), 'batch', shape);
         if (method === 'runTransaction') {
-          const transactionId = randomUUID(); let attempt = 0; let finalWrites: Pending[] = [];
+          const transactionId = randomUUID(); let attempt = 0; let finalWrites: Pending[] = [];let changedCompanies:{collection:string;id:string}[]=[];
           return object.runTransaction(async (tx: any) => {
-            attempt++; finalWrites = [];
+            attempt++; finalWrites = [];changedCompanies=[];
             const state:EntityTransaction={reads:new Map(),writes:[]};
             const wrapped=wrap(tx,'transaction',shape,finalWrites,{transactionId,transactionAttempt:attempt},state);
             const result=await args[0](wrapped);
@@ -184,10 +194,12 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
                 }
               }
               tx[method](...timestampWrite(method,path,values,1).map(unwrap));
+              if(isSnapshotCollection(documentCollection(path)))changedCompanies.push({collection:documentCollection(path),id:ref.id});
               finalWrites.push({operation:method,collection:documentCollection(path),caller:write.site});
             }
             return result;
-          }, ...args.slice(1)).then((result: any) => {
+          }, ...args.slice(1)).then(async (result: any) => {
+            try{for(const collection of new Set(changedCompanies.map(row=>row.collection)))if(isSnapshotCollection(collection))await refreshCompanyDirectoryIds(observed,changedCompanies.filter(row=>row.collection===collection).map(row=>row.id),collection);}catch{console.warn('Company memory refresh failed after committed write');}
             writes(finalWrites, { status: 'success', transactionId, transactionAttempt: attempt, durationMs: Date.now() - started });
             emit('transaction', shape, site, { status: 'success', transactionId, attempts: attempt, durationMs: Date.now() - started });
             return result;
@@ -203,6 +215,13 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         }
         // Only reads inside an explicit cache scope use source subscriptions.
         // Transactions, aggregates, field-mask reads and writes retain SDK semantics.
+        if(method==='get'&&(kind==='doc'||kind==='query')&&isSnapshotCollection(shape.collection)){
+          const cached=companySourceSnapshot(observed,proxy);if(cached)return cached;
+        }
+        if(method==='getAll'&&kind==='db'&&args.length&&args.every(ref=>ref?.path)){
+          const reads=args.map(ref=>isSnapshotCollection(documentCollection(ref.path))?companySourceSnapshot(observed,ref):undefined);
+          if(reads.some(Boolean))return Promise.all(args.map((ref,index)=>reads[index]??ref.get()));
+        }
         if (method === 'get' && (kind === 'doc' || kind === 'query') && !shape.clauses.some(clause => clause.startsWith('select('))) {
           const cached = collectionSourceSnapshot(observed, proxy, shape.collection);
           if (cached) return cached;
@@ -250,6 +269,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     } });
     originals.set(proxy, target);
     metadata.set(proxy, { kind, shape });
+    if(isSnapshotCollection(shape.collection)&&(kind==='query'||kind==='doc'))registerCompanySource(proxy,kind==='doc'?target.id:undefined,shape.steps??[],shape.collection);
     return proxy;
   };
   const observed = wrap(db, 'db', { collection: '(multiple)', clauses: [] }) as Firestore;
