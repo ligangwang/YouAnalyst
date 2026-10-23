@@ -2,13 +2,13 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../firebase/admin';
 import { validateThemeCatalog, type ThemeCatalog } from './catalog-model';
 
-type State = { value?: ThemeCatalog; expires: number; pending?: Promise<ThemeCatalog> };
+type State = { value?: ThemeCatalog; pending?: Promise<ThemeCatalog> };
 const states = new WeakMap<Firestore,State>();
-/** Firestore is authoritative. Retain a validated snapshot on outages, never replace it with code defaults. */
+/** Load once per server lifetime. A new deployment/process loads the published catalog again. */
 export async function loadThemeCatalog(db=getAdminFirestore()): Promise<ThemeCatalog> {
   let state=states.get(db);
-  if(!state){state={expires:0};states.set(db,state);}
-  if(state.value && Date.now()<state.expires)return state.value;
+  if(!state){state={};states.set(db,state);}
+  if(state.value)return state.value;
   if(state.pending)return state.pending;
   const current=state;
   current.pending=(async()=>{
@@ -22,11 +22,11 @@ export async function loadThemeCatalog(db=getAdminFirestore()): Promise<ThemeCat
           ...(data.descriptions?{descriptions:data.descriptions}:{})};
       });
       current.value=validateThemeCatalog(nodes);
-      current.expires=Date.now()+60_000;
+
     } catch(error) {
       if(!current.value)throw error;
       console.error('Theme catalog refresh failed; retaining last validated catalog',error);
-      current.expires=Date.now()+10_000;
+
     }
     return current.value!;
   })().finally(()=>{current.pending=undefined;});
