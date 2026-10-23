@@ -27,7 +27,7 @@ test("coverage spans the AI, Robotics and Space maps", () => {
   assert.equal(coverage.nodes.filter(node => node.id === "US:NVDA").length, 1);
   assert.equal(coverage.asOf, "2026-10-05");
   assert.deepEqual(resolveViewEvidence([], "US:ISRG", coverage, false), []);
-  assert.throws(() => resolveViewEvidence([], "US:KO", coverage, false), /AI, Robotics and Space maps/);
+  assert.throws(() => resolveViewEvidence([], "US:KO", coverage, false), /published investment theme maps/);
 });
 
 test("directional views must cite a relationship or research that covers the company", () => {
