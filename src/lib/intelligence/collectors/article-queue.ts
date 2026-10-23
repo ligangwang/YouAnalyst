@@ -11,6 +11,8 @@ import {calendarCandidate} from '../../calendar/queue';
 import {processCalendarSource} from '../../calendar/worker';
 import {fetchCalendarArticle} from '../../calendar/article';
 import type {CalendarSource} from '../../calendar/model';
+import type {KnowledgeGraph} from '../../knowledge-graph/model';
+import type {NewsSource} from './sources';
 
 export const NEWS_ENRICHMENT_TOPIC='news-article-enrichment-requests';
 export const NEWS_ENRICHMENT_SUBSCRIPTION='news-article-enrichment-worker';
@@ -58,6 +60,7 @@ export async function publishArticleTasks(candidates:Record<Stage,readonly Docum
   return result;
 }
 export async function processArticleTask(input:unknown,db:Firestore,options:{enabled:boolean;calendarEnabled:boolean;now?:()=>number;
+  context?:()=>Promise<{graph:KnowledgeGraph;sources:readonly NewsSource[]}>;
   // Tests may substitute the work, while exercising real validation/fencing.
   run?:(doc:DocumentSnapshot,stages:Stage[])=>Promise<Record<string,unknown>>;
 }){
@@ -68,16 +71,17 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
   try{
     let doc=await ref.get();
     if(!doc.exists||articleFingerprint(doc.data()??{})!==task.fingerprint)return {status:'stale',articleId:task.articleId};
-    if(options.run)return await options.run(doc,task.stages);
-    const graph=await loadCollectionCompanyScope(db),mapped=new Set(graph.nodes.map(n=>n.id));
+    const {graph,sources}=await (options.context?options.context():Promise.all([loadCollectionCompanyScope(db),loadNewsSources(db)]).then(([graph,sources])=>({graph,sources})));
+    const mapped=new Set(graph.nodes.map(n=>n.id));
     const companyIds=doc.get('companyIds');
     if(!Array.isArray(companyIds)||companyIds.length!==1||!mapped.has(companyIds[0]))return {status:'ineligible',articleId:task.articleId};
-    const sources=await loadNewsSources(db),deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
+    const deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
     if(!['company_news','company_disclosure'].includes(String(doc.get('type'))))return {status:'ineligible',articleId:task.articleId};
     if(doc.get('type')==='company_news'){
       const source=sources.find(s=>s.id===doc.get('sourceId')&&s.companyId===companyIds[0]);
       if(!source||typeof doc.get('url')!=='string'||!approvedNewsUrl(doc.get('url'),source,true))return {status:'ineligible',articleId:task.articleId};
     }
+    if(options.run)return await options.run(doc,task.stages);
     const downloads=new Map<string,Promise<string>>();
     const download=(source:CalendarSource)=>{
       let content=downloads.get(source.url);
