@@ -86,3 +86,10 @@ bash scripts/lib/drain-sec-discovery.sh
   assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/Waiting for 1 older SEC execution/);assert.equal(readFileSync(path.join(dir,'waited'),'utf8').trim(),'15');
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('SEC subscriber preserves the independent earnings pipeline disable gate',()=>{
+ for(const pipeline of ['0','1'])for(const collection of ['0','1']){
+  const r=run('sec',{EARNINGS_PIPELINE_ENABLED:pipeline,EARNINGS_COLLECTION_ENABLED:collection});
+  assert.equal(r.status,0,r.stderr);assert.equal(r.env.EARNINGS_COLLECTION_ENABLED,pipeline==='1'?collection:'0');
+ }
+});

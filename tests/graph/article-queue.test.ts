@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {DocumentSnapshot} from 'firebase-admin/firestore';
-import {articleFingerprint,parseArticleTask,publishArticleTasks,processArticleTask} from '../../src/lib/intelligence/collectors/article-queue';
+import {deferExcludedArticles,articleFingerprint,parseArticleTask,publishArticleTasks,processArticleTask} from '../../src/lib/intelligence/collectors/article-queue';
 import {earningsFirestore} from '../helpers/earnings-firestore';
 import {EVENTS_COLLECTION} from '../../src/lib/events/model';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
@@ -55,4 +55,29 @@ test('articles mentioning multiple companies remain owned by their approved publ
  assert.equal((await processArticleTask(next,f.db,{enabled:true,calendarEnabled:true,now,context,run:async()=>{called++;return {status:'verified'};}})).status,'verified');assert.equal(called,1);
  f.rows.set(`${EVENTS_COLLECTION}/news-one`,{...multi,companyId:'US:WITHDRAWN'});
  assert.equal((await processArticleTask({...next,fingerprint:articleFingerprint({...multi,companyId:'US:WITHDRAWN'})},f.db,{enabled:true,calendarEnabled:true,now,context,run:async()=>assert.fail()})).status,'ineligible');
+});
+
+test('excluded due pages advance with bounded guarded deferrals and preserve later enrollment',async()=>{
+ const f=earningsFirestore(),field='newsAnalysisNextCheckAtMs';
+ for(let i=0;i<201;i++)f.rows.set(`${EVENTS_COLLECTION}/page-${String(i).padStart(3,'0')}`,{...row,companyIds:i===200?['US:AMD']:['US:OLD'],[field]:0});
+ const eligible=(d:DocumentSnapshot)=>d.get('companyIds').includes('US:AMD');
+ for(let round=0;round<5;round++){
+  const due=(await f.db.collection(EVENTS_COLLECTION).get()).docs.filter(d=>d.get(field)<=now()).slice(0,200);
+  assert.equal(await deferExcludedArticles(f.db,due,field,eligible,now()),40);
+ }
+ const remaining=(await f.db.collection(EVENTS_COLLECTION).get()).docs.filter(d=>d.get(field)<=now());
+ assert.equal(remaining.length,1);assert(eligible(remaining[0]));
+ assert.equal(f.rows.get(`${EVENTS_COLLECTION}/page-000`)![field],now()+86400000);
+ const ref=f.db.collection(EVENTS_COLLECTION).doc('page-000'),snapshot=await ref.get(),saved=snapshot.data()!,stale={...snapshot,data:()=>saved} as DocumentSnapshot;
+ f.rows.set(`${EVENTS_COLLECTION}/page-000`,{...stale.data(),[field]:Number.MAX_SAFE_INTEGER});
+ await deferExcludedArticles(f.db,[stale],field,()=>false,now());
+ assert.equal(f.rows.get(`${EVENTS_COLLECTION}/page-000`)![field],Number.MAX_SAFE_INTEGER);
+});
+test('calendar deferrals retire non-candidates and postpone withdrawn companies without paid work',async()=>{
+ const f=earningsFirestore(),field='calendarNextCheckAtMs';
+ for(const [id,title] of [['candidate','AMD will host Q3 earnings conference call'],['other','New product']])f.rows.set(`${EVENTS_COLLECTION}/${id}`,{...row,title,sourceType:'company_ir',[field]:0});
+ const docs=(await f.db.collection(EVENTS_COLLECTION).get()).docs;
+ await deferExcludedArticles(f.db,docs,field,()=>false,now());
+ assert.equal(f.rows.get(`${EVENTS_COLLECTION}/candidate`)![field],now()+86400000);
+ assert.equal(f.rows.get(`${EVENTS_COLLECTION}/other`)![field],Number.MAX_SAFE_INTEGER);
 });

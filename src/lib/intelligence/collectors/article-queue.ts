@@ -33,6 +33,22 @@ export function parseArticleTask(input:unknown):ArticleTask{
     ||typeof task.requestedAt!=='string'||!Number.isFinite(Date.parse(task.requestedAt)))throw new Error('Invalid article enrichment task');
   return {version:1,type:task.type,articleId:task.articleId,batchId:task.batchId,fingerprint:task.fingerprint,stages:STAGES.filter(s=>task.stages!.includes(s)),requestedAt:task.requestedAt};
 }
+/** Move excluded rows out of bounded due pages, without overwriting concurrent
+ * source edits or stage completion. Limit sequential writes per dispatch. */
+export async function deferExcludedArticles(db:Firestore,records:readonly DocumentSnapshot[],field:'newsAnalysisNextCheckAtMs'|'calendarNextCheckAtMs',eligible:(doc:DocumentSnapshot)=>boolean,now:number,limit=40){
+  let deferred=0;
+  for(const doc of records){
+    if(eligible(doc)||deferred>=limit)continue;
+    const row=doc.data()??{},candidate=field==='calendarNextCheckAtMs'?calendarCandidate(row):row.type==='company_news';
+    await db.runTransaction(async tx=>{
+      const current=await tx.get(doc.ref),data=current.data();
+      if(current.exists&&articleFingerprint(data??{})===articleFingerprint(row)&&data?.[field]===row[field])
+        tx.set(doc.ref,{[field]:candidate?now+86400000:Number.MAX_SAFE_INTEGER},{merge:true});
+    });
+    deferred++;
+  }
+  return deferred;
+}
 export async function readArticleCandidates(db:Firestore,mapped:ReadonlySet<string>,calendar:boolean,now=Date.now()){
   const events=db.collection(EVENTS_COLLECTION);
   const analysis=(await events.where('newsAnalysisNextCheckAtMs','<=',now).orderBy('newsAnalysisNextCheckAtMs').limit(200).get()).docs;
@@ -40,9 +56,13 @@ export async function readArticleCandidates(db:Firestore,mapped:ReadonlySet<stri
   for(let offset=0;offset<ids.length;offset+=30)headlines.push(...(await events.where('headlineTranslationPending','==',true).where('companyId','in',ids.slice(offset,offset+30)).where('headlineTranslationDate','>=',earliest).orderBy('headlineTranslationDate','desc').limit(40).get()).docs);
   const calendars=calendar?(await events.where('calendarNextCheckAtMs','<=',now).orderBy('calendarNextCheckAtMs').limit(300).get()).docs:[];
   const relevant=(doc:DocumentSnapshot)=>Array.isArray(doc.get('companyIds'))&&doc.get('companyIds').some((id:string)=>mapped.has(id));
-  return {analysis:analysis.filter(d=>d.get('type')==='company_news'&&relevant(d)).slice(0,20),
+  const analysisEligible=(d:DocumentSnapshot)=>d.get('type')==='company_news'&&relevant(d);
+  const calendarEligible=(d:DocumentSnapshot)=>relevant(d)&&calendarCandidate(d.data()??{});
+  const deferred=await deferExcludedArticles(db,analysis,'newsAnalysisNextCheckAtMs',analysisEligible,now);
+  await deferExcludedArticles(db,calendars,'calendarNextCheckAtMs',calendarEligible,now,40-deferred);
+  return {analysis:analysis.filter(analysisEligible).slice(0,20),
     headline:[...new Map(headlines.map(d=>[d.id,d])).values()].filter(d=>relevant(d)&&needsHeadlineTranslation(d.data()??{})).sort((a,b)=>String(b.get('published_at')??b.get('publication_date')).localeCompare(String(a.get('published_at')??a.get('publication_date')))).slice(0,40),
-    calendar:calendars.filter(d=>relevant(d)&&calendarCandidate(d.data()??{})).slice(0,25)};
+    calendar:calendars.filter(calendarEligible).slice(0,25)};
 }
 /** Bounded indexed discovery only. No download or AI call runs in this job. */
 export async function publishArticleTasks(candidates:Record<Stage,readonly DocumentSnapshot[]>,publish:(task:ArticleTask)=>Promise<unknown>,options:{execution:string;deadline:number;now?:()=>number}){
