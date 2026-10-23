@@ -4,6 +4,7 @@ import {EVENTS_COLLECTION} from '../../events/model';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../../maintenance-lease';
 import {loadCollectionCompanyScope} from '../../company-themes/service';
 import {loadNewsSources} from './source-service';
+import {approvedNewsUrl} from './news';
 import {analyzeCollectedNews} from './news-analysis-worker';
 import {translateCollectedHeadlines,needsHeadlineTranslation} from './headline-translations';
 import {calendarCandidate} from '../../calendar/queue';
@@ -72,6 +73,11 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
     const companyIds=doc.get('companyIds');
     if(!Array.isArray(companyIds)||companyIds.length!==1||!mapped.has(companyIds[0]))return {status:'ineligible',articleId:task.articleId};
     const sources=await loadNewsSources(db),deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
+    if(!['company_news','company_disclosure'].includes(String(doc.get('type'))))return {status:'ineligible',articleId:task.articleId};
+    if(doc.get('type')==='company_news'){
+      const source=sources.find(s=>s.id===doc.get('sourceId')&&s.companyId===companyIds[0]);
+      if(!source||typeof doc.get('url')!=='string'||!approvedNewsUrl(doc.get('url'),source,true))return {status:'ineligible',articleId:task.articleId};
+    }
     const downloads=new Map<string,Promise<string>>();
     const download=(source:CalendarSource)=>{
       let content=downloads.get(source.url);
