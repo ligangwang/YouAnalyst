@@ -13,7 +13,8 @@ import type {Row,Collection} from './sync';
 
 export const COMPANY_SQLITE_OBJECT='entity-snapshots/companies.sqlite';
 const FORMAT='youanalyst-entities-v1-lazy';
-const scalarFields=['slug','symbol','symbolLower','nameLower','tickerLower','name','legalName','status','market','exchange_region','companyId','source','target','instrumentType','exchange','historyKey','ticker','tradingDate','requestedDate'];
+const scalarFields=['slug','symbol','symbolLower','nameLower','tickerLower','name','legalName','status','market','exchange_region','companyId','source','target','instrumentType','exchange','historyKey'];
+const priceScalarFields=[...scalarFields,'ticker','tradingDate','requestedDate'];
 const arrayFields=['themeIds','slugAliases','aliases'];
 export type EntityRows=Map<string,DocumentData>&{watermark?:Timestamp;overlayBase?:EntityRows;overlayIds?:Set<string>;candidateIds?:(field:string,operator:string,value:unknown)=>Set<string>|undefined; sitemapRows?:()=>Iterable<[string,DocumentData]>; isDeleted?:(id:string)=>boolean; decodedCount?:()=>number};
 
@@ -41,7 +42,7 @@ export function entitySqliteBuilder(path:string,collection:Collection='companies
    const encodedPrefixes=searchPrefixes===undefined?null:gzipSync(JSON.stringify(encode(searchPrefixes)));
    insert.run(seq,row.id,JSON.stringify(encode(data)),encodedPrefixes);
    if(collection==='eod_prices') {
-    for(const name of scalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);
+    for(const name of priceScalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);
     for(const name of arrayFields)if(Array.isArray(data[name]))for(const value of data[name])if(typeof value==='string')lookup.run(name,value,seq);
     return;
    }
@@ -134,7 +135,7 @@ export function openEntitySqlite(path:string,directory?:string,collection:Collec
    const array=operator==='array-contains'||operator==='array-contains-any';
    const range=['<','<=','>','>='].includes(operator);
    const scalar=operator==='=='||operator==='in'||range;
-   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&(scalarFields.includes(field)||field==='__name__')))return undefined;
+   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&((collection==='eod_prices'?priceScalarFields:scalarFields).includes(field)||field==='__name__')))return undefined;
    const values=operator==='in'||operator==='array-contains-any'?value:[value];
    if(!Array.isArray(values)||values.some(v=>typeof v!=='string'))return undefined;
    const found=new Set<string>();
