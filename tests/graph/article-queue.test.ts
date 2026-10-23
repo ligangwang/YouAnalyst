@@ -48,3 +48,11 @@ test('withdrawn company or source and unapproved URLs cannot reach any enrichmen
   assert.equal((await processArticleTask(task,f.db,{enabled:true,calendarEnabled:true,now,context:async()=>current,run})).status,'ineligible');
  }
 });
+test('articles mentioning multiple companies remain owned by their approved publisher company',async()=>{
+ const f=earningsFirestore(),multi={...row,companyIds:['US:AMD','US:NVDA']};
+ f.rows.set(`${EVENTS_COLLECTION}/news-one`,multi);
+ const next={...task,fingerprint:articleFingerprint(multi)};let called=0;
+ assert.equal((await processArticleTask(next,f.db,{enabled:true,calendarEnabled:true,now,context,run:async()=>{called++;return {status:'verified'};}})).status,'verified');assert.equal(called,1);
+ f.rows.set(`${EVENTS_COLLECTION}/news-one`,{...multi,companyId:'US:WITHDRAWN'});
+ assert.equal((await processArticleTask({...next,fingerprint:articleFingerprint({...multi,companyId:'US:WITHDRAWN'})},f.db,{enabled:true,calendarEnabled:true,now,context,run:async()=>assert.fail()})).status,'ineligible');
+});

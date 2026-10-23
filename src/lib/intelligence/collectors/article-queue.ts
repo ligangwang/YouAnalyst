@@ -74,11 +74,12 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
     const {graph,sources}=await (options.context?options.context():Promise.all([loadCollectionCompanyScope(db),loadNewsSources(db)]).then(([graph,sources])=>({graph,sources})));
     const mapped=new Set(graph.nodes.map(n=>n.id));
     const companyIds=doc.get('companyIds');
-    if(!Array.isArray(companyIds)||companyIds.length!==1||!mapped.has(companyIds[0]))return {status:'ineligible',articleId:task.articleId};
+    const primary=doc.get('companyId')??companyIds?.[0];
+    if(!Array.isArray(companyIds)||!companyIds.includes(primary)||!mapped.has(primary))return {status:'ineligible',articleId:task.articleId};
     const deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
     if(!['company_news','company_disclosure'].includes(String(doc.get('type'))))return {status:'ineligible',articleId:task.articleId};
     if(doc.get('type')==='company_news'){
-      const source=sources.find(s=>s.id===doc.get('sourceId')&&s.companyId===companyIds[0]);
+      const source=sources.find(s=>s.id===doc.get('sourceId')&&s.companyId===primary);
       if(!source||typeof doc.get('url')!=='string'||!approvedNewsUrl(doc.get('url'),source,true))return {status:'ineligible',articleId:task.articleId};
     }
     if(options.run)return await options.run(doc,task.stages);
