@@ -21,6 +21,7 @@ export function catalogGraphSectors(nodes:ThemeCatalog,theme:string):GraphSector
 /** Presentation metadata is attached to the response, never persisted on companies. */
 export function applyThemeCatalog(graph:KnowledgeGraph,theme:string,nodes:ThemeCatalog):KnowledgeGraph{
   const sectors=catalogGraphSectors(nodes,theme);
+  const firstCompany=graph.nodes.find(node=>node.kind==='COMPANY');
   return {...graph,nodes:graph.nodes.map(node=>{
     if(node.kind==='COMPANY'){
       const assigned=sectors.filter(sector=>sector.stages.some(stage=>node.stageIds?.includes(stage))).map(sector=>({...sector,
@@ -28,7 +29,9 @@ export function applyThemeCatalog(graph:KnowledgeGraph,theme:string,nodes:ThemeC
         branches:sector.branches?.map(branch=>({...branch,stages:branch.stages.filter(stage=>node.stageIds?.includes(stage))})).filter(branch=>branch.stages.length),
       }));
       return {...node,themeId:theme,themeNames:nodes.find(item=>item.id===theme)?.names,
-        themeSectors:assigned.length?assigned:[{...OTHER_SECTOR,order:2001,stages:node.stageIds??[]}]};
+        // Carry the definitions once so empty AI layers remain browsable. Membership
+        // still comes exclusively from each company's recorded stage IDs.
+        themeSectors:[...(node===firstCompany?sectors:assigned),...(!assigned.length?[{...OTHER_SECTOR,order:2001,stages:node.stageIds??[]}]:[])]};
     }
     const stage=node.id.replace(/^stage:/,'');
     const definition=nodes.find(item=>item.id===stage || item.id===stage.replace(':','.') ||

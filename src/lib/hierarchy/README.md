@@ -10,6 +10,8 @@ Investment theme definitions read the approved `investment_themes` collection. E
 
 The hierarchy has three conceptual levels: family (root), investment theme (child of a family), and arbitrarily nested business roles. IDs are stable; `parentId` controls placement. There is no runtime hardcoded theme catalog. Cold failures report unavailable; refresh failures retain the last validated catalog. A new theme needs only published Firestore records and separately reviewed company memberships, with no code allowlist changes. Empty themes remain empty until companies are reviewed.
 
+The Explore sidebar starts with a family selector, then a theme selector limited to that family. Its initial AI view is Transformative Technologies → AI → Energy / Chips / Infrastructure / Models / Applications → business roles → companies. The five AI layer IDs and role filter IDs remain compatible with saved links; definitions and ordering come from Firestore. Empty AI layers remain visible. Changing family selects its first published theme; no company membership is inferred from a family selection.
+
 Company data reuses the existing enrollment loader/local cache; a five-minute process cache shares the browsing projection. Company queries split theme IDs into batches of at most 30 and deduplicate companies. Families aggregate descendant memberships at read time; family memberships are not copied onto company documents.
 
 ## Four-family catalog publication

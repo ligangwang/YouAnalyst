@@ -79,7 +79,7 @@
         "en": "Applications",
         "zh-CN": "应用"
       },
-      "order": 0,
+      "order": 4,
       "status": "PUBLISHED"
     },
     {
@@ -99,7 +99,7 @@
         "en": "Models",
         "zh-CN": "模型"
       },
-      "order": 1,
+      "order": 3,
       "status": "PUBLISHED"
     },
     {
@@ -189,7 +189,7 @@
         "en": "Chips",
         "zh-CN": "芯片"
       },
-      "order": 3,
+      "order": 1,
       "status": "PUBLISHED"
     },
     {
@@ -269,7 +269,7 @@
         "en": "Energy",
         "zh-CN": "能源"
       },
-      "order": 4,
+      "order": 0,
       "status": "PUBLISHED"
     },
     {

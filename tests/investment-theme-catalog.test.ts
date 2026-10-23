@@ -20,6 +20,26 @@ import { localDocuments } from '../src/lib/local-cache/entities';
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 
 const catalog=validateThemeCatalog(seed.nodes);
+
+test('the existing five AI layers fit below family and theme while preserving role links and recorded memberships',()=>{
+  const layers=['energy','chips','infrastructure','models','applications'];
+  assert.deepEqual(catalog.filter(node=>node.parentId==='ai').map(node=>node.id),layers.map(id=>'ai.'+id));
+  for(const id of layers)assert.deepEqual(hierarchyPath(catalog,'ai.'+id).map(node=>node.id),['transformative-technologies','ai','ai.'+id]);
+  const nodes=['energy','compute','servers','models','edge'].map((stage,index)=>({id:`US:ROLE${index}`,kind:'COMPANY' as const,order:index,stageIds:[stage]}));
+  const before=structuredClone(nodes);
+  const projected=applyThemeCatalog({nodes,sources:[],relationships:[],asOf:''},'ai',catalog);
+  const tree=industryTree(projected.nodes);
+  assert.deepEqual(tree.map(layer=>layer.id),layers);
+  assert.ok(tree.find(layer=>layer.id==='chips')!.branches.some(branch=>branch.id==='chips/compute'));
+  for(const node of nodes){
+    assert.deepEqual(projected.nodes.find(item=>item.id===node.id)!.stageIds,node.stageIds);
+    assert.ok(tree.some(layer=>layer.companies.some(item=>item.id===node.id)));
+  }
+  assert.deepEqual(nodes,before);
+  const sparse=industryTree(applyThemeCatalog({nodes:[nodes[1]],sources:[],relationships:[],asOf:''},'ai',catalog).nodes);
+  assert.deepEqual(sparse.map(layer=>layer.id),layers);
+  assert.equal(sparse.find(layer=>layer.id==='models')!.companies.length,0);
+});
 test('a retired theme stops collection without deleting or altering its memberships',()=>{
   const company={id:'US:OLD',name:'Old member',status:'DIRECTORY',inGraph:{status:'PUBLISHED'},themeMemberships:{ai:{status:'PUBLISHED' as const,primarySector:'compute',reviewedAt:'2026-10-22'}}};
   const before=structuredClone(company);

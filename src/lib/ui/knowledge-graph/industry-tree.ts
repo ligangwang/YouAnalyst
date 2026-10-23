@@ -40,14 +40,15 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
   const theme=graphTheme(unique);
   if (theme !== 'ai' || unique.some(node=>node.themeSectors)) {
     return graphSectors(theme,unique).map(sector => {
+      const layerId=theme==='ai'?sector.id:`${theme}:${sector.id}`;
       const members = unique.filter(company => sector.stages.some(stage => company.stageIds?.includes(stage)));
-      const branches=(sector.branches??[]).map(branch=>({id:branch.id,en:branch.en,zh:branch.zh,companies:unique.filter(company=>branch.stages.some(stage=>company.stageIds?.includes(stage)))})).filter(branch=>branch.companies.length);
+      const branches=(sector.branches??[]).map(branch=>({id:theme==='ai'&&branch.id.startsWith(`ai.${sector.id}.`)?`${sector.id}/${branch.id.slice(`ai.${sector.id}.`.length)}`:branch.id,en:branch.en,zh:branch.zh,companies:unique.filter(company=>branch.stages.some(stage=>company.stageIds?.includes(stage)))})).filter(branch=>branch.companies.length);
       const detailed=new Set(branches.flatMap(branch=>branch.companies.map(company=>company.id)));
       const direct=members.filter(company=>!detailed.has(company.id));
-      if(branches.length && direct.length)branches.push({id:`${theme}:${sector.id}/direct`,en:sector.en,zh:sector.zh,companies:direct});
-      return {id:`${theme}:${sector.id}`,en:sector.en,zh:sector.zh,color:sector.color,stages:sector.stages,companies:members,
+      if(direct.length && (branches.length || theme==='ai'))branches.push({id:theme==='ai'?`${layerId}/${sector.id}`:`${layerId}/direct`,en:sector.en,zh:sector.zh,companies:direct});
+      return {id:layerId,en:sector.en,zh:sector.zh,color:sector.color,stages:sector.stages,companies:members,
         themeNames:unique[0]?.themeNames,directCompanies:!branches.length,branches};
-    }).filter(layer => layer.companies.length);
+    }).filter(layer => theme==='ai' || layer.companies.length);
   }
   const known=new Set(INDUSTRY_LAYERS.flatMap(l=>l.stages));
   return INDUSTRY_LAYERS.map(layer=>{

@@ -21,6 +21,7 @@
 .regionWorkspace { --left-panel-width:260px; }
 .browseSelectors { display:grid; grid-template-columns:1fr 1.05fr; gap:8px; margin:0 10px 12px; flex-shrink:0; }
 .browseSelectors>div,.regionFilter { min-width:0; }
+.browseSelectors>div { display:contents; }
 .browseSelectors>div>label { margin:0; padding:8px 6px; gap:4px; height:42px; font-size:11px; }
 .browseSelectors small { font-size:10px; }
 .regionFilter select { width:100%; min-width:0; height:42px; padding:7px 6px; border:1px solid var(--ui-line,#2a414f); border-radius:7px; background:var(--ui-surface,#162d35); color:var(--ui-text,#98e7d6); font:inherit; font-size:11px; cursor:pointer; }
