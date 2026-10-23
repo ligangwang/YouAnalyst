@@ -2,10 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {buildPeerComparison,peerGroup} from '../src/lib/peer-comparison/model';
 import type {GraphNode} from '../src/lib/knowledge-graph/model';
+import {findPeerThemeGroup} from '../src/lib/peer-comparison/theme-group';
 const today='2026-10-14';
 const node=(id:string,stage='compute',privateCompany=false):GraphNode=>({id,name:id,kind:'COMPANY',order:0,stageIds:[stage],listingStatus:privateCompany?'PRIVATE':'PUBLIC'});
 const annual=(profit:number,end='2025-12-31',start='2025-01-01',unit='USD')=>({report:{end,form:'10-K'},metrics:[{label:'Net income',value:profit,unit,start,end},{label:'Revenue',value:100,unit,start,end},{label:'Diluted EPS',value:2,unit:`${unit}/shares`,start,end}]});
 const cap=(value:number,date=today)=>({status:'estimated',value,currency:'USD',priceDate:date});
+
+test('uncovered companies do not build every catalog graph; AI relationship neighbors remain eligible',async()=>{
+ const themes=['ai',...Array.from({length:50},(_,i)=>`theme-${i}`)],calls:string[]=[];
+ const empty={nodes:[],relationships:[],sources:[],asOf:''};
+ assert.equal(await findPeerThemeGroup('US:OUTSIDE',undefined,themes,async theme=>{calls.push(theme);return empty;}),null);
+ assert.deepEqual(calls,['ai']);
+ calls.length=0;
+ const selected=await findPeerThemeGroup('US:NEIGHBOR',undefined,themes,async theme=>{calls.push(theme);return {...empty,nodes:[node('US:NEIGHBOR')]};});
+ assert.equal(selected?.group.companies[0].id,'US:NEIGHBOR');assert.deepEqual(calls,['ai']);
+});
+
+test('peer graphs follow published membership and catalog order, ignoring pending, unindexed and retired themes',async()=>{
+ const calls:string[]=[];
+ const company={themeIds:['robotics','pending','space','retired'],themeMemberships:{
+  robotics:{status:'PUBLISHED' as const,primarySector:'compute-control'},space:{status:'PUBLISHED' as const,primarySector:'components'},
+  pending:{status:'PENDING' as const,primarySector:'x'},unindexed:{status:'PUBLISHED' as const,primarySector:'x'},retired:{status:'PUBLISHED' as const,primarySector:'x'},
+ }};
+ const result=await findPeerThemeGroup('US:A',company,['pending','unindexed','ai','robotics','space'],async theme=>{
+  calls.push(theme);return {nodes:theme==='space'?[node('US:A')]:[],relationships:[],sources:[],asOf:''};
+ });
+ assert.equal(result?.group.companies[0].id,'US:A');assert.deepEqual(calls,['ai','robotics','space']);
+});
 test('peers use the recorded role and same listing market, excluding private and unclassified companies',()=>{
  const group=peerGroup('US:A',[node('US:A'),node('US:B'),node('US:C','memory'),node('US:D','compute',true),node('XSHE:000001')]);
  assert.deepEqual(group?.companies.map(c=>c.id),['US:A','US:B']);assert.equal(peerGroup('US:X',[node('US:X','missing')]),null);

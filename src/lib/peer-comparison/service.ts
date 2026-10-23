@@ -5,7 +5,9 @@ import { loadThemeGraph } from '../company-themes/graph-service';
 import { loadThemeCatalog } from '../company-themes/catalog';
 import { catalogThemeIds } from '../company-themes/catalog-model';
 import { marketDate } from '../predictions/instrument';
-import { buildPeerComparison, peerGroup, type PeerComparison } from './model';
+import { buildPeerComparison, type PeerComparison } from './model';
+import {findPeerThemeGroup} from './theme-group';
+import type {ThemedCompany} from '../company-themes/model';
 import {changeCached} from '../change-cache';
 
 /** Read existing caches only. Comparison views never enqueue provider requests or create collections. */
@@ -16,9 +18,11 @@ export async function loadPeerComparison(companyId:string):Promise<PeerCompariso
  // Date is an input to the comparison, not a cache-expiry timer.
  const dateKey=[marketDate('US'),marketDate('CN_A')].join(':');
  try{return await changeCached(db,`peers:${companyId}:${dateKey}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
-  for(const theme of catalogThemeIds(await loadThemeCatalog(db))){
-   const graph=await loadThemeGraph(theme).catch(()=>{complete=false;return null;});if(!graph)continue;
-   const group=peerGroup(companyId,graph.nodes);if(!group)continue;
+  const [catalog,documents]=await Promise.all([loadThemeCatalog(db),loadCompanyDocuments(db,'companies',[companyId])]);
+  const selected=await findPeerThemeGroup(companyId,documents[0]?.data() as Partial<ThemedCompany>|undefined,
+   catalogThemeIds(catalog),theme=>loadThemeGraph(theme).catch(()=>{complete=false;return null;}));
+  if(selected){
+   const {graph,group}=selected;
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);
    for(let i=0;i<group.companies.length;i+=100){
     const batch=group.companies.slice(i,i+100);
