@@ -111,16 +111,15 @@ test("403/429 cooldowns respect Retry-After seconds and dates", () => {
 
 
 test("sequential requests do not reread the gate for their own spacing", async () => {
- const f=sharedFirestore();let reads=0;
+ const f=sharedFirestore();let transactions=0;
  const original=f.db.runTransaction.bind(f.db);
- f.db.runTransaction=((fn:any)=>original(async tx=>{
-   const get=tx.get.bind(tx);
-   tx.get=((...args:any[])=>{reads++;return (get as any)(...args);}) as typeof tx.get;
-   return fn(tx);
- })) as typeof f.db.runTransaction;
+ f.db.runTransaction=((...args:Parameters<typeof f.db.runTransaction>)=>{
+   transactions++;
+   return original(...args);
+ }) as typeof f.db.runTransaction;
  const starts:number[]=[];
  for(let i=0;i<3;i++)await createSecBudget(f.db,async ms=>{f.advance(ms);})
    .run(new AbortController().signal,async()=>{starts.push(f.now());});
- assert.equal(reads,6); // One acquisition and one ownership-checked release each.
+ assert.equal(transactions,6); // One acquisition and one ownership-checked release each.
  assert.deepEqual(starts,[1000000,1000200,1000400]);
 });
