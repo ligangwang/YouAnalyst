@@ -4,6 +4,7 @@ import { companyClassificationPaths } from '@/lib/industry-classification/catalo
 import { investmentThemeHierarchy } from '@/lib/hierarchy/investment-themes';
 import { companyThemeNodeIds, type CompanyThemeData } from '@/lib/hierarchy/company-memberships';
 import { hierarchyPath } from '@/lib/hierarchy/model';
+import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot';
 import { CompanyClassificationsView, type CompanyIndustryLabel } from './company-classifications-view';
 
 type ClassificationData = CompanyThemeData & { taxonomy?: unknown; classification?: unknown; isDeleted?: boolean };
@@ -16,9 +17,6 @@ export async function CompanyClassifications({ companyId, data }: { companyId: s
     catch { return <CompanyClassificationsView unavailable />; }
   }
   if (company?.isDeleted) return null;
-  const nodes = await investmentThemeHierarchy();
-  const ids = companyThemeNodeIds(company ?? {}, nodes);
-  const themePaths = ids.map(id => hierarchyPath(nodes, id)).filter(path => !ids.some(id => id !== path.at(-1)?.id && hierarchyPath(nodes, id).some(node => node.id === path.at(-1)?.id)));
   let industries: CompanyIndustryLabel[] = [];
   try {
     const english = companyClassificationPaths(company ?? {}, 'en');
@@ -29,5 +27,9 @@ export async function CompanyClassifications({ companyId, data }: { companyId: s
         names: { en: industry.name, 'zh-CN': chinese[index].at(-1)!.name } };
     });
   } catch { /* Do not infer or display an incorrect code. */ }
+  const nodes = await initialSnapshotWithinBudget(investmentThemeHierarchy());
+  if (!nodes) return <CompanyClassificationsView industries={industries} themesUnavailable />;
+  const ids = companyThemeNodeIds(company ?? {}, nodes);
+  const themePaths = ids.map(id => hierarchyPath(nodes, id)).filter(path => !ids.some(id => id !== path.at(-1)?.id && hierarchyPath(nodes, id).some(node => node.id === path.at(-1)?.id)));
   return <CompanyClassificationsView industries={industries} themePaths={themePaths} />;
 }

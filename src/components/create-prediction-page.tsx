@@ -25,7 +25,7 @@ function useCoverageGraph() {
   useEffect(() => {
     if(!themes.length)return;
     const controller = new AbortController();
-    Promise.all(themes.map(theme => fetch(`/api/knowledge-graph${theme === "ai" ? "" : `?theme=${theme}`}`, { signal: controller.signal })
+    Promise.all(themes.map(theme => fetch(`/api/knowledge-graph?theme=${encodeURIComponent(theme)}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error(); return response.json().then(graph => ({ theme: theme as CompanyThemeId, graph })); })))
       .then(graphs => setGraph(mergeCoverageGraphs(graphs))).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
@@ -82,10 +82,10 @@ export function CreatePredictionPage({ requestedTicker = "", requestedDirection,
   if (!user) return <main className="mx-auto max-w-3xl p-8"><h1 className="text-2xl">{text("Publish a view", "发布观点")}</h1><Link className="text-cyan-300" href={predictionSignInHref(requestedTicker, "", requestedDirection)}>{text("Sign in to publish", "请登录后发布")}</Link></main>;
   const inputClass = "w-full rounded-lg border border-white/20 bg-slate-900 p-3";
   return <main className="mx-auto max-w-3xl p-6"><h1 className="mb-2 text-2xl font-semibold">{text("Publish a view", "发布观点")}</h1>
-    <p className="mb-5 text-sm text-slate-400">{text("Analyst views cover companies on the AI, Robotics and Space maps. A bullish or bearish view cites the relationships or research it builds on.", "分析师观点覆盖 AI、机器人与航天图谱中的公司。看多或看空观点需引用其依据的关系或研究。")}</p>
+    <p className="mb-5 text-sm text-slate-400">{text("Analyst views cover companies on published investment theme maps. A bullish or bearish view cites the relationships or research it builds on.", "分析师观点覆盖已发布投资主题图谱中的公司。看多或看空观点需引用其依据的关系或研究。")}</p>
     <form onSubmit={publish} className="grid gap-5">
       <TickerSearchInput value={ticker} onChange={setTicker} predictionSearch label={text("Company", "公司")} />
-      {covered === false && <p role="alert" className="rounded-lg border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-100">{text("This company is not on the AI, Robotics or Space maps yet. Analyst views cover map companies only.", "该公司尚未收录在 AI、机器人或航天图谱中。分析师观点仅覆盖图谱中的公司。")} <Link className="underline" href={localizedPath("/", locale)}>{text("Browse the maps", "浏览图谱")}</Link></p>}
+      {covered === false && <p role="alert" className="rounded-lg border border-amber-300/40 bg-amber-300/10 p-3 text-sm text-amber-100">{text("This company is not on a published investment theme map yet. Analyst views cover map companies only.", "该公司尚未收录在已发布的投资主题图谱中。分析师观点仅覆盖图谱中的公司。")} <Link className="underline" href={localizedPath("/investment-themes", locale)}>{text("Browse the themes", "浏览主题")}</Link></p>}
       <label>{text("Title", "标题")}<input className={inputClass} value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} /></label>
       <label>{text("Thesis", "论点")}<textarea className={inputClass} rows={10} value={body} onChange={e => setBody(e.target.value)} required maxLength={10000} /></label>
       <label>{text("View", "观点")}<select className={inputClass} value={direction} onChange={e => setDirection(e.target.value as typeof direction)}><option value="">{text("Research only", "仅发布研究")}</option><option value="UP">{text("Bullish", "看多")}</option><option value="DOWN">{text("Bearish", "看空")}</option></select></label>

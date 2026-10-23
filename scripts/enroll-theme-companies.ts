@@ -27,11 +27,13 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch,ca
     assert(record&&record.name===proposal.expectedName&&['PUBLISHED','DIRECTORY'].includes(String(record.status)),`${proposal.id}: missing canonical profile or identity changed`);
     const sectors=catalogGraphSectors(catalog,batch.theme),sector=sectors.find(row=>row.id===proposal.primarySector || row.stages.includes(proposal.primarySector));
     assert(sector,'Unknown primary sector');
-    const secondary=proposal.secondaryRoles??[];
-    assert(new Set(secondary).size===secondary.length&&!secondary.includes(proposal.primarySector)&&secondary.every(id=>sectors.some(row=>row.id===id || row.stages.includes(id))),'Invalid secondary sectors');
+    const normalizeRole=(id:string)=>id.startsWith(batch.theme+'.')?id.slice(batch.theme.length+1):id;
+    const primarySector=normalizeRole(proposal.primarySector);
+    const secondary=(proposal.secondaryRoles??[]).map(normalizeRole);
+    assert(new Set(secondary).size===secondary.length&&!secondary.includes(primarySector)&&secondary.every(id=>sectors.some(row=>row.id===id || row.stages.includes(id) || row.stages.includes(`${batch.theme}:${id}`))),'Invalid secondary sectors');
     assert(proposal.sources.length>0,'Reviewed sources required');
     for(const source of proposal.sources){const url=new URL(source.url);assert(url.protocol==='https:'&&!url.username&&!url.password&&source.title.trim()&&source.summary.trim(),'Invalid reviewed source');}
-    const membership={status:'PUBLISHED' as const,primarySector:proposal.primarySector,secondaryRoles:secondary,reviewedAt:batch.reviewedAt,sources:proposal.sources};
+    const membership={status:'PUBLISHED' as const,primarySector,secondaryRoles:secondary,reviewedAt:batch.reviewedAt,sources:proposal.sources};
     const memberships=structuredClone(record.themeMemberships??{});
     assert(!memberships[batch.theme]||isDeepStrictEqual(memberships[batch.theme],membership),`${proposal.id}: existing theme decision conflicts`);
     memberships[batch.theme]=membership;

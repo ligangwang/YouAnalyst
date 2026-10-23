@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { build } from "esbuild";
 import path from "node:path";
 import type { AuthScenario } from "./fixtures/mocks";
+import seed from '../../data/investment-themes/catalog-v1.json';
 
 const origin = "http://conversion.test";
 const watchlistId = "owned & research+1";
@@ -53,7 +54,7 @@ test("research-only article has no direction", async ({ page }) => {
 test("views cover map companies only, and a directional view needs a citation", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   await page.goto(origin + "/predictions/new?ticker=KO");
-  await expect(page.getByRole("alert")).toContainText("not on the AI, Robotics or Space maps");
+  await expect(page.getByRole("alert")).toContainText("not on a published investment theme map");
   await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
   await page.goto(origin + "/predictions/new?ticker=QCOM&direction=UP");
   await expect(page.getByText("No documented relationships or research cover this company yet", { exact: false })).toBeVisible();
@@ -196,7 +197,8 @@ test.beforeEach(async ({ page }) => {
       ] } });
     }
     if (url.pathname === "/api/tickers/search") return route.fulfill({ json: { items: [] } });
-    if (url.pathname === "/api/knowledge-graph") return route.fulfill({ json: url.searchParams.get("theme") ? emptyMap : aiMap });
+    if (url.pathname === "/api/investment-themes") return route.fulfill({ json: { nodes: seed.nodes } });
+    if (url.pathname === "/api/knowledge-graph") return route.fulfill({ json: !url.searchParams.has('theme') || url.searchParams.get('theme') === 'ai' ? aiMap : emptyMap });
     if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
     await route.abort();
     throw new Error(`Unexpected request: ${url.pathname}`);

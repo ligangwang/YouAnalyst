@@ -10,10 +10,31 @@ import ai from '../data/ai-supply-chain/ai-us.json';
 import cn from '../data/ai-supply-chain/ai-cn-a.json';
 import {publishNewsSources} from '../scripts/publish-news-sources';
 import type {CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
+import { themedGraph } from '../src/lib/company-themes/presentation';
+import { companyThemeNodeIds } from '../src/lib/hierarchy/company-memberships';
+import { applyThemeCatalog } from '../src/lib/company-themes/catalog-graph';
+import { companySector } from '../src/lib/knowledge-graph/sectors';
+import type { ThemedCompany } from '../src/lib/company-themes/model';
 
 const planEnrollment=(records:Parameters<typeof plan>[0],batch:EnrollmentBatch)=>plan(records,batch,catalog);
 const batch=healthcare as EnrollmentBatch;
 const profiles=batch.companies.map(row=>({id:row.id,name:row.expectedName,status:'DIRECTORY',market:'US',exchange:'NASDAQ',symbol:row.id.slice(3),profile:{financialReport:{url:'https://www.sec.gov/example'}}}));
+
+test('canonical catalog role IDs enroll consistently into graphs and hierarchy browsing',()=>{
+  const nodes=[...catalog,{id:'custom-motion',parentId:'robotics',names:{en:'Motion','zh-CN':'运动控制'},order:20}];
+  for(const role of ['robotics.compute-control','custom-motion']){
+    const proposal={...batch.companies[0],primarySector:role,secondaryRoles:['robotics.software-simulation']};
+    const input={...batch,theme:'robotics',companies:[proposal]};
+    const [patch]=plan(profiles,input,nodes);
+    const updated={...profiles[0],...patch.fields} as ThemedCompany;
+    const graph=applyThemeCatalog(themedGraph('robotics',[updated],[],nodes),'robotics',nodes);
+    assert.equal(companySector(graph.nodes.find(node=>node.kind==='COMPANY')!).id,role==='custom-motion'?role:'compute-control');
+    assert.ok(companyThemeNodeIds(updated,nodes).includes(role));
+    assert.ok(companyThemeNodeIds(updated,nodes).includes('robotics.software-simulation'));
+    assert.equal(plan([updated],input,nodes).length,0);
+    assert.throws(()=>plan(profiles,{...input,companies:[{...proposal,secondaryRoles:['compute-control','robotics.compute-control']}]},nodes),/Invalid secondary sectors/);
+  }
+});
 
 test('AI enrollment is data-only, preserves other themes and reaches the deployed graph reader',()=>{
   const old={...profiles[0],themeMemberships:{space:{status:'PUBLISHED' as const,primarySector:'operators',reviewedAt:'2026-10-04'}},themeIds:['space']};

@@ -70,6 +70,8 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
 
 test('workspace defaults to graph and respects an explicit list link',async({page})=>{
  await open(page);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await expect(page.getByRole('complementary',{name:'Universe navigation'}).getByRole('link',{name:'Explore universe',exact:false})).toHaveAttribute('href','/en/investment-themes');
  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
  await page.goto('http://workspace.test/?view=table');
  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
