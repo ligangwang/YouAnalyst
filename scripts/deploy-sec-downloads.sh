@@ -44,8 +44,11 @@ const lifecycle=b.lifecycle??b.lifecycle_config;
 const rules=Array.isArray(lifecycle)?lifecycle:lifecycle?.rule??[];
 if(uniform!==true||privacy!=="enforced"||rules.some(r=>r.action?.type==="Delete"))throw Error("SEC cache must be private, uniform and free of age-only deletion rules");});'
 if [[ "$FILING_PIPELINE_BOOTSTRAP_IAM" == 0 ]]; then
-  binding="$(gcloud storage buckets get-iam-policy "gs://$SEC_DOCUMENT_CACHE_BUCKET" --project "$GCP_PROJECT_ID" --flatten='bindings[].members' --filter="bindings.role=roles/storage.objectUser AND bindings.members=serviceAccount:$maintenance_runtime_account" --format='value(bindings.members)')"
-  grep -Fxq "serviceAccount:$maintenance_runtime_account" <<< "$binding" || { echo 'Missing SEC cache object access' >&2; exit 1; }
+  # Storage's get-iam-policy does not accept the generic --filter flag. Inspect
+  # its JSON policy and still require the exact unconditional resource binding.
+  gcloud storage buckets get-iam-policy "gs://$SEC_DOCUMENT_CACHE_BUCKET" --project "$GCP_PROJECT_ID" --format=json | node -e '
+let input="";process.stdin.on("data",d=>input+=d).on("end",()=>{const policy=JSON.parse(input),member="serviceAccount:"+process.argv[1];
+if(!Array.isArray(policy.bindings)||!policy.bindings.some(binding=>binding.role==="roles/storage.objectUser"&&!binding.condition&&Array.isArray(binding.members)&&binding.members.includes(member)))throw Error("Missing SEC cache object access");});' "$maintenance_runtime_account"
 fi
 [[ "${1:-}" == --check ]] && exit 0
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
