@@ -13,6 +13,8 @@ COPY data/company-link-slugs.json ./data/company-link-slugs.json
 RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-sec-downloads.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-downloads.cjs \
+  && node_modules/.bin/esbuild scripts/serve-sec-discovery.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-discovery.cjs \
+  && node_modules/.bin/esbuild scripts/serve-news-enrichment.ts --bundle --platform=node --packages=external --outfile=dist/serve-news-enrichment.cjs \
   && node_modules/.bin/esbuild scripts/cleanup-sec-downloads.ts --bundle --platform=node --packages=external --outfile=dist/cleanup-sec-downloads.cjs \
   && node_modules/.bin/esbuild scripts/refresh-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-cn-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-cn-fundamentals.cjs \

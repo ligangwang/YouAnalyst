@@ -17,7 +17,7 @@ const retiredUiPaths = new Set([
 export function backgroundJobTarget(paths) {
   let financial = false, directory = false;
   for (const path of paths) {
-    if (['scripts/serve-sec-downloads.ts','scripts/cleanup-sec-downloads.ts','scripts/deploy-sec-downloads.sh'].includes(path)) {financial=true;continue;}
+    if (['scripts/serve-sec-downloads.ts','scripts/cleanup-sec-downloads.ts','scripts/deploy-sec-downloads.sh','scripts/serve-sec-discovery.ts','scripts/serve-news-enrichment.ts','scripts/deploy-discovery-enrichment.sh'].includes(path)) {financial=true;continue;}
     if (path.startsWith(UI_LIBRARY_ROOT)) continue;
     if (retiredUiPaths.has(path) && !existsSync(path)) continue;
     if (['scripts/sync-entity-snapshots.ts', 'scripts/deploy-entity-snapshots.sh', 'scripts/collect-intelligence-news.ts', 'scripts/serve-intelligence-news.ts', 'scripts/serve-cn-discovery.ts', 'scripts/deploy-cn-discovery.sh', 'scripts/deploy-news-pubsub.sh', 'scripts/deploy-intelligence-news.sh', 'scripts/collect-earnings.ts', 'scripts/serve-earnings.ts', 'scripts/deploy-earnings.sh'].includes(path)) { financial = true; continue; }

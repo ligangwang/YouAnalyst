@@ -7,7 +7,9 @@ import { loadCollectionCompanies } from "../src/lib/company-themes/service";
 import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
-import { collectSecFilings, inspectSecFilingCollection } from "../src/lib/sec-filings/collector";
+import { collectSecFilings, inspectSecFilingCollection,repairSecDiscoveryOutbox } from "../src/lib/sec-filings/collector";
+import {SEC_DISCOVERY_TOPIC,publishSecDiscoveryTasks,updateSecDiscoveryFreshness,saveSecDiscoveryRotation} from '../src/lib/sec-filings/discovery-queue';
+import {secCollectorMetadata} from '../src/lib/sec-filings/store';
 import { SEC_FILINGS_TOPIC } from "../src/lib/sec-filings/event";
 import { createSecFilingsSource } from "../src/lib/sec-filings/source";
 import { baselineSecFilings, inspectSecBaseline } from "../src/lib/sec-filings/baseline";
@@ -62,11 +64,25 @@ async function main() {
     log.emit("INFO", "run_completed", { ...await inspectSecFilingCollection(db, companyIds), maxCompaniesPerRun: maxCompanies });
     return;
   }
-  if (!process.env.SEC_USER_AGENT?.trim()) throw new Error("SEC_USER_AGENT is required");
   const downloadTopic=process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED==='1'?SEC_DOWNLOAD_TOPIC:SEC_FILINGS_TOPIC;
   if(process.env.SEC_FILINGS_TOPIC&&process.env.SEC_FILINGS_TOPIC!==downloadTopic)throw new Error('Unexpected SEC filing destination for configured download mode');
   const timeoutMs = 12 * 60_000;
   const deadline = Date.now() + timeoutMs;
+  if(process.env.SEC_DISCOVERY_REQUEST_TOPIC){
+    if(process.env.SEC_DISCOVERY_REQUEST_TOPIC!==SEC_DISCOVERY_TOPIC)throw new Error('Unexpected SEC discovery queue');
+    const repair=await repairSecDiscoveryOutbox(db,log,event=>publishJobMessage(downloadTopic,event),deadline);
+    if(repair.incomplete)throw new Error('SEC outbox repair incomplete; no new discovery dispatched');
+    const ids=companyIds.map(ticker=>`US:${ticker}`);
+    const freshness=await updateSecDiscoveryFreshness(db,ids,process.env.EARNINGS_COLLECTION_ENABLED==='1');
+    const after=(await secCollectorMetadata(db).get()).get('afterCompanyId');
+    const publication=await publishSecDiscoveryTasks(ids,task=>publishJobMessage(SEC_DISCOVERY_TOPIC,task),{
+      execution:process.env.CLOUD_RUN_EXECUTION??log.runId,deadline,maxCompanies,after:typeof after==='string'?`US:${after}`:undefined});
+    await saveSecDiscoveryRotation(db,publication.afterCompanyId);
+    log.emit(publication.failed?'ERROR':'INFO','run_completed',{mode:'pubsub',repair,freshness,...publication});
+    if(publication.failed)throw new Error('SEC discovery publication incomplete; retry stable company tasks');
+    return;
+  }
+  if (!process.env.SEC_USER_AGENT?.trim()) throw new Error("SEC_USER_AGENT is required");
   const initialStates = new Map<string, DocumentData | undefined>();
   await loadEarningsMap(db, companies, initialStates);
   const earnings = process.env.EARNINGS_COLLECTION_ENABLED === "1" ? createSecEarningsObserver(db, log, { deadline }) : null;
@@ -90,7 +106,9 @@ async function main() {
   };
   const result = await collectSecFilings(db, companyIds, log, {
     source,
-    beforeCollection: earnings ? async () => { await earnings.scanMap(source, companyIds); } : undefined,
+    // Sidecars share the company's lease even when its financial cursor is not
+    // due. This also fences the direct-mode compatibility path during rollout.
+    beforeCompany: async ticker => { await source.submissions(await source.resolveCik(ticker)); },
     publish: event => publishJobMessage(downloadTopic, event),
     deadline,
     maxCompanies,

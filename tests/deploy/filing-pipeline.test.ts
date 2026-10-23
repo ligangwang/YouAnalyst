@@ -78,7 +78,7 @@ test('filing collector is disabled by default and a new schedule is paused', () 
   const r = run('scripts/deploy-sec-filings.sh', { NEW_SCHEDULER: '1' });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.calls, /--args dist\/collect-sec-filings.cjs,--apply/);
-  assert.match(r.calls, /SEC_FILINGS_TOPIC=sec-filings-discovered\|SEC_FILINGS_COLLECTOR_ENABLED=0/);
+  assert.match(r.calls, /SEC_FILINGS_TOPIC=sec-filings-discovered\|SEC_DISCOVERY_REQUEST_TOPIC=\|SEC_FILINGS_COLLECTOR_ENABLED=0/);
   assert.match(r.calls, /scheduler jobs create http collect-sec-filings-production.*--schedule \*\/15 \* \* \* \*/);
   assert.match(r.calls, /scheduler jobs pause collect-sec-filings-production/);
   assert.ok(r.calls.indexOf('subscriptions describe company-graph-filings') < r.calls.indexOf('run jobs deploy collect-sec-filings-production'));

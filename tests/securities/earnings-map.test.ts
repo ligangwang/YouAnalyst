@@ -123,6 +123,19 @@ test('Micron discovery uses the shared SEC response and preserves original accep
   assert.throws(()=>validateSource({...source,issuerId:'sec:0000006951'}));
   assert.throws(()=>validateSource({...source,url:source.url.replace('/723125/','/6951/')}));
 });
+test('queued SEC earnings cannot advance coverage before its durable intake handoff',async()=>{
+ configureEarningsMap(graph,ids);const fx=earningsFirestore(),log={runId:'queued',emit:()=>{}} as unknown as MaintenanceLog;
+ let attempted=0;
+ const failing=createSecEarningsObserver(fx.db,log,{deadline:fx.now()+60000,now:fx.now,publish:async()=>{attempted++;throw Error('queue unavailable');}});
+ await failing.observe('0000723125',payload,async()=>{throw Error('Unexpected archive');});
+ const key=`earnings_collectors/${secEarningsCursorId('US:MU')}`;
+ assert(attempted>0);assert.equal(failing.failed.size,1);assert.equal(fx.rows.get(key)?.lastCompleteAt,undefined);assert.equal(fx.rows.get(key)?.status,'partial');
+ const before=[...fx.rows.values()].filter(r=>r.recordType==='source').map(r=>r.sourceId);
+ const retry=createSecEarningsObserver(fx.db,log,{deadline:fx.now()+60000,now:fx.now,publish:async discovery=>{assert(discovery.delivery);}});
+ await retry.observe('0000723125',payload,async()=>{throw Error('Unexpected archive');});
+ assert.equal(retry.failed.size,0);assert.equal(fx.rows.get(key)?.status,'complete');
+ assert.deepEqual([...fx.rows.values()].filter(r=>r.recordType==='source').map(r=>r.sourceId),before);
+});
 test('shared-CIK listings get independent full windows and durable intake without changing existing source IDs',async()=>{
   const shared={...graph,nodes:[...graph.nodes,{...graph.nodes[0],id:'US:MU.B'}]};
   configureEarningsMap(shared,new Map([...ids,['US:MU.B','0000723125']]));

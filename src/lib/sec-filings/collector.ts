@@ -1,5 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { acquireSecCollectorLease, releaseSecCollectorLease } from "../sec-collector-state";
+import { acquireSecCollectorLease, releaseSecCollectorLease,acquireSecDiscoveryCompanyLease,releaseSecDiscoveryCompanyLease,secDiscoveryCompanyState } from "../sec-collector-state";
 import { cloudRunTaskAttempt } from "../maintenance-lease";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "./event";
@@ -22,6 +22,9 @@ export type SecCollectorOptions = {
   pollIntervalMs?: number;
   /** Optional bounded pre-filter sidecar, inside the same collector lease. */
   beforeCollection?: () => Promise<void>;
+  /** One queued company, sharing all existing scan/baseline/outbox semantics. */
+  companyId?:string;
+  beforeCompany?:(ticker:string)=>Promise<void>;
 };
 export type SecCollectorResult = {
   companies: number;
@@ -61,6 +64,29 @@ function rotateCompanies(companies: string[], after: unknown) {
   return next < 0 ? companies : [...companies.slice(next), ...companies.slice(0, next)];
 }
 
+/** Repair durable deliveries even after a company leaves collection scope. */
+export async function repairSecDiscoveryOutbox(db:Firestore,log:MaintenanceLog,publish:SecCollectorOptions['publish'],deadline:number,now=Date.now){
+  if(!await acquireSecCollectorLease(db,log.runId,now(),cloudRunTaskAttempt()))throw new Error('SEC filing collector is busy');
+  const result={published:0,incomplete:false};
+  try{
+    let after:string|undefined;
+    for(;;){
+      if(now()+30000>=deadline)return {...result,incomplete:true};
+      const page=await listPendingSecFilings(db,after);
+      if(!page.length)return result;
+      for(const filing of page){
+        for(const event of filing.events){
+          if(now()+30000>=deadline)return {...result,incomplete:true};
+          const messageId=await publish(event);
+          if(!messageId)throw new Error('SEC filing publication was not confirmed');
+          await markSecFilingPublished(db,event,new Date(now()).toISOString(),messageId);result.published++;
+        }
+        after=filing.accessionNumber;
+      }
+    }
+  }finally{await releaseSecCollectorLease(db,log.runId);}
+}
+
 /**
  * A single durable collector lease owns discovery and publication. An uncertain
  * publish may redeliver the same eventId; consumers must deduplicate that ID.
@@ -68,6 +94,7 @@ function rotateCompanies(companies: string[], after: unknown) {
  */
 export async function collectSecFilings(db: Firestore, companyIds: string[], log: MaintenanceLog, options: SecCollectorOptions) {
   const companies = validateCompanies(companyIds);
+  if(options.companyId&&(companies.length!==1||companies[0]!==options.companyId))throw new Error('SEC discovery task must contain exactly its company');
   const now = options.now ?? Date.now;
   const maxCompanies = options.maxCompanies ?? 500;
   const maxArchives = options.maxArchivePagesPerCompany ?? 20;
@@ -81,12 +108,13 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
   const canWork = () => now() + OPERATION_RESERVE_MS < options.deadline;
   const result: SecCollectorResult = { companies: companies.length, inspected: 0, completed: 0,
     baselined: 0, discovered: 0, published: 0, deferred: 0, partial: 0, failed: 0, remaining: companies.length, outboxIncomplete: false };
-  const metadata = secCollectorMetadata(db);
-  if (!await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
+  const metadata = options.companyId?secDiscoveryCompanyState(db,options.companyId):secCollectorMetadata(db);
+  if (!(options.companyId?await acquireSecDiscoveryCompanyLease(db,options.companyId,log.runId,now()):await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt()))) throw new Error("SEC filing collector is busy");
   try {
     // Publication failures stop before further SEC requests. Events are durable
     // even if the originating ticker is no longer in the current graph.
     const drain = async () => {
+      if(options.companyId)return true;
       let after: string | undefined;
       for (;;) {
         if (!canWork()) { result.outboxIncomplete = true; return false; }
@@ -114,8 +142,11 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
     for (const companyId of ordered) {
       if (!canWork() || result.inspected >= maxCompanies) break;
       result.inspected++;
+      if(!options.companyId&&!await acquireSecDiscoveryCompanyLease(db,companyId,log.runId,now(),true)){result.deferred++;result.partial++;result.remaining--;continue;}
+      try{
       let providerBlocked = false;
       try {
+        await options.beforeCompany?.(companyId);
         let cursor = await readSecCollectorCursor(db, companyId);
         if (cursor && !cursor.scan && cursor.nextPollAfterMs > now()) {
           result.deferred++;
@@ -143,6 +174,18 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
               const state = await persistSecFilingDiscovery(db, event, baseline);
               if (state === "baseline") result.baselined++;
               if (state === "pending") result.discovered++;
+              if(options.companyId&&!baseline){
+                // Publish only this company's durable accession deliveries. A
+                // failed handoff leaves its scan incomplete for an exact retry.
+                const saved=(await db.collection('sec_filings').doc(row.accessionNumber).get()).get('discoveryEvents')??{};
+                for(const record of Object.values(saved) as Array<{state:string;event:SecFilingDiscovered}>){
+                  if(record.state!=='pending'||record.event.companyId!==companyId)continue;
+                  if(!canWork())return false;
+                  const messageId=await options.publish(record.event);
+                  if(!messageId)throw new Error('SEC filing publication was not confirmed');
+                  await markSecFilingPublished(db,record.event,new Date(now()).toISOString(),messageId);result.published++;
+                }
+              }
             }
             return true;
           };
@@ -196,13 +239,14 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
       await metadata.set({ afterCompanyId: companyId }, { merge: true });
       result.remaining--;
       if (providerBlocked) break; // The shared SEC gate persists the cooldown.
+      }finally{if(!options.companyId)await releaseSecDiscoveryCompanyLease(db,companyId,log.runId);}
     }
     await drain();
     const lastRunAt = new Date(now()).toISOString();
     await db.runTransaction(async tx => {
       // Keep the previous status fields for admin/older revisions during rollout.
       tx.set(metadata, { lastRunAt, result }, { merge: true });
-      tx.set(secCollectorFreshness(db), {
+      if(!options.companyId)tx.set(secCollectorFreshness(db), {
         lastRunAt,
         result: { failed: result.failed, partial: result.partial,
           remaining: result.remaining, outboxIncomplete: result.outboxIncomplete },
@@ -210,6 +254,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
     });
     return result;
   } finally {
-    await releaseSecCollectorLease(db, log.runId);
+    if(options.companyId)await releaseSecDiscoveryCompanyLease(db,options.companyId,log.runId);
+    else await releaseSecCollectorLease(db, log.runId);
   }
 }
