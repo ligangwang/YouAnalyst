@@ -12,7 +12,8 @@ export function companyThemeNodeIds(company: CompanyThemeData, nodes: HierarchyN
       membership.assignments.filter(item => item.status === 'PUBLISHED' && hierarchyPath(nodes,item.nodeId).some(node=>node.id===theme)).forEach(item => direct.add(item.nodeId));
     } else if (theme !== 'ai') {
       [membership.primarySector, ...(membership.secondaryRoles ?? [])].filter(Boolean).forEach(role => {
-        const id = [String(role), `${theme}.${role}`].find(id => hierarchyPath(nodes, id).some(node => node.id === theme));
+        const normalized=String(role).startsWith(`${theme}:`)?String(role).slice(theme.length+1):String(role);
+        const id = [normalized, `${theme}.${normalized}`].find(id => hierarchyPath(nodes, id).some(node => node.id === theme));
         if (id) direct.add(id);
       });
     } else {

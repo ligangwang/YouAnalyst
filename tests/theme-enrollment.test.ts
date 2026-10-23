@@ -22,14 +22,14 @@ const profiles=batch.companies.map(row=>({id:row.id,name:row.expectedName,status
 
 test('canonical catalog role IDs enroll consistently into graphs and hierarchy browsing',()=>{
   const nodes=[...catalog,{id:'custom-motion',parentId:'robotics',names:{en:'Motion','zh-CN':'运动控制'},order:20}];
-  for(const role of ['robotics.compute-control','custom-motion']){
+  for(const role of ['robotics.compute-control','robotics:compute-control','custom-motion']){
     const proposal={...batch.companies[0],primarySector:role,secondaryRoles:['robotics.software-simulation']};
     const input={...batch,theme:'robotics',companies:[proposal]};
     const [patch]=plan(profiles,input,nodes);
     const updated={...profiles[0],...patch.fields} as ThemedCompany;
     const graph=applyThemeCatalog(themedGraph('robotics',[updated],[],nodes),'robotics',nodes);
     assert.equal(companySector(graph.nodes.find(node=>node.kind==='COMPANY')!).id,role==='custom-motion'?role:'compute-control');
-    assert.ok(companyThemeNodeIds(updated,nodes).includes(role));
+    assert.ok(companyThemeNodeIds(updated,nodes).includes(role.replace(':','.')));
     assert.ok(companyThemeNodeIds(updated,nodes).includes('robotics.software-simulation'));
     assert.equal(plan([updated],input,nodes).length,0);
     assert.throws(()=>plan(profiles,{...input,companies:[{...proposal,secondaryRoles:['compute-control','robotics.compute-control']}]},nodes),/Invalid secondary sectors/);

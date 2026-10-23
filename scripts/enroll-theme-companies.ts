@@ -27,7 +27,7 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch,ca
     assert(record&&record.name===proposal.expectedName&&['PUBLISHED','DIRECTORY'].includes(String(record.status)),`${proposal.id}: missing canonical profile or identity changed`);
     const sectors=catalogGraphSectors(catalog,batch.theme),sector=sectors.find(row=>row.id===proposal.primarySector || row.stages.includes(proposal.primarySector));
     assert(sector,'Unknown primary sector');
-    const normalizeRole=(id:string)=>id.startsWith(batch.theme+'.')?id.slice(batch.theme.length+1):id;
+    const normalizeRole=(id:string)=>id.startsWith(batch.theme+'.')||id.startsWith(batch.theme+':')?id.slice(batch.theme.length+1):id;
     const primarySector=normalizeRole(proposal.primarySector);
     const secondary=(proposal.secondaryRoles??[]).map(normalizeRole);
     assert(new Set(secondary).size===secondary.length&&!secondary.includes(primarySector)&&secondary.every(id=>sectors.some(row=>row.id===id || row.stages.includes(id) || row.stages.includes(`${batch.theme}:${id}`))),'Invalid secondary sectors');
