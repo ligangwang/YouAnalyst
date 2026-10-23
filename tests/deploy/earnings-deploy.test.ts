@@ -31,6 +31,7 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
               local topic="$4"
               case "$4" in
                 earnings-worker) topic=earnings-sources-discovered ;;
+                cn-company-discovery-worker) topic=cn-company-discovery-requests ;;
                 sec-filings-fundamentals|company-graph-filings) topic=sec-filings-discovered ;;
                 company-graph-worker) topic=company-graph-requests ;;
                 *-audit) topic="\${4%-audit}" ;;
@@ -127,6 +128,15 @@ test("routine earnings deployment verifies all scoped IAM before revisions and p
   }
   assert.match(r.calls, /scheduler jobs update http collect-earnings-production/);
   assert.doesNotMatch(r.calls, /add-iam-policy-binding|iam service-accounts|projects add-iam|(?:topics|subscriptions) create|scheduler jobs (create|pause|resume|delete)|run jobs execute/);
+});
+
+test('A-share fallback publisher switches only after its private company subscriber is wired',()=>{
+  const result=run({CN_DISCOVERY_QUEUE_ENABLED:'1',EARNINGS_COLLECTION_ENABLED:'1'});
+  assert.equal(result.status,0,result.stderr);
+  const wired=result.calls.indexOf('subscriptions update cn-company-discovery-worker');
+  assert(wired>=0&&wired<result.calls.indexOf('run jobs deploy collect-earnings-production'));
+  assert(result.configs.every(config=>config.CN_DISCOVERY_REQUEST_TOPIC==='cn-company-discovery-requests'));
+  assert.doesNotMatch(result.calls,/scheduler jobs (pause|resume)|add-iam-policy-binding|run jobs execute/);
 });
 
 test("earnings preflight refuses invalid switches, unapproved setup, wrong topics, missing resources or IAM before any mutation", () => {

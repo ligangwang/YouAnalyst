@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { maintenanceError } from "./maintenance-log";
 import { secBudget, secCooldownMs } from "./sec-budget";
+import {secDocumentCacheScope,readSecDocumentBytes,secArchiveIdentity} from './sec-filings/document-cache';
 
 type SecContext = { ticker?: string; cik?: string; accession?: string; runId?: string; job?: string; operation?: string };
 const context = new AsyncLocalStorage<SecContext>();
@@ -13,6 +14,16 @@ export function withSecRequestContext<T>(fields: SecContext, work: () => T): T {
 // All SEC transport and response decoding goes through here, so callers cannot
 // accidentally suppress diagnostics when recovering from an optional failure.
 export async function secRequest<T>(url: string, init: RequestInit, read: (response: Response) => Promise<T>, fields: SecContext = {}): Promise<T> {
+  const cached=secDocumentCacheScope();
+  if(cached&&new URL(url).pathname.startsWith('/Archives/edgar/data/')){
+    secArchiveIdentity(url);
+    const document=await cached.cache.read(url,[cached.owner],()=>secNetworkRequest(url,init,readSecDocumentBytes,fields));
+    return read(new Response(new Uint8Array(document.bytes),{headers:{'content-type':document.contentType}}));
+  }
+  return secNetworkRequest(url,init,read,fields);
+}
+
+async function secNetworkRequest<T>(url: string, init: RequestInit, read: (response: Response) => Promise<T>, fields: SecContext = {}): Promise<T> {
   const started = Date.now();
   const requestId = randomUUID();
   let response: Response | undefined;

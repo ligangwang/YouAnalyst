@@ -24,6 +24,7 @@ function run(script: string, extra: Record<string, string> = {}) {
             if [[ "$*" == *"value(topic)"* ]]; then
               local topic="$4"
               case "$4" in
+                sec-filing-download-worker) topic=sec-filing-download-requests ;;
                 sec-filings-fundamentals|company-graph-filings) topic=sec-filings-discovered ;;
                 company-graph-worker) topic=company-graph-requests ;;
                 *-audit) topic="\${4%-audit}" ;;
@@ -32,7 +33,10 @@ function run(script: string, extra: Record<string, string> = {}) {
             fi ;;
           "pubsub topics describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
           "scheduler jobs describe"*) if [[ "\${NEW_SCHEDULER:-0}" == 1 ]]; then return 1; fi ;;
-          "run services describe sec-fundamentals-subscriber"*|"run services describe company-graph-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe eod-maintenance-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
+          "storage buckets describe"*) echo '{"uniform_bucket_level_access":true,"public_access_prevention":"enforced"}' ;;
+          "run services describe"*"--format=json"*)
+            CONSUMER_NAME="$4" node -e 'const e=process.env;console.log(JSON.stringify({status:{latestReadyRevisionName:e.STALE_READY?"old":"ready",latestCreatedRevisionName:"ready",traffic:[{revisionName:"ready",percent:100}]},spec:{template:{spec:{containers:[{env:[{name:"GIT_SHA",value:e.GIT_SHA},{name:"SEC_INCREMENTAL_DOWNLOADS_ENABLED",value:"1"},{name:"SEC_DOCUMENT_CACHE_BUCKET",value:e.MISMATCH_CONSUMER===e.CONSUMER_NAME?"wrong-bucket":e.SEC_DOCUMENT_CACHE_BUCKET}]}]}}}}));' ;;
+          "run services describe sec-filing-download-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe company-graph-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe eod-maintenance-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo web@demo.iam.gserviceaccount.com ;;
           "projects describe"*) echo 123456789 ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
@@ -133,6 +137,7 @@ test('graph subscriber keeps request and filing delivery isolated and processing
   assert.match(r.calls, /subscriptions update company-graph-filings.*--dead-letter-topic company-graph-filings-dead-letter/);
   assert.match(r.calls, /subscriptions describe company-graph-filings.*value\(topic\)/);
   assert.deepEqual(r.workerEnv, {
+    SEC_INCREMENTAL_DOWNLOADS_ENABLED:'0',SEC_DOCUMENT_CACHE_BUCKET:'',
     CENTRAL_CACHE_URL: '',
     GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit', SEC_USER_AGENT: 'test contact',
     OPENAI_API_KEY: 'test-existing-key', OPENAI_MODEL: 'test-existing-model',
@@ -142,6 +147,27 @@ test('graph subscriber keeps request and filing delivery isolated and processing
   });
   assert.equal(r.envFilesRemoved, true);
   assert.doesNotMatch(r.calls, /test-existing-key|test-existing-model|add-iam-policy-binding|secrets |service-accounts create|projects add-iam/);
+});
+
+test('graph processing receives the same cache bucket before incremental discovery is enabled',()=>{
+  const result=run('scripts/deploy-company-graph-pubsub.sh',{SEC_INCREMENTAL_DOWNLOADS_ENABLED:'1',SEC_DOCUMENT_CACHE_BUCKET:'private-sec-cache'});
+  assert.equal(result.status,0,result.stderr);
+  assert.equal(result.workerEnv.SEC_DOCUMENT_CACHE_BUCKET,'private-sec-cache');
+  assert.equal(result.workerEnv.SEC_INCREMENTAL_DOWNLOADS_ENABLED,'1');
+});
+
+test('unified SEC activation verifies all three consumer configurations before switching the collector',()=>{
+  const enabled={SEC_INCREMENTAL_DOWNLOADS_ENABLED:'1',SEC_DOCUMENT_CACHE_BUCKET:'private-sec-cache',EARNINGS_PIPELINE_ENABLED:'1',EARNINGS_COLLECTION_ENABLED:'1'};
+  const ready=run('scripts/deploy-sec-filings.sh',enabled);assert.equal(ready.status,0,ready.stderr);
+  for(const name of ['sec-fundamentals-subscriber','company-graph-subscriber','earnings-subscriber']){
+    assert(ready.calls.indexOf(`run services describe ${name}`)<ready.calls.indexOf('run jobs deploy collect-sec-filings-production'));
+  }
+  assert.match(ready.calls,/SEC_FILINGS_TOPIC=sec-filing-download-requests/);
+  assert.match(ready.calls,/--schedule 0 \* \* \* \*/);
+  const blocked=run('scripts/deploy-sec-filings.sh',{...enabled,MISMATCH_CONSUMER:'earnings-subscriber'});
+  assert.notEqual(blocked.status,0);assert.doesNotMatch(blocked.calls,/run deploy|run jobs deploy|scheduler jobs update/);
+  const pending=run('scripts/deploy-sec-filings.sh',{...enabled,STALE_READY:'1'});
+  assert.notEqual(pending.status,0);assert.doesNotMatch(pending.calls,/run deploy|run jobs deploy|scheduler jobs update/);
 });
 
 test('graph bootstrap grants only resource-scoped existing identities and keeps keys out of commands', () => {

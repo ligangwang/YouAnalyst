@@ -2,7 +2,9 @@
 set -euo pipefail
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 : "${GIT_SHA:?Set GIT_SHA}"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/cn-discovery-config.sh"
 export GCP_REGION="${GCP_REGION:-us-central1}"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/sec-download-config.sh"
 case "${1:-}" in
   all) targets=(sec-fundamentals cn-fundamentals eod-maintenance directory) ;;
   fundamentals) targets=(sec-fundamentals cn-fundamentals eod-maintenance) ;;
@@ -31,6 +33,13 @@ case "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'INTELLIGENC
 if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 && ( "$1" == all || "$1" == fundamentals ) ]]; then
   targets+=(intelligence-news)
 fi
+# Unified intake requires its earnings consumer before the collector switches.
+if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 && " ${targets[*]} " == *' sec-filings '* ]]; then
+  if [[ "${EARNINGS_PIPELINE_ENABLED:-0}" == 1 && "${EARNINGS_COLLECTION_ENABLED:-0}" == 1 && " ${targets[*]} " != *' earnings '* ]]; then targets+=(earnings); fi
+  ordered=()
+  for target in "${targets[@]}"; do if [[ "$target" != sec-filings ]]; then ordered+=("$target"); fi; done
+  targets=("${ordered[@]}" sec-filings)
+fi
 # Validate every selected target before any build or mutation.
 case "${CALENDAR_EXTRACTION_ENABLED:-0}" in 0|1) ;; *) echo 'CALENDAR_EXTRACTION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
 if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
@@ -47,10 +56,14 @@ for target in "${targets[@]}"; do
   if [[ "$target" == sec-filings ]]; then job=collect-sec-filings-production; fi
   if [[ "$target" == intelligence-news ]]; then
     job=collect-intelligence-news-production
+    if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh --check; fi
+    case "${NEWS_SOURCE_QUEUE_ENABLED:-0}" in 0|1) ;; *) echo 'NEWS_SOURCE_QUEUE_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+    if [[ "${NEWS_SOURCE_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-news-pubsub.sh --check; fi
     if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 ]]; then : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"; fi
   fi
   if [[ "$target" == sec-fundamentals ]]; then : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"; fi
   if [[ "$target" == company-graph || "$target" == sec-filings ]]; then
+    if [[ "$target" == sec-filings && "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-sec-downloads.sh --check; fi
     [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]] || { echo 'Set ENABLE_SEC_FILING_PIPELINE=1 only after rollout review' >&2; exit 1; }
     : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
     : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
@@ -72,6 +85,11 @@ if [[ "$1" != directory ]]; then
   if [[ "${ENTITY_TIMESTAMP_MIGRATION_COMPLETE:-0}" == 1 ]]; then
     bash scripts/deploy-entity-snapshots.sh
   fi
+fi
+if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 && ( " ${targets[*]} " == *' sec-filings '* || " ${targets[*]} " == *' earnings '* ) ]]; then
+  # The router understands earnings deliveries before any updated consumer can
+  # publish derived exhibit tasks to its queue.
+  bash scripts/deploy-sec-downloads.sh
 fi
 for target in "${targets[@]}"; do
   if [[ "$target" == directory ]]; then

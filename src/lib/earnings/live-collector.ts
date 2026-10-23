@@ -1,7 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../maintenance-lease";
 import type { MaintenanceLog } from "../maintenance-log";
-import { discoverEarningsSource, earningsMetadata, EARNINGS_RECORDS, EARNINGS_SOURCES, publishEarningsOutbox, type EarningsWork } from "./live-store";
+import { discoverEarningsSource, earningsMetadata, EARNINGS_RECORDS, EARNINGS_SOURCES, publishEarningsOutbox,publishDiscoveredEarningsOutbox,type EarningsDiscovery as SourceDiscovery, type EarningsWork } from "./live-store";
 import { earningsCompanies } from "./issuers";
 import { earningsScanWindow, secEarningsCursorId } from "./sec-observer";
 import type { EarningsRecord, EarningsSource } from "./model";
@@ -14,14 +14,22 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
   discoverCn: EarningsDiscovery; publish: (event: EarningsSourceDiscovered) => Promise<string>;
   deadline: number; now?: () => number;
   discoveryOwnedByMap?: boolean;
+  companyId?:string;
 }) {
-  const now = options.now ?? Date.now, meta = earningsMetadata(db, "collector"), startedAt = now();
+  if(options.companyId&&!/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(options.companyId))throw new Error('Invalid A-share fallback company');
+  const companies=earningsCompanies().filter(item=>!item.cik&&(!options.companyId||item.companyId===options.companyId));
+  if(options.companyId&&companies.length!==1)throw new Error('Company is outside earnings discovery scope');
+  const now = options.now ?? Date.now, meta = options.companyId?db.collection('collectors').doc(`exchange-task-${options.companyId}`):earningsMetadata(db, "collector"), startedAt = now();
+  const discoveries:SourceDiscovery[]=[];
   if (!Number.isFinite(options.deadline) || options.deadline <= startedAt || options.deadline - startedAt > 15 * 60_000) throw new Error("Invalid earnings collector deadline");
   if (!await acquireMaintenanceLease(meta, log.runId, startedAt, cloudRunTaskAttempt())) throw new Error("Earnings collector is busy");
   const result = { companies: 0, skipped: 0, candidates: 0, queued: 0, published: 0, failed: 0, deferred: 0 };
   try {
-    for (const company of earningsCompanies().filter(item => !item.cik)) {
+    for (const company of companies) {
       if (now() + 30_000 >= options.deadline) { result.deferred++; continue; }
+      const companyLease=db.collection('collectors').doc(`exchange-task-${company.companyId}`);
+      if(!options.companyId&&!await acquireMaintenanceLease(companyLease,log.runId,now(),cloudRunTaskAttempt())){result.deferred++;continue;}
+      try{
       if(options.discoveryOwnedByMap){
         const mapped=(await db.collection('collectors').doc(`exchange-${company.companyId}`).get()).data();
         if(mapped?.status==='complete'&&mapped.earningsCoverageVersion===2&&newsCollectorIsFresh(mapped.lastSuccessAt,0,false,new Date(now()),3600000)){
@@ -29,7 +37,7 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
         }
       }
       const cursorRef = earningsMetadata(db, `cn_${company.companyId}`), cursor = (await cursorRef.get()).data();
-      if (Number(cursor?.nextPollAtMs) > now()) { result.skipped++; continue; }
+      if (cursor?.status==='complete'&&Number(cursor?.nextPollAtMs) > now()) { result.skipped++; continue; }
       result.companies++;
       const scanStartedAt = now();
       try {
@@ -41,7 +49,13 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
         for (const source of sources) {
           if (source.companyId !== company.companyId || source.provider !== "cninfo") throw new Error("CN source issuer/provider mismatch");
           if (now() + 15_000 >= options.deadline) throw new Error("CN earnings persistence deadline reached; cursor retained");
-          if ((await discoverEarningsSource(db, source, "document", now())).status === "queued") result.queued++;
+          const discovery=await discoverEarningsSource(db,source,'document',now());
+          if(discovery.status==='queued')result.queued++;
+          if(options.companyId)discoveries.push(discovery);
+        }
+        if(options.companyId)for(let offset=0;offset<discoveries.length;offset+=20){
+          if(now()+15000>=options.deadline)throw new Error('Earnings discovery publication deadline reached');
+          result.published+=(await publishDiscoveredEarningsOutbox(db,options.publish,discoveries.slice(offset,offset+20))).published;
         }
         await cursorRef.set({ companyId: company.companyId, status: "complete", lastCompleteAt: new Date(scanStartedAt).toISOString(),
           revision: process.env.GIT_SHA ?? "local", execution: process.env.CLOUD_RUN_EXECUTION ?? null,
@@ -53,11 +67,14 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
         await cursorRef.set({ companyId: company.companyId, status: "partial", lastAttemptAt: new Date(now()).toISOString(), lastError: reason.slice(0, 1000) }, { merge: true });
         log.emit("WARNING", "earnings_cn_scan_incomplete", { companyId: company.companyId, reason });
       }
+      }finally{if(!options.companyId)await releaseMaintenanceLease(companyLease,log.runId);}
     }
+    if (!options.companyId) {
     if (now() + 30_000 < options.deadline) {
       const drained = await publishEarningsOutbox(db, options.publish, 50); result.published = drained.published;
       if (drained.limitReached) result.deferred++;
     } else result.deferred++;
+    }
     await meta.set({ lastRun: { ...result, runId: log.runId, startedAt: new Date(startedAt).toISOString(), completedAt: new Date(now()).toISOString(),
       execution: process.env.CLOUD_RUN_EXECUTION ?? null, revision: process.env.GIT_SHA ?? "local", status: result.failed || result.deferred ? "partial" : "complete" } }, { merge: true });
     return result;

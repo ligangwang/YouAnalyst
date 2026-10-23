@@ -13,6 +13,7 @@ test('UI library boundary cannot hide dependencies of any bundled worker',async(
     [...readFileSync(file,'utf8').matchAll(/scripts\/[\w-]+\.ts(?=\s+--bundle)/g)].map(match=>match[0])
   ))];
   assert.ok(entryPoints.includes('scripts/collect-intelligence-news.ts'));
+  assert.ok(entryPoints.includes('scripts/serve-intelligence-news.ts'));
   assert.ok(entryPoints.includes('scripts/collect-earnings.ts'));
   assert.ok(entryPoints.includes('scripts/backfill-event-classifications.ts'));
   assert.ok(entryPoints.includes('scripts/sync-cni-directory.ts'));
@@ -22,6 +23,7 @@ test('UI library boundary cannot hide dependencies of any bundled worker',async(
 });
 
 test('website-only changes skip workers and worker inputs select their images',()=>{
+  assert.equal(backgroundJobTarget(['scripts/serve-intelligence-news.ts','scripts/deploy-news-pubsub.sh']),'fundamentals');
   assert.equal(backgroundJobTarget(['src/components/admin-jobs-page.tsx','docs/github-actions.md']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/ui/knowledge-graph/tree-tour.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/future-chart-helper.ts']),'none');

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/cn-discovery-config.sh"
+if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh --check; fi
 export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
 : "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
 region="${GCP_REGION:-us-central1}"
 job=collect-intelligence-news-production
+case "${NEWS_SOURCE_QUEUE_ENABLED:-0}" in 0|1) ;; *) echo 'NEWS_SOURCE_QUEUE_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+export NEWS_SOURCE_QUEUE_ENABLED="${NEWS_SOURCE_QUEUE_ENABLED:-0}"
 case "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'INTELLIGENCE_NEWS_COLLECTOR_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
 case "${CALENDAR_EXTRACTION_ENABLED:-0}" in 0|1) ;; *) echo 'CALENDAR_EXTRACTION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
 if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 || "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
@@ -17,6 +21,9 @@ if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
 fi
 source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
 check_maintenance_job_iam "$job"
+# Deploy and wire the private subscriber before the scheduled job can publish.
+if [[ "$NEWS_SOURCE_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-news-pubsub.sh; fi
+if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh; fi
 env_file="$(mktemp)"
 chmod 600 "$env_file"
 trap 'rm -f "$env_file"' EXIT
@@ -25,6 +32,8 @@ const fs = require('node:fs');
 const env = {ENTITY_SNAPSHOT_BUCKET:process.env.ENTITY_SNAPSHOT_BUCKET,CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL || '',GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
   SEC_USER_AGENT:process.env.SEC_USER_AGENT || '',
   INTELLIGENCE_NEWS_COLLECTOR_ENABLED:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED || '0',
+  CN_DISCOVERY_REQUEST_TOPIC:process.env.CN_DISCOVERY_QUEUE_ENABLED === '1' ? 'cn-company-discovery-requests' : '',
+  NEWS_SOURCE_REQUEST_TOPIC:process.env.NEWS_SOURCE_QUEUE_ENABLED === '1' ? 'news-source-requests' : '',
   EARNINGS_COLLECTION_ENABLED:process.env.EARNINGS_COLLECTION_ENABLED || '0',
   NEWS_ANALYSIS_MONTHLY_BUDGET_USD:process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD || '5',
   CALENDAR_EXTRACTION_ENABLED:process.env.CALENDAR_EXTRACTION_ENABLED || '0',

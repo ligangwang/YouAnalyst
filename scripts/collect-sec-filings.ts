@@ -16,9 +16,13 @@ import { createSecEarningsObserver } from "../src/lib/earnings/sec-observer";
 import {createMapSecObserver} from '../src/lib/events/sec-disclosures';
 import {earningsCompanies,registerEarningsIssuer} from '../src/lib/earnings/issuers';
 import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
+import {SEC_DOWNLOAD_TOPIC} from '../src/lib/sec-filings/download-worker';
+import {publishDiscoveredEarningsOutbox} from '../src/lib/earnings/live-store';
+import {publishEarningsIntake} from '../src/lib/sec-filings/intake-routing';
 
 const log = createMaintenanceLog("collect-sec-filings");
 async function main() {
+  if(!['0','1'].includes(process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED??'0'))throw new Error('Invalid SEC incremental download flag');
   const { apply, companyId, baselineOnly, maxCompanies } = parseSecCollectorArgs(process.argv.slice(2));
   // Both the scheduler and this explicit application switch start disabled.
   // Running the CLI without --apply is safe even with production credentials.
@@ -59,6 +63,8 @@ async function main() {
     return;
   }
   if (!process.env.SEC_USER_AGENT?.trim()) throw new Error("SEC_USER_AGENT is required");
+  const downloadTopic=process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED==='1'?SEC_DOWNLOAD_TOPIC:SEC_FILINGS_TOPIC;
+  if(process.env.SEC_FILINGS_TOPIC&&process.env.SEC_FILINGS_TOPIC!==downloadTopic)throw new Error('Unexpected SEC filing destination for configured download mode');
   const timeoutMs = 12 * 60_000;
   const deadline = Date.now() + timeoutMs;
   const initialStates = new Map<string, DocumentData | undefined>();
@@ -85,12 +91,20 @@ async function main() {
   const result = await collectSecFilings(db, companyIds, log, {
     source,
     beforeCollection: earnings ? async () => { await earnings.scanMap(source, companyIds); } : undefined,
-    publish: event => publishJobMessage(process.env.SEC_FILINGS_TOPIC || SEC_FILINGS_TOPIC, event),
+    publish: event => publishJobMessage(downloadTopic, event),
     deadline,
     maxCompanies,
   });
+  // Earnings metadata is discovered from these same SEC snapshots. Dispatch its
+  // durable tasks now, rather than waiting for a separate discovery run.
+  const earningsPublication={published:0,deferred:0};
+  for(const discovery of earnings?.discoveries??[]){
+    if(!discovery.delivery)continue;
+    if(earningsPublication.published>=100||Date.now()+30000>=deadline){earningsPublication.deferred++;continue;}
+    earningsPublication.published+=(await publishDiscoveredEarningsOutbox(db,event=>publishEarningsIntake(db,event),[discovery])).published;
+  }
   log.emit(result.failed || earnings?.failed.size ? "ERROR" : "INFO", "run_completed", { ...result,
-    ...(earnings ? { earningsObserved: earnings.observed.size, earningsFailed: earnings.failed.size } : {}) });
+    ...(earnings ? { earningsObserved: earnings.observed.size, earningsFailed: earnings.failed.size,earningsPublication } : {}) });
   if (result.failed) throw new Error("SEC filing collection had failed companies; durable progress retained");
   if (earnings?.failed.size) throw new Error("Earnings SEC discovery was incomplete; existing financial discovery completed independently");
   if(disclosures.failed.size)throw new Error(`Map SEC announcement discovery incomplete for ${[...disclosures.failed].join(', ')}`);

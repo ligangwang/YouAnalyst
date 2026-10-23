@@ -8,11 +8,24 @@ maintenance. Existing recurring maintenance now runs behind Pub/Sub subscribers.
 | SEC fundamentals | `sec-fundamentals-requests` | `sec-fundamentals-subscriber` | `company_fundamentals/_batch_<id>` |
 | Company graph requests | `company-graph-requests` | `company-graph-subscriber` | Existing `company_research_requests` and `company_research_runs` documents |
 | SEC filing discovery | `sec-filings-discovered` (events) | SEC and company graph subscribers | `sec_filings/<accession>` outbox and existing `company_fundamentals` cursors |
+| SEC incremental downloads (opt-in) | `sec-filing-download-requests` | `sec-filing-download-subscriber` | Private cached originals with processing holds; existing SEC filing event IDs |
 | A-share fundamentals | `cn-fundamentals-requests` | `cn-fundamentals-subscriber` | `company_fundamentals/_cn_request_<id>` |
 | US/China EOD | `eod-maintenance-requests` | `eod-maintenance-subscriber` | `eod_runs/_request_<id>`, `_dispatch_<input hash>`, `_queue_<market>` |
 | China directory | `cni-directory-requests` | `cni-directory-subscriber` | `directory_syncs/_cni_<id>` and snapshot pages |
+| Company news sources (opt-in) | `news-source-requests` | `news-source-subscriber` | Existing `collectors/<sourceId>` cursors and `news-health-*` records |
+| A-share announcements and earnings fallback (opt-in) | `cn-company-discovery-requests` | `cn-company-discovery-subscriber` | Existing announcement/earnings cursors and per-company leases in `collectors` |
 
 These are documents in existing collections. No collection is introduced.
+
+The [hourly SEC download pipeline](sec-incremental-downloads.md) caches originals
+before existing filing consumers run, with processing-aware 90-day retention and
+unchanged public SEC URLs. It performs no nightly bulk downloads.
+
+See [news source queue](news-source-queue.md) for source-level retries, bounded worker
+scaling, setup, activation and rollback. Downstream news enrichment remains scheduled.
+
+See [A-share company discovery](cn-company-discovery.md) for independent announcement
+and earnings fallback tasks, shared provider throttling, and deployment controls.
 
 ## Shared delivery contract
 

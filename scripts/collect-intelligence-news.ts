@@ -15,6 +15,10 @@ import {analyzeCollectedNews} from '../src/lib/intelligence/collectors/news-anal
 import {autoPublishPendingRelationships} from '../src/lib/relationship-review/automatic';
 import {collectCalendarSchedules} from '../src/lib/calendar/worker';
 import {runScheduledClassifications} from '../src/lib/events/classification-worker';
+import {NEWS_REQUEST_TOPIC,publishNewsRequests,readNewsCursor} from '../src/lib/intelligence/collectors/pubsub';
+import {publishJobMessage} from '../src/lib/job-pubsub';
+import {CN_DISCOVERY_TOPIC,cnDiscoveryState,publishCnDiscoveryTasks} from '../src/lib/events/cn-discovery-queue';
+import {mapListedCompanies} from '../src/lib/events/disclosures';
 
 async function main(){
   const args=process.argv.slice(2);if(args.some(arg=>!['--apply','--revalidate-calendar'].includes(arg)))throw new Error('Usage: collect-intelligence-news [--apply] [--revalidate-calendar]');
@@ -44,16 +48,28 @@ async function main(){
   const classifications=await runScheduledClassifications(db,{enrichInsiders:Boolean(process.env.SEC_USER_AGENT),deadline:Date.now()+90_000,maxPages:5});
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%Math.max(1,sources.length);
-  const results=await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});
+  const topic=process.env.NEWS_SOURCE_REQUEST_TOPIC;
+  if(topic&&topic!==NEWS_REQUEST_TOPIC)throw new Error('Unexpected news queue destination');
+  const publication=topic?await publishNewsRequests([...sources.slice(start),...sources.slice(0,start)],request=>publishJobMessage(topic,request),{
+    execution:process.env.CLOUD_RUN_EXECUTION??randomUUID(),deadline:newsDeadline,readCursor:id=>readNewsCursor(db,id),
+  }):undefined;
+  // Keep direct mode for the existing deployment until its subscriber is ready.
+  const results=topic?[]:await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});
   // Reserve time for exchange, headline and calendar collectors; the analysis
   // cursor drains deferred articles on subsequent scheduled runs.
   const analysis=await analyzeCollectedNews(db,graph.nodes.filter(n=>n.kind==='COMPANY'),sources,{deadline:Math.min(deadline-7*60_000,Date.now()+4*60_000),monthlyBudgetUsd:Number(process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD??5)});
   const relationships=await autoPublishPendingRelationships(db,Math.min(deadline-6*60_000,Date.now()+60_000));
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
-  const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Math.min(deadline-4*60_000,Date.now()+6*60_000),runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
+  const cnTopic=process.env.CN_DISCOVERY_REQUEST_TOPIC;
+  if(cnTopic&&cnTopic!==CN_DISCOVERY_TOPIC)throw new Error('Unexpected A-share discovery destination');
+  const exchangeDeadline=Math.min(deadline-4*60_000,Date.now()+6*60_000),earningsEnabled=process.env.EARNINGS_COLLECTION_ENABLED==='1';
+  const exchange=cnTopic?await publishCnDiscoveryTasks(mapListedCompanies(graph).filter(n=>n.market==='CN_A').map(n=>n.id),'announcements',task=>publishJobMessage(cnTopic,task),{
+    execution:process.env.CLOUD_RUN_EXECUTION??randomUUID(),deadline:exchangeDeadline,earningsEnabled,readState:(id,mode)=>cnDiscoveryState(db,id,mode),
+  }):await collectCnMapDisclosures(db,graph,transport.request,{deadline:exchangeDeadline,runId:randomUUID(),earningsEnabled});
   const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
   const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline,companyCountries}):{disabled:true};
-  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines,analysis,classifications,relationships}));
+  console.log(JSON.stringify({job:'collect-intelligence-news',publication,results,exchange,calendar,headlines,analysis,classifications,relationships}));
+  if(publication?.failed)process.exitCode=1;
   if(results.some(result=>result.status==='failed'))process.exitCode=1;
   if('failed' in exchange&&exchange.failed)process.exitCode=1;
   if('failed' in calendar&&calendar.failed)process.exitCode=1;

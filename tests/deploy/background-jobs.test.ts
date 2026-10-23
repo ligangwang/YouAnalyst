@@ -15,12 +15,23 @@ function run(target:string,extra:Record<string,string>={}) {
           local previous=""
           for argument in "$@"; do
             if [[ "$previous" == "--env-vars-file" ]]; then
-              node -e 'const fs=require("fs");console.log("snapshotBucket="+JSON.parse(fs.readFileSync(process.argv[1],"utf8")).ENTITY_SNAPSHOT_BUCKET)' "$argument" >> "$CALLS"
+              node -e 'const fs=require("fs"),env=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));console.log("snapshotBucket="+env.ENTITY_SNAPSHOT_BUCKET);console.log("newsTopic="+env.NEWS_SOURCE_REQUEST_TOPIC);console.log("cnTopic="+env.CN_DISCOVERY_REQUEST_TOPIC)' "$argument" >> "$CALLS"
             fi
             previous="$argument"
           done
         fi
         case "$*" in
+          *"get-iam-policy"*)
+            local arg
+            for arg in "$@"; do
+              if [[ "$arg" == *"AND bindings.members="* ]]; then printf '%s\\n' "\${arg##*AND bindings.members=}"; fi
+            done ;;
+          "pubsub subscriptions describe news-source-worker"*) echo projects/demo/topics/news-source-requests ;;
+          "pubsub subscriptions describe cn-company-discovery-worker"*) echo projects/demo/topics/cn-company-discovery-requests ;;
+          "pubsub subscriptions describe cn-company-discovery-dead-letter-audit"*) echo projects/demo/topics/cn-company-discovery-dead-letter ;;
+          "run services describe cn-company-discovery-subscriber"*) echo https://subscriber.example.run.app ;;
+          "pubsub subscriptions describe news-source-dead-letter-audit"*) echo projects/demo/topics/news-source-dead-letter ;;
+          "run services describe news-source-subscriber"*) echo https://subscriber.example.run.app ;;
           "pubsub topics describe"*|"pubsub subscriptions describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
           "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo "$WEB_SA" ;;
@@ -72,6 +83,26 @@ test('official news deploy is isolated, bounded and disabled by default',()=>{
   assert.match(r.calls,/--env-vars-file/);
   assert.doesNotMatch(r.calls,/pubsub|run jobs execute|scheduler jobs resume|run deploy/);
   assert.doesNotMatch(run('all').calls,/collect-intelligence-news-production/);
+});
+
+test('news queue deploys its subscriber before switching the scheduled publisher',()=>{
+  const result=run('intelligence-news',{NEWS_SOURCE_QUEUE_ENABLED:'1',INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',OPENAI_API_KEY:'existing-test-key'});
+  assert.equal(result.status,0,result.stderr);
+  assert(result.calls.indexOf('run deploy news-source-subscriber')<result.calls.indexOf('run jobs deploy collect-intelligence-news-production'));
+  assert.match(result.calls,/newsTopic=news-source-requests/);
+  assert.doesNotMatch(result.calls,/existing-test-key|scheduler jobs (pause|resume)|run jobs execute/);
+  const invalid=run('intelligence-news',{NEWS_SOURCE_QUEUE_ENABLED:'invalid'});
+  assert.notEqual(invalid.status,0);assert.doesNotMatch(invalid.calls,/builds submit|run deploy|run jobs deploy/);
+});
+
+test('A-share discovery queue is ready before the scheduled news publisher switches',()=>{
+  const result=run('intelligence-news',{CN_DISCOVERY_QUEUE_ENABLED:'1',INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',OPENAI_API_KEY:'existing-test-key'});
+  assert.equal(result.status,0,result.stderr);
+  assert(result.calls.indexOf('subscriptions update cn-company-discovery-worker')<result.calls.indexOf('run jobs deploy collect-intelligence-news-production'));
+  assert.match(result.calls,/cnTopic=cn-company-discovery-requests/);
+  assert.doesNotMatch(result.calls,/existing-test-key|scheduler jobs (pause|resume)|run jobs execute/);
+  const invalid=run('intelligence-news',{CN_DISCOVERY_QUEUE_ENABLED:'invalid'});
+  assert.notEqual(invalid.status,0);assert.doesNotMatch(invalid.calls,/builds submit|run deploy|run jobs deploy/);
 });
 
 test('calendar deployment uses Luna and the existing key without putting it in command arguments',()=>{
