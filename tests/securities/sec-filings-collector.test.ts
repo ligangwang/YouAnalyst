@@ -6,9 +6,9 @@ import type { MaintenanceLog } from "../../src/lib/maintenance-log";
 import { baselineSecFilings, inspectSecBaseline } from "../../src/lib/sec-filings/baseline";
 import { parseSecCollectorArgs } from "../../src/lib/sec-filings/cli";
 import { hasCurrentCompanyGraph } from "../../src/lib/company-graph/requests";
-import { collectSecFilings, inspectSecFilingCollection } from "../../src/lib/sec-filings/collector";
+import { collectSecFilings, inspectSecFilingCollection,repairSecDiscoveryOutbox } from "../../src/lib/sec-filings/collector";
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "../../src/lib/sec-filings/event";
-import { persistSecFilingDiscovery, readSecCollectorCursor, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
+import { persistSecFilingDiscovery, readSecCollectorCursor,markSecFilingPublished, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
 import type { SecFiling, SecFilingsSource, SecSubmissions, SecSubmissionsFile } from "../../src/lib/sec-filings/source";
 import {acquireSecCollectorLease} from '../../src/lib/sec-collector-state';
 
@@ -160,6 +160,30 @@ function fixture(initial: Record<string, Data> = {}) {
 function discoveries(f: ReturnType<typeof fixture>, id: number) {
   return f.documents.get(`sec_filings/${filing(id).accessionNumber}`)?.discoveryEvents as Record<string, { state: string; event: SecFilingDiscovered }>;
 }
+test('scoped discovery preserves financial cursors, isolates another listing outbox, and publishes before completing',async()=>{
+ const f=fixture({[COMPANY]:{secFilingsCollector:cursor()}});
+ const other=createSecFilingDiscovered({...filing(2),companyId:'NVDA',cik:CIK,discoveredAt:iso});
+ await persistSecFilingDiscovery(f.db,other,false);
+ const first=await collectSecFilings(f.db,['AMD'],f.log,{...f.options(),companyId:'AMD',publish:async()=>{throw Error('offline');}});
+ assert.equal(first.failed,1);assert.equal((await readSecCollectorCursor(f.db,'AMD'))!.lastCompleteAt,iso);
+ assert((await readSecCollectorCursor(f.db,'AMD'))!.scan,'failed publication cannot complete the scan');
+ assert.equal(f.events.length,0);
+ const second=await collectSecFilings(f.db,['AMD'],f.log,{...f.options(),companyId:'AMD'});
+ assert.equal(second.failed,0);assert.deepEqual(f.events.map(e=>e.companyId),['AMD']);
+ assert.equal(discoveries(f,2)[other.eventId].state,'pending','company worker cannot steal unrelated outbox work');
+ const repair=await repairSecDiscoveryOutbox(f.db,f.log,f.publish,f.now()+60000,f.now);
+ assert.equal(repair.published,1);assert.equal(f.events[1].companyId,'NVDA');
+ assert.equal(f.documents.has('sec_collector_state/_website_freshness'),false,'one company must not claim universe freshness');
+ await markSecFilingPublished(f.db,f.events[0],iso,'duplicate-ack');
+ assert.equal(discoveries(f,1)[f.events[0].eventId].state,'published');
+});
+test('scoped discovery baseline retains history and calls sidecars under company fencing even when financial scan is not due',async()=>{
+ const f=fixture();let sidecars=0;
+ const options={...f.options(),companyId:'AMD',beforeCompany:async()=>{sidecars++;}};
+ const first=await collectSecFilings(f.db,['AMD'],f.log,options);assert.equal(first.baselined,1);assert.equal(f.events.length,0);
+ const second=await collectSecFilings(f.db,['AMD'],f.log,options);assert.equal(second.deferred,1);assert.equal(sidecars,2);
+ await assert.rejects(collectSecFilings(f.db,['AMD','NVDA'],f.log,options),/exactly/);
+});
 
 test("collector first observation records baseline without historical events or extraction field loss", async () => {
   const f = fixture({ [`sec_filings/${filing().accessionNumber}`]: { companyGraphLatestResult: { expensive: true }, ticker: "AMD" },

@@ -19,6 +19,7 @@ import {NEWS_REQUEST_TOPIC,publishNewsRequests,readNewsCursor} from '../src/lib/
 import {publishJobMessage} from '../src/lib/job-pubsub';
 import {CN_DISCOVERY_TOPIC,cnDiscoveryState,publishCnDiscoveryTasks} from '../src/lib/events/cn-discovery-queue';
 import {mapListedCompanies} from '../src/lib/events/disclosures';
+import {NEWS_ENRICHMENT_TOPIC,readArticleCandidates,publishArticleTasks} from '../src/lib/intelligence/collectors/article-queue';
 
 async function main(){
   const args=process.argv.slice(2);if(args.some(arg=>!['--apply','--revalidate-calendar'].includes(arg)))throw new Error('Usage: collect-intelligence-news [--apply] [--revalidate-calendar]');
@@ -57,7 +58,9 @@ async function main(){
   const results=topic?[]:await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});
   // Reserve time for exchange, headline and calendar collectors; the analysis
   // cursor drains deferred articles on subsequent scheduled runs.
-  const analysis=await analyzeCollectedNews(db,graph.nodes.filter(n=>n.kind==='COMPANY'),sources,{deadline:Math.min(deadline-7*60_000,Date.now()+4*60_000),monthlyBudgetUsd:Number(process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD??5)});
+  const enrichmentTopic=process.env.NEWS_ENRICHMENT_REQUEST_TOPIC;
+  if(enrichmentTopic&&enrichmentTopic!==NEWS_ENRICHMENT_TOPIC)throw new Error('Unexpected article enrichment queue');
+  const analysis=enrichmentTopic?{mode:'pubsub'}:await analyzeCollectedNews(db,graph.nodes.filter(n=>n.kind==='COMPANY'),sources,{deadline:Math.min(deadline-7*60_000,Date.now()+4*60_000),monthlyBudgetUsd:Number(process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD??5)});
   const relationships=await autoPublishPendingRelationships(db,Math.min(deadline-6*60_000,Date.now()+60_000));
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
   const cnTopic=process.env.CN_DISCOVERY_REQUEST_TOPIC;
@@ -66,9 +69,11 @@ async function main(){
   const exchange=cnTopic?await publishCnDiscoveryTasks(mapListedCompanies(graph).filter(n=>n.market==='CN_A').map(n=>n.id),'announcements',task=>publishJobMessage(cnTopic,task),{
     execution:process.env.CLOUD_RUN_EXECUTION??randomUUID(),deadline:exchangeDeadline,earningsEnabled,readState:(id,mode)=>cnDiscoveryState(db,id,mode),
   }):await collectCnMapDisclosures(db,graph,transport.request,{deadline:exchangeDeadline,runId:randomUUID(),earningsEnabled});
-  const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
-  const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline,companyCountries}):{disabled:true};
-  console.log(JSON.stringify({job:'collect-intelligence-news',publication,results,exchange,calendar,headlines,analysis,classifications,relationships}));
+  const enrichment=enrichmentTopic?await publishArticleTasks(await readArticleCandidates(db,mapped,process.env.CALENDAR_EXTRACTION_ENABLED==='1'),task=>publishJobMessage(enrichmentTopic,task),{execution:process.env.CLOUD_RUN_EXECUTION??randomUUID(),deadline}):undefined;
+  const headlines=enrichmentTopic?{mode:'pubsub'}:await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
+  const calendar=enrichmentTopic?{mode:'pubsub'}:process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline,companyCountries}):{disabled:true};
+  console.log(JSON.stringify({job:'collect-intelligence-news',publication,enrichment,results,exchange,calendar,headlines,analysis,classifications,relationships}));
+  if(enrichment?.failed)process.exitCode=1;
   if(publication?.failed)process.exitCode=1;
   if(results.some(result=>result.status==='failed'))process.exitCode=1;
   if('failed' in exchange&&exchange.failed)process.exitCode=1;

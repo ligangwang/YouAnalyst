@@ -5,6 +5,9 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib/cn-discovery-config.sh"
 export GCP_REGION="${GCP_REGION:-us-central1}"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/sec-download-config.sh"
+for flag in SEC_DISCOVERY_QUEUE_ENABLED NEWS_ENRICHMENT_QUEUE_ENABLED; do
+  case "${!flag:-0}" in 0|1) ;; *) echo "Invalid $flag" >&2; exit 1 ;; esac
+done
 case "${1:-}" in
   all) targets=(sec-fundamentals cn-fundamentals eod-maintenance directory) ;;
   fundamentals) targets=(sec-fundamentals cn-fundamentals eod-maintenance) ;;
@@ -59,11 +62,13 @@ for target in "${targets[@]}"; do
     if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh --check; fi
     case "${NEWS_SOURCE_QUEUE_ENABLED:-0}" in 0|1) ;; *) echo 'NEWS_SOURCE_QUEUE_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
     if [[ "${NEWS_SOURCE_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-news-pubsub.sh --check; fi
+    if [[ "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh article --check; fi
     if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 ]]; then : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"; fi
   fi
   if [[ "$target" == sec-fundamentals ]]; then : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"; fi
   if [[ "$target" == company-graph || "$target" == sec-filings ]]; then
     if [[ "$target" == sec-filings && "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-sec-downloads.sh --check; fi
+    if [[ "$target" == sec-filings && "${SEC_DISCOVERY_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh sec --check; fi
     [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]] || { echo 'Set ENABLE_SEC_FILING_PIPELINE=1 only after rollout review' >&2; exit 1; }
     : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
     : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"

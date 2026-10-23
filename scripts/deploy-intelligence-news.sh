@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+case "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" in 0|1) ;; *) echo 'Invalid article queue flag' >&2; exit 1 ;; esac
 source "$(dirname "${BASH_SOURCE[0]}")/lib/cn-discovery-config.sh"
 if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh --check; fi
 export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
@@ -24,6 +25,7 @@ check_maintenance_job_iam "$job"
 # Deploy and wire the private subscriber before the scheduled job can publish.
 if [[ "$NEWS_SOURCE_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-news-pubsub.sh; fi
 if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh; fi
+if [[ "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh article; fi
 env_file="$(mktemp)"
 chmod 600 "$env_file"
 trap 'rm -f "$env_file"' EXIT
@@ -34,6 +36,7 @@ const env = {ENTITY_SNAPSHOT_BUCKET:process.env.ENTITY_SNAPSHOT_BUCKET,CENTRAL_C
   INTELLIGENCE_NEWS_COLLECTOR_ENABLED:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED || '0',
   CN_DISCOVERY_REQUEST_TOPIC:process.env.CN_DISCOVERY_QUEUE_ENABLED === '1' ? 'cn-company-discovery-requests' : '',
   NEWS_SOURCE_REQUEST_TOPIC:process.env.NEWS_SOURCE_QUEUE_ENABLED === '1' ? 'news-source-requests' : '',
+  NEWS_ENRICHMENT_REQUEST_TOPIC:process.env.NEWS_ENRICHMENT_QUEUE_ENABLED === '1' ? 'news-article-enrichment-requests' : '',
   EARNINGS_COLLECTION_ENABLED:process.env.EARNINGS_COLLECTION_ENABLED || '0',
   NEWS_ANALYSIS_MONTHLY_BUDGET_USD:process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD || '5',
   CALENDAR_EXTRACTION_ENABLED:process.env.CALENDAR_EXTRACTION_ENABLED || '0',

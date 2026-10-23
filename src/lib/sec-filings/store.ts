@@ -143,6 +143,13 @@ export async function markSecFilingPublished(db: Firestore, event: SecFilingDisc
   const ref = db.collection(SEC_FILINGS_COLLECTION).doc(event.accessionNumber);
   await db.runTransaction(async tx => {
     const records = ((await tx.get(ref)).get("discoveryEvents") ?? {}) as Discoveries;
+    // A scoped company worker and the bounded outbox repair may both have
+    // accepted the same immutable delivery. Preserve the first acknowledgement.
+    if(records[event.eventId]?.state==='published'){
+      const saved=parseSecFilingDiscovered(records[event.eventId].event);
+      if(JSON.stringify(saved)!==JSON.stringify(parseSecFilingDiscovered(event)))throw new Error('SEC filing acknowledgement identity changed');
+      return;
+    }
     if (records[event.eventId]?.state !== "pending") throw new Error("SEC filing outbox changed before publish checkpoint");
     tx.set(ref, {
       discoveryEvents: { [event.eventId]: { state: "published", publishedAt, messageId } },

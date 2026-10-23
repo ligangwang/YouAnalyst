@@ -1,5 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { acquireSecCollectorLease, releaseSecCollectorLease } from "../sec-collector-state";
+import { acquireSecCollectorLease, releaseSecCollectorLease,acquireSecDiscoveryCompanyLease,releaseSecDiscoveryCompanyLease } from "../sec-collector-state";
 import { isCurrentCompanyGraph } from "../company-graph/requests";
 import { inspectCompanyGraphRequest } from "../company-graph/inspection";
 import { cloudRunTaskAttempt } from "../maintenance-lease";
@@ -58,7 +58,10 @@ export async function baselineSecFilings(db: Firestore, companyId: string, log: 
   // response was lost. Recheck after acquiring the lease for concurrent finishes.
   if ((await readSecCollectorCursor(db, companyId))?.lastCompleteAt) return { ...result, status: "already-completed" };
   if (!await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
+  let companyOwned=false;
   try {
+    companyOwned=await acquireSecDiscoveryCompanyLease(db,companyId,log.runId,now(),true);
+    if(!companyOwned)throw new Error('SEC company discovery is busy');
     let cursor = await readSecCollectorCursor(db, companyId);
     if (cursor?.lastCompleteAt) return { ...result, status: "already-completed" };
     if (cursor?.scan?.baseline === false) throw new Error("Cannot baseline an existing nonbaseline scan");
@@ -88,6 +91,7 @@ export async function baselineSecFilings(db: Firestore, companyId: string, log: 
     await writeSecCollectorCursor(db, companyId, { ...cursor, lastCompleteAt: scan.startedAt, nextPollAfterMs: now() + 15 * 60_000, scan: null });
     return result;
   } finally {
+    if(companyOwned)await releaseSecDiscoveryCompanyLease(db,companyId,log.runId);
     await releaseSecCollectorLease(db, log.runId);
   }
 }

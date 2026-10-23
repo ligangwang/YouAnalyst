@@ -24,7 +24,7 @@ export function earningsScanWindow(cursor: Record<string, unknown> | undefined, 
 /** Passive pre-filter view of the existing SEC scanner. Its strict financial
  * event is unchanged. Errors are recorded separately and do not suppress annual
  * financial discovery for an otherwise valid SEC response. */
-export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, options: { now?: () => number; deadline: number }) {
+export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, options: { now?: () => number; deadline: number; publish?: (discovery:EarningsDiscovery)=>Promise<void> }) {
   const now = options.now ?? Date.now, observed = new Set<string>(), failed = new Set<string>();
   const discoveries:EarningsDiscovery[]=[];
   const observe: SecRawSubmissionsObserver = async (cik, value, archive) => {
@@ -56,6 +56,9 @@ export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, op
         if (now() + 15_000 >= options.deadline) throw new Error("SEC earnings persistence deadline reached; checkpoint retained");
         const discovery=await discoverEarningsSource(db,source,'sec_filing',now());
         discoveries.push(discovery);if(discovery.status==='queued')queued++;
+        // A company task cannot advance its overlap window until its durable
+        // source has reached the shared intake queue. Retries reuse the outbox.
+        if(discovery.delivery)await options.publish?.(discovery);
       }
       const completedAt = new Date(now()).toISOString();
       await meta.set({ companyId: company.companyId, lastCompleteAt: completedAt, ...(window.reconcile ? { lastReconcileAt: completedAt } : {}),
