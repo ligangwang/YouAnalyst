@@ -12,6 +12,8 @@ COPY data/company-link-slugs.json ./data/company-link-slugs.json
 # Shared maintenance image; each deployed job selects its worker command.
 RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-fundamentals.cjs \
+  && node_modules/.bin/esbuild scripts/serve-sec-downloads.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-downloads.cjs \
+  && node_modules/.bin/esbuild scripts/cleanup-sec-downloads.ts --bundle --platform=node --packages=external --outfile=dist/cleanup-sec-downloads.cjs \
   && node_modules/.bin/esbuild scripts/refresh-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-cn-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-cn-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-eod-maintenance.ts --bundle --platform=node --packages=external --outfile=dist/serve-eod-maintenance.cjs \
@@ -21,6 +23,8 @@ RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --pla
   && node_modules/.bin/esbuild scripts/collect-earnings.ts --bundle --platform=node --packages=external --outfile=dist/collect-earnings.cjs \
   && node_modules/.bin/esbuild scripts/serve-earnings.ts --bundle --platform=node --packages=external --outfile=dist/serve-earnings.cjs \
   && node_modules/.bin/esbuild scripts/collect-intelligence-news.ts --bundle --platform=node --packages=external --outfile=dist/collect-intelligence-news.cjs \
+  && node_modules/.bin/esbuild scripts/serve-cn-discovery.ts --bundle --platform=node --packages=external --outfile=dist/serve-cn-discovery.cjs \
+  && node_modules/.bin/esbuild scripts/serve-intelligence-news.ts --bundle --platform=node --packages=external --outfile=dist/serve-intelligence-news.cjs \
   && node_modules/.bin/esbuild scripts/backfill-event-classifications.ts --bundle --platform=node --packages=external --outfile=dist/backfill-event-classifications.cjs \
   && node_modules/.bin/esbuild scripts/sync-entity-snapshots.ts --bundle --platform=node --packages=external --outfile=dist/sync-entity-snapshots.cjs \
   && npm prune --omit=dev

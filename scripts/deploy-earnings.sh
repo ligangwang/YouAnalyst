@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/cn-discovery-config.sh"
+if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh --check; fi
+source "$(dirname "${BASH_SOURCE[0]}")/lib/sec-download-config.sh"
+if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-sec-downloads.sh --check; fi
 export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
 : "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
 # New resource access is confined to the separately approved, paused setup.
@@ -120,10 +124,11 @@ if [[ "$bootstrap" == 1 ]]; then
   fi
 fi
 
+if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh; fi
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"),e=process.env; fs.writeFileSync(process.argv[1],JSON.stringify({ENTITY_SNAPSHOT_BUCKET:e.ENTITY_SNAPSHOT_BUCKET,GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,EARNINGS_TOPIC:"earnings-sources-discovered",EARNINGS_SUBSCRIPTION:"earnings-worker",EARNINGS_COLLECTION_ENABLED:e.EARNINGS_COLLECTION_ENABLED||"0",EARNINGS_PROCESSING_ENABLED:e.EARNINGS_PROCESSING_ENABLED||"0",EARNINGS_CANARY_ONLY:"0",INTELLIGENCE_NEWS_COLLECTOR_ENABLED:e.INTELLIGENCE_NEWS_COLLECTOR_ENABLED||"0",...(e.CENTRAL_CACHE_URL?{CENTRAL_CACHE_URL:e.CENTRAL_CACHE_URL}:{})}));' "$env_file"
+node -e 'const fs=require("fs"),e=process.env; fs.writeFileSync(process.argv[1],JSON.stringify({CN_DISCOVERY_REQUEST_TOPIC:e.CN_DISCOVERY_QUEUE_ENABLED==="1"?"cn-company-discovery-requests":"",SEC_INCREMENTAL_DOWNLOADS_ENABLED:e.SEC_INCREMENTAL_DOWNLOADS_ENABLED||"0",SEC_DOCUMENT_CACHE_BUCKET:e.SEC_DOCUMENT_CACHE_BUCKET||"",ENTITY_SNAPSHOT_BUCKET:e.ENTITY_SNAPSHOT_BUCKET,GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,EARNINGS_TOPIC:"earnings-sources-discovered",EARNINGS_SUBSCRIPTION:"earnings-worker",EARNINGS_COLLECTION_ENABLED:e.EARNINGS_COLLECTION_ENABLED||"0",EARNINGS_PROCESSING_ENABLED:e.EARNINGS_PROCESSING_ENABLED||"0",EARNINGS_CANARY_ONLY:"0",INTELLIGENCE_NEWS_COLLECTOR_ENABLED:e.INTELLIGENCE_NEWS_COLLECTOR_ENABLED||"0",...(e.CENTRAL_CACHE_URL?{CENTRAL_CACHE_URL:e.CENTRAL_CACHE_URL}:{})}));' "$env_file"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-earnings.cjs --min-instances 0 --max-instances 1 \

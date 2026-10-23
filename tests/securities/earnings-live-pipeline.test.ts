@@ -263,6 +263,7 @@ test("SEC raw observer captures only approved issuer earnings candidates, withou
     filingDate: ["2026-08-04", "2026-08-05", "2026-08-06"], primaryDocument: ["release.htm", "annual.htm", "form4.xml"] } } };
   await observer.observe("0000002488", value, async () => { throw new Error("unexpected archive"); });
   assert.equal(observer.observed.size, 1); assert.equal([...fx.rows.values()].filter(row => row.recordType === "source").length, 1);
+  assert.equal(observer.discoveries.length,1);assert.equal(observer.discoveries[0].delivery?.type,'earnings.source.discovered');
   assert.ok(![...fx.rows.keys()].some(path => path.startsWith("sec_filings/")));
 });
 test("CLI modes make canary explicit and cannot combine reads with collection", () => {

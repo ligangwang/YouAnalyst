@@ -2,7 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../maintenance-log";
 import type { SecFilingsSource, SecRawSubmissionsObserver } from "../sec-filings/source";
 import { discoverSecEarnings } from "./discovery";
-import { discoverEarningsSource, earningsMetadata } from "./live-store";
+import { discoverEarningsSource, earningsMetadata,type EarningsDiscovery } from "./live-store";
 import { earningsCompanies } from "./issuers";
 import { validDate } from "./model";
 
@@ -26,6 +26,7 @@ export function earningsScanWindow(cursor: Record<string, unknown> | undefined, 
  * financial discovery for an otherwise valid SEC response. */
 export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, options: { now?: () => number; deadline: number }) {
   const now = options.now ?? Date.now, observed = new Set<string>(), failed = new Set<string>();
+  const discoveries:EarningsDiscovery[]=[];
   const observe: SecRawSubmissionsObserver = async (cik, value, archive) => {
     for (const company of earningsCompanies().filter(item => item.cik === cik)) {
     if (observed.has(company.companyId)) continue;
@@ -53,7 +54,8 @@ export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, op
       let queued = 0;
       for (const source of candidates) {
         if (now() + 15_000 >= options.deadline) throw new Error("SEC earnings persistence deadline reached; checkpoint retained");
-        if ((await discoverEarningsSource(db, source, "sec_filing", now())).status === "queued") queued++;
+        const discovery=await discoverEarningsSource(db,source,'sec_filing',now());
+        discoveries.push(discovery);if(discovery.status==='queued')queued++;
       }
       const completedAt = new Date(now()).toISOString();
       await meta.set({ companyId: company.companyId, lastCompleteAt: completedAt, ...(window.reconcile ? { lastReconcileAt: completedAt } : {}),
@@ -69,7 +71,7 @@ export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, op
     }
     }
   };
-  return { observe, observed, failed,
+  return { observe, observed, failed,discoveries,
     async scanMap(source: SecFilingsSource, tickers: readonly string[]) {
       for (const ticker of tickers) {
         const companyId = `US:${ticker}`;
