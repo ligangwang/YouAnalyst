@@ -8,13 +8,17 @@ import {encode, company, type Document} from '../scripts/lib/firestore-rest';
 import healthcare from '../data/ai-supply-chain/healthcare-enrollment.json';
 import ai from '../data/ai-supply-chain/ai-us.json';
 import cn from '../data/ai-supply-chain/ai-cn-a.json';
-import {publishNewsSources} from '../scripts/publish-news-sources';
+import {publishNewsSources as publishSources} from '../scripts/publish-news-sources';
 import type {CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
 import { themedGraph } from '../src/lib/company-themes/presentation';
 import { companyThemeNodeIds } from '../src/lib/hierarchy/company-memberships';
 import { applyThemeCatalog } from '../src/lib/company-themes/catalog-graph';
 import { companySector } from '../src/lib/knowledge-graph/sectors';
 import type { ThemedCompany } from '../src/lib/company-themes/model';
+const publishNewsSources=(input:Parameters<typeof publishSources>[0])=>publishSources({...input,request:(url,method,data)=>{
+  if((data as {structuredQuery?:{from?:{collectionId:string}[]}})?.structuredQuery?.from?.[0]?.collectionId==='investment_themes')return Promise.resolve(catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}})));
+  return input.request(url,method,data);
+}});
 
 const planEnrollment=(records:Parameters<typeof plan>[0],batch:EnrollmentBatch)=>plan(records,batch,catalog);
 const batch=healthcare as EnrollmentBatch;
@@ -66,6 +70,17 @@ test('source publication rejects IDs owned outside its batch before any write',a
   const feed:CompanyNewsSource={id:'existing-ir',companyId:'US:TEM',name:'IR',url:'https://investors.tempus.com/rss.xml',allowedHosts:['investors.tempus.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
   const outside:Document={name:'projects/example/databases/(default)/documents/companies/US:OTHER',updateTime:'2026-10-06T00:00:00Z',fields:{newsSources:encode([{...feed,companyId:'US:OTHER'}])}};
   await assert.rejects(publishNewsSources({project:'example',sources:[feed],request:async(url)=>{if(url.endsWith('/collectors/news-source-registry'))return null;assert(url.endsWith(':runQuery'));return [{document:outside}];}}),/belongs to another company/);
+});
+
+test('news-source ownership checks include themes outside the legacy three',async()=>{
+  const source:CompanyNewsSource={id:'new-ir',companyId:'US:TEM',name:'IR',url:'https://investors.tempus.com/rss.xml',allowedHosts:['investors.tempus.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+  await assert.rejects(publishSources({project:'example',sources:[source],request:async(url,_method,data)=>{
+    if(url.endsWith('/collectors/news-source-registry'))return null;
+    const query=(data as {structuredQuery:{from:{collectionId:string}[];where:{fieldFilter:{value:{arrayValue:{values:{stringValue:string}[]}}}}}}).structuredQuery;
+    if(query.from[0].collectionId==='investment_themes')return catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));
+    assert.ok(query.where.fieldFilter.value.arrayValue.values.some(value=>value.stringValue==='biotechnology'));
+    return [{document:{name:'projects/example/databases/(default)/documents/companies/US:OTHER',updateTime:'2026-10-06T00:00:00Z',fields:{newsSources:encode([{...source,companyId:'US:OTHER'}])}}}];
+  }}),/belongs to another company/);
 });
 
 test('source ownership and company changes share one fenced commit',async()=>{

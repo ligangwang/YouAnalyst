@@ -18,8 +18,23 @@ import { firestoreSource } from '../src/lib/central-cache/source';
 import { isCollectionCompany, collectionUniverse } from '../src/lib/company-themes/model';
 import { localDocuments } from '../src/lib/local-cache/entities';
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
+import {loadThemeCoverage} from '../src/lib/company-themes/coverage';
 
 const catalog=validateThemeCatalog(seed.nodes);
+
+test('article publication covers every Firestore theme, deduplicates companies and bounds graph reads',async()=>{
+  let active=0,maxActive=0;
+  const calls:string[]=[];
+  const graph=await loadThemeCoverage(async()=>catalog,async theme=>{
+    calls.push(theme);active++;maxActive=Math.max(maxActive,active);
+    await new Promise(resolve=>setImmediate(resolve));active--;
+    return {nodes:[{id:'US:COMMON',kind:'COMPANY',order:0},{id:`US:${theme.toUpperCase()}`,kind:'COMPANY',order:1}],sources:[],relationships:[],asOf:''};
+  });
+  assert.deepEqual(calls,catalogThemeIds(catalog));
+  assert.ok(calls.includes('biotechnology'));assert.ok(maxActive<=4);
+  assert.equal(graph.nodes.filter(node=>node.id==='US:COMMON').length,1);
+  assert.equal(graph.nodes.length,calls.length+1);
+});
 
 test('the existing five AI layers fit below family and theme while preserving role links and recorded memberships',()=>{
   const layers=['energy','chips','infrastructure','models','applications'];

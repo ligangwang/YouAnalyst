@@ -52,7 +52,7 @@ export default function HowItWorksPage() {
         <div className="mt-4 grid gap-6 md:grid-cols-3">
           <div>
             <h3 className="text-lg font-semibold text-cyan-100"><UiText text={"Publish a view"} /></h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Choose a company on the AI, Robotics or Space maps and write your thesis. A bullish or bearish view cites at least one documented relationship or research deep-dive it builds on; research-only posts can cite sources too."} /></p>
+            <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Choose a company on a published investment theme map and write your thesis. A bullish or bearish view cites at least one documented relationship or research deep-dive it builds on; research-only posts can cite sources too."} /></p>
           </div>
           <div>
             <h3 className="text-lg font-semibold text-cyan-100"><UiText text={"Track the mark"} /></h3>

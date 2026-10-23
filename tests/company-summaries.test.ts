@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
+import {withThemeCatalog} from './helpers/theme-catalog';
+import seed from '../data/investment-themes/catalog-v1.json';
 import {publishSummaries,type SummaryBatch} from '../scripts/publish-company-summaries';
 import {graphFromMarket} from '../src/lib/knowledge-graph/market-store';
 import {themedGraph} from '../src/lib/company-themes/presentation';
@@ -12,7 +14,7 @@ const membership={status:'PUBLISHED' as const,stageIds:['equipment'],stages:[],m
 function fake(old:Record<string,unknown>){
  const writes:Record<string,unknown>[]=[];
  const db={collection:(name:string)=>{assert.equal(name,'companies');return {doc:(id:string)=>({id})};},runTransaction:async(fn:(tx:unknown)=>unknown)=>fn({getAll:async()=>[{data:()=>old}],update:(_ref:unknown,data:Record<string,unknown>)=>writes.push(data)})} as unknown as Firestore;
- return {db,writes};
+ return {db:withThemeCatalog(db,seed.nodes),writes};
 }
 test('Chinese summaries are projected from stored translations; English and stale-source fallback stay intact',()=>{
  const company={id:'US:KLAC',name:'KLA',status:'PUBLISHED',inGraph:membership,description:source,descriptionTranslations:{'zh-CN':{source,text}}};
@@ -37,12 +39,21 @@ test('changed source or conflicting stored translation rejects publication befor
   const f=fake(old);await assert.rejects(publishSummaries(f.db,batch,true));assert.equal(f.writes.length,0);
  }
 });
+
+test('summary publication accepts a newly supported catalog theme and rejects unpublished IDs',async()=>{
+ const f=fake({status:'DIRECTORY',themeMemberships:{biotechnology:{status:'PUBLISHED',sources:[{summary:source}]}}});
+ await publishSummaries(f.db,{...batch,summaries:[{...batch.summaries[0],theme:'biotechnology'}]},true);
+ assert.deepEqual(f.writes,[{'themeMemberships.biotechnology.summaryTranslations.zh-CN':{source,text,translatedAt:batch.asOf}}]);
+ await assert.rejects(publishSummaries(f.db,{...batch,summaries:[{...batch.summaries[0],theme:'unpublished'}]},true),/Invalid translation/);
+ assert.equal(f.writes.length,1);
+});
 import {publishSummariesRest} from '../scripts/publish-company-summaries';
 import {encode,type Request} from '../scripts/lib/firestore-rest';
 test('REST publication atomically guards source revisions and masks only translated fields',async()=>{
  const requests:{url:string;data:unknown}[]=[];
  const request:Request=async(url,_method,data)=>{
   requests.push({url,data});
+  if(url.endsWith(':runQuery'))return seed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));
   if(url.endsWith(':batchGet'))return [{found:{name:'projects/test-project/databases/(default)/documents/companies/US:KLAC',fields:{status:encode('PUBLISHED'),description:encode(source)},updateTime:'2026-10-08T00:00:00Z'}}];
   return {};
  };

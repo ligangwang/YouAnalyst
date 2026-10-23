@@ -48,7 +48,7 @@ export function relationshipLabel(graph: KnowledgeGraph, edgeId: string) {
   return { en: `${name(edge.source, "en")} → ${name(edge.target, "en")} · ${en}`, "zh-CN": `${name(edge.source, "zh-CN")} → ${name(edge.target, "zh-CN")} · ${zh}` };
 }
 
-/** Analyst views cover every company on the AI, Robotics and Space maps; merge their graphs into one. */
+/** Analyst views cover companies in the published thematic catalog. */
 export type CoverageGraph = KnowledgeGraph & { relationshipThemes: Record<string, CompanyThemeId> };
 export function mergeCoverageGraphs(entries: Array<{ theme: CompanyThemeId; graph: KnowledgeGraph }>): CoverageGraph {
   const graphs = entries.map(entry => entry.graph);
@@ -75,7 +75,7 @@ export function isCoveredCompany(graph: KnowledgeGraph, companyId: string) {
  * A directional (bullish or bearish) view must cite at least one.
  */
 export function resolveViewEvidence(refs: ViewEvidenceRef[], companyId: string, graph: KnowledgeGraph & Partial<Pick<CoverageGraph, "relationshipThemes">>, directional: boolean): ViewEvidence[] {
-  if (!isCoveredCompany(graph, companyId)) throw new Error("Analyst views cover companies on the AI, Robotics and Space maps. Choose a company from a map.");
+  if (!isCoveredCompany(graph, companyId)) throw new Error("Analyst views cover companies on published investment theme maps. Choose a company from a map.");
   if (directional && !refs.length) throw new Error("Cite at least one relationship or research report that supports this view.");
   const relationships = new Set(relationshipsForCompany(graph, companyId).map(edge => edge.id));
   const research = new Map(researchForCompany(companyId).map(item => [item.id, item]));

@@ -7,8 +7,9 @@ import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
 import {activeThemeIds, type CompanyThemeId, type ThemedCompany} from '../src/lib/company-themes/model';
 import {catalogGraphSectors} from '../src/lib/company-themes/catalog-graph';
-import {catalogThemeIds,validateThemeCatalog,type ThemeCatalog} from '../src/lib/company-themes/catalog-model';
+import {catalogThemeIds,type ThemeCatalog} from '../src/lib/company-themes/catalog-model';
 import {company, encode, type Document, type Request} from './lib/firestore-rest';
+import {readThemeCatalog} from './lib/theme-catalog';
 
 export type EnrollmentBatch = {theme:CompanyThemeId; reviewedAt:string; companies:{
   id:string; expectedName:string; primarySector:string; secondaryRoles?:string[]; aiStageIds?:string[];
@@ -59,8 +60,7 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch,ca
 export async function enrollCompanies({project,batch,request,write=false,backupDir='output/company-theme-backups'}:{project:string;batch:EnrollmentBatch;request:Request;write?:boolean;backupDir?:string}){
   assert(/^[a-z][a-z0-9-]+$/.test(project),'Explicit project required');
   const root=`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
-  const catalogRows=await request(`${root}:runQuery`,'POST',{structuredQuery:{from:[{collectionId:'investment_themes'}],where:{fieldFilter:{field:{fieldPath:'status'},op:'EQUAL',value:{stringValue:'PUBLISHED'}}},limit:2001}}) as {document?:Document}[];
-  const catalog=validateThemeCatalog(catalogRows.flatMap(row=>row.document?[company(row.document)]:[]).filter(row=>!row.isDeleted).map(row=>({id:row.id,parentId:row.parentId,names:row.names,order:row.order} as ThemeCatalog[number])));
+  const catalog=await readThemeCatalog(root,request);
   const docs=await Promise.all(batch.companies.map(row=>request(`${root}/companies/${encodeURIComponent(row.id)}`) as Promise<Document|null>));
   assert(docs.every(Boolean),'All companies must exist in the canonical directory');
   const originals=docs as Document[],patches=planEnrollment(originals.map(company),batch,catalog);
