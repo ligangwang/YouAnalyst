@@ -2,7 +2,7 @@ import { test,expect } from '@playwright/test';
 import { componentFixtureHtml } from './fixtures/component-html';
 import seed from '../../data/investment-themes/catalog-v1.json';
 
-for(const chinese of [false,true])test(`theme selector groups Firestore themes by family and refreshes new themes without a reload (${chinese?'Chinese':'English'})`,async({page})=>{
+for(const chinese of [false,true])test(`theme selector groups Firestore themes by family and retains themes until a reload (${chinese?'Chinese':'English'})`,async({page})=>{
   const html=await componentFixtureHtml(`import React,{useState} from 'react';import {createRoot} from 'react-dom/client';import {IntelligenceThemeSelector} from './src/components/intelligence-theme-selector';function App(){const [theme,setTheme]=useState('ai');return <IntelligenceThemeSelector theme={theme} onChange={setTheme}/>;}createRoot(document.getElementById('root')).render(<App/>);`,{mockThemeCatalog:false,plugins:[{name:'locale',setup(build){build.onResolve({filter:/locale-provider$/},()=>({path:'locale',namespace:'mock'}));build.onLoad({filter:/.*/,namespace:'mock'},()=>({loader:'js',contents:`export const useLocale=()=>({chinese:${chinese}});`}));}}]});
   const nodes=structuredClone(seed.nodes);let reads=0,failed=false;
   await page.clock.install();
@@ -21,10 +21,14 @@ for(const chinese of [false,true])test(`theme selector groups Firestore themes b
   nodes.push({id:'fusion',parentId:'environment-resources',names:{en:'Fusion Energy','zh-CN':'聚变能源'},order:20,status:'PUBLISHED'});
   await family.selectOption('environment-resources');
   await page.clock.fastForward(61_000);
+  await expect(select.locator('option[value=fusion]')).toHaveCount(0);
+  expect(reads).toBe(1);
+  await page.reload();
+  await family.selectOption('environment-resources');
   await expect(select.locator('option[value=fusion]')).toHaveText(chinese?'聚变能源':'Fusion Energy');
   await select.selectOption('fusion');await expect(select).toHaveValue('fusion');
   failed=true;await page.clock.fastForward(61_000);
-  await expect(select).toHaveValue('fusion');expect(reads).toBeGreaterThanOrEqual(3);
+  await expect(select).toHaveValue('fusion');expect(reads).toBe(2);
   await family.selectOption('transformative-technologies');
   await select.selectOption('robotics');await expect(select).toHaveValue('robotics');
   await family.selectOption('health-healthcare');await expect(select).toHaveValue('biotechnology');

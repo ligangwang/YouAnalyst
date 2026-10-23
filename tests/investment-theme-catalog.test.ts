@@ -71,7 +71,7 @@ test('mixed broad and detailed AI roles remain visible in the data-driven tree',
   assert.deepEqual(graphSectors('unreviewed-empty-theme'),[]);
 });
 
-test('catalog changes replace obsolete company subscriptions instead of accumulating listeners',async(t)=>{
+test('catalog changes leave existing process subscriptions stable until restart',async(t)=>{
   t.after(closeLocalCaches);let clock=1000;
   t.mock.method(Date,'now',()=>clock);
   const nodes:ThemeCatalog=[{id:'family',parentId:null,names:{en:'Family','zh-CN':'大类'},order:0},{id:'ai',parentId:'family',names:{en:'AI','zh-CN':'人工智能'},order:0}];
@@ -82,7 +82,7 @@ test('catalog changes replace obsolete company subscriptions instead of accumula
   await localDocuments(db,'companies');
   nodes.push({id:'fusion',parentId:'family',names:{en:'Fusion','zh-CN':'聚变'},order:1});clock+=60_001;
   await localDocuments(db,'companies');
-  assert.equal(subscriptions.length,2);assert.equal(subscriptions.filter(item=>!item.closed).length,1);
+  assert.equal(subscriptions.length,1);assert.equal(subscriptions.filter(item=>!item.closed).length,1);
 });
 test('theme resolution uses published catalog ordering, not a fixed default or arbitrary identifiers',()=>{
   const nodes=catalog.filter(node=>!['ai','robotics','space'].some(id=>node.id===id||node.id.startsWith(id+'.')));
@@ -93,7 +93,7 @@ test('theme resolution uses published catalog ordering, not a fixed default or a
   assert.equal(resolveCatalogTheme(nodes,'../ai'),undefined);
 });
 
-test('central cache discovers unchanged companies when a new theme is published',async(t)=>{
+test('central cache keeps its catalog until restart',async(t)=>{
   let clock=1000;
   t.mock.method(Date,'now',()=>clock);
   const definitions:ThemeCatalog=[{id:'family',parentId:null,names:{en:'Family','zh-CN':'大类'},order:0},{id:'ai',parentId:'family',names:{en:'AI','zh-CN':'人工智能'},order:0}];
@@ -113,7 +113,9 @@ test('central cache discovers unchanged companies when a new theme is published'
   assert.deepEqual((await source.initial('companies',[])).map(row=>row.id),['US:AI']);
   definitions.push({id:'fusion',parentId:'family',names:{en:'Fusion','zh-CN':'聚变'},order:1});clock+=60_001;
   const rows=await source.changes('companies',{seconds:1,nanoseconds:0},{seconds:2,nanoseconds:0},[]);
-  assert.deepEqual(rows.map(row=>row.id),['US:FUSION']);
+  assert.deepEqual(rows.map(row=>row.id),[]);
+  const restarted=firestoreSource({collection:(name:string)=>query(name),getAll:async()=>[]} as unknown as Firestore);
+  assert.deepEqual((await restarted.initial('companies',[])).map(row=>row.id),['US:AI','US:FUSION']);
 });
 test('four families preserve every legacy ID and aggregate existing memberships without company writes',()=>{
   assert.equal(themeFamilies(catalog).length,4);
@@ -140,17 +142,17 @@ test('a new theme and its nested business roles render from data without source 
   assert.deepEqual(companies,before);
 });
 
-test('catalog reads are coalesced, refresh without deployment and retain the last valid tree on invalid updates',async(t)=>{
+test('catalog reads are coalesced and never expire during the process lifetime',async(t)=>{
   let reads=0,clock=1000,nodes:ThemeCatalog=catalog;
   t.mock.method(Date,'now',()=>clock);
   const query={where:()=>query,select:()=>query,limit:()=>query,get:async()=>{reads++;return {docs:nodes.map(node=>({id:node.id,data:()=>node}))};}};
   const db={collection:()=>query} as unknown as Firestore;
   const results=await Promise.all([loadThemeCatalog(db),loadThemeCatalog(db)]);assert.equal(reads,1);assert.equal(results[0],results[1]);
   nodes=[...catalog,{id:'fusion',parentId:'environment-resources',names:{en:'Fusion','zh-CN':'聚变'},order:10}];clock+=60_001;
-  assert(catalogThemeIds(await loadThemeCatalog(db)).includes('fusion'));assert.equal(reads,2);
+  assert(!catalogThemeIds(await loadThemeCatalog(db)).includes('fusion'));assert.equal(reads,1);
   nodes=[{...nodes[0],parentId:'missing'}];clock+=60_001;
   t.mock.method(console,'error',()=>{});
-  assert(catalogThemeIds(await loadThemeCatalog(db)).includes('fusion'));assert.equal(reads,3);
+  assert(!catalogThemeIds(await loadThemeCatalog(db)).includes('fusion'));assert.equal(reads,1);
   const cold={collection:()=>query} as unknown as Firestore;
   await assert.rejects(loadThemeCatalog(cold),/Missing hierarchy parent/);
 });
