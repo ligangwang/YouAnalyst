@@ -13,7 +13,7 @@ import type {Row,Collection} from './sync';
 
 export const COMPANY_SQLITE_OBJECT='entity-snapshots/companies.sqlite';
 const FORMAT='youanalyst-entities-v1-lazy';
-const scalarFields=['slug','symbol','symbolLower','nameLower','tickerLower','name','legalName','status','market','exchange_region','companyId','source','target','instrumentType','exchange','historyKey'];
+const scalarFields=['slug','symbol','symbolLower','nameLower','tickerLower','name','legalName','status','market','exchange_region','companyId','source','target','instrumentType','exchange','historyKey','ticker','tradingDate','requestedDate'];
 const arrayFields=['themeIds','slugAliases','aliases'];
 export type EntityRows=Map<string,DocumentData>&{watermark?:Timestamp;overlayBase?:EntityRows;overlayIds?:Set<string>;candidateIds?:(field:string,operator:string,value:unknown)=>Set<string>|undefined; sitemapRows?:()=>Iterable<[string,DocumentData]>; isDeleted?:(id:string)=>boolean; decodedCount?:()=>number};
 
@@ -40,6 +40,11 @@ export function entitySqliteBuilder(path:string,collection:Collection='companies
    // Preserve the original field losslessly for callers that request full data.
    const encodedPrefixes=searchPrefixes===undefined?null:gzipSync(JSON.stringify(encode(searchPrefixes)));
    insert.run(seq,row.id,JSON.stringify(encode(data)),encodedPrefixes);
+   if(collection==='eod_prices') {
+    for(const name of scalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);
+    for(const name of arrayFields)if(Array.isArray(data[name]))for(const value of data[name])if(typeof value==='string')lookup.run(name,value,seq);
+    return;
+   }
    const projected=Object.fromEntries(['name','slug','status','market','isDeleted','source','sourceLabel'].filter(key=>key in data).map(key=>[key,data[key]]));
    sitemap.run(row.id,JSON.stringify(encode(projected)));
    for(const name of scalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);

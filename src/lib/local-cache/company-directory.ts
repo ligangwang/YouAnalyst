@@ -150,6 +150,8 @@ function document(db:Firestore,id:string,data:DocumentData|undefined,collection:
 export function companySourceSnapshot(db:Firestore,source:object):Promise<unknown>|undefined {
  if(!companyDirectoryEnabled(db))return undefined;
  const spec=state.sources.get(source);if(!spec)return undefined;
+ // Enable only after legacy price writers drain, timestamps are migrated, and a snapshot is published.
+ if(spec.collection==='eod_prices'&&process.env.PRICE_SNAPSHOT_READY!=='1')return undefined;
  return companyDirectory(db,spec.collection).then(rows=>{
   if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data,spec.collection);}
   const filters=spec.steps.filter(s=>s.method==='where');

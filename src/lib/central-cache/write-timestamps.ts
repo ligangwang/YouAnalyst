@@ -1,5 +1,6 @@
+import {collections} from '../entity-snapshots/sync';
 import { FieldValue } from 'firebase-admin/firestore';
-const tracked=new Set(['companies','instruments','company_fundamentals','company_relationships']);
+const tracked=new Set<string>(collections);
 /** The persisted document's last change is always a server commit timestamp. */
 export function timestampWrite(method:string,path:string,args:unknown[],offset=0):unknown[]{
   if(path.split('/')[1]?.startsWith('_') || !tracked.has(path.split('/')[0]) || path.split('/').length!==2 || !['set','create','update'].includes(method))return args;

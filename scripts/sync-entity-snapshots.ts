@@ -15,6 +15,7 @@ async function main(){
   let changed=0,records=0,deleted=0;
   try{
   for(const collection of collections){
+    if(collection==='eod_prices'&&process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE!=='1')continue;
     if(collection==='instruments'){
       const companies=(await files.load('companies')).snapshot;
       if(!companies)throw Error('Company snapshot required before instrument sync');

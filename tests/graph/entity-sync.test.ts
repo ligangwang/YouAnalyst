@@ -5,6 +5,7 @@ import {EntitySync,type ChangeBatch} from '../../src/lib/local-cache/entity-sync
 import {enableCompanyDirectory,companyDirectory} from '../../src/lib/local-cache/company-directory';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import type {EntityRows} from '../../src/lib/entity-snapshots/sqlite';
+process.env.PRICE_SNAPSHOT_READY='1';
 const stamp=(n:number)=>new Timestamp(n,0);
 const batch=(n:number,id='x'):ChangeBatch=>({readTime:stamp(n),changes:[{id,data:{updatedAt:stamp(n),value:n}}]});
 test('initial catch-up, live IDs, inclusive reconnect, and stale callbacks',async()=>{
@@ -32,7 +33,7 @@ test('failed apply does not advance the resume boundary',async()=>{
   assert.deepEqual(boundaries,[10,10]);callback(batch(20));await sync.ready();
  }finally{sync.close();}
 });
-for(const collection of ['companies','instruments','company_fundamentals','company_relationships'] as const){
+for(const collection of ['companies','instruments','company_fundamentals','company_relationships','eod_prices'] as const){
  test(`${collection}: startup changes and live soft deletes override an old file`,async()=>{
   const rows:EntityRows=new Map([['a',{value:1,updatedAt:stamp(1)}]]);rows.watermark=stamp(1);
   let next!:(batch:ChangeBatch)=>void;let time=0;let sync!:EntitySync;

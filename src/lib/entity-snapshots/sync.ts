@@ -1,5 +1,5 @@
 import { Timestamp, type DocumentData } from 'firebase-admin/firestore';
-export const collections = ['companies', 'instruments', 'company_fundamentals', 'company_relationships'] as const;
+export const collections = ['companies', 'instruments', 'company_fundamentals', 'company_relationships', 'eod_prices'] as const;
 export type Collection = typeof collections[number];
 export type Row = { id: string; data: DocumentData };
 export type Snapshot = { version: 1; collection: Collection; watermark: Timestamp; rows: Row[] };

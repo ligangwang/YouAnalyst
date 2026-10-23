@@ -11,7 +11,7 @@ async function main() {
   const args=process.argv.slice(2);
   if(args.some(arg=>arg!=='--apply'&&!/^--(collection|after|limit|compatible-revision)=/.test(arg)))throw Error('Unknown argument');
   const collection=args.find(arg=>arg.startsWith('--collection='))?.slice(13);
-  if(!collection||!['companies','instruments','company_fundamentals','company_relationships','collectors'].includes(collection))throw Error('--collection is required');
+  if(!collection||!['companies','instruments','company_fundamentals','company_relationships','eod_prices','collectors'].includes(collection))throw Error('--collection is required');
   if(!process.env.GCP_PROJECT_ID)throw Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
   const db=getFirestore(),apply=args.includes('--apply');
