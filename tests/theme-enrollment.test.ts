@@ -1,6 +1,9 @@
+import catalogSeed from '../data/investment-themes/catalog-v1.json';
+import type {ThemeCatalog} from '../src/lib/company-themes/catalog-model';
+const catalog=catalogSeed.nodes as ThemeCatalog;
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {planEnrollment, enrollCompanies, type EnrollmentBatch} from '../scripts/enroll-theme-companies';
+import {planEnrollment as plan, enrollCompanies, type EnrollmentBatch} from '../scripts/enroll-theme-companies';
 import {encode, company, type Document} from '../scripts/lib/firestore-rest';
 import healthcare from '../data/ai-supply-chain/healthcare-enrollment.json';
 import ai from '../data/ai-supply-chain/ai-us.json';
@@ -8,6 +11,7 @@ import cn from '../data/ai-supply-chain/ai-cn-a.json';
 import {publishNewsSources} from '../scripts/publish-news-sources';
 import type {CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
 
+const planEnrollment=(records:Parameters<typeof plan>[0],batch:EnrollmentBatch)=>plan(records,batch,catalog);
 const batch=healthcare as EnrollmentBatch;
 const profiles=batch.companies.map(row=>({id:row.id,name:row.expectedName,status:'DIRECTORY',market:'US',exchange:'NASDAQ',symbol:row.id.slice(3),profile:{financialReport:{url:'https://www.sec.gov/example'}}}));
 
@@ -31,10 +35,10 @@ test('enrollment rejects identity drift, editorial conflicts, unsafe sources and
 });
 
 test('adding equipment companies retains canonical stage names and order',()=>{
-  const proposal={...batch.companies[0],primarySector:'semiconductors',aiStageIds:['equipment']};
+  const proposal={...batch.companies[0],primarySector:'chips',aiStageIds:['equipment']};
   const [patch]=planEnrollment(profiles,{...batch,companies:[proposal]});
   const canonical=ai.nodes.find(row=>row.id==='stage:equipment')!;
-  assert.deepEqual((patch.fields.inGraph as {stages:unknown[]}).stages,[{...canonical,labels:{en:canonical.label,'zh-CN':cn.nodes.find(row=>row.id===canonical.id)!.label}}]);
+  assert.deepEqual((patch.fields.inGraph as {stages:{id:string;label:string;labels:unknown}[]}).stages.map(({id,label,labels})=>({id,label,labels})),[{id:canonical.id,label:canonical.label,labels:{en:canonical.label,'zh-CN':cn.nodes.find(row=>row.id===canonical.id)!.label}}]);
 });
 
 test('source publication rejects IDs owned outside its batch before any write',async()=>{
@@ -66,8 +70,9 @@ test('preview does not commit and a write uses exact update-time preconditions',
   const backupDir=await mkdtemp(`${tmpdir()}/theme-enrollment-`);
   let commits=0;
   try{
-    await enrollCompanies({project:'example',batch,backupDir,request:async(url,method)=>{assert.equal(method,undefined);return docs.find(doc=>url.endsWith(encodeURIComponent(company(doc).id)))!;}});
+    await enrollCompanies({project:'example',batch,backupDir,request:async(url,method)=>{if(url.endsWith(':runQuery'))return catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));assert.equal(method,undefined);return docs.find(doc=>url.endsWith(encodeURIComponent(company(doc).id)))!;}});
     await enrollCompanies({project:'example',batch,backupDir,write:true,request:async(url,method,data)=>{
+      if(url.endsWith(':runQuery'))return catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));
       if(method==='POST'){
         commits++;
         const {writes}=data as {writes:{update:{name:string;fields:Document['fields']};currentDocument:{updateTime:string}}[]};

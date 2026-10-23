@@ -1,3 +1,4 @@
+import {withThemeCatalog} from '../helpers/theme-catalog';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -33,13 +34,13 @@ test.afterEach(()=>restoreEarningsFixtures());
 test('SEC identity snapshots avoid disclosure rereads, but failed scans reload durable progress',async()=>{
   const fx=earningsFirestore(),reads=new Map<string,number>();
   fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
-  const db={runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
+  const db=withThemeCatalog({runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
     const collection=fx.db.collection(name);
     return {doc:(id:string)=>{
       const ref=collection.doc(id);
       return {...ref,get:async()=>{reads.set(id,(reads.get(id)??0)+1);return ref.get();},set:ref.set.bind(ref)};
     }};
-  }} as unknown as Firestore;
+  }} as unknown as Firestore);
   const initialStates=new Map<string,DocumentData|undefined>();
   await loadEarningsMap(db,graph,initialStates);
   assert(initialStates.has('US:AMAT'),'Missing identity documents must also be reusable');
@@ -76,14 +77,14 @@ test('SEC and earnings discovery reuse one theme scope without reading relations
     {id:'US:WITHDRAWN',name:'Withdrawn',status:'DIRECTORY',inGraph:{status:'PUBLISHED'},themeMemberships:{ai:{...published,status:'WITHDRAWN'}}},
   ];
   let companyQueries=0;
-  const db={runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
+  const db=withThemeCatalog({runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
     if(name==='companies')return {where:(field:string,op:string,values:string[])=>{
       assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');assert.deepEqual(values,['ai','robotics','space']);
       return {get:async()=>{companyQueries++;return {docs:rows.map(row=>({id:row.id,data:()=>row}))};}};
     }};
     assert.equal(name,'collectors','Company scope must not load relationships or fundamentals');
     return fx.db.collection(name);
-  }} as unknown as Firestore;
+  }} as unknown as Firestore);
   const scope=await loadCollectionCompanyScope(db);
   assert.deepEqual(usMapTickers(scope),['AMAT','MU']);
   assert.deepEqual(scope.relationships,[]);

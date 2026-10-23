@@ -1,17 +1,18 @@
 'use client';
+import { useThemeCatalog } from './use-theme-catalog';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from './providers/auth-provider';
 import { useLocale } from './providers/locale-provider';
 import { REVIEW_TYPES, reviewVerbs } from '@/lib/relationship-review/model';
-import { COMPANY_THEMES, themeName } from '@/lib/company-themes/model';
 import type { RelationshipCorrection } from '@/lib/relationship-review/community-model';
 
 type Detail = { relationshipId: string; version: string; origin: string; openDisputes: number; evidence?: { url: string; title: string; quote: string }[]; credits: { name: string; points: number }[]; relationship: RelationshipCorrection };
 type History = { points: number; usefulContributions: number; items: { id: string; relationshipId: string; kind: string; status: string; reason: string; resolution: string | null; creditedPoints: number }[] };
 export function RelationshipCommunityPage() {
   const { user, loading, getIdToken } = useAuth(), { text, chinese } = useLocale();
+  const {themes,themeName}=useThemeCatalog();
   const [detail, setDetail] = useState<Detail | null>(null), [history, setHistory] = useState<History | null>(null);
   const [correction, setCorrection] = useState<RelationshipCorrection | null>(null), [kind, setKind] = useState<'DISPUTE' | 'CORRECTION'>('DISPUTE');
   const [reason, setReason] = useState(''), [evidenceUrl, setUrl] = useState(''), [evidenceQuote, setQuote] = useState(''), [publicCredit, setPublicCredit] = useState(false);
@@ -55,7 +56,7 @@ export function RelationshipCommunityPage() {
         <label className="block">{text('Relationship', '关系')}<select className={field} value={correction.type} onChange={e => setCorrection({ ...correction, type: e.target.value as RelationshipCorrection['type'] })}>{REVIEW_TYPES.map(type => <option key={type} value={type}>{reviewVerbs[type][chinese ? 1 : 0]}</option>)}</select></label>
         <label className="block">{text('Evidence state', '证据状态')}<select className={field} value={correction.state} onChange={e => setCorrection({ ...correction, state: e.target.value as RelationshipCorrection['state'] })}><option value="DOCUMENTED">{text('Documented', '已有记录')}</option><option value="ANNOUNCED">{text('Announced / planned', '已宣布／计划中')}</option><option value="TERMINATED">{text('Terminated', '已终止')}</option></select></label>
         <label className="block">{text('Corrected claim', '更正后的表述')}<textarea className={field} required maxLength={1200} value={correction.summary} onChange={e => setCorrection({ ...correction, summary: e.target.value })} /></label><label className="block">{text('Scope and limitations', '适用范围与限制')}<textarea className={field} required maxLength={1200} value={correction.limitation} onChange={e => setCorrection({ ...correction, limitation: e.target.value })} /></label>
-        <div>{COMPANY_THEMES.map(theme => <label className="mr-4 inline-flex gap-2" key={theme}><input type="checkbox" checked={correction.themeIds.includes(theme)} onChange={e => setCorrection({ ...correction, themeIds: e.target.checked ? [...correction.themeIds, theme] : correction.themeIds.filter(t => t !== theme) })} />{themeName(theme, chinese)}</label>)}</div>
+        <div>{themes.map(theme => <label className="mr-4 inline-flex gap-2" key={theme}><input type="checkbox" checked={correction.themeIds.includes(theme)} onChange={e => setCorrection({ ...correction, themeIds: e.target.checked ? [...correction.themeIds, theme] : correction.themeIds.filter(t => t !== theme) })} />{themeName(theme, chinese)}</label>)}</div>
       </fieldset>}
       <label className="flex gap-2"><input type="checkbox" checked={publicCredit} onChange={e => setPublicCredit(e.target.checked)} />{text('Show my member name on accepted corrections', '更正被采纳后公开显示我的会员名称')}</label><button disabled={busy} className="ui-button" type="submit">{busy ? text('Submitting…', '正在提交…') : text('Submit for review', '提交复核')}</button>
     </form>}

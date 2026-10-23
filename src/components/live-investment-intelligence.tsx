@@ -1,4 +1,5 @@
 "use client";
+import { useThemeCatalog } from './use-theme-catalog';
 
 import { LoadingSpinner } from './loading-spinner';
 import { CompanyTimeline } from './company-timeline';
@@ -26,7 +27,7 @@ import { IntelligencePriceAsOf } from './intelligence-price-as-of';
 import { IntelligenceEventCompanies } from './intelligence-event-companies';
 import { IntelligenceCalendarLinks } from './intelligence-calendar-links';
 import { IntelligenceThemeSelector } from './intelligence-theme-selector';
-import { parseCompanyTheme, themeName, type CompanyThemeId } from '@/lib/company-themes/model';
+import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
 import { IntelligenceViewTabs } from './intelligence-view-tabs';
 import { useIntelligenceSnapshot } from './use-intelligence-snapshot';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
@@ -71,13 +72,14 @@ export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{in
 
 function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,changeGuestSaved,error,reconnect,loadPreviousDay,loadingOlder,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];changeGuestSaved:(id:string,follow:boolean)=>void;error:string;reconnect:()=>void;loadPreviousDay:()=>void;loadingOlder:boolean}&WorkspaceInitialState){
   const {locale,chinese}=useLocale();
+  const { themeName } = useThemeCatalog();
   const ui=useUiText();
   const {size:graphSize,setSize:setGraphSize,root:graphSizeRef} = useChartSize();
   const follows=useCompanyFollows();
   const [saveError,setSaveError]=useState('');
   const [followConfirmation,setFollowConfirmation]=useState<{label:string;followed:boolean;id:number;anchor?:FollowFeedbackAnchor}|null>(null);
   useEffect(()=>{if(!followConfirmation)return;const timer=setTimeout(()=>setFollowConfirmation(null),2200);return()=>clearTimeout(timer);},[followConfirmation]);
-  const sectors=graphSectors(theme);
+  const sectors=graphSectors(theme,snapshot.graph.nodes);
   const name=themeName(theme,chinese);
   const switching=theme!==requestedTheme;
   const requestedName=themeName(requestedTheme,chinese);

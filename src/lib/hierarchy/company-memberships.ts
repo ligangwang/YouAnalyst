@@ -9,7 +9,7 @@ export function companyThemeNodeIds(company: CompanyThemeData, nodes: HierarchyN
     if (membership.status !== 'PUBLISHED') continue;
     direct.add(theme);
     if (membership.assignments) {
-      membership.assignments.filter(item => item.status === 'PUBLISHED').forEach(item => direct.add(item.nodeId));
+      membership.assignments.filter(item => item.status === 'PUBLISHED' && hierarchyPath(nodes,item.nodeId).some(node=>node.id===theme)).forEach(item => direct.add(item.nodeId));
     } else if (theme !== 'ai') {
       [membership.primarySector, ...(membership.secondaryRoles ?? [])].filter(Boolean).forEach(role => direct.add(`${theme}.${role}`));
     } else {
@@ -21,7 +21,7 @@ export function companyThemeNodeIds(company: CompanyThemeData, nodes: HierarchyN
       // Broad sectors may span several layers, so never infer their children.
       if (!company.inGraph?.stageIds?.length) {
         const sector = graphSectors('ai').find(item => item.id === membership.primarySector);
-        const layers = new Set(sector?.stages.flatMap(stage => nodes.filter(node => node.id.startsWith('ai.') && node.id.split('.').at(-1) === stage).map(node => hierarchyPath(nodes,node.id)[1]?.id)).filter(Boolean));
+        const layers = new Set(sector?.stages.flatMap(stage => nodes.filter(node => node.id.startsWith('ai.') && node.id.split('.').at(-1) === stage).map(node => hierarchyPath(nodes,node.id)[hierarchyPath(nodes,node.id).findIndex(item=>item.id===theme)+1]?.id)).filter(Boolean));
         if (layers.size === 1) direct.add([...layers][0]!);
       }
     }

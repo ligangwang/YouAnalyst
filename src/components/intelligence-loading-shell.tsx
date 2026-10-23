@@ -1,4 +1,5 @@
 "use client";
+import { useThemeCatalog } from './use-theme-catalog';
 
 import {useState} from 'react';
 import {WorkspaceStockTools} from './workspace-stock-tools';
@@ -7,13 +8,14 @@ import { LoadingSpinner } from './loading-spinner';
 import { LocalizedLink as Link } from './localized-link';
 import { UiText } from './ui-text';
 import { IntelligenceThemeSelector } from './intelligence-theme-selector';
-import { themeName, type CompanyThemeId } from '@/lib/company-themes/model';
+import { type CompanyThemeId } from '@/lib/company-themes/model';
 import { useLocale } from './providers/locale-provider';
 import styles from './intelligence-loading-shell.module.css';
 
 /** Shared lightweight shell keeps server and client loading states visually consistent. */
 export function IntelligenceLoadingShell({theme='ai',onThemeChange,error='',onRetry}:{theme?:CompanyThemeId;onThemeChange?:(theme:CompanyThemeId)=>void;error?:string;onRetry?:()=>void}={}) {
   const {chinese}=useLocale();
+  const { themeName } = useThemeCatalog();
   const [stockTools,setStockTools]=useState<{anchor:EventWindowAnchor|null}|null>(null);
   return <main className={styles.shell} aria-busy={!error} onContextMenuCapture={event=>{event.preventDefault();if((event.target as Element).closest('[data-event-window]'))return;event.stopPropagation();setStockTools({anchor:eventWindowAnchor(event)});}}>
     {stockTools&&<WorkspaceStockTools anchor={stockTools.anchor} onClose={()=>setStockTools({anchor:null})} graph={{nodes:[],relationships:[],sources:[],asOf:''}} watchlist={{ids:[],loading:true,error:false,session:true,change:async()=>{},refresh:()=>onRetry?.()}} onSelect={()=>{}}/>}

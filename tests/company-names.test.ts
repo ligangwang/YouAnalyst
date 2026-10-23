@@ -1,3 +1,4 @@
+import {withThemeCatalog} from './helpers/theme-catalog';
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
@@ -94,8 +95,8 @@ test("derived graphs reflect current company snapshots without a metadata docume
   doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({enabled:true,versions:{companies:revision}})};}}),
   where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",inGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
  })};
- const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
- const b = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
+ const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db:withThemeCatalog(db as unknown as Firestore)});
+ const b = await isolatedModule("src/lib/knowledge-graph/service.ts",{db:withThemeCatalog(db as unknown as Firestore)});
  for(const server of [a,b]) assert.equal(companyName((await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积公司");
  await a.loadKnowledgeGraph(); await b.loadKnowledgeGraph(); assert.equal(companyReads,4);
  name = "台积电"; revision = "new";
@@ -117,7 +118,7 @@ test("graph loader only queries canonical graph memberships", async () => {
   doc:()=>({get:async()=>({data:()=>({revision:"generic"})})}),
   where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "themeIds" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{inGraph:membership}), shared]};}})
  })};
- const server = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
+ const server = await isolatedModule("src/lib/knowledge-graph/service.ts",{db:withThemeCatalog(db as unknown as Firestore)});
  const graph = await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>;
  assert.deepEqual(graph.nodes.filter(n=>n.kind === "COMPANY").map(n=>n.id).sort(), ["US:BOTH","US:NEW"]);
  assert.equal(queries.filter(field => field === "themeIds").length, 1); assert(!queries.includes("inGraph.status")); assert(!queries.includes("aiGraph.status"));

@@ -1,5 +1,7 @@
+import { isThemeId, catalogThemeIds } from '../company-themes/catalog-model';
+import { loadThemeCatalog } from '../company-themes/catalog';
 import { FieldPath, type Firestore } from 'firebase-admin/firestore';
-import { COMPANY_THEMES, activeThemeIds, type CompanyThemeId } from '../company-themes/model';
+import { activeThemeIds, type CompanyThemeId } from '../company-themes/model';
 import { hash } from '../research/publisher';
 import { candidateId, parsePublication, publicationPlan, RelationshipReviewError } from './service';
 import { REVIEW_TYPES, type PublicationInput } from './model';
@@ -9,7 +11,7 @@ type Row = Record<string, unknown>;
 const names = (d: Row) => [...new Set([d.name, d.legalName, ...(Array.isArray(d.aliases) ? d.aliases : []), ...Object.values((d.names ?? {}) as Row)].filter((n): n is string => typeof n === 'string' && n.trim().length >= 3))];
 const normalize = (s: string) => s.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
 function themes(d: Row): CompanyThemeId[] {
-  const ids = activeThemeIds(d).filter(t => COMPANY_THEMES.includes(t as CompanyThemeId)) as CompanyThemeId[];
+  const ids = activeThemeIds(d).filter(t => isThemeId(t as CompanyThemeId)) as CompanyThemeId[];
   if (!(d.themeMemberships as Row | undefined)?.ai && (d.inGraph as Row | undefined)?.status === 'PUBLISHED') ids.push('ai');
   return [...new Set(ids)];
 }
@@ -17,6 +19,8 @@ function themes(d: Row): CompanyThemeId[] {
 export async function autoPublishRelationship(db: Firestore, id: string, at = new Date().toISOString()) {
   try {
     candidateId(id);
+    const catalog=await loadThemeCatalog(db), allowed=new Set(catalogThemeIds(catalog));
+    const themeTerms=Object.fromEntries(catalog.filter(node=>allowed.has(node.id)).map(node=>[node.id,[node.names.en,node.names['zh-CN'],node.id.replaceAll('-',' ')]]));
     return await db.runTransaction(async tx => {
       const ref = db.collection('company_relationships').doc(id), snapshot = await tx.get(ref), d = snapshot.data();
       if (!d || d.status !== 'NEEDS_REVIEW') return { published: false, reasons: ['Already processed or unavailable'] };
@@ -43,7 +47,7 @@ export async function autoPublishRelationship(db: Firestore, id: string, at = ne
       }
       const type = String(filing ? d.relationshipType : d.type) as PublicationInput['type'];
       if (!REVIEW_TYPES.includes(type)) return { published: false, reasons: ['Unsupported relationship type'] };
-      const eligibility = validateAutomaticClaim({ source: { id: sourceId, names: names(docs[0].data()!), themes: themes(docs[0].data()!) }, target: { id: targetId, names: names(docs[1].data()!), themes: themes(docs[1].data()!) }, type, state, quote, confidence: Number(d.confidence), category: d.targetType === 'category', eventDate: d.eventDate, date: at.slice(0, 10) });
+      const eligibility = validateAutomaticClaim({ source: { id: sourceId, names: names(docs[0].data()!), themes: themes(docs[0].data()!).filter(id=>allowed.has(id)) }, target: { id: targetId, names: names(docs[1].data()!), themes: themes(docs[1].data()!).filter(id=>allowed.has(id)) }, type, state, quote, themeTerms, confidence: Number(d.confidence), category: d.targetType === 'category', eventDate: d.eventDate, date: at.slice(0, 10) });
       if (!eligibility.eligible) return { published: false, reasons: eligibility.errors };
       const input = parsePublication({ candidateId: id, version: hash(d), sourceId, targetId, type, state: state as PublicationInput['state'], themeIds: eligibility.themeIds, summary: String(ev[0]?.summary ?? '').slice(0, 1200), limitation: 'AI-extracted claim from the cited source; not independently verified by the community. Scope and timing are limited to the quotation.', note: `Automatic validation policy ${AUTO_POLICY_VERSION}`, evidenceConfirmed: true, eventDate: d.eventDate ?? null });
       const plan = await publicationPlan(db, tx, input, at, true);

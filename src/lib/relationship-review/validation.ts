@@ -9,7 +9,7 @@ function mention(text: string, names: string[]) {
   return names.filter(n => n.trim().length >= 3).map(normalize).find(n => new RegExp(`(?<![a-z0-9])${escape(n)}(?![a-z0-9])`, 'u').test(text));
 }
 /** A deliberately conservative gate. Model confidence alone never establishes a claim. */
-export function validateAutomaticClaim(input: { source: ClaimCompany; target: ClaimCompany; type: ReviewType; state: string; quote: string; confidence: number; category: boolean; date: string; eventDate?: string | null }) {
+export function validateAutomaticClaim(input: { source: ClaimCompany; target: ClaimCompany; type: ReviewType; state: string; quote: string; confidence: number; category: boolean; date: string; eventDate?: string | null; themeTerms?:Record<string,string[]> }) {
   const errors: string[] = [], q = normalize(input.quote);
   if (input.category) errors.push('Unnamed category');
   if (input.source.id === input.target.id) errors.push('Identical companies');
@@ -48,7 +48,7 @@ export function validateAutomaticClaim(input: { source: ClaimCompany; target: Cl
   if (s && t && passive[input.type] && new RegExp(`${escape(s)}.{0,160}\\b${passive[input.type]}\\b.{0,160}\\bby\\b.{0,160}${escape(t)}`).test(q)) errors.push('Passive relationship direction requires review');
   if (input.type === 'ACQUIRES' && /\b(portfolio|assets?|division|business|stake|interest|from)\b/.test(q)) errors.push('Acquisition target may be assets rather than the company');
   const thematic: Record<CompanyThemeId, RegExp> = { ai: /\b(ai|artificial intelligence|gpu|cpu|semiconductor|memory|chip|cloud|data.?center|inference|comput(?:e|ing)|silicon|ethernet|cxl)\b/, robotics: /\b(robot\w*|autonomous|automation|motion|sensor\w*|machine vision|physical ai)\b/, space: /\b(space\w*|satellite\w*|orbit\w*|rocket\w*|launch\w*|lunar|spacecraft)\b/ };
-  const themes = input.source.themes.filter(theme => input.target.themes.includes(theme) && thematic[theme].test(q));
+  const themes = input.source.themes.filter(theme => input.target.themes.includes(theme) && Boolean(thematic[theme]?.test(q) || input.themeTerms?.[theme]?.some(term=>term.length>=3 && q.includes(normalize(term)))));
   if (!themes.length) errors.push('No supported shared theme');
   return { eligible: errors.length === 0, errors, themeIds: themes };
 }

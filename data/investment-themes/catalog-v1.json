@@ -1,0 +1,576 @@
+{
+  "version": 1,
+  "methodology": "YouAnalyst adaptation of MSCI thematic families; hierarchical organization informed by Morningstar. Company assignments require separate reviewed evidence.",
+  "nodes": [
+    {
+      "id": "transformative-technologies",
+      "parentId": null,
+      "names": {
+        "en": "Transformative Technologies",
+        "zh-CN": "变革科技"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "environment-resources",
+      "parentId": null,
+      "names": {
+        "en": "Environment & Resources",
+        "zh-CN": "环境与资源"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "health-healthcare",
+      "parentId": null,
+      "names": {
+        "en": "Health & Healthcare",
+        "zh-CN": "健康与医疗"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "society-lifestyle",
+      "parentId": null,
+      "names": {
+        "en": "Society & Lifestyle",
+        "zh-CN": "社会与生活方式"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai",
+      "parentId": "transformative-technologies",
+      "names": {
+        "en": "Artificial Intelligence",
+        "zh-CN": "人工智能"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics",
+      "parentId": "transformative-technologies",
+      "names": {
+        "en": "Robotics",
+        "zh-CN": "机器人"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space",
+      "parentId": "transformative-technologies",
+      "names": {
+        "en": "Space",
+        "zh-CN": "航天"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.applications",
+      "parentId": "ai",
+      "names": {
+        "en": "Applications",
+        "zh-CN": "应用"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.applications.edge",
+      "parentId": "ai.applications",
+      "names": {
+        "en": "Edge AI & devices",
+        "zh-CN": "端侧 AI 与设备"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.models",
+      "parentId": "ai",
+      "names": {
+        "en": "Models",
+        "zh-CN": "模型"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure",
+      "parentId": "ai",
+      "names": {
+        "en": "Infrastructure",
+        "zh-CN": "基础设施"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.cloud",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "Cloud & model platforms",
+        "zh-CN": "云与模型平台"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.datacenters",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "Data-center facilities",
+        "zh-CN": "数据中心设施"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.servers",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "Servers & systems",
+        "zh-CN": "服务器与系统"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.networking",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "Network equipment & silicon",
+        "zh-CN": "网络设备与芯片"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.interconnect",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "Electrical interconnects",
+        "zh-CN": "高速电互连"
+      },
+      "order": 4,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.optics",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "Optical communications",
+        "zh-CN": "光通信"
+      },
+      "order": 5,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.infrastructure.boards",
+      "parentId": "ai.infrastructure",
+      "names": {
+        "en": "PCBs & substrates",
+        "zh-CN": "PCB 与基板"
+      },
+      "order": 6,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips",
+      "parentId": "ai",
+      "names": {
+        "en": "Chips",
+        "zh-CN": "芯片"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.materials",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "Materials",
+        "zh-CN": "半导体材料"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.equipment",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "Manufacturing equipment",
+        "zh-CN": "制造设备"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.design",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "EDA & semiconductor IP",
+        "zh-CN": "EDA 与半导体 IP"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.foundry",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "Wafer fabrication",
+        "zh-CN": "晶圆制造"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.packaging",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "Advanced packaging & test",
+        "zh-CN": "先进封装与测试"
+      },
+      "order": 4,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.compute",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "AI accelerators & CPUs",
+        "zh-CN": "AI 加速器与处理器"
+      },
+      "order": 5,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.chips.memory",
+      "parentId": "ai.chips",
+      "names": {
+        "en": "Memory & storage",
+        "zh-CN": "内存与存储"
+      },
+      "order": 6,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.energy",
+      "parentId": "ai",
+      "names": {
+        "en": "Energy",
+        "zh-CN": "能源"
+      },
+      "order": 4,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.energy.power",
+      "parentId": "ai.energy",
+      "names": {
+        "en": "Power delivery",
+        "zh-CN": "供配电"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "ai.energy.cooling",
+      "parentId": "ai.energy",
+      "names": {
+        "en": "Thermal management",
+        "zh-CN": "散热与液冷"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.compute-control",
+      "parentId": "robotics",
+      "names": {
+        "en": "Compute & control",
+        "zh-CN": "算力与控制"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.sensors-vision",
+      "parentId": "robotics",
+      "names": {
+        "en": "Sensors & vision",
+        "zh-CN": "传感与视觉"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.motion-mechanics",
+      "parentId": "robotics",
+      "names": {
+        "en": "Motion & mechanics",
+        "zh-CN": "运动与机械"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.grippers-tools",
+      "parentId": "robotics",
+      "names": {
+        "en": "Grippers & tools",
+        "zh-CN": "末端执行器与工具"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.software-simulation",
+      "parentId": "robotics",
+      "names": {
+        "en": "Software & simulation",
+        "zh-CN": "软件与仿真"
+      },
+      "order": 4,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.robot-manufacturers",
+      "parentId": "robotics",
+      "names": {
+        "en": "Robot manufacturers",
+        "zh-CN": "机器人制造商"
+      },
+      "order": 5,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "robotics.systems-integration",
+      "parentId": "robotics",
+      "names": {
+        "en": "Systems integration",
+        "zh-CN": "系统集成"
+      },
+      "order": 6,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.components",
+      "parentId": "space",
+      "names": {
+        "en": "Components & subsystems",
+        "zh-CN": "零部件与子系统"
+      },
+      "order": 0,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.spacecraft",
+      "parentId": "space",
+      "names": {
+        "en": "Spacecraft manufacturing",
+        "zh-CN": "航天器制造"
+      },
+      "order": 1,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.payloads",
+      "parentId": "space",
+      "names": {
+        "en": "Payloads & instruments",
+        "zh-CN": "载荷与仪器"
+      },
+      "order": 2,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.launch",
+      "parentId": "space",
+      "names": {
+        "en": "Launch & transport",
+        "zh-CN": "发射与运输"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.ground",
+      "parentId": "space",
+      "names": {
+        "en": "Ground systems & terminals",
+        "zh-CN": "地面系统与终端"
+      },
+      "order": 4,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.operators",
+      "parentId": "space",
+      "names": {
+        "en": "Satellite operators",
+        "zh-CN": "卫星运营"
+      },
+      "order": 5,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.applications",
+      "parentId": "space",
+      "names": {
+        "en": "Data & applications",
+        "zh-CN": "数据与应用"
+      },
+      "order": 6,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "space.orbital-services",
+      "parentId": "space",
+      "names": {
+        "en": "Space infrastructure & services",
+        "zh-CN": "空间基础设施与服务"
+      },
+      "order": 7,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "cybersecurity",
+      "parentId": "transformative-technologies",
+      "names": {
+        "en": "Cybersecurity",
+        "zh-CN": "网络安全"
+      },
+      "order": 3,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "quantum-computing",
+      "parentId": "transformative-technologies",
+      "names": {
+        "en": "Quantum Computing",
+        "zh-CN": "量子计算"
+      },
+      "order": 4,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "energy-transition",
+      "parentId": "environment-resources",
+      "names": {
+        "en": "Energy Transition",
+        "zh-CN": "能源转型"
+      },
+      "order": 5,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "nuclear-energy",
+      "parentId": "environment-resources",
+      "names": {
+        "en": "Nuclear Energy",
+        "zh-CN": "核能"
+      },
+      "order": 6,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "energy-storage",
+      "parentId": "environment-resources",
+      "names": {
+        "en": "Energy Storage",
+        "zh-CN": "储能"
+      },
+      "order": 7,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "water",
+      "parentId": "environment-resources",
+      "names": {
+        "en": "Water",
+        "zh-CN": "水资源"
+      },
+      "order": 8,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "biotechnology",
+      "parentId": "health-healthcare",
+      "names": {
+        "en": "Biotechnology",
+        "zh-CN": "生物技术"
+      },
+      "order": 9,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "precision-medicine",
+      "parentId": "health-healthcare",
+      "names": {
+        "en": "Precision Medicine",
+        "zh-CN": "精准医疗"
+      },
+      "order": 10,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "medical-technology",
+      "parentId": "health-healthcare",
+      "names": {
+        "en": "Medical Technology",
+        "zh-CN": "医疗科技"
+      },
+      "order": 11,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "digital-commerce",
+      "parentId": "society-lifestyle",
+      "names": {
+        "en": "Digital Commerce",
+        "zh-CN": "数字商业"
+      },
+      "order": 12,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "financial-innovation",
+      "parentId": "society-lifestyle",
+      "names": {
+        "en": "Financial Innovation",
+        "zh-CN": "金融创新"
+      },
+      "order": 13,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "education",
+      "parentId": "society-lifestyle",
+      "names": {
+        "en": "Education",
+        "zh-CN": "教育"
+      },
+      "order": 14,
+      "status": "PUBLISHED"
+    },
+    {
+      "id": "aging-population",
+      "parentId": "society-lifestyle",
+      "names": {
+        "en": "Aging Population",
+        "zh-CN": "人口老龄化"
+      },
+      "order": 15,
+      "status": "PUBLISHED"
+    }
+  ]
+}

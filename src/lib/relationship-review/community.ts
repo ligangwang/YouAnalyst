@@ -1,5 +1,7 @@
+import { isThemeId, catalogThemeIds } from '../company-themes/catalog-model';
+import { loadThemeCatalog } from '../company-themes/catalog';
 import { FieldPath, type Firestore, type Transaction } from 'firebase-admin/firestore';
-import { COMPANY_THEMES, activeThemeIds } from '../company-themes/model';
+import { activeThemeIds } from '../company-themes/model';
 import { canonical, hash, mergeEdge, type ComputeBatch } from '../research/publisher';
 import { REVIEW_TYPES } from './model';
 import { RelationshipReviewError } from './service';
@@ -16,7 +18,7 @@ function url(v: unknown) { try { const u = new URL(text(v, 8, 2000)); if (u.prot
 export function relationshipVersion(r: Row) { return hash(Object.fromEntries(['status', 'source', 'target', 'type', 'summary', 'commercialStatus', 'evidence', 'researchFacts', 'themeIds'].map(k => [k, r[k] ?? null]))); }
 export function parseCorrection(v: unknown): RelationshipCorrection {
   const d = obj(v);
-  if (Object.keys(d).some(k => !['sourceId', 'targetId', 'type', 'state', 'summary', 'limitation', 'themeIds'].includes(k)) || !endpoint(d.sourceId) || !endpoint(d.targetId) || d.sourceId === d.targetId || !REVIEW_TYPES.includes(d.type as RelationshipCorrection['type']) || !['DOCUMENTED', 'ANNOUNCED', 'TERMINATED'].includes(String(d.state)) || !Array.isArray(d.themeIds) || !d.themeIds.length || d.themeIds.length > 3 || new Set(d.themeIds).size !== d.themeIds.length || !d.themeIds.every(t => COMPANY_THEMES.includes(t))) fail(400, 'Invalid proposed relationship');
+  if (Object.keys(d).some(k => !['sourceId', 'targetId', 'type', 'state', 'summary', 'limitation', 'themeIds'].includes(k)) || !endpoint(d.sourceId) || !endpoint(d.targetId) || d.sourceId === d.targetId || !REVIEW_TYPES.includes(d.type as RelationshipCorrection['type']) || !['DOCUMENTED', 'ANNOUNCED', 'TERMINATED'].includes(String(d.state)) || !Array.isArray(d.themeIds) || !d.themeIds.length || d.themeIds.length > 30 || new Set(d.themeIds).size !== d.themeIds.length || !d.themeIds.every(t => isThemeId(t))) fail(400, 'Invalid proposed relationship');
   if (d.type === 'PLANNED_ADOPTER_OF' && d.state !== 'ANNOUNCED') fail(400, 'Planned adoption must remain announced');
   return { sourceId: d.sourceId, targetId: d.targetId, type: d.type, state: d.state, summary: text(d.summary), limitation: text(d.limitation), themeIds: [...d.themeIds as RelationshipCorrection['themeIds']].sort() } as RelationshipCorrection;
 }
@@ -46,6 +48,7 @@ export async function communityRelationship(db: Firestore, id: string) {
 }
 export async function submitContribution(db: Firestore, raw: unknown, uid: string, at = new Date().toISOString()) {
   const input = parseContribution(raw);
+  if(input.correction){const allowed=new Set(catalogThemeIds(await loadThemeCatalog(db)));if(input.correction.themeIds.some(id=>!allowed.has(id)))fail(400,'Unknown or unpublished theme');}
   return db.runTransaction(async tx => {
     const edge = await published(db, tx, input.relationshipId), r = edge.data()!;
     if (relationshipVersion(r) !== input.version) fail(409, 'Relationship changed. Reload its evidence before submitting.');
@@ -111,6 +114,8 @@ export async function resolveContribution(db: Firestore, raw: unknown, admin: st
       if (neighborhoods.some(page => page.size > 500)) fail(409, 'Correction requires reconciliation of a large company neighborhood');
       if (neighborhoods.flatMap(page => page.docs).some(doc => { const row = doc.data(); return doc.id !== edge.id && !['NEWS_OBSERVATION', 'FILING_OBSERVATION'].includes(String(row.recordKind)) && canonical(String(row.source), String(row.target), String(row.type)).id === n.id; })) fail(409, 'Corrected relationship already exists under another key; reconcile before accepting');
       const batch: ComputeBatch = { batchId: `community-${c!.id}`, asOf: at.slice(0, 10), sources: [{ id: 'evidence', url: c!.evidenceUrl, title: 'Community correction evidence', summary: c!.evidenceQuote, sourceDate: null, retrievedAt: at.slice(0, 10) }], relationships: [{ ...n, facts: [{ state: correction.state === 'ANNOUNCED' ? 'ANNOUNCED' : 'DOCUMENTED', verificationStatus: correction.state === 'TERMINATED' ? 'TERMINATED' : correction.state === 'ANNOUNCED' ? 'PENDING' : 'CONFIRMED', scope: correction.summary, limitation: correction.limitation, sourceIds: ['evidence'] }] }] };
+      const allowed=new Set(catalogThemeIds(await loadThemeCatalog(db)));
+      if(correction.themeIds.some(id=>!allowed.has(id)))fail(409,'Proposed theme is no longer published');
       replacement = { ...mergeEdge(batch, batch.relationships[0], null), id: replacementId, themeIds: correction.themeIds, commercialStatus: correction.state, publicationOrigin: 'COMMUNITY', communityReviewedAt: at, correctionEvidenceQuote: c!.evidenceQuote };
     }
     const points = accepted && profile ? 10 : 0;

@@ -1,18 +1,17 @@
 import type { GraphNode, KnowledgeGraph } from '../knowledge-graph/model';
 import { companyGeography } from '../market-companies/identity';
 
-export const COMPANY_THEMES = ['ai', 'robotics', 'space'] as const;
-export type CompanyThemeId = typeof COMPANY_THEMES[number];
+export type CompanyThemeId = string;
 export function parseCompanyTheme(value: unknown): CompanyThemeId {
-  return COMPANY_THEMES.includes(value as CompanyThemeId) ? value as CompanyThemeId : 'ai';
+  return typeof value === 'string' && /^[a-z][a-z0-9-]{0,79}$/.test(value) ? value : 'ai';
 }
-export const themeName = (theme: CompanyThemeId, chinese = false) => theme === 'robotics' ? chinese ? '机器人' : 'Robotics' : theme === 'space' ? chinese ? '航天' : 'Space' : 'AI';
 export const SPACE_SECTORS = ['components','spacecraft','payloads','launch','ground','operators','applications','orbital-services'] as const;
 export const ROBOTICS_SECTORS = [
   'compute-control', 'sensors-vision', 'motion-mechanics', 'grippers-tools',
   'software-simulation', 'robot-manufacturers', 'systems-integration',
 ] as const;
 export type ThemeMembership = {
+  assignments?: {nodeId:string;status:'PUBLISHED'|'DRAFT'|'WITHDRAWN'}[];
   summaryTranslations?: Partial<Record<'zh-CN', import('../knowledge-graph/summary-translations').SummaryTranslation>>;
   status: 'PUBLISHED' | 'DRAFT' | 'WITHDRAWN'; primarySector: string;
   secondaryRoles?: string[]; reviewedAt: string;
@@ -28,25 +27,25 @@ export function activeThemeIds(company: Pick<ThemedCompany, 'themeMemberships'>)
     .filter(([, membership]) => membership?.status === 'PUBLISHED')
     .map(([id]) => id).sort();
 }
-export function isCollectionCompany(company: ThemedCompany) {
+export function isCollectionCompany(company: ThemedCompany, allowedThemes?:readonly string[]) {
   if (!['PUBLISHED', 'DIRECTORY'].includes(String(company.status)) || !company.name) return false;
-  if (activeThemeIds(company).some(id => COMPANY_THEMES.includes(id as CompanyThemeId))) return true;
+  if (activeThemeIds(company).some(id=>!allowedThemes || allowedThemes.includes(id))) return true;
   // Compatibility for existing AI records until memberships have been migrated.
   const legacy = (company.inGraph) as { status?: string } | undefined;
-  return !company.themeMemberships?.ai && legacy?.status === 'PUBLISHED';
+  return (!allowedThemes || allowedThemes.includes('ai')) && !company.themeMemberships?.ai && legacy?.status === 'PUBLISHED';
 }
 
 /** Job scope is the unique union, not a graph layout or a second company store. */
-export function collectionUniverse(legacy: KnowledgeGraph, records: ThemedCompany[]): KnowledgeGraph {
+export function collectionUniverse(legacy: KnowledgeGraph, records: ThemedCompany[], allowedThemes?:readonly string[]): KnowledgeGraph {
   const byId = new Map(records.map(company => [company.id, company]));
   const companies = new Map(legacy.nodes.filter(node => {
     if (node.kind !== 'COMPANY') return false;
     const company = byId.get(node.id);
     // Missing membership records can be relationship-only neighbors. An explicit
     // AI decision overrides its legacy graph flag, unless another theme enrolls it.
-    return !company?.themeMemberships?.ai || isCollectionCompany(company);
+    return (!allowedThemes || allowedThemes.includes('ai')) && !company?.themeMemberships?.ai || Boolean(company && isCollectionCompany(company,allowedThemes));
   }).map(node => [node.id, node]));
-  for (const company of records.filter(isCollectionCompany)) {
+  for (const company of records.filter(record=>isCollectionCompany(record,allowedThemes))) {
     if (companies.has(company.id)) continue;
     const membership = Object.values(company.themeMemberships ?? {}).find(value => value.status === 'PUBLISHED');
     const node: GraphNode = {

@@ -16,7 +16,7 @@ export function IntelligenceActivityOverview({events,documents,complete=false,hi
   const sourceDocuments=documents??sourceDocumentsForEvents(events);
   const activity=summarizeSourceDocuments(sourceDocuments,companies.map(company=>company.id),sourceFilter);
   const sources=activity.sources.filter(source=>source.count>0);
-  const sectors=graphSectors(graphTheme(companies)).map(sector=>{
+  const sectors=graphSectors(graphTheme(companies),companies).map(sector=>{
     const ids=new Set(companies.filter(company=>matchesCompanySector(company,sector.id)).map(company=>company.id));
     return {...sector,count:summarizeSourceDocuments(sourceDocuments,[...ids],sourceFilter).signals};
   }).filter(sector=>sector.count>0).sort((a,b)=>b.count-a.count);

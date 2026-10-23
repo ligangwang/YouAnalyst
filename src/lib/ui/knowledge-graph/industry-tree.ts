@@ -24,7 +24,7 @@ const stageNames: Record<string,[string,string]> = {
 // ai.meta.com/llama, aws.amazon.com/ai/generative-ai/nova, qwen.ai, yiyan.baidu.com.
 const modelDevelopers = new Set(['ORG:OPENAI','ORG:ANTHROPIC','ORG:MISTRAL-AI','US:GOOGL','US:META','US:AMZN','US:BABA','US:BIDU']);
 export type TreeBranch = {id:string; en:string; zh:string; companies:GraphNode[]};
-export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]; directCompanies?:boolean};
+export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]; directCompanies?:boolean;themeNames?:GraphNode['themeNames']};
 // A company may have several industry roles. Use the first recorded path consistently
 // across tree views so switching representations never selects a different company.
 export function companyTreePath(layers:TreeLayer[],companyId:string){
@@ -38,11 +38,15 @@ export function companyTreePath(layers:TreeLayer[],companyId:string){
 export function industryTree(companies:GraphNode[]):TreeLayer[] {
   const unique=[...new Map(companies.map(c=>[c.id,c])).values()];
   const theme=graphTheme(unique);
-  if (theme !== 'ai') {
-    return graphSectors(theme).map(sector => {
+  if (theme !== 'ai' || unique.some(node=>node.themeSectors)) {
+    return graphSectors(theme,unique).map(sector => {
       const members = unique.filter(company => sector.stages.some(stage => company.stageIds?.includes(stage)));
+      const branches=(sector.branches??[]).map(branch=>({id:branch.id,en:branch.en,zh:branch.zh,companies:unique.filter(company=>branch.stages.some(stage=>company.stageIds?.includes(stage)))})).filter(branch=>branch.companies.length);
+      const detailed=new Set(branches.flatMap(branch=>branch.companies.map(company=>company.id)));
+      const direct=members.filter(company=>!detailed.has(company.id));
+      if(branches.length && direct.length)branches.push({id:`${theme}:${sector.id}/direct`,en:sector.en,zh:sector.zh,companies:direct});
       return {id:`${theme}:${sector.id}`,en:sector.en,zh:sector.zh,color:sector.color,stages:sector.stages,companies:members,
-        directCompanies:true,branches:[]};
+        themeNames:unique[0]?.themeNames,directCompanies:!branches.length,branches};
     }).filter(layer => layer.companies.length);
   }
   const known=new Set(INDUSTRY_LAYERS.flatMap(l=>l.stages));
@@ -55,7 +59,7 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
     return {...layer,branches,companies:[...new Map(branches.flatMap(b=>b.companies).map(c=>[c.id,c])).values()]};
   });
 }
-export const industryRootLabel = (layers: TreeLayer[], locale: string) => layers.some(layer => layer.id.startsWith('space:')) ? locale === 'zh-CN' ? '航天产业' : 'Space industry' : layers.some(layer => layer.id.startsWith('robotics:')) ? locale === 'zh-CN' ? '机器人产业' : 'Robotics industry' : locale === 'zh-CN' ? 'AI 产业链' : 'AI industry chain';
+export const industryRootLabel = (layers: TreeLayer[], locale: string) => layers[0]?.themeNames ? `${layers[0].themeNames[locale==='zh-CN'?'zh-CN':'en']} ${locale==='zh-CN'?'产业':'industry'}` : layers.some(layer => layer.id.startsWith('space:')) ? locale === 'zh-CN' ? '航天产业' : 'Space industry' : layers.some(layer => layer.id.startsWith('robotics:')) ? locale === 'zh-CN' ? '机器人产业' : 'Robotics industry' : locale === 'zh-CN' ? 'AI 产业链' : 'AI industry chain';
 export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company'|'foliage';decorative?:boolean;label:string;color:string;position:[number,number,number];planar?:[number,number,number];azimuth?:number;pivotX?:number;company?:GraphNode;count?:number;span?:[number,number];stem?:number};
 export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;

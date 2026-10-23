@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto';
+import { loadThemeCatalog } from './catalog';
+import { catalogThemeIds } from './catalog-model';
+import { applyThemeCatalog } from './catalog-graph';
 import { loadThemeRelationships } from '../knowledge-graph/relationship-cache';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { getAdminFirestore } from '../firebase/admin';
@@ -11,13 +15,16 @@ import type { CompanyThemeId } from './model';
 import { changeCached } from '../change-cache';
 
 export async function loadThemeGraph(theme: CompanyThemeId): Promise<KnowledgeGraph> {
-  if (theme === 'ai') return loadKnowledgeGraph();
+  const catalog=await loadThemeCatalog();
+  if(!catalogThemeIds(catalog).includes(theme))throw new Error('Unknown or unpublished theme');
+  if (theme === 'ai') return applyThemeCatalog(await loadKnowledgeGraph(),theme,catalog);
+  const version=createHash('sha256').update(JSON.stringify(catalog)).digest('hex').slice(0,16);
   const db = getAdminFirestore();
   let complete=true;
-  return changeCached(db, `theme-graph:${theme}`, ['companies', 'company_relationships', 'company_fundamentals'], async () => {
+  return changeCached(db, `theme-graph:${theme}:${version}`, ['companies', 'company_relationships', 'company_fundamentals'], async () => {
     const [companies, relationships] = await Promise.all([loadThemeCompanies(theme, db), loadThemeRelationships(db, theme)]);
-    const graph = themedGraph(theme,companies, relationships.docs.map(doc => ({...doc.data(),id:doc.id} as MarketRelationship)));
-    if (!graph.nodes.some(node => node.kind === 'COMPANY')) throw new Error('Theme company directory unavailable');
+    const graph = themedGraph(theme,companies, relationships.docs.map(doc => ({...doc.data(),id:doc.id} as MarketRelationship)),catalog);
+
     const us = graph.nodes.filter(node => node.kind === 'COMPANY' && node.market === 'US');
     // Reuse existing public financial summaries; viewing never initiates a provider call.
     try {
@@ -30,6 +37,6 @@ export async function loadThemeGraph(theme: CompanyThemeId): Promise<KnowledgeGr
       }
       await attachCnMarketCaps(db, graph);
     } catch (error) { complete=false;console.error('Theme market cap summaries unavailable', error); }
-    return graph;
+    return applyThemeCatalog(graph,theme,catalog);
   },()=>complete);
 }

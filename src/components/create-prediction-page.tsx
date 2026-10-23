@@ -1,4 +1,5 @@
 "use client";
+import { useThemeCatalog } from './use-theme-catalog';
 import { trackEvent } from "@/lib/analytics";
 import { translateUi } from "@/lib/ui/i18n/translate";
 import Link from "next/link";
@@ -16,17 +17,19 @@ import { isCoveredCompany, MAX_VIEW_EVIDENCE, mergeCoverageGraphs, relationshipL
 
 const key = (ref: ViewEvidenceRef) => `${ref.kind}:${ref.id}`;
 
-/** The AI, Robotics and Space maps, loaded once: they decide which companies can receive views and what a view can cite. */
+/** Published thematic maps, loaded once: they decide which companies can receive views and what a view can cite. */
 function useCoverageGraph() {
+  const {themes}=useThemeCatalog();
   const [graph, setGraph] = useState<CoverageGraph | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if(!themes.length)return;
     const controller = new AbortController();
-    Promise.all(["ai", "robotics", "space"].map(theme => fetch(`/api/knowledge-graph${theme === "ai" ? "" : `?theme=${theme}`}`, { signal: controller.signal })
+    Promise.all(themes.map(theme => fetch(`/api/knowledge-graph${theme === "ai" ? "" : `?theme=${theme}`}`, { signal: controller.signal })
       .then(response => { if (!response.ok) throw new Error(); return response.json().then(graph => ({ theme: theme as CompanyThemeId, graph })); })))
       .then(graphs => setGraph(mergeCoverageGraphs(graphs))).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
-  }, []);
+  }, [themes]);
   return { graph, failed };
 }
 

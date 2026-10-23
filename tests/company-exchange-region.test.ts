@@ -1,3 +1,4 @@
+import {withThemeCatalog} from './helpers/theme-catalog';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -27,6 +28,6 @@ test('SEC company scope sends both predicates to Firestore before reading docume
     },
   };
   const db = { collection(name: string) { assert.equal(name, 'companies'); return query; } };
-  await loadCollectionCompanyScope(db as unknown as Firestore, 'US');
+  await loadCollectionCompanyScope(withThemeCatalog(db as unknown as Firestore), 'US');
   assert.equal(reads, 1);
 });

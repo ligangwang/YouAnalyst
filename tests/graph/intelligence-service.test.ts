@@ -1,3 +1,4 @@
+import {legacyCatalog} from '../helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {build} from 'esbuild';
@@ -90,13 +91,14 @@ test('Eastern day boundary changes projection even without a source notification
 });
 
 test('the events route negotiates compression and preserves filters and deferred refresh scheduling',async()=>{
-  const result=await build({entryPoints:['src/app/api/intelligence/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['@/lib/intelligence/service','@/lib/company-themes/model','next/server']});
+  const result=await build({entryPoints:['src/app/api/intelligence/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['@/lib/company-themes/catalog','@/lib/intelligence/service','@/lib/company-themes/model','next/server']});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const callbacks:Array<()=>Promise<void>>=[];
   let fail=false;
   const payload={theme:'ai',graph,events:[],sourceDocuments:[],padding:'source evidence '.repeat(500)};
   const after=(callback:()=>Promise<void>)=>{callbacks.push(callback);};
   const injected=(name:string)=>{
+    if(name==='@/lib/company-themes/catalog')return {loadThemeCatalog:async()=>legacyCatalog};
     if(name==='next/server')return {after};
     if(name==='@/lib/company-themes/model')return {parseCompanyTheme:()=> 'ai'};
     if(name==='@/lib/intelligence/service')return {loadCompanyIntelligenceSnapshot:async(_now:Date,theme:string,company:string,query:string,region:string,schedule:typeof after)=>{
