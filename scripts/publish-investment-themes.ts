@@ -8,7 +8,7 @@ import { validateThemeCatalog, type ThemeCatalog } from '../src/lib/company-them
 import { company, encode, type Document, type Request } from './lib/firestore-rest';
 
 type CatalogRecord=ThemeCatalog[number]&{status:string;isDeleted?:boolean};
-/** Only add catalog nodes and attach the three legacy roots to their agreed family. */
+/** Add catalog nodes and missing bilingual descriptions; retain existing editorial metadata. */
 export function planThemeCatalog(existing:CatalogRecord[], seed:CatalogRecord[]){
   validateThemeCatalog(seed);
   assert(seed.every(node=>node.status==='PUBLISHED'&&!node.isDeleted),'Seed must contain only published nodes');
@@ -18,9 +18,12 @@ export function planThemeCatalog(existing:CatalogRecord[], seed:CatalogRecord[])
     const old=merged.get(desired.id);
     if(old){
       assert(old.status==='PUBLISHED' && !old.isDeleted,`${old.id}: existing editorial status conflicts`);
+      const changed={...old};
       if(['ai','robotics','space'].includes(old.id) && old.parentId===null){
-        const changed={...old,parentId:desired.parentId};merged.set(old.id,changed);patches.push(changed);
+        changed.parentId=desired.parentId;
       } else assert.equal(old.parentId,desired.parentId,`${old.id}: existing parent conflicts`);
+      if(old.descriptions===undefined&&desired.descriptions)changed.descriptions=desired.descriptions;
+      if(!isDeepStrictEqual(changed,old)){merged.set(old.id,changed);patches.push(changed);}
       // Existing names, descriptions and ordering remain authoritative.
     } else {merged.set(desired.id,desired);patches.push(desired);}
   }
@@ -44,9 +47,9 @@ export async function publishInvestmentThemes({project,seed,request,write=false,
   if(write&&patches.length){
     await request(`${root}:commit`,'POST',{writes:patches.map(({id,...data})=>{
       const old=originals.find(doc=>company(doc).id===id);
-      const fields=old?{parentId:encode(data.parentId)}:Object.fromEntries(Object.entries(data).map(([key,value])=>[key,encode(value)]));
+      const fields=Object.fromEntries(Object.entries(data).filter(([key,value])=>!old||(['parentId','descriptions'].includes(key)&&!isDeepStrictEqual(company(old)[key],value))).map(([key,value])=>[key,encode(value)]));
       return {update:{name:`projects/${project}/databases/(default)/documents/investment_themes/${id}`,fields},
-        ...(old?{updateMask:{fieldPaths:['parentId']},currentDocument:{updateTime:old.updateTime}}:{currentDocument:{exists:false}})};
+        ...(old?{updateMask:{fieldPaths:Object.keys(fields)},currentDocument:{updateTime:old.updateTime}}:{currentDocument:{exists:false}})};
     })});
     const after=await read();
     assert.equal(planThemeCatalog(after.map(company) as unknown as CatalogRecord[],seed).length,0,'Catalog publication must be idempotent');

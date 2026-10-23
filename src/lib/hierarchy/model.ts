@@ -15,7 +15,7 @@ export function validateHierarchy(nodes: HierarchyNode[]): HierarchyNode[] {
       || typeof node.names?.en !== 'string' || !node.names.en.trim()
       || typeof node.names?.['zh-CN'] !== 'string' || !node.names['zh-CN'].trim()
       || !Number.isFinite(node.order)
-      || (node.descriptions !== undefined && (typeof node.descriptions.en !== 'string' || typeof node.descriptions['zh-CN'] !== 'string')))
+      || (node.descriptions !== undefined && (typeof node.descriptions?.en !== 'string' || !node.descriptions.en.trim() || typeof node.descriptions?.['zh-CN'] !== 'string' || !node.descriptions['zh-CN'].trim())))
       throw new Error('Invalid hierarchy node');
     index.set(node.id, node);
   }

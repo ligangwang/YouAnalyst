@@ -4,6 +4,7 @@
   "nodes": [
     {
       "id": "transformative-technologies",
+      "descriptions": { "en": "Technologies reshaping how businesses compute, automate, connect and operate.", "zh-CN": "重塑企业计算、自动化、连接与运营方式的变革性技术。" },
       "parentId": null,
       "names": {
         "en": "Transformative Technologies",
@@ -14,6 +15,7 @@
     },
     {
       "id": "environment-resources",
+      "descriptions": { "en": "Energy and resource systems supporting efficiency, resilience and a lower environmental impact.", "zh-CN": "提升效率与韧性、降低环境影响的能源与资源系统。" },
       "parentId": null,
       "names": {
         "en": "Environment & Resources",
@@ -24,6 +26,7 @@
     },
     {
       "id": "health-healthcare",
+      "descriptions": { "en": "Scientific advances and technologies improving disease prevention, diagnosis and treatment.", "zh-CN": "改善疾病预防、诊断与治疗的科学进展及医疗技术。" },
       "parentId": null,
       "names": {
         "en": "Health & Healthcare",
@@ -34,6 +37,7 @@
     },
     {
       "id": "society-lifestyle",
+      "descriptions": { "en": "Structural changes in how people live, learn, transact and access essential services.", "zh-CN": "人们生活、学习、交易及获取基本服务方式的结构性变化。" },
       "parentId": null,
       "names": {
         "en": "Society & Lifestyle",
@@ -44,6 +48,7 @@
     },
     {
       "id": "ai",
+      "descriptions": { "en": "The AI value chain across five layers: energy, chips, infrastructure, models and applications.", "zh-CN": "覆盖能源、芯片、基础设施、模型与应用五个层级的人工智能产业链。" },
       "parentId": "transformative-technologies",
       "names": {
         "en": "Artificial Intelligence",
@@ -54,6 +59,7 @@
     },
     {
       "id": "robotics",
+      "descriptions": { "en": "Hardware, control, software and integration enabling machines to sense and act in the physical world.", "zh-CN": "让机器感知物理世界并执行操作的硬件、控制、软件与系统集成。" },
       "parentId": "transformative-technologies",
       "names": {
         "en": "Robotics",
@@ -64,6 +70,7 @@
     },
     {
       "id": "space",
+      "descriptions": { "en": "The space value chain from components and launches to satellite operations and downstream services.", "zh-CN": "从零部件、航天发射到卫星运营及下游服务的航天产业链。" },
       "parentId": "transformative-technologies",
       "names": {
         "en": "Space",
@@ -74,6 +81,7 @@
     },
     {
       "id": "ai.applications",
+      "descriptions": { "en": "Software and devices applying AI capabilities to business and everyday tasks.", "zh-CN": "将人工智能能力应用于企业业务与日常任务的软件及设备。" },
       "parentId": "ai",
       "names": {
         "en": "Applications",
@@ -94,6 +102,7 @@
     },
     {
       "id": "ai.models",
+      "descriptions": { "en": "Development and delivery of models that learn patterns and provide AI capabilities.", "zh-CN": "开发与提供能够学习规律、输出人工智能能力的模型。" },
       "parentId": "ai",
       "names": {
         "en": "Models",
@@ -104,6 +113,7 @@
     },
     {
       "id": "ai.infrastructure",
+      "descriptions": { "en": "Servers, networks, data centers and cloud platforms used to train and run AI systems.", "zh-CN": "用于训练与运行人工智能系统的服务器、网络、数据中心及云平台。" },
       "parentId": "ai",
       "names": {
         "en": "Infrastructure",
@@ -184,6 +194,7 @@
     },
     {
       "id": "ai.chips",
+      "descriptions": { "en": "Semiconductor design, manufacturing and components supporting AI computation.", "zh-CN": "支撑人工智能计算的半导体设计、制造与关键器件。" },
       "parentId": "ai",
       "names": {
         "en": "Chips",
@@ -264,6 +275,7 @@
     },
     {
       "id": "ai.energy",
+      "descriptions": { "en": "Energy supply, power delivery and thermal systems supporting AI computation.", "zh-CN": "支撑人工智能计算的能源供应、供配电及热管理系统。" },
       "parentId": "ai",
       "names": {
         "en": "Energy",
@@ -444,6 +456,7 @@
     },
     {
       "id": "cybersecurity",
+      "descriptions": { "en": "Technologies and services protecting digital identities, systems, networks and data.", "zh-CN": "保护数字身份、系统、网络与数据的技术及服务。" },
       "parentId": "transformative-technologies",
       "names": {
         "en": "Cybersecurity",
@@ -454,6 +467,7 @@
     },
     {
       "id": "quantum-computing",
+      "descriptions": { "en": "Quantum hardware, software and enabling technologies for new approaches to computation.", "zh-CN": "探索新型计算方式的量子硬件、软件及配套技术。" },
       "parentId": "transformative-technologies",
       "names": {
         "en": "Quantum Computing",
@@ -464,6 +478,7 @@
     },
     {
       "id": "energy-transition",
+      "descriptions": { "en": "Technologies and infrastructure changing how energy is generated, delivered and consumed.", "zh-CN": "改变能源生产、输送与消费方式的技术及基础设施。" },
       "parentId": "environment-resources",
       "names": {
         "en": "Energy Transition",
@@ -474,6 +489,7 @@
     },
     {
       "id": "nuclear-energy",
+      "descriptions": { "en": "Nuclear fuel, equipment, reactor technologies and services supporting nuclear power.", "zh-CN": "支撑核能发电的核燃料、设备、反应堆技术及相关服务。" },
       "parentId": "environment-resources",
       "names": {
         "en": "Nuclear Energy",
@@ -484,6 +500,7 @@
     },
     {
       "id": "energy-storage",
+      "descriptions": { "en": "Systems and materials that store energy for later use across grids, industry and transport.", "zh-CN": "为电网、工业与交通储存能源并供后续使用的系统及材料。" },
       "parentId": "environment-resources",
       "names": {
         "en": "Energy Storage",
@@ -494,6 +511,7 @@
     },
     {
       "id": "water",
+      "descriptions": { "en": "Infrastructure, equipment and services for water supply, treatment, reuse and efficiency.", "zh-CN": "用于供水、处理、回用及提高用水效率的基础设施、设备与服务。" },
       "parentId": "environment-resources",
       "names": {
         "en": "Water",
@@ -504,6 +522,7 @@
     },
     {
       "id": "biotechnology",
+      "descriptions": { "en": "Biological science, platforms and processes used to develop therapies and other products.", "zh-CN": "利用生物科学、技术平台与工艺开发疗法及其他产品。" },
       "parentId": "health-healthcare",
       "names": {
         "en": "Biotechnology",
@@ -514,6 +533,7 @@
     },
     {
       "id": "precision-medicine",
+      "descriptions": { "en": "Diagnostics, data and therapies tailored to individual biological characteristics.", "zh-CN": "根据个体生物学特征提供的诊断、数据分析与治疗方案。" },
       "parentId": "health-healthcare",
       "names": {
         "en": "Precision Medicine",
@@ -524,6 +544,7 @@
     },
     {
       "id": "medical-technology",
+      "descriptions": { "en": "Devices, instruments and digital tools used in clinical diagnosis, monitoring and treatment.", "zh-CN": "用于临床诊断、监测与治疗的器械、仪器及数字工具。" },
       "parentId": "health-healthcare",
       "names": {
         "en": "Medical Technology",
@@ -534,6 +555,7 @@
     },
     {
       "id": "digital-commerce",
+      "descriptions": { "en": "Platforms and services enabling digital shopping, marketplaces and commercial transactions.", "zh-CN": "支持数字购物、交易平台及商业交易的平台与服务。" },
       "parentId": "society-lifestyle",
       "names": {
         "en": "Digital Commerce",
@@ -544,6 +566,7 @@
     },
     {
       "id": "financial-innovation",
+      "descriptions": { "en": "Technology changing payments, financial access, financial infrastructure and service delivery.", "zh-CN": "改变支付、金融服务可及性、金融基础设施与服务方式的技术。" },
       "parentId": "society-lifestyle",
       "names": {
         "en": "Financial Innovation",
@@ -554,6 +577,7 @@
     },
     {
       "id": "education",
+      "descriptions": { "en": "Tools, platforms and services supporting learning, skills development and workforce training.", "zh-CN": "支持学习、技能发展与职业培训的工具、平台及服务。" },
       "parentId": "society-lifestyle",
       "names": {
         "en": "Education",
@@ -564,6 +588,7 @@
     },
     {
       "id": "aging-population",
+      "descriptions": { "en": "Products and services addressing changing needs as populations age.", "zh-CN": "应对人口老龄化过程中需求变化的产品与服务。" },
       "parentId": "society-lifestyle",
       "names": {
         "en": "Aging Population",

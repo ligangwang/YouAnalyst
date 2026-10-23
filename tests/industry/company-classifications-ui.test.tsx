@@ -6,11 +6,13 @@ import { build } from 'esbuild';
 import { initialSnapshotWithinBudget } from '../../src/lib/intelligence/initial-snapshot';
 import { industryPath } from '../../src/lib/industry-classification/catalog';
 import type { HierarchyNode } from '../../src/lib/hierarchy/model';
+import themeSeed from '../../data/investment-themes/catalog-v1.json';
 
 const require = createRequire(import.meta.url);
 require.extensions['.css'] = module => { module.exports = {}; };
 const { CompanyClassificationsView } = require('../../src/components/company-classifications-view') as typeof import('../../src/components/company-classifications-view');
 const { LocaleProvider } = require('../../src/components/providers/locale-provider') as typeof import('../../src/components/providers/locale-provider');
+const { HierarchyBrowser } = require('../../src/components/hierarchy-browser') as typeof import('../../src/components/hierarchy-browser');
 const industries = [{ taxonomy: 'SIC', code: '3674', names: {
   en: industryPath('SIC', '3674', 'en').at(-1)!.name,
   'zh-CN': industryPath('SIC', '3674', 'zh-CN').at(-1)!.name,
@@ -29,6 +31,15 @@ test('classification labels, names and links follow the profile locale', () => {
     assert.ok(html.includes(`href="/${zh ? 'zh-cn' : 'en'}/investment-themes?node=robotics.compute-control"`));
     assert.ok(html.includes('SIC 3674'));
     if (zh) assert.doesNotMatch(html, /Industry|Investment themes|Semiconductors|Robotics|Compute &amp; control/);
+  }
+});
+
+test('theme structure descriptions render in the active language without an English fallback',()=>{
+  const ai=themeSeed.nodes.find(node=>node.id==='ai')!;
+  for(const locale of ['en','zh-CN'] as const){
+    const html=renderToStaticMarkup(<LocaleProvider locale={locale}><HierarchyBrowser kind="investment-themes" nodes={themeSeed.nodes} selectedId="ai" /></LocaleProvider>);
+    assert.ok(html.includes(ai.descriptions![locale]));
+    assert.ok(!html.includes(ai.descriptions![locale==='en'?'zh-CN':'en']));
   }
 });
 

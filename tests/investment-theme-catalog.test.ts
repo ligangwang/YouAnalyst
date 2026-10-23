@@ -167,6 +167,7 @@ test('company queries chunk catalogs larger than 30 themes and deduplicate cross
 
 test('catalog publication is additive, fenced, atomic and idempotent; never writes companies',async()=>{
   const originals:Document[]=['ai','robotics','space'].map((id,index)=>({name:`projects/example/databases/(default)/documents/investment_themes/${id}`,updateTime:'2026-10-22T00:00:00Z',fields:Object.fromEntries(Object.entries({parentId:null,names:{en:`Custom ${id}`,'zh-CN':`定制${id}`},order:index,status:'PUBLISHED'}).map(([key,value])=>[key,encode(value)]))}));
+  originals[0].fields.descriptions=encode({en:'Existing reviewed description','zh-CN':'已有审核说明'});
   const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const backupDir=await mkdtemp(`${tmpdir()}/theme-catalog-`);
   let commits=0;
   try{
@@ -176,12 +177,21 @@ test('catalog publication is additive, fenced, atomic and idempotent; never writ
       for(const write of (raw as {writes:{update:Document;updateMask?:unknown;currentDocument:unknown}[]}).writes){
         assert(write.update.name.includes('/investment_themes/'));assert(!write.update.name.includes('/companies/'));
         const old=originals.find(doc=>doc.name===write.update.name);
-        if(old){assert.deepEqual(write.currentDocument,{updateTime:old.updateTime});assert.deepEqual(Object.keys(write.update.fields),['parentId']);Object.assign(old.fields,write.update.fields);}
+        if(old){assert.deepEqual(write.currentDocument,{updateTime:old.updateTime});assert.deepEqual(Object.keys(write.update.fields),old.fields.descriptions?['parentId']:['parentId','descriptions']);Object.assign(old.fields,write.update.fields);}
         else {assert.deepEqual(write.currentDocument,{exists:false});originals.push(write.update);}
       }return {};
     }});
     assert.equal(commits,1);assert.equal(result.companyWrites,0);
     assert.equal(company(originals[0]).names && (company(originals[0]).names as {en:string}).en,'Custom ai');
+    assert.deepEqual(company(originals[0]).descriptions,{en:'Existing reviewed description','zh-CN':'已有审核说明'});
+    assert.ok((company(originals[1]).descriptions as {en:string;'zh-CN':string})['zh-CN']);
     assert.equal(planThemeCatalog(originals.map(company) as unknown as Parameters<typeof planThemeCatalog>[0],seed.nodes).length,0);
   }finally{await rm(backupDir,{recursive:true,force:true});}
+});
+
+test('every family, theme and AI layer has a nonempty English and Chinese description',()=>{
+  const described=catalog.filter(node=>hierarchyPath(catalog,node.id).length<=2||node.parentId==='ai');
+  assert.equal(described.length,25);
+  for(const node of described){assert.ok(node.descriptions?.en.trim());assert.ok(node.descriptions?.['zh-CN'].trim());}
+  assert.throws(()=>validateThemeCatalog([{...catalog[0],descriptions:{en:'English only','zh-CN':''}},...catalog.slice(1)]),/Invalid hierarchy node/);
 });
