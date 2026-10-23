@@ -123,3 +123,27 @@ test("sequential requests do not reread the gate for their own spacing", async (
  assert.equal(transactions,6); // One acquisition and one ownership-checked release each.
  assert.deepEqual(starts,[1000000,1000200,1000400]);
 });
+
+test("reused server timestamps do not cause tiny spacing polls", async () => {
+ const f=sharedFirestore(),start=f.now(),waits:number[]=[];
+ let elapsed=0,transactions=0;
+ f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,owner:null,leaseUntil:0,nextAllowedAt:start+10});
+ const original=f.db.runTransaction.bind(f.db);
+ f.db.runTransaction=((...args:Parameters<typeof f.db.runTransaction>)=>{transactions++;return original(...args);}) as typeof f.db.runTransaction;
+ await createSecBudget(f.db,async(ms,signal)=>{
+   signal.throwIfAborted();waits.push(ms);elapsed+=ms;
+   // Model a server read timestamp reused until the next second.
+   if(elapsed>=1000&&f.now()===start)f.advance(1000);
+ }).run(new AbortController().signal,async()=>{assert.equal(f.now(),start+1000);});
+ assert.deepEqual(waits,[200,200,200,200,200,200]);
+ assert.equal(transactions,7); // Six acquisitions and one release, not 101 polls.
+});
+
+test("spacing rechecks remain abortable before reaching the provider", async () => {
+ const f=sharedFirestore(),controller=new AbortController();let calls=0;
+ f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,leaseUntil:0,nextAllowedAt:f.now()+1});
+ await assert.rejects(createSecBudget(f.db,async(ms,signal)=>{
+   assert.equal(ms,200);controller.abort();signal.throwIfAborted();
+ }).run(controller.signal,async()=>{calls++;}),{name:'AbortError'});
+ assert.equal(calls,0);
+});

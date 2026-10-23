@@ -40,7 +40,15 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
             throw Object.assign(new Error("SEC shared cooldown is active"), { code: 429 });
           }
           const remaining = Math.max(Number(stored?.leaseUntil) || 0, Number(stored?.nextAllowedAt) || 0) - now;
-          if (remaining > 0) return Math.min(remaining, contentionWaitMs);
+          if (remaining > 0) {
+            // Firestore can reuse a read timestamp across transactions. A tiny
+            // spacing remainder must not turn into repeated near-zero sleeps.
+            // Keep held-lease polling unchanged; always reacquire before work.
+            if (Number(stored?.leaseUntil) <= now || !Number(stored?.leaseUntil)) {
+              return Math.max(SPACING_MS, Math.min(remaining, contentionWaitMs));
+            }
+            return Math.min(remaining, contentionWaitMs);
+          }
           signal.throwIfAborted();
           tx.set(ref, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
           if (bridge) tx.set(legacyRef, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
