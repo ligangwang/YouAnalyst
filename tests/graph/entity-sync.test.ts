@@ -33,7 +33,7 @@ test('failed apply does not advance the resume boundary',async()=>{
   assert.deepEqual(boundaries,[10,10]);callback(batch(20));await sync.ready();
  }finally{sync.close();}
 });
-for(const collection of ['companies','instruments','company_fundamentals','company_relationships','eod_prices'] as const){
+for(const collection of ['companies','instruments','company_fundamentals','company_relationships'] as const){
  test(`${collection}: startup changes and live soft deletes override an old file`,async()=>{
   const rows:EntityRows=new Map([['a',{value:1,updatedAt:stamp(1)}]]);rows.watermark=stamp(1);
   let next!:(batch:ChangeBatch)=>void;let time=0;let sync!:EntitySync;

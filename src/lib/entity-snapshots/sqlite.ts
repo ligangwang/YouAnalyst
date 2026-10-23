@@ -175,8 +175,7 @@ export function inheritEntitySqliteIndex(previous:EntityRows,next:EntityRows,cha
 }
 
 /** Return undefined only for an absent SQLite file, never for an invalid file. */
-export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log:(entry:Record<string,unknown>)=>void=entry=>console.info(JSON.stringify(entry)),collection:Collection='companies'):Promise<EntityRows|undefined>{
- const object=`entity-snapshots/${collection}.sqlite`;
+export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log:(entry:Record<string,unknown>)=>void=entry=>console.info(JSON.stringify(entry)),collection:Collection='companies',object=`entity-snapshots/${collection}.sqlite`):Promise<EntityRows|undefined>{
  const started=performance.now();let metadataMs=0,downloadMs=0,processingMs=0,bytesDownloaded=0,records=0,status='error',directory:string|undefined;
  try{
   const file=bucket.file(object);let generation:string;
@@ -195,7 +194,7 @@ export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log
  }finally{
   if(directory)await rm(directory,{recursive:true,force:true});
   const ms=(n:number)=>Math.round(n*100)/100;
-  try{log({event:'entity_snapshot_file_read',format:'sqlite',collection,reason,status,
+  try{log({event:'entity_snapshot_file_read',format:'sqlite',collection,object,reason,status,
    metadataMs:ms(metadataMs),downloadMs:ms(downloadMs),processingMs:ms(processingMs),totalMs:ms(performance.now()-started),
    bytesDownloaded,rowsIndexed:records,rowsDecoded:0,timingsOverlap:false,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB});}catch{/* Observability cannot fail a read. */}
  }

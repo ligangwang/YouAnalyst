@@ -9,7 +9,7 @@ import type {Collection,Files,Snapshot} from './sync';
 
 /** Daily sync storage: SQLite supplies both previous rows and the watermark.
  * Publication is conditional and atomic; the old object survives failed builds. */
-export function sqliteSnapshotFiles(bucket:Bucket):Files&{close():Promise<void>}{
+export function sqliteSnapshotFiles(bucket:Bucket,objectFor:(collection:Collection)=>string=collection=>`entity-snapshots/${collection}.sqlite`):Files&{close():Promise<void>}{
  type Loaded={snapshot:Snapshot;generation:string;reader:ReturnType<typeof openEntitySqlite>;directory:string};
  const loaded=new Map<Collection,Loaded>();
  const release=async(collection:Collection)=>{
@@ -19,7 +19,7 @@ export function sqliteSnapshotFiles(bucket:Bucket):Files&{close():Promise<void>}
  return {
   async load(collection){
    const cached=loaded.get(collection);if(cached)return {snapshot:cached.snapshot,generation:cached.generation};
-   const object=`entity-snapshots/${collection}.sqlite`;
+   const object=objectFor(collection);
    let generation:string;
    try{const [meta]=await bucket.file(object).getMetadata();generation=String(meta.generation);}
    catch(error){if((error as {code?:number}).code===404)return {generation:'0'};throw error;}
@@ -41,7 +41,7 @@ export function sqliteSnapshotFiles(bucket:Bucket):Files&{close():Promise<void>}
     builder=entitySqliteBuilder(path,collection);
     for(const row of snapshot.rows)builder.add(row);
     builder.finish(snapshot.watermark);
-    await bucket.upload(path,{destination:`entity-snapshots/${collection}.sqlite`,resumable:false,
+    await bucket.upload(path,{destination:objectFor(collection),resumable:false,
      metadata:{contentType:'application/vnd.sqlite3',cacheControl:'private, no-cache'},preconditionOpts:{ifGenerationMatch:generation}});
     await release(collection);
    }finally{builder?.close();await rm(directory,{recursive:true,force:true});}

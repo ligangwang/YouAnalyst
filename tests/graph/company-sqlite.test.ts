@@ -88,7 +88,7 @@ test('opening and sitemap decode zero companies; requested records are decoded o
  }finally{opened.close();await rm(f.directory,{recursive:true,force:true});}
 });
 
-for(const collection of ['instruments','company_fundamentals','company_relationships','eod_prices'] as const){
+for(const collection of ['instruments','company_fundamentals','company_relationships'] as const){
  test(`${collection}: SQLite lazy reads, indexes, collection isolation and live bypass`,async()=>{
   const directory=await mkdtemp(join(tmpdir(),'entity-sqlite-test-')),path=join(directory,'entity.sqlite');
   const builder=entitySqliteBuilder(path,collection);
@@ -119,27 +119,3 @@ for(const collection of ['instruments','company_fundamentals','company_relations
   }finally{opened.close();await rm(directory,{recursive:true,force:true});}
  });
 }
-
-
-test('prices: two fresh instances query one SQLite snapshot without Firestore reads or unrelated decoding',async()=>{
- const directory=await mkdtemp(join(tmpdir(),'prices-sqlite-')),path=join(directory,'prices.sqlite');
- const builder=entitySqliteBuilder(path,'eod_prices');
- for(const ticker of ['AMD','NVDA'])for(let day=1;day<=20;day++)builder.add({id:`US_${ticker}_2026-10-${String(day).padStart(2,'0')}`,data:{ticker,market:'US',close:day,updatedAt:new Timestamp(1,0)}});
- builder.finish(new Timestamp(2,0));
- try{for(let instance=0;instance<2;instance++){
-  const opened=openEntitySqlite(path,undefined,'eod_prices');
-  try{
-   const db=observeFirestore(new Firestore({projectId:'prices-instance-'+instance}),()=>{});
-   enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async()=>opened.rows});
-   const query=db.collection('eod_prices').where('__name__','>=','US_NVDA_').where('__name__','<=','US_NVDA_2026-10-20').orderBy('__name__','desc').limit(12);
-   for(let request=0;request<2;request++){
-    const result=await query.get();assert.equal(result.size,12);assert.equal(result.docs[0].get('close'),20);
-    result.docs.forEach(doc=>doc.data());
-   }
-   assert.equal(opened.rows.decodedCount!(),12);
-   delete process.env.PRICE_SNAPSHOT_READY;
-   assert.equal(companySourceSnapshot(db,query),undefined);
-   process.env.PRICE_SNAPSHOT_READY='1';
-  }finally{opened.close();}
- }}finally{await rm(directory,{recursive:true,force:true});}
-});

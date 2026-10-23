@@ -1,3 +1,4 @@
+import {syncPricePartitions} from '../../src/lib/entity-snapshots/price-sync';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -11,7 +12,7 @@ function bucketFixture(){
  const names:string[]=[];
  const bucket={file:(name:string,options?:{generation:string})=>{
   names.push(name);const selected=objects.get(name);
-  return {getMetadata:async()=>{if(!selected)throw Object.assign(Error('missing'),{code:404});return [{generation:selected.generation}];},
+  return {name,download:async()=>[selected!.bytes],save:async(bytes:string,opts:{preconditionOpts:{ifGenerationMatch:string}})=>{if((objects.get(name)?.generation??'0')!==opts.preconditionOpts.ifGenerationMatch)throw Error('precondition');objects.set(name,{generation:String(++sequence),bytes:Buffer.from(bytes)});},getMetadata:async()=>{if(!selected)throw Object.assign(Error('missing'),{code:404});return [{generation:selected.generation}];},
    createReadStream:()=>{assert.equal(options?.generation,selected?.generation);return Readable.from(selected!.bytes);}};
  },upload:async(path:string,options:{destination:string;preconditionOpts:{ifGenerationMatch:string}})=>{
   if(fail)throw Error('upload failed');
@@ -19,7 +20,7 @@ function bucketFixture(){
   if((previous?.generation??'0')!==options.preconditionOpts.ifGenerationMatch)throw Object.assign(Error('precondition'),{code:412});
   objects.set(options.destination,{generation:String(++sequence),bytes:await readFile(path)});
  }} as unknown as Bucket;
- return {bucket,objects,names,fail:()=>{fail=true;}};
+ return {bucket,objects,names,fail:(value=true)=>{fail=value;}};
 }
 for(const collection of collections)test(`${collection}: SQLite-only initial, incremental, delete, restore and restart`,async()=>{
  const fixture=bucketFixture();let files=sqliteSnapshotFiles(fixture.bucket),time=10;
@@ -62,4 +63,20 @@ test('corrupt SQLite fails instead of falling back to JSON',async()=>{
  const files=sqliteSnapshotFiles(fixture.bucket);
  try{await assert.rejects(files.load('companies'));assert.ok(fixture.names.every(name=>name.endsWith('.sqlite')));}
  finally{await files.close();}
+});
+
+
+test('price sync rewrites only changed ticker/year partitions, and failed publication replays from old checkpoint',async()=>{
+ const f=bucketFixture();let time=10,changes:Row[]=[{id:'US_NVDA_2025-01-02',data:{close:1,updatedAt:new Timestamp(9,0)}},{id:'US_AMD_2026-01-02',data:{close:2,updatedAt:new Timestamp(9,0)}}];
+ const boundaries:(number|undefined)[]=[];
+ const source:Source={boundary:async()=>new Timestamp(time,0),rows:async(_c,since)=>{boundaries.push(since?.seconds);return changes;}};
+ assert.equal((await syncPricePartitions(source,f.bucket)).partitions,2);
+ const old=f.objects.get('price-snapshots/US/NVDA/2025.sqlite')!.generation;
+ time=20;changes=[{id:'US_AMD_2026-01-02',data:{isDeleted:true,updatedAt:new Timestamp(19,0)}}];
+ f.fail();await assert.rejects(syncPricePartitions(source,f.bucket),/upload failed/);f.fail(false);
+ assert.equal((await syncPricePartitions(source,f.bucket)).partitions,1);
+ assert.equal(f.objects.get('price-snapshots/US/NVDA/2025.sqlite')!.generation,old);
+ const files=sqliteSnapshotFiles(f.bucket,()=> 'price-snapshots/US/AMD/2026.sqlite');
+ try{assert.equal((await files.load('eod_prices')).snapshot!.rows.length,0);}finally{await files.close();}
+ assert.deepEqual(boundaries,[undefined,10,10]);assert.equal(f.objects.has('entity-snapshots/eod_prices.sqlite'),false);
 });
