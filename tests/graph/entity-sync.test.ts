@@ -5,6 +5,7 @@ import {EntitySync,type ChangeBatch} from '../../src/lib/local-cache/entity-sync
 import {enableCompanyDirectory,companyDirectory} from '../../src/lib/local-cache/company-directory';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import type {EntityRows} from '../../src/lib/entity-snapshots/sqlite';
+process.env.PRICE_SNAPSHOT_READY='1';
 const stamp=(n:number)=>new Timestamp(n,0);
 const batch=(n:number,id='x'):ChangeBatch=>({readTime:stamp(n),changes:[{id,data:{updatedAt:stamp(n),value:n}}]});
 test('initial catch-up, live IDs, inclusive reconnect, and stale callbacks',async()=>{

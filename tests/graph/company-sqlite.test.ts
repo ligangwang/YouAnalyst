@@ -1,3 +1,4 @@
+process.env.PRICE_SNAPSHOT_READY='1';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';

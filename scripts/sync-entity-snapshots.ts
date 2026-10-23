@@ -1,3 +1,4 @@
+import {syncPricePartitions} from '../src/lib/entity-snapshots/price-sync';
 import {syncSnapshotInstruments} from '../src/lib/instruments/snapshot-sync';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getStorage} from 'firebase-admin/storage';
@@ -15,6 +16,14 @@ async function main(){
   let changed=0,records=0,deleted=0;
   try{
   for(const collection of collections){
+    if(collection==='eod_prices'){
+      if(process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'){
+        const result=await syncPricePartitions(source,getStorage().bucket(bucketName));
+        changed+=result.changed;records+=result.records;deleted+=result.deleted;
+        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'price_partition_sync',status:'success',...result}));
+      }
+      continue;
+    }
     if(collection==='instruments'){
       const companies=(await files.load('companies')).snapshot;
       if(!companies)throw Error('Company snapshot required before instrument sync');

@@ -14,6 +14,7 @@ import type {Row,Collection} from './sync';
 export const COMPANY_SQLITE_OBJECT='entity-snapshots/companies.sqlite';
 const FORMAT='youanalyst-entities-v1-lazy';
 const scalarFields=['slug','symbol','symbolLower','nameLower','tickerLower','name','legalName','status','market','exchange_region','companyId','source','target','instrumentType','exchange','historyKey'];
+const priceScalarFields=[...scalarFields,'ticker','tradingDate','requestedDate'];
 const arrayFields=['themeIds','slugAliases','aliases'];
 export type EntityRows=Map<string,DocumentData>&{watermark?:Timestamp;overlayBase?:EntityRows;overlayIds?:Set<string>;candidateIds?:(field:string,operator:string,value:unknown)=>Set<string>|undefined; sitemapRows?:()=>Iterable<[string,DocumentData]>; isDeleted?:(id:string)=>boolean; decodedCount?:()=>number};
 
@@ -40,6 +41,11 @@ export function entitySqliteBuilder(path:string,collection:Collection='companies
    // Preserve the original field losslessly for callers that request full data.
    const encodedPrefixes=searchPrefixes===undefined?null:gzipSync(JSON.stringify(encode(searchPrefixes)));
    insert.run(seq,row.id,JSON.stringify(encode(data)),encodedPrefixes);
+   if(collection==='eod_prices') {
+    for(const name of priceScalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);
+    for(const name of arrayFields)if(Array.isArray(data[name]))for(const value of data[name])if(typeof value==='string')lookup.run(name,value,seq);
+    return;
+   }
    const projected=Object.fromEntries(['name','slug','status','market','isDeleted','source','sourceLabel'].filter(key=>key in data).map(key=>[key,data[key]]));
    sitemap.run(row.id,JSON.stringify(encode(projected)));
    for(const name of scalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);
@@ -129,7 +135,7 @@ export function openEntitySqlite(path:string,directory?:string,collection:Collec
    const array=operator==='array-contains'||operator==='array-contains-any';
    const range=['<','<=','>','>='].includes(operator);
    const scalar=operator==='=='||operator==='in'||range;
-   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&(scalarFields.includes(field)||field==='__name__')))return undefined;
+   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&((collection==='eod_prices'?priceScalarFields:scalarFields).includes(field)||field==='__name__')))return undefined;
    const values=operator==='in'||operator==='array-contains-any'?value:[value];
    if(!Array.isArray(values)||values.some(v=>typeof v!=='string'))return undefined;
    const found=new Set<string>();
@@ -170,8 +176,7 @@ export function inheritEntitySqliteIndex(previous:EntityRows,next:EntityRows,cha
 }
 
 /** Return undefined only for an absent SQLite file, never for an invalid file. */
-export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log:(entry:Record<string,unknown>)=>void=entry=>console.info(JSON.stringify(entry)),collection:Collection='companies'):Promise<EntityRows|undefined>{
- const object=`entity-snapshots/${collection}.sqlite`;
+export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log:(entry:Record<string,unknown>)=>void=entry=>console.info(JSON.stringify(entry)),collection:Collection='companies',object=`entity-snapshots/${collection}.sqlite`):Promise<EntityRows|undefined>{
  const started=performance.now();let metadataMs=0,downloadMs=0,processingMs=0,bytesDownloaded=0,records=0,status='error',directory:string|undefined;
  try{
   const file=bucket.file(object);let generation:string;
@@ -190,7 +195,7 @@ export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log
  }finally{
   if(directory)await rm(directory,{recursive:true,force:true});
   const ms=(n:number)=>Math.round(n*100)/100;
-  try{log({event:'entity_snapshot_file_read',format:'sqlite',collection,reason,status,
+  try{log({event:'entity_snapshot_file_read',format:'sqlite',collection,object,reason,status,
    metadataMs:ms(metadataMs),downloadMs:ms(downloadMs),processingMs:ms(processingMs),totalMs:ms(performance.now()-started),
    bytesDownloaded,rowsIndexed:records,rowsDecoded:0,timingsOverlap:false,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB});}catch{/* Observability cannot fail a read. */}
  }

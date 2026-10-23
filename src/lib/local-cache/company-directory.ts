@@ -1,3 +1,4 @@
+import {pricePlan,priceRows,refreshPriceIds,type PriceOptions} from './price-directory';
 import {syncEntityChanges,type EntitySync,type EntityChange} from './entity-sync';
 import {collections,type Collection} from '../entity-snapshots/sync';
 export const isSnapshotCollection=(name:string):name is Collection=>(collections as readonly string[]).includes(name);
@@ -12,7 +13,7 @@ type Step={method:string;args:unknown[]};
 type Source={id?:string;steps:Step[];collection:Collection};
 type Rows=EntityRows;
 type Entry={rows?:Rows;expires:number;pending?:Promise<Rows>;version:number;overrides:Rows;sync?:EntitySync};
-type Options={sync?:typeof syncEntityChanges|false;file?:(collection:Collection)=>Promise<Rows|undefined>;now?:()=>number};
+type Options={price?:PriceOptions;sync?:typeof syncEntityChanges|false;file?:(collection:Collection)=>Promise<Rows|undefined>;now?:()=>number};
 declare global {
  var __companyDirectoryV2:{entries:WeakMap<Firestore,Map<Collection,Entry>>;sources:WeakMap<object,Source>;clients:WeakMap<Firestore,{raw:Firestore;options:Options}>;live:AsyncLocalStorage<boolean>}|undefined;
 }
@@ -29,7 +30,9 @@ export function registerCompanySource(source:object,id:string|undefined,steps:St
 export function companyDirectoryVersion(db:Firestore,collection:Collection='companies'){const entry=state.entries.get(db)?.get(collection);return `${entry?.version??0}:${entry&&Date.now()>=entry.expires?'expired':'current'}`;}
 /** Read after a local committed write, never after an ordinary page request. */
 export async function refreshCompanyDirectoryIds(db:Firestore,ids:string[],collection:Collection='companies'){
- const client=state.clients.get(db),entry=state.entries.get(db)?.get(collection);if(!client||!entry||!ids.length)return;
+ const client=state.clients.get(db);if(!client||!ids.length)return;
+ if(collection==='eod_prices')return refreshPriceIds(client.raw,ids);
+ const entry=state.entries.get(db)?.get(collection);if(!entry)return;
  const docs=await withLiveCompanyReads(()=>client.raw.getAll(...[...new Set(ids)].map(id=>client.raw.collection(collection).doc(id))));
  applyChanges(entry,docs.map(doc=>({id:doc.id,data:doc.exists?doc.data()!:{isDeleted:true}})));
 
@@ -68,6 +71,7 @@ function compact(data:DocumentData):DocumentData {
  return data;
 }
 export async function companyDirectory(db:Firestore,collection:Collection='companies'):Promise<Rows>{
+ if(collection==='eod_prices')throw Error('Prices require a ticker/year query');
  const client=state.clients.get(db);if(!client)throw Error('Company directory is not enabled');
  const now=client.options.now??Date.now;
  let partition=state.entries.get(db);if(!partition){partition=new Map();state.entries.set(db,partition);}
@@ -150,7 +154,11 @@ function document(db:Firestore,id:string,data:DocumentData|undefined,collection:
 export function companySourceSnapshot(db:Firestore,source:object):Promise<unknown>|undefined {
  if(!companyDirectoryEnabled(db))return undefined;
  const spec=state.sources.get(source);if(!spec)return undefined;
- return companyDirectory(db,spec.collection).then(rows=>{
+ // Enable only after legacy price writers drain, timestamps are migrated, and a snapshot is published.
+ if(spec.collection==='eod_prices'&&process.env.PRICE_SNAPSHOT_READY!=='1')return undefined;
+ const plan=spec.collection==='eod_prices'?pricePlan(spec.id,spec.steps):undefined;
+ if(spec.collection==='eod_prices'&&!plan)return undefined;
+ return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection)).then(rows=>{
   if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data,spec.collection);}
   const filters=spec.steps.filter(s=>s.method==='where');
   let candidates:Set<string>|undefined;
