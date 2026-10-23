@@ -38,7 +38,9 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --command node --args dist/collect-intelligence-news.cjs,--apply \
   --env-vars-file "$env_file" --quiet
 ensure_maintenance_job_iam "$job"
-args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '0 * * * 1-5' --time-zone America/New_York
+# Keep hourly news SEC enrichment between the quarter-hour filing polls.
+# Preserve cadence and shared gate checks for delayed/manual executions.
+args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '7 * * * 1-5' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$job:run"
   --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
   --attempt-deadline 180s --max-retry-attempts 0 --quiet)
