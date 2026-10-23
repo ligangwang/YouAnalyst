@@ -3,7 +3,7 @@ import {enableCompanyDirectory} from '../../src/lib/local-cache/company-director
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore,Timestamp} from 'firebase-admin/firestore';
-import {pricePlan,priceRows,type PriceOptions} from '../../src/lib/local-cache/price-directory';
+import {pricePlan,priceRows,refreshPriceIds,type PriceOptions} from '../../src/lib/local-cache/price-directory';
 import {pricePartition} from '../../src/lib/entity-snapshots/price-partition';
 import type {EntityRows} from '../../src/lib/entity-snapshots/sqlite';
 import type {ChangeBatch} from '../../src/lib/local-cache/entity-sync';
@@ -52,4 +52,13 @@ test('observed website queries and getAll use only their requested partitions ac
   const docs=await db.getAll(db.collection('eod_prices').doc('US_NVDA_2026-01-01'));
   assert.equal(docs[0].get('close'),1);assert.deepEqual(f.loads,['price-snapshots/US/NVDA/2026.sqlite']);
  }
+});
+
+
+test('local writes refresh only loaded price IDs without downloading other partitions',async()=>{
+ const f=fixture(),readIds:string[]=[];
+ Object.assign(f.db,{collection:()=>({doc:(id:string)=>({id})}),getAll:async(...refs:{id:string}[])=>refs.map(ref=>{readIds.push(ref.id);return {id:ref.id,exists:true,data:()=>({close:88,updatedAt:stamp(8)})};})});
+ const plan=query('US_NVDA_','US_NVDA_2026-12-31');await priceRows(f.db,plan,f.options);
+ await refreshPriceIds(f.db,['US_NVDA_2026-01-20','US_AMD_2025-01-20']);
+ assert.deepEqual(readIds,['US_NVDA_2026-01-20']);assert.equal((await priceRows(f.db,plan,f.options)).get(readIds[0])?.close,88);assert.equal(f.loads.length,1);
 });

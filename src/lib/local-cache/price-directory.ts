@@ -22,7 +22,7 @@ export function pricePlan(id:string|undefined,steps:PriceStep[]):Plan|undefined{
  const limit=steps.find(s=>s.method==='limit')?.args[0];
  return {prefix,lower,upper,firstYear:low?.year,lastYear:high.year,descending:orders[0]?.args[1]==='desc',limit:typeof limit==='number'?limit:undefined};
 }
-type Entry={promise:Promise<EntityRows>;sync?:EntitySync;busy:number};
+type Entry={rows?:EntityRows;promise:Promise<EntityRows>;sync?:EntitySync;busy:number};
 type Store={parts:Map<string,Entry>;years:Map<string,{expires:number;promise:Promise<number[]>}>};
 declare global {var __pricePartitionsV1:WeakMap<Firestore,Store>|undefined;}
 const stores=globalThis.__pricePartitionsV1??=new WeakMap<Firestore,Store>();
@@ -61,7 +61,7 @@ async function partition(db:Firestore,store:Store,part:PricePartition,options:Pr
      result.set(change.id,change.data);
     }
    });
-   await current.sync.ready();return result;
+   await current.sync.ready();current.rows=result;return result;
   })().catch(error=>{current.sync?.close();store.parts.delete(part.object);throw error;});
   store.parts.set(part.object,current);
  }
@@ -91,4 +91,18 @@ export async function priceRows(db:Firestore,plan:Plan,options:PriceOptions={}):
   if(plan.limit!==undefined&&result.size>=plan.limit)break;
  }
  return result;
+}
+
+
+/** Refresh only already-loaded partitions after a committed local write. */
+export async function refreshPriceIds(db:Firestore,ids:string[]){
+ const store=stores.get(db);if(!store)return;
+ const selected=[...new Set(ids)].filter(id=>{const part=pricePartition(id);return part&&store.parts.get(part.object)?.rows;});
+ if(!selected.length)return;
+ const docs=await withLiveCompanyReads(()=>db.getAll(...selected.map(id=>db.collection('eod_prices').doc(id))));
+ for(const doc of docs){const part=pricePartition(doc.id)!;const rows=store.parts.get(part.object)?.rows;if(!rows)continue;
+  const data=doc.exists?doc.data()!:{isDeleted:true};const before=rows.get(doc.id)?.updatedAt,after=data.updatedAt;
+  if(before instanceof Timestamp&&after instanceof Timestamp&&(before.seconds>after.seconds||before.seconds===after.seconds&&before.nanoseconds>after.nanoseconds))continue;
+  rows.set(doc.id,data);
+ }
 }

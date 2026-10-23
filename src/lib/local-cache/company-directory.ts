@@ -1,4 +1,4 @@
-import {pricePlan,priceRows,type PriceOptions} from './price-directory';
+import {pricePlan,priceRows,refreshPriceIds,type PriceOptions} from './price-directory';
 import {syncEntityChanges,type EntitySync,type EntityChange} from './entity-sync';
 import {collections,type Collection} from '../entity-snapshots/sync';
 export const isSnapshotCollection=(name:string):name is Collection=>(collections as readonly string[]).includes(name);
@@ -30,7 +30,9 @@ export function registerCompanySource(source:object,id:string|undefined,steps:St
 export function companyDirectoryVersion(db:Firestore,collection:Collection='companies'){const entry=state.entries.get(db)?.get(collection);return `${entry?.version??0}:${entry&&Date.now()>=entry.expires?'expired':'current'}`;}
 /** Read after a local committed write, never after an ordinary page request. */
 export async function refreshCompanyDirectoryIds(db:Firestore,ids:string[],collection:Collection='companies'){
- const client=state.clients.get(db),entry=state.entries.get(db)?.get(collection);if(!client||!entry||!ids.length)return;
+ const client=state.clients.get(db);if(!client||!ids.length)return;
+ if(collection==='eod_prices')return refreshPriceIds(client.raw,ids);
+ const entry=state.entries.get(db)?.get(collection);if(!entry)return;
  const docs=await withLiveCompanyReads(()=>client.raw.getAll(...[...new Set(ids)].map(id=>client.raw.collection(collection).doc(id))));
  applyChanges(entry,docs.map(doc=>({id:doc.id,data:doc.exists?doc.data()!:{isDeleted:true}})));
 
