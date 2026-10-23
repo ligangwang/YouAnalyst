@@ -2,7 +2,8 @@ import { loadCompanyDocuments } from '../company-document-cache';
 import { loadPeerPrices } from './price-cache';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadThemeGraph } from '../company-themes/graph-service';
-import { COMPANY_THEMES } from '../company-themes/model';
+import { loadThemeCatalog } from '../company-themes/catalog';
+import { catalogThemeIds } from '../company-themes/catalog-model';
 import { marketDate } from '../predictions/instrument';
 import { buildPeerComparison, peerGroup, type PeerComparison } from './model';
 import {changeCached} from '../change-cache';
@@ -15,7 +16,7 @@ export async function loadPeerComparison(companyId:string):Promise<PeerCompariso
  // Date is an input to the comparison, not a cache-expiry timer.
  const dateKey=[marketDate('US'),marketDate('CN_A')].join(':');
  try{return await changeCached(db,`peers:${companyId}:${dateKey}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
-  for(const theme of COMPANY_THEMES){
+  for(const theme of catalogThemeIds(await loadThemeCatalog(db))){
    const graph=await loadThemeGraph(theme).catch(()=>{complete=false;return null;});if(!graph)continue;
    const group=peerGroup(companyId,graph.nodes);if(!group)continue;
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);

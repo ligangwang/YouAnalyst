@@ -1,4 +1,5 @@
 "use client";
+import { useThemeCatalog } from './use-theme-catalog';
 
 import { LoadingSpinner } from './loading-spinner';
 import { CompanyTimeline } from './company-timeline';
@@ -26,7 +27,7 @@ import { IntelligencePriceAsOf } from './intelligence-price-as-of';
 import { IntelligenceEventCompanies } from './intelligence-event-companies';
 import { IntelligenceCalendarLinks } from './intelligence-calendar-links';
 import { IntelligenceThemeSelector } from './intelligence-theme-selector';
-import { parseCompanyTheme, themeName, type CompanyThemeId } from '@/lib/company-themes/model';
+import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
 import { IntelligenceViewTabs } from './intelligence-view-tabs';
 import { useIntelligenceSnapshot } from './use-intelligence-snapshot';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
@@ -71,13 +72,14 @@ export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{in
 
 function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,changeGuestSaved,error,reconnect,loadPreviousDay,loadingOlder,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];changeGuestSaved:(id:string,follow:boolean)=>void;error:string;reconnect:()=>void;loadPreviousDay:()=>void;loadingOlder:boolean}&WorkspaceInitialState){
   const {locale,chinese}=useLocale();
+  const { themeName } = useThemeCatalog();
   const ui=useUiText();
   const {size:graphSize,setSize:setGraphSize,root:graphSizeRef} = useChartSize();
   const follows=useCompanyFollows();
   const [saveError,setSaveError]=useState('');
   const [followConfirmation,setFollowConfirmation]=useState<{label:string;followed:boolean;id:number;anchor?:FollowFeedbackAnchor}|null>(null);
   useEffect(()=>{if(!followConfirmation)return;const timer=setTimeout(()=>setFollowConfirmation(null),2200);return()=>clearTimeout(timer);},[followConfirmation]);
-  const sectors=graphSectors(theme);
+  const sectors=graphSectors(theme,snapshot.graph.nodes);
   const name=themeName(theme,chinese);
   const switching=theme!==requestedTheme;
   const requestedName=themeName(requestedTheme,chinese);
@@ -248,7 +250,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   return <main onContextMenuCapture={openStockTools} onClickCapture={event=>{if((event.target as Element).closest('[data-node-card],[data-event-window]'))return;eventTrigger.current=(event.target as Element).closest<HTMLElement>('button');const r=(event.target as Element).getBoundingClientRect();clickAnchor.current=event.detail?{x:event.clientX,y:event.clientY}:{x:r.right,y:r.bottom};}} className={`${styles.shell} ${liveStyles.regionWorkspace} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={`${styles.left} ${theme==='ai'?liveStyles.layerNavigation:''}`} aria-label="Universe navigation" data-filtered={Boolean(sector)||Boolean(region)||Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
-      <div className={styles.panelTitle}><strong><UiText text={"Explore universe"}/></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
+      <div className={styles.panelTitle}><strong><Link href="/investment-themes" title={chinese?'浏览全部主题分类':'Browse all theme families'}><UiText text={"Explore universe"}/>{' '}<span aria-hidden="true">↗</span></Link></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
       <div className={liveStyles.browseSelectors}><div><IntelligenceThemeSelector theme={requestedTheme} onChange={changeTheme} count={switching?undefined:allCompanies.length}/></div><label className={liveStyles.regionFilter} title={chinese?'地区':'Region'}><select aria-label={chinese?'地区':'Region'} disabled={switching} data-filtered={Boolean(region)} value={region} onChange={change=>{updateIndustryBrowse({region:change.target.value},true);clearSelection();setReset(value=>value+1);}}><option value="">{chinese?'全部地区':'All regions'}</option><option value="US">{chinese?'美股':'US stocks'}</option><option value="CN_A">{chinese?'中国 A 股':'China A-shares'}</option></select></label></div>
       <div className={liveStyles.themeFilters} inert={switching}>
       <div className={`${styles.sectionLabel} ${theme==='ai'?liveStyles.layerSectionLabel:''}`}>{theme==='ai'?(chinese?'AI 产业层级':'AI LAYERS'):<UiText text={"SECTORS"}/>}{' '}<button aria-label="Clear sector focus" onClick={()=>{focusSector('');}}><UiText text={"All"}/></button></div>

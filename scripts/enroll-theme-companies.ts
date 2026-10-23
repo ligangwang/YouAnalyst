@@ -5,11 +5,11 @@ import {isDeepStrictEqual} from 'node:util';
 import {readFile, mkdir, writeFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
-import {activeThemeIds, COMPANY_THEMES, type CompanyThemeId, type ThemedCompany} from '../src/lib/company-themes/model';
-import {graphSectors} from '../src/lib/knowledge-graph/sectors';
+import {activeThemeIds, type CompanyThemeId, type ThemedCompany} from '../src/lib/company-themes/model';
+import {catalogGraphSectors} from '../src/lib/company-themes/catalog-graph';
+import {catalogThemeIds,type ThemeCatalog} from '../src/lib/company-themes/catalog-model';
 import {company, encode, type Document, type Request} from './lib/firestore-rest';
-import ai from '../data/ai-supply-chain/ai-us.json';
-import cn from '../data/ai-supply-chain/ai-cn-a.json';
+import {readThemeCatalog} from './lib/theme-catalog';
 
 export type EnrollmentBatch = {theme:CompanyThemeId; reviewedAt:string; companies:{
   id:string; expectedName:string; primarySector:string; secondaryRoles?:string[]; aiStageIds?:string[];
@@ -17,8 +17,8 @@ export type EnrollmentBatch = {theme:CompanyThemeId; reviewedAt:string; companie
 }[]};
 
 /** Existing canonical profiles only; never replace an editorial decision or relationship. */
-export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch) {
-  assert(COMPANY_THEMES.includes(batch.theme),'Unknown theme');
+export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch,catalog:ThemeCatalog) {
+  assert(catalogThemeIds(catalog).includes(batch.theme),'Unknown theme');
   assert(/^\d{4}-\d{2}-\d{2}$/.test(batch.reviewedAt)&&new Date(batch.reviewedAt).toISOString().slice(0,10)===batch.reviewedAt&&batch.reviewedAt<=new Date().toISOString().slice(0,10),'Invalid review date');
   assert(batch.companies.length>0&&batch.companies.length<=100,'Invalid batch size');
   assert(new Set(batch.companies.map(row=>row.id)).size===batch.companies.length,'Duplicate identity');
@@ -26,23 +26,25 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch) {
     assert(/^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(proposal.id),'Invalid canonical identity');
     const record=records.find(row=>row.id===proposal.id);
     assert(record&&record.name===proposal.expectedName&&['PUBLISHED','DIRECTORY'].includes(String(record.status)),`${proposal.id}: missing canonical profile or identity changed`);
-    const sectors=graphSectors(batch.theme),sector=sectors.find(row=>row.id===proposal.primarySector);
+    const sectors=catalogGraphSectors(catalog,batch.theme),sector=sectors.find(row=>row.id===proposal.primarySector || row.stages.includes(proposal.primarySector));
     assert(sector,'Unknown primary sector');
-    const secondary=proposal.secondaryRoles??[];
-    assert(new Set(secondary).size===secondary.length&&!secondary.includes(proposal.primarySector)&&secondary.every(id=>sectors.some(row=>row.id===id)),'Invalid secondary sectors');
+    const normalizeRole=(id:string)=>id.startsWith(batch.theme+'.')||id.startsWith(batch.theme+':')?id.slice(batch.theme.length+1):id;
+    const primarySector=normalizeRole(proposal.primarySector);
+    const secondary=(proposal.secondaryRoles??[]).map(normalizeRole);
+    assert(new Set(secondary).size===secondary.length&&!secondary.includes(primarySector)&&secondary.every(id=>sectors.some(row=>row.id===id || row.stages.includes(id) || row.stages.includes(`${batch.theme}:${id}`))),'Invalid secondary sectors');
     assert(proposal.sources.length>0,'Reviewed sources required');
     for(const source of proposal.sources){const url=new URL(source.url);assert(url.protocol==='https:'&&!url.username&&!url.password&&source.title.trim()&&source.summary.trim(),'Invalid reviewed source');}
-    const membership={status:'PUBLISHED' as const,primarySector:proposal.primarySector,secondaryRoles:secondary,reviewedAt:batch.reviewedAt,sources:proposal.sources};
+    const membership={status:'PUBLISHED' as const,primarySector,secondaryRoles:secondary,reviewedAt:batch.reviewedAt,sources:proposal.sources};
     const memberships=structuredClone(record.themeMemberships??{});
     assert(!memberships[batch.theme]||isDeepStrictEqual(memberships[batch.theme],membership),`${proposal.id}: existing theme decision conflicts`);
     memberships[batch.theme]=membership;
     const fields:Record<string,unknown>={exchange_region:exchangeRegion(proposal.id),themeMemberships:memberships,themeIds:activeThemeIds({themeMemberships:memberships})};
     if(batch.theme==='ai'){
       // The deployed AI reader uses inGraph; write its projection and the job index atomically.
-      const stageIds=proposal.aiStageIds??[sector.stages[0]];
+      const stageIds=proposal.aiStageIds??[sector.stages.find(id=>!/[.:]/.test(id))??sector.stages[0]];
       assert(stageIds.length>0&&new Set(stageIds).size===stageIds.length&&stageIds.every(stage=>[sector,...sectors.filter(row=>secondary.includes(row.id))].some(row=>row.stages.includes(stage))),'Invalid AI stages');
       const sources=proposal.sources.map((source,index)=>({id:`theme:ai:${proposal.id}:${index}`,url:source.url,title:source.title,sourceDate:null}));
-      const stages=stageIds.map(stage=>{const node=ai.nodes.find(node=>node.kind==='STAGE'&&node.id===`stage:${stage}`);assert(node,'Missing canonical AI stage');return {...structuredClone(node),labels:{en:node.label,'zh-CN':cn.nodes.find(row=>row.id===node.id)?.label??node.label}};});
+      const stages=stageIds.map(stage=>{const node=catalog.find(node=>node.id===stage || node.id.startsWith('ai.')&&node.id.split('.').at(-1)===stage);assert(node,'Missing catalog AI stage');return {id:`stage:${stage}`,kind:'STAGE',order:node.order,label:node.names.en,labels:node.names};});
       const graph={status:'PUBLISHED',stageIds,stages,memberships:stageIds.map(stage=>({id:`theme:ai:${proposal.id}:stage:${stage}`,source:proposal.id,target:`stage:${stage}`,type:'PARTICIPATES_IN',summary:proposal.sources.map(source=>source.summary).join(' '),sourceIds:sources.map(source=>source.id),commercialStatus:'NOT_A_COMMERCIAL_RELATIONSHIP'})),sources,order:1000,asOf:batch.reviewedAt};
       const old=record.inGraph;
       assert(!old||isDeepStrictEqual({...old as object,stages},graph),`${proposal.id}: existing AI map decision conflicts`);
@@ -58,9 +60,10 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch) {
 export async function enrollCompanies({project,batch,request,write=false,backupDir='output/company-theme-backups'}:{project:string;batch:EnrollmentBatch;request:Request;write?:boolean;backupDir?:string}){
   assert(/^[a-z][a-z0-9-]+$/.test(project),'Explicit project required');
   const root=`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+  const catalog=await readThemeCatalog(root,request);
   const docs=await Promise.all(batch.companies.map(row=>request(`${root}/companies/${encodeURIComponent(row.id)}`) as Promise<Document|null>));
   assert(docs.every(Boolean),'All companies must exist in the canonical directory');
-  const originals=docs as Document[],patches=planEnrollment(originals.map(company),batch);
+  const originals=docs as Document[],patches=planEnrollment(originals.map(company),batch,catalog);
   await mkdir(backupDir,{recursive:true});
   const backup=`${backupDir}/enrollment-${new Date().toISOString().replace(/[:.]/g,'-')}-${randomUUID()}.json`;
   await writeFile(backup,JSON.stringify({project,batch,originals,patches},null,2),{flag:'wx'});
@@ -68,7 +71,7 @@ export async function enrollCompanies({project,batch,request,write=false,backupD
     await request(`${root}:commit`,'POST',{writes:patches.map(patch=>{const old=originals.find(doc=>company(doc).id===patch.id)!;return {update:{name:old.name,fields:Object.fromEntries(Object.entries(patch.fields).map(([key,value])=>[key,encode(value)]))},updateMask:{fieldPaths:Object.keys(patch.fields)},currentDocument:{updateTime:old.updateTime}};})});
     const after=await Promise.all(originals.map(doc=>request(`https://firestore.googleapis.com/v1/${doc.name}`) as Promise<Document>));
     for(let i=0;i<originals.length;i++)for(const [key,value] of Object.entries(originals[i].fields))if(!Object.hasOwn(patches.find(patch=>patch.id===company(originals[i]).id)?.fields??{},key))assert.deepEqual(after[i].fields[key],value,`${company(originals[i]).id}: unrelated field changed`);
-    assert.equal(planEnrollment(after.map(company),batch).length,0,'Enrollment must be idempotent');
+    assert.equal(planEnrollment(after.map(company),batch,catalog).length,0,'Enrollment must be idempotent');
   }
   return {mode:write?'written':'preview',theme:batch.theme,companies:batch.companies.map(row=>row.id),changed:patches.length,backup};
 }

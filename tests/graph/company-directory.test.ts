@@ -1,3 +1,4 @@
+import {withThemeCatalog} from '../helpers/theme-catalog';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore,FieldPath} from 'firebase-admin/firestore';
@@ -8,7 +9,7 @@ import {localDocuments} from '../../src/lib/local-cache/entities';
 import {loadSitemapPaths} from '../../src/lib/local-cache/sitemaps';
 
 function fixture(file:()=>Promise<Map<string,Record<string,unknown>>|undefined>,now=()=>0){
- const sdk=new Firestore({projectId:'test-company-directory'});
+ const sdk=withThemeCatalog(new Firestore({projectId:'test-company-directory'}));
  const db=observeFirestore(sdk,()=>{});
  let reads=0;
  const raw={collection:()=>{reads++;throw Error('unexpected Firestore fallback');}} as unknown as Firestore;

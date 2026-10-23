@@ -29,7 +29,7 @@ export function HierarchyBrowser({ kind, nodes, selectedId, companies = [], comp
     <header className={styles.header}>
       <p className={styles.eyebrow}><span>YouAnalyst</span> / {text('Discover', '探索')}</p>
       <h1>{title}</h1>
-      <p>{kind === 'industries' ? text('Explore SIC and CNI classifications by name or code.', '按名称或代码浏览 SIC 和 CNI 行业分类。') : text('Explore AI, Robotics and Space, from the big picture to the businesses behind them.', '探索人工智能、机器人与航天，从整体主题深入各个产业环节。')}</p>
+      <p>{kind === 'industries' ? text('Explore SIC and CNI classifications by name or code.', '按名称或代码浏览 SIC 和 CNI 行业分类。') : text('Explore investment themes, from long-term structural changes to the businesses behind them.', '探索投资主题，从长期结构性变化深入各个产业环节。')}</p>
     </header>
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
@@ -71,7 +71,7 @@ export function HierarchyBrowser({ kind, nodes, selectedId, companies = [], comp
           <p>{text('Includes companies assigned to this category or its descendants. Coverage is limited to our supported investment themes.', '包含归属于此分类或其下级分类的公司，覆盖范围限于我们支持的投资主题。')}</p>
           {companiesUnavailable ? <p role="status">{text('Company listings are temporarily unavailable.', '公司列表暂时无法加载。')}</p> : matches.length ? <ul>{matches.map(company => <li key={company.id}><Link href={company.href}>{company.name} <span aria-hidden="true">↗</span></Link></li>)}</ul> : <p>{text('No tracked companies are currently assigned here.', '当前没有已跟踪的公司归属于此分类。')}</p>}
         </section>}
-        {selected && kind === 'investment-themes' && ['ai', 'robotics', 'space'].includes(path[0]?.id) && <Link className={styles.explore} href={`/?theme=${path[0].id}`}>{text('Explore companies in this theme', '查看此主题的公司')} →</Link>}
+        {selected && kind === 'investment-themes' && Boolean(path[1]) && <Link className={styles.explore} href={`/?theme=${path[1].id}`}>{text('Explore companies in this theme', '查看此主题的公司')} →</Link>}
         {kind === 'industries' && <p className={styles.note}>{text('SIC covers the SEC issuer codes in our catalog. CNI covers categories present in our company directory. These catalogs are not exhaustive copies of every industry standard.', 'SIC 目录覆盖我们收录的 SEC 发行人代码，CNI 目录覆盖公司名录中已有的分类，并非完整收录所有行业标准。')}</p>}
       </section>
     </div>

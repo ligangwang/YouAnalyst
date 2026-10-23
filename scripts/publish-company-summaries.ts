@@ -4,14 +4,18 @@ import {pathToFileURL} from 'node:url';
 import {initializeApp,applicationDefault} from 'firebase-admin/app';
 import {getFirestore,type Firestore} from '../src/lib/firebase/firestore';
 import {company,encode,type Document,type Request} from './lib/firestore-rest';
-export type SummaryBatch={asOf:string;summaries:{id:string;theme:'ai'|'robotics'|'space';source:string;text:string}[]};
+import {loadThemeCatalog} from '../src/lib/company-themes/catalog';
+import {catalogThemeIds} from '../src/lib/company-themes/catalog-model';
+import {readThemeCatalog} from './lib/theme-catalog';
+export type SummaryBatch={asOf:string;summaries:{id:string;theme:string;source:string;text:string}[]};
 export async function publishSummaries(db:Firestore,batch:SummaryBatch,write=false){
   assert(/^\d{4}-\d{2}-\d{2}$/.test(batch.asOf)&&batch.asOf<=new Date().toISOString().slice(0,10),'Invalid date');
   assert(batch.summaries.length>0&&batch.summaries.length<=500,'Invalid batch size');
   assert(new Set(batch.summaries.map(s=>`${s.id}:${s.theme}`)).size===batch.summaries.length,'Duplicate summary');
+  const themes=catalogThemeIds(await loadThemeCatalog(db));
   for(const s of batch.summaries){
     assert(/^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9.-]+)$/.test(s.id),'Invalid company');
-    assert(['ai','robotics','space'].includes(s.theme)&&typeof s.source==='string'&&s.source.trim()&&typeof s.text==='string'&&s.text.trim()&&s.text.length<=3000&&/[\u4e00-\u9fff]/.test(s.text),'Invalid translation');
+    assert(themes.includes(s.theme)&&typeof s.source==='string'&&s.source.trim()&&typeof s.text==='string'&&s.text.trim()&&s.text.length<=3000&&/[\u4e00-\u9fff]/.test(s.text),'Invalid translation');
   }
   return db.runTransaction(async tx=>{
     const ids=[...new Set(batch.summaries.map(s=>s.id))];
@@ -41,7 +45,10 @@ export async function publishSummariesRest(project:string,batch:SummaryBatch,req
   const root='https://firestore.googleapis.com/v1/projects/'+project+'/databases/(default)/documents';
   const documents=new Map<string,Document>();
   const writes:unknown[]=[];
-  const adapter={collection:(name:string)=>{assert.equal(name,'companies');return {doc:(id:string)=>({id})};},runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>{
+  const nodes=await readThemeCatalog(root,request);
+  const adapter={collection:(name:string)=>{
+    if(name==='investment_themes'){const q={where:()=>q,select:()=>q,limit:()=>q,get:async()=>({docs:nodes.map(node=>({id:node.id,data:()=>node}))})};return q;}
+    assert.equal(name,'companies');return {doc:(id:string)=>({id})};},runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>{
     const result=await fn({getAll:async(...refs:{id:string}[])=>{
       const rows=await request(root+':batchGet','POST',{documents:refs.map(ref=>root.replace('https://firestore.googleapis.com/v1/','')+'/companies/'+ref.id)}) as {found?:Document}[];
       for(const row of rows)if(row.found)documents.set(row.found.name.split('/').at(-1)!,row.found);

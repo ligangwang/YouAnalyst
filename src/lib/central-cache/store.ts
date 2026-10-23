@@ -12,7 +12,7 @@ export interface Source {
 }
 export type RelationshipQuery = {status?:string;theme?:string;companyIds?:string[];exactIds?:string[];prefix?:string;limit?:number};
 type State = {rows:Map<string,Row>; checkpoint:Stamp};
-const enrolled = (row:Row) => Array.isArray(row.data.themeIds) && row.data.themeIds.some(t=>['ai','robotics','space'].includes(String(t)));
+const enrolled = (row:Row) => Array.isArray(row.data.themeIds) && row.data.themeIds.some(t=>typeof t==='string' && /^[a-z][a-z0-9-]{0,79}$/.test(t));
 export class CentralCache {
   private states = new Map<Collection,State>();
   private queue:Promise<unknown> = Promise.resolve();

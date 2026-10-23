@@ -8,8 +8,8 @@ import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot
 
 export const dynamic = 'force-dynamic';
 export async function generateMetadata(): Promise<Metadata> {
-  return localizedMetadata({title:'Earnings Calendar: AI, Robotics & Space Stocks | YouAnalyst',
-    description:'Company-announced earnings releases and calls for AI, Robotics and Space companies. Confirmed dates, time zones and original sources.',alternates:{canonical:'/calendar'}});
+  return localizedMetadata({title:'Earnings Calendar: Investment Themes | YouAnalyst',
+    description:'Company-announced earnings releases and calls across investment themes. Confirmed dates, time zones and original sources.',alternates:{canonical:'/calendar'}});
 }
 export default async function CalendarPage({searchParams}:{searchParams:Promise<{date?:string|string[];company?:string|string[];event?:string|string[]}>}) {
   const params=await searchParams;

@@ -1,3 +1,4 @@
+import {withThemeCatalog} from '../helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
 export function memoryFirestore(seed: [string, Record<string, unknown>][] = []) {
@@ -10,7 +11,7 @@ export function memoryFirestore(seed: [string, Record<string, unknown>][] = []) 
       return { docs, size: docs.length };
     } };
   }
-  const db = { collection: (name: string) => query(name), getAll: async (...refs: ReturnType<typeof ref>[]) => refs.map(snapshot), runTransaction: async <T>(work: (tx: unknown) => Promise<T>) => {
+  const db = withThemeCatalog({ collection: (name: string) => query(name), getAll: async (...refs: ReturnType<typeof ref>[]) => refs.map(snapshot), runTransaction: async <T>(work: (tx: unknown) => Promise<T>) => {
     const next = chain.then(async () => {
       const pending: { ref: ReturnType<typeof ref>; data: Record<string, unknown>; merge: boolean; create?: boolean }[] = [];
       let writes = false;
@@ -18,6 +19,6 @@ export function memoryFirestore(seed: [string, Record<string, unknown>][] = []) 
       for (const p of pending) { if (p.create) assert(!state.has(p.ref.path)); state.set(p.ref.path, structuredClone(p.merge ? { ...state.get(p.ref.path), ...p.data } : p.data)); }
       return result;
     }); chain = next.then(() => undefined, () => undefined); return next;
-  } } as unknown as Firestore;
+  } } as unknown as Firestore);
   return { db, state };
 }

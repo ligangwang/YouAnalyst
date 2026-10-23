@@ -1,15 +1,44 @@
+import catalogSeed from '../data/investment-themes/catalog-v1.json';
+import type {ThemeCatalog} from '../src/lib/company-themes/catalog-model';
+const catalog=catalogSeed.nodes as ThemeCatalog;
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {planEnrollment, enrollCompanies, type EnrollmentBatch} from '../scripts/enroll-theme-companies';
+import {planEnrollment as plan, enrollCompanies, type EnrollmentBatch} from '../scripts/enroll-theme-companies';
 import {encode, company, type Document} from '../scripts/lib/firestore-rest';
 import healthcare from '../data/ai-supply-chain/healthcare-enrollment.json';
 import ai from '../data/ai-supply-chain/ai-us.json';
 import cn from '../data/ai-supply-chain/ai-cn-a.json';
-import {publishNewsSources} from '../scripts/publish-news-sources';
+import {publishNewsSources as publishSources} from '../scripts/publish-news-sources';
 import type {CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
+import { themedGraph } from '../src/lib/company-themes/presentation';
+import { companyThemeNodeIds } from '../src/lib/hierarchy/company-memberships';
+import { applyThemeCatalog } from '../src/lib/company-themes/catalog-graph';
+import { companySector } from '../src/lib/knowledge-graph/sectors';
+import type { ThemedCompany } from '../src/lib/company-themes/model';
+const publishNewsSources=(input:Parameters<typeof publishSources>[0])=>publishSources({...input,request:(url,method,data)=>{
+  if((data as {structuredQuery?:{from?:{collectionId:string}[]}})?.structuredQuery?.from?.[0]?.collectionId==='investment_themes')return Promise.resolve(catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}})));
+  return input.request(url,method,data);
+}});
 
+const planEnrollment=(records:Parameters<typeof plan>[0],batch:EnrollmentBatch)=>plan(records,batch,catalog);
 const batch=healthcare as EnrollmentBatch;
 const profiles=batch.companies.map(row=>({id:row.id,name:row.expectedName,status:'DIRECTORY',market:'US',exchange:'NASDAQ',symbol:row.id.slice(3),profile:{financialReport:{url:'https://www.sec.gov/example'}}}));
+
+test('canonical catalog role IDs enroll consistently into graphs and hierarchy browsing',()=>{
+  const nodes=[...catalog,{id:'custom-motion',parentId:'robotics',names:{en:'Motion','zh-CN':'运动控制'},order:20}];
+  for(const role of ['robotics.compute-control','robotics:compute-control','custom-motion']){
+    const proposal={...batch.companies[0],primarySector:role,secondaryRoles:['robotics.software-simulation']};
+    const input={...batch,theme:'robotics',companies:[proposal]};
+    const [patch]=plan(profiles,input,nodes);
+    const updated={...profiles[0],...patch.fields} as ThemedCompany;
+    const graph=applyThemeCatalog(themedGraph('robotics',[updated],[],nodes),'robotics',nodes);
+    assert.equal(companySector(graph.nodes.find(node=>node.kind==='COMPANY')!).id,role==='custom-motion'?role:'compute-control');
+    assert.ok(companyThemeNodeIds(updated,nodes).includes(role.replace(':','.')));
+    assert.ok(companyThemeNodeIds(updated,nodes).includes('robotics.software-simulation'));
+    assert.equal(plan([updated],input,nodes).length,0);
+    assert.throws(()=>plan(profiles,{...input,companies:[{...proposal,secondaryRoles:['compute-control','robotics.compute-control']}]},nodes),/Invalid secondary sectors/);
+  }
+});
 
 test('AI enrollment is data-only, preserves other themes and reaches the deployed graph reader',()=>{
   const old={...profiles[0],themeMemberships:{space:{status:'PUBLISHED' as const,primarySector:'operators',reviewedAt:'2026-10-04'}},themeIds:['space']};
@@ -31,16 +60,27 @@ test('enrollment rejects identity drift, editorial conflicts, unsafe sources and
 });
 
 test('adding equipment companies retains canonical stage names and order',()=>{
-  const proposal={...batch.companies[0],primarySector:'semiconductors',aiStageIds:['equipment']};
+  const proposal={...batch.companies[0],primarySector:'chips',aiStageIds:['equipment']};
   const [patch]=planEnrollment(profiles,{...batch,companies:[proposal]});
   const canonical=ai.nodes.find(row=>row.id==='stage:equipment')!;
-  assert.deepEqual((patch.fields.inGraph as {stages:unknown[]}).stages,[{...canonical,labels:{en:canonical.label,'zh-CN':cn.nodes.find(row=>row.id===canonical.id)!.label}}]);
+  assert.deepEqual((patch.fields.inGraph as {stages:{id:string;label:string;labels:unknown}[]}).stages.map(({id,label,labels})=>({id,label,labels})),[{id:canonical.id,label:canonical.label,labels:{en:canonical.label,'zh-CN':cn.nodes.find(row=>row.id===canonical.id)!.label}}]);
 });
 
 test('source publication rejects IDs owned outside its batch before any write',async()=>{
   const feed:CompanyNewsSource={id:'existing-ir',companyId:'US:TEM',name:'IR',url:'https://investors.tempus.com/rss.xml',allowedHosts:['investors.tempus.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
   const outside:Document={name:'projects/example/databases/(default)/documents/companies/US:OTHER',updateTime:'2026-10-06T00:00:00Z',fields:{newsSources:encode([{...feed,companyId:'US:OTHER'}])}};
   await assert.rejects(publishNewsSources({project:'example',sources:[feed],request:async(url)=>{if(url.endsWith('/collectors/news-source-registry'))return null;assert(url.endsWith(':runQuery'));return [{document:outside}];}}),/belongs to another company/);
+});
+
+test('news-source ownership checks include themes outside the legacy three',async()=>{
+  const source:CompanyNewsSource={id:'new-ir',companyId:'US:TEM',name:'IR',url:'https://investors.tempus.com/rss.xml',allowedHosts:['investors.tempus.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+  await assert.rejects(publishSources({project:'example',sources:[source],request:async(url,_method,data)=>{
+    if(url.endsWith('/collectors/news-source-registry'))return null;
+    const query=(data as {structuredQuery:{from:{collectionId:string}[];where:{fieldFilter:{value:{arrayValue:{values:{stringValue:string}[]}}}}}}).structuredQuery;
+    if(query.from[0].collectionId==='investment_themes')return catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));
+    assert.ok(query.where.fieldFilter.value.arrayValue.values.some(value=>value.stringValue==='biotechnology'));
+    return [{document:{name:'projects/example/databases/(default)/documents/companies/US:OTHER',updateTime:'2026-10-06T00:00:00Z',fields:{newsSources:encode([{...source,companyId:'US:OTHER'}])}}}];
+  }}),/belongs to another company/);
 });
 
 test('source ownership and company changes share one fenced commit',async()=>{
@@ -66,8 +106,9 @@ test('preview does not commit and a write uses exact update-time preconditions',
   const backupDir=await mkdtemp(`${tmpdir()}/theme-enrollment-`);
   let commits=0;
   try{
-    await enrollCompanies({project:'example',batch,backupDir,request:async(url,method)=>{assert.equal(method,undefined);return docs.find(doc=>url.endsWith(encodeURIComponent(company(doc).id)))!;}});
+    await enrollCompanies({project:'example',batch,backupDir,request:async(url,method)=>{if(url.endsWith(':runQuery'))return catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));assert.equal(method,undefined);return docs.find(doc=>url.endsWith(encodeURIComponent(company(doc).id)))!;}});
     await enrollCompanies({project:'example',batch,backupDir,write:true,request:async(url,method,data)=>{
+      if(url.endsWith(':runQuery'))return catalogSeed.nodes.map(node=>({document:{name:'investment_themes/'+node.id,fields:Object.fromEntries(Object.entries(node).map(([key,value])=>[key,encode(value)]))}}));
       if(method==='POST'){
         commits++;
         const {writes}=data as {writes:{update:{name:string;fields:Document['fields']};currentDocument:{updateTime:string}}[]};

@@ -263,7 +263,7 @@ export function AdminDashboardPage() {
 
         <Link href="/admin/relationships" className="rounded-2xl border border-cyan-400/25 bg-slate-950/60 p-6">
           <h2 className="text-2xl font-semibold">{text("Relationship review", "公司关系审核")}</h2>
-          <p className="mt-3 text-slate-300">{text("Inspect extraction evidence, approve or reject candidates, and publish to AI, Robotics and Space.", "检查提取证据，批准或拒绝候选关系，并发布到 AI、机器人和航天主题。")}</p>
+          <p className="mt-3 text-slate-300">{text("Inspect extraction evidence, approve or reject candidates, and publish to investment themes.", "检查提取证据，批准或拒绝候选关系，并发布到投资主题。")}</p>
         </Link>
         <Link
           href="/admin/company-identities"

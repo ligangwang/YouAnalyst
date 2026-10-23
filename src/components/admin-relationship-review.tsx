@@ -1,10 +1,11 @@
 'use client';
+import { useThemeCatalog } from './use-theme-catalog';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/providers/auth-provider';
 import { useLocale } from './providers/locale-provider';
-import { COMPANY_THEMES, themeName, type CompanyThemeId } from '@/lib/company-themes/model';
+import { type CompanyThemeId } from '@/lib/company-themes/model';
 import { REVIEW_TYPES, reviewVerbs, type PublicationInput, type ReviewCandidate, type ReviewCompany, type ReviewDecision, type ReviewDetail, type ReviewPreview, type ReviewState, type ReviewStatus, type ReviewType } from '@/lib/relationship-review/model';
 import type { IdentityCandidate } from '@/lib/market-companies/name-resolution';
 import styles from './admin-relationship-review.module.css';
@@ -47,6 +48,7 @@ function CompanyPicker({ label, observedName, value, busy, api, onChange }: {
 
 function ReviewEditor({ detail, api, onSaved }: { detail: ReviewDetail; api: Api; onSaved: (decision: ReviewDecision) => void }) {
   const { text, locale } = useLocale(), c = detail.candidate;
+  const {themes:availableThemes,themeName}=useThemeCatalog();
   const reverse = c.direction === 'target_to_source';
   const [source, setSource] = useState<ReviewCompany | null>(detail.companies.find(v => v.id === (reverse ? c.targetId : c.sourceId)) ?? null);
   const [target, setTarget] = useState<ReviewCompany | null>(detail.companies.find(v => v.id === (reverse ? c.sourceId : c.targetId)) ?? null);
@@ -101,7 +103,7 @@ function ReviewEditor({ detail, api, onSaved }: { detail: ReviewDetail; api: Api
         <label>{text('Supported claim', '证据支持的表述')}<textarea value={summary} maxLength={1200} rows={3} onChange={e => { setSummary(e.target.value); changed(); }} /></label>
         <label>{text('Scope and limitations', '范围与限制')}<textarea value={limitation} maxLength={1200} rows={2} placeholder={text('Product, geography, timing, or what the source does not establish.', '产品、地区、时间，或来源未能证实的内容。')} onChange={e => { setLimitation(e.target.value); changed(); }} /></label>
         <fieldset className={styles.themes}><legend>{text('Publish to themes', '发布到主题')}</legend><p>{text('Both companies must already belong to a selected theme. Existing relationship themes are retained.', '两家公司都须已加入所选主题。关系已有的主题归属将保留。')}</p>
-          {COMPANY_THEMES.map(t => { const eligible = Boolean(source?.themes.includes(t) && target?.themes.includes(t)); return <label key={t} className={styles.check}><input type="checkbox" checked={themes.includes(t)} disabled={!eligible || busy} onChange={e => { setThemes(e.target.checked ? [...themes, t] : themes.filter(v => v !== t)); changed(); }} />{themeName(t, chinese)}{!eligible && <small>{text('Membership needed', '需要主题成员资格')}</small>}</label>; })}
+          {availableThemes.map(t => { const eligible = Boolean(source?.themes.includes(t) && target?.themes.includes(t)); return <label key={t} className={styles.check}><input type="checkbox" checked={themes.includes(t)} disabled={!eligible || busy} onChange={e => { setThemes(e.target.checked ? [...themes, t] : themes.filter(v => v !== t)); changed(); }} />{themeName(t, chinese)}{!eligible && <small>{text('Membership needed', '需要主题成员资格')}</small>}</label>; })}
         </fieldset>
         <label>{text('Review note / rejection reason', '审核备注 / 拒绝原因')}<textarea value={note} maxLength={1200} rows={2} onChange={e => { setNote(e.target.value); changed(); }} /></label>
         <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={e => { setConfirmed(e.target.checked); changed(); }} />{text('I checked the source, company identities, direction, scope and evidence state.', '我已核对来源、公司身份、方向、范围与证据状态。')}</label>

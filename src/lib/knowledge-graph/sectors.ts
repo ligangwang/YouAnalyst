@@ -11,7 +11,7 @@ export const GRAPH_SECTORS = [
   { id: "platforms", color: "#ff9eae", en: "Cloud & platforms", zh: "云与平台", stages: ["cloud"] },
   { id: "applications", color: "#e3a2ef", en: "AI applications", zh: "AI 应用", stages: ["applications"] },
 ];
-export type GraphSector = typeof GRAPH_SECTORS[number];
+export type GraphSector = {order?:number;id:string;color:string;en:string;zh:string;stages:string[]; branches?:{order?:number;id:string;en:string;zh:string;stages:string[]}[]};
 export const ROBOTICS_GRAPH_SECTORS: GraphSector[] = [
   {id:'compute-control',en:'Compute & control',zh:'算力与控制',color:'#65d9ff',stages:['robotics:compute-control']},
   {id:'sensors-vision',en:'Sensors & vision',zh:'传感与视觉',color:'#67e6bc',stages:['robotics:sensors-vision']},
@@ -31,15 +31,24 @@ export const SPACE_GRAPH_SECTORS: GraphSector[] = [
   {id:'applications',en:'Data & applications',zh:'数据与应用',color:'#e3a2ef',stages:['space:applications']},
   {id:'orbital-services',en:'Space infrastructure & services',zh:'空间基础设施与服务',color:'#f4eb87',stages:['space:orbital-services']},
 ];
-export const graphSectors = (theme: string = 'ai') => theme === 'space' ? SPACE_GRAPH_SECTORS : theme === 'robotics' ? ROBOTICS_GRAPH_SECTORS : GRAPH_SECTORS;
-export const graphTheme = (companies: Pick<GraphNode,'stageIds'>[]) => companies.some(company=>company.stageIds?.some(stage=>stage.startsWith('space:'))) ? 'space' : companies.some(company=>company.stageIds?.some(stage=>stage.startsWith('robotics:'))) ? 'robotics' : 'ai';
+export function graphSectors(theme: string = 'ai', companies: Pick<GraphNode,'themeSectors'>[] = []):GraphSector[]{
+  if(!companies.some(node=>node.themeSectors))return theme==='space'?SPACE_GRAPH_SECTORS:theme==='robotics'?ROBOTICS_GRAPH_SECTORS:theme==='ai'?GRAPH_SECTORS:[];
+  const sectors=new Map<string,GraphSector>();
+  for(const company of companies)for(const sector of company.themeSectors??[]){
+    const old=sectors.get(sector.id),branches=new Map((old?.branches??[]).map(branch=>[branch.id,branch]));
+    for(const branch of sector.branches??[]){const before=branches.get(branch.id);branches.set(branch.id,{...branch,stages:[...new Set([...(before?.stages??[]),...branch.stages])]});}
+    sectors.set(sector.id,{...sector,stages:[...new Set([...(old?.stages??[]),...sector.stages])],branches:[...branches.values()].sort((a,b)=>(a.order??0)-(b.order??0))});
+  }
+  return [...sectors.values()].sort((a,b)=>(a.order??0)-(b.order??0));
+}
+export const graphTheme = (companies: Pick<GraphNode,'stageIds'|'themeId'>[]) => companies.find(company=>company.themeId)?.themeId ?? (companies.some(company=>company.stageIds?.some(stage=>stage.startsWith('space:'))) ? 'space' : companies.some(company=>company.stageIds?.some(stage=>stage.startsWith('robotics:'))) ? 'robotics' : 'ai');
 export const OTHER_SECTOR = { id: "other", color: "#b6c3d2", en: "Other / unclassified", zh: "其他／待分类", stages: [] };
-export function companySector(company: Pick<GraphNode, "stageIds">) {
-  return [...GRAPH_SECTORS, ...ROBOTICS_GRAPH_SECTORS, ...SPACE_GRAPH_SECTORS].find(sector => sector.stages.includes(company.stageIds?.[0] ?? "")) ?? OTHER_SECTOR;
+export function companySector(company: Pick<GraphNode, "stageIds"|"themeSectors">) {
+  return (company.themeSectors ?? [...GRAPH_SECTORS, ...ROBOTICS_GRAPH_SECTORS, ...SPACE_GRAPH_SECTORS]).find(sector => sector.stages.includes(company.stageIds?.[0] ?? "")) ?? OTHER_SECTOR;
 }
 /** AI keeps its established primary-sector counts; Robotics exposes reviewed secondary roles. */
-export function matchesCompanySector(company: Pick<GraphNode, 'stageIds'>, id: string) {
-  return graphTheme([company]) !== 'ai'
-    ? graphSectors(graphTheme([company])).some(sector => sector.id === id && sector.stages.some(stage => company.stageIds?.includes(stage)))
+export function matchesCompanySector(company: Pick<GraphNode, 'stageIds'|'themeSectors'|'themeId'>, id: string) {
+  return company.themeSectors || graphTheme([company]) !== 'ai'
+    ? graphSectors(graphTheme([company]),[company]).some(sector => sector.id === id && sector.stages.some(stage => company.stageIds?.includes(stage)))
     : companySector(company).id === id;
 }

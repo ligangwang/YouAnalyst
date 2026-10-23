@@ -1,3 +1,4 @@
+import {withThemeCatalog} from '../helpers/theme-catalog';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -98,7 +99,7 @@ function fixture() {
       },
     };
   }
-  const db = { collection: (name: string) => query(name), runTransaction: <T>(fn: (tx: unknown) => Promise<T>, opts?: { readOnly?: boolean }) => {
+  const db = withThemeCatalog({ collection: (name: string) => query(name), runTransaction: <T>(fn: (tx: unknown) => Promise<T>, opts?: { readOnly?: boolean }) => {
     const work = queue.then(async () => {
       const pending: { r: ReturnType<typeof ref>; data: Row; merge?: boolean; create?: boolean }[] = [];
       const stage = (r: ReturnType<typeof ref>, data: Row, merge = false, create = false) => { assert(!opts?.readOnly); pending.push({ r, data: structuredClone(data), merge, create }); };
@@ -115,7 +116,7 @@ function fixture() {
       return result;
     });
     queue = work.then(() => undefined, () => undefined); return work;
-  } } as unknown as Firestore;
+  } } as unknown as Firestore);
   return { state, db, writes: () => writes, failCommit: () => { failCommit = true; } };
 }
 async function input(f: ReturnType<typeof fixture>, candidateId = id): Promise<PublicationInput> {

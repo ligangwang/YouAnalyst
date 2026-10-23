@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { validatePost } from "@/lib/posts/model";
 import { listPosts, publishPost } from "@/lib/posts/service";
-import { mergeCoverageGraphs, parseViewEvidence, resolveViewEvidence } from "@/lib/posts/evidence";
-import { loadThemeGraph } from "@/lib/company-themes/graph-service";
+import { parseViewEvidence, resolveViewEvidence } from "@/lib/posts/evidence";
+import { loadThemeCoverage } from "@/lib/company-themes/coverage";
 import { predictionInstrument } from "@/lib/predictions/instrument";
-import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 
 export async function GET(request: NextRequest) {
   const user = await getDecodedUserFromRequest(request);
@@ -27,11 +26,7 @@ export async function POST(request: NextRequest) {
     const refs = parseViewEvidence(raw?.evidence);
     // Views stay inside the theme maps' coverage, and directional views must cite their research.
     let graph;
-    try { graph = mergeCoverageGraphs(await Promise.all([
-      loadKnowledgeGraph().then(graph => ({ theme: "ai" as const, graph })),
-      loadThemeGraph("robotics").then(graph => ({ theme: "robotics" as const, graph })),
-      loadThemeGraph("space").then(graph => ({ theme: "space" as const, graph })),
-    ])); }
+    try { graph = await loadThemeCoverage(); }
     catch { throw new Error("Company coverage could not be checked. Try again shortly."); }
     const evidence = resolveViewEvidence(refs, predictionInstrument(input.ticker)!.companyId, graph, Boolean(input.direction));
     return NextResponse.json(await publishPost({ ...input, evidence }, { uid: user.uid, displayName: user.name, photoURL: user.picture }), { status: 201 });

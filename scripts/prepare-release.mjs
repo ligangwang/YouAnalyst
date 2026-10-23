@@ -43,7 +43,9 @@ finally { sqliteProbe.close(); }
 // A read-only fixture exists only in the temporary test copy, never the artifact.
 // Exercise the compiled page: Next may encode page params differently from metadata.
 const fixture = `${isolated}/company-fixture.cjs`;
+const themeNodes = JSON.parse(await readFile('data/investment-themes/catalog-v1.json', 'utf8')).nodes;
 await writeFile(fixture, `
+const themeNodes = ${JSON.stringify(themeNodes)};
 const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息', slug: 'hygon-information',
   stage: '算力芯片', description: 'Fixture company overview',
   source: 'https://example.com/report', sourceLabel: 'Fixture report' };
@@ -54,6 +56,10 @@ const companies={
 };
 const doc=id=>({id,exists:Boolean(companies[id]),data:()=>companies[id]});
 globalThis.__adminApp = { firestore: () => ({ collection: name => {
+  if (name === 'investment_themes') {
+    const query = { where:()=>query, select:()=>query, limit:()=>query, get:async()=>({docs:themeNodes.map(node=>({id:node.id,data:()=>node}))}) };
+    return query;
+  }
   if (name !== 'companies') throw new Error('Unexpected fixture collection');
   return {doc:id=>({get:async()=>doc(id)}),where:(field,op,value)=>({limit:()=>({get:async()=>({docs:Object.keys(companies).filter(id=>op==='array-contains'?(companies[id][field]||[]).includes(value):companies[id][field]===value).map(doc)})})})};
 } }) };
@@ -85,6 +91,11 @@ try {
   assert.ok((await assetResponse.text()).length > 0);
   const privateResponse = await fetch(`${base}/api/watchlists/default`, { method: "POST" });
   assert.equal(privateResponse.status, 401, "Private API must still require authentication");
+  const catalogResponse = await fetch(`${base}/api/investment-themes`);
+  assert.equal(catalogResponse.status, 200, 'Standalone must serve the Firestore theme catalog');
+  const catalog = await catalogResponse.json();
+  assert.equal(catalog.nodes.filter(node=>node.parentId===null).length, 4);
+  assert.ok(['ai','robotics','space'].every(id=>catalog.nodes.some(node=>node.id===id)));
   for (const symbol of ["XSHG:688041", "XSHG%3A688041", "688041"]) {
     // Node fetch does not retain the language cookie across the numeric redirect.
     const response = await fetch(`${base}/ticker/${symbol}?lang=zh-CN`, {

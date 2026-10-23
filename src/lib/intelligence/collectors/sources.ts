@@ -39,7 +39,7 @@ export function validateCompanyNewsSource(value:unknown,companyId:string):Compan
 
 export function approvedCompanyNewsSources(records:ThemedCompany[]):NewsSource[]{
   const sources:NewsSource[]=[],ids=new Set<string>();
-  for(const company of records.filter(isCollectionCompany)){
+  for(const company of records.filter(record=>isCollectionCompany(record))){
     if(company.newsSources===undefined)continue;
     assert(Array.isArray(company.newsSources),`${company.id}: invalid newsSources`);
     for(const raw of company.newsSources){

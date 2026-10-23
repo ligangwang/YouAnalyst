@@ -1,3 +1,4 @@
+import {withThemeCatalog} from './helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
@@ -21,14 +22,14 @@ test('collector company scope keeps names and theme enrollment without reading g
   {id:'US:WITHDRAWN',name:'Withdrawn',themeMemberships:{ai:{status:'WITHDRAWN'}}},
  ];
  let reads=0;
- const db={collection:(name:string)=>{
+ const db=withThemeCatalog({collection:(name:string)=>{
   assert.equal(name,'companies','collector scope must not read relationships or fundamentals');
   return {where:(field:string,op:string,values:string[])=>{
    assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');
    assert.deepEqual(values,['ai','robotics','space']);
    return {get:async()=>{reads++;return {docs:records.map(row=>({id:row.id,data:()=>({...row,status:'DIRECTORY'})}))};}};
   }};
- }} as unknown as Firestore;
+ }} as unknown as Firestore);
  const scope=await loadCollectionCompanyScope(db);
  assert.equal(reads,1);
  assert.deepEqual(scope.nodes.map(n=>n.id),['US:AAA','XSHE:000063','ORG:PRIVATE']);
@@ -48,7 +49,7 @@ test('collection scope reuses one theme query without dropping graph neighbors o
   const edge = {id:'edge',source:'US:AAA',target:'US:BBB',type:'SUPPLIER_OF',status:'PUBLISHED',evidence:[{url:'https://example.com/report',title:'Report'}]};
   const snapshot = (row: Record<string, unknown>) => ({id:row.id,exists:true,data:()=>row});
   let themeReads=0;
-  const db = {
+  const db = withThemeCatalog({
     collection: (name:string) => ({
       get:async()=>{assert.equal(name,'company_relationships');return {docs:[snapshot(edge)]};},
       doc: (id:string) => ({name,id,get:async()=>snapshot({enabled:false})}),
@@ -61,7 +62,7 @@ test('collection scope reuses one theme query without dropping graph neighbors o
       }}),
     }),
     getAll: async (...refs:Array<{name?:string;id?:string}>) => refs.filter(ref=>ref.id).map(ref=>snapshot(ref.name==='companies'?neighbor:{id:ref.id})),
-  } as unknown as Firestore;
+  } as unknown as Firestore);
   const scope=await loadCollectionUniverse(db);
   assert.equal(themeReads,1);
   assert.deepEqual(usMapTickers(scope),['AAA','BBB','CCC']);
@@ -97,7 +98,7 @@ test('theme metadata identifies Space and Robotics URLs while preserving the AI 
   for (const theme of ['ai','robotics','space']) assert.equal(themeMetadata(theme).title,'YouAnalyst | Investment Intelligence. Reimagined.');
   assert.match(themeMetadata('robotics').description,/robotics companies/);
   assert.equal(themeMetadata(undefined).canonical,'/');
-  assert.deepEqual(themeMetadata('invalid'),themeMetadata('ai'));
+  assert.equal(themeMetadata('invalid').canonical,'/?theme=invalid');
 });
 
 const ai: KnowledgeGraph = { nodes: Array.from({ length: 134 }, (_, i) => ({ id: i === 0 ? 'US:NVDA' : `US:AI${i}`, kind: 'COMPANY' as const, name: i === 0 ? batch.companies[0].expectedName : `Company ${i}`, order: i, stageIds: ['compute'] })),
@@ -118,17 +119,17 @@ test('indexed theme reads reject stale array entries and combined enrollment ded
     { id: 'US:OLD', name: 'Withdrawn company', status: 'DIRECTORY', themeIds: ['robotics'], themeMemberships: { robotics: { ...membership, status: 'WITHDRAWN' } } },
     { id: 'US:HIDDEN', name: 'Hidden company', status: 'DRAFT', themeIds: ['robotics'], themeMemberships: { robotics: membership } },
   ];
-  const db = { collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert.equal(field, 'themeIds'); return ({ get: async () => ({ docs: rows.filter(row => {
+  const db = withThemeCatalog({ collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert.equal(field, 'themeIds'); return ({ get: async () => ({ docs: rows.filter(row => {
     if (field === 'themeIds') return operator === 'array-contains' ? row.themeIds.includes(String(value)) : row.themeIds.some(theme => value.includes(theme));
     return field === 'inGraph.status' && row.inGraph?.status === value;
-  }).map(row => ({ id: row.id, data: () => row })) }) }); } }; } } as unknown as Firestore;
+  }).map(row => ({ id: row.id, data: () => row })) }) }); } }; } } as unknown as Firestore);
   assert.deepEqual((await loadThemeCompanies('robotics', db)).map(row => row.id), ['US:NVDA']);
   assert.deepEqual((await loadCollectionCompanies(db)).map(row => row.id), ['US:NVDA']);
 });
 
 test('withdrawn AI enrollment overrides legacy graph flags while neighbors and another published theme remain eligible', async () => {
   const record: ThemedCompany = { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: [], inGraph: { status: 'PUBLISHED' }, themeMemberships: { ai: { status: 'WITHDRAWN', primarySector: 'compute', reviewedAt: '2026-10-04' } } };
-  const db = { collection: () => ({ where: (field: string) => ({ get: async () => ({ docs: field === 'themeIds' ? [{ id: record.id, data: () => record }] : [] }) }) }) } as unknown as Firestore;
+  const db = withThemeCatalog({ collection: () => ({ where: (field: string) => ({ get: async () => ({ docs: field === 'themeIds' ? [{ id: record.id, data: () => record }] : [] }) }) }) } as unknown as Firestore);
   const excluded = await loadCollectionUniverse(db, ai);
   assert(!usMapTickers(excluded).includes('NVDA'));
   assert.equal(excluded.nodes.filter(node => node.kind === 'COMPANY').length, 133);
@@ -164,7 +165,7 @@ test('theme presentation retains canonical identities and secondary roles withou
     assert.equal(layout(layers,new Set(['root']),'en').filter(node=>node.kind==='company').length,0);
   }
   assert.equal(roboticsGraph([company,other],[{...relationship,themeIds:['robotics']}]).relationships.length,1);
-  assert.deepEqual(company.themeMemberships.robotics,member);assert.equal(parseCompanyTheme('unknown'),'ai');
+  assert.deepEqual(company.themeMemberships.robotics,member);assert.equal(parseCompanyTheme('unknown'),'unknown');
 });
 
 
@@ -205,7 +206,7 @@ test('sparse sector themes retain full decorative canopies without inventing com
 test('enrollment uses local push updates including an empty result',async()=>{
  let calls=0;let push:(value:unknown)=>void=()=>{};
  const query={where:()=>query,onSnapshot:(next:(value:unknown)=>void)=>{calls++;push=next;next({docs:[]});return ()=>{};}};
- const db={collection:()=>query} as unknown as Firestore;
+ const db=withThemeCatalog({collection:()=>query} as unknown as Firestore);
  assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);
  push({docs:[{id:'US:A',get:(field:string)=>field==='exchange_region'?'US':undefined,data:()=>({name:'A',status:'DIRECTORY',symbol:'A',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},kind:'COMPANY'})}]});
  assert.equal((await loadCollectionCompanies(db,'US')).length,1);

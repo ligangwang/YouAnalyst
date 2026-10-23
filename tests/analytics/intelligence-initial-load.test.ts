@@ -1,3 +1,4 @@
+import {legacyCatalog} from '../helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import React from 'react';
@@ -7,13 +8,14 @@ import { build } from 'esbuild';
 import { renderToPipeableStream } from 'react-dom/server';
 import { initialSnapshotWithinBudget } from '../../src/lib/intelligence/initial-snapshot';
 
-async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100){
-  const external=['@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
+async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100,loadCatalog=async()=>legacyCatalog){
+  const external=['@/lib/company-themes/catalog','@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
   const result=await build({entryPoints:['src/app/intelligence/page.tsx'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external,jsx:'automatic'});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const injected=(name:string)=>{
     if(name==='@/components/live-investment-intelligence')return {LiveInvestmentIntelligence:(props:{initialSnapshot?:unknown;initialTheme:string;initialCompany:string})=>React.createElement('div',{'data-theme':props.initialTheme,'data-company':props.initialCompany},props.initialSnapshot?'Loaded snapshot':'Client API loader')};
     if(name==='@/components/intelligence-loading-shell')return {IntelligenceLoadingShell:()=> React.createElement('main',null,'Loading companies and recorded events…')};
+    if(name==='@/lib/company-themes/catalog')return {loadThemeCatalog:loadCatalog};
     if(name==='@/lib/intelligence/service')return {loadIntelligenceSnapshot:load};
     if(name==='@/lib/intelligence/initial-snapshot')return {initialSnapshotWithinBudget:(request:Promise<unknown>)=>initialSnapshotWithinBudget(request,budget)};
     if(name==='@/lib/ui/i18n/server')return {localizedMetadata:async()=>({})};
@@ -50,6 +52,12 @@ test('homepage streams its shell before a delayed snapshot and preserves selecte
 
 test('a stalled snapshot finishes HTML with the existing API loader instead of holding the page open',async()=>{
   const rendered=streamPage(await pageWithSnapshot(()=>new Promise(()=>{}),25));
+  await rendered.shell;await rendered.done;
+  assert.match(rendered.html(),/Client API loader/);
+});
+
+test('a stalled catalog also releases the page to the client loader within the render budget',async()=>{
+  const rendered=streamPage(await pageWithSnapshot(async()=>({}),25,()=>new Promise(()=>{})));
   await rendered.shell;await rendered.done;
   assert.match(rendered.html(),/Client API loader/);
 });

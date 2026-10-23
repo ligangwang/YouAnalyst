@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {FieldValue,type Firestore,type DocumentSnapshot} from 'firebase-admin/firestore';
 import {headlineTargetLocale,translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
 import {company,encode,type Document} from './lib/firestore-rest';
+import {readThemeCatalog} from './lib/theme-catalog';
+import {catalogThemeIds} from '../src/lib/company-themes/catalog-model';
 async function main(){
 const project=process.env.GCP_PROJECT_ID;
 assert(project&&/^[a-z][a-z0-9-]+$/.test(project)&&process.env.GOOGLE_OAUTH_ACCESS_TOKEN,'Explicit project and existing Google access token required');
@@ -18,7 +20,8 @@ async function request(url:string,method='GET',data?:unknown){
  const response=await fetch(url,{method,headers:{Authorization:`Bearer ${process.env.GOOGLE_OAUTH_ACCESS_TOKEN}`,'Content-Type':'application/json'},...(data?{body:JSON.stringify(data)}:{}),signal:AbortSignal.timeout(30_000)});
  if(response.status===404)return null;assert(response.ok,`Firestore request failed (${response.status})`);return response.json();
 }
-const snapshots=await Promise.all(['ai','robotics','space'].map(async theme=>{const response=await fetch(`https://youanalyst.com/api/intelligence?theme=${theme}`);assert(response.ok,'Cannot read public event snapshot');return response.json();}));
+const snapshots=[];
+for(const theme of catalogThemeIds(await readThemeCatalog(root,request))){const response=await fetch(`https://youanalyst.com/api/intelligence?theme=${encodeURIComponent(theme)}`);assert(response.ok,'Cannot read public event snapshot');snapshots.push(await response.json());}
 const mapped=new Set<string>(snapshots.flatMap(snapshot=>snapshot.graph.nodes.filter((node:{kind:string})=>node.kind==='COMPANY').map((node:{id:string})=>node.id)));
 const ids=[...new Set<string>(snapshots.flatMap(snapshot=>snapshot.events.filter((event:{id:string})=>event.id.startsWith('news-')||event.id.startsWith('disclosure-')).map((event:{id:string})=>event.id.replace(/^(news-|disclosure-)/,''))))];
 const docRoot=root.replace('https://firestore.googleapis.com/v1/','');

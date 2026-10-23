@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadKnowledgeGraph } from '../knowledge-graph/service';
 import { loadThemeGraph } from '../company-themes/graph-service';
-import { themeName, type CompanyThemeId } from '../company-themes/model';
+import { type CompanyThemeId } from '../company-themes/model';
 import { curatedEvents } from '../knowledge-graph/curated-events';
 import { secCollectorFreshness } from '../sec-filings/store';
 import { INTELLIGENCE_SOURCES, sourceDocumentsForEvents, intelligenceSession, secCollectorIsFresh, sourceChannel, type IntelligenceSnapshot } from './model';
@@ -35,7 +35,7 @@ export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyTheme
 async function loadUniverseGraph(theme:CompanyThemeId){
   return process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'
     ?await fetch(`https://youanalyst.com/api/knowledge-graph?theme=${theme}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
-    :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
+    :await loadThemeGraph(theme);
 }
 
 export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
@@ -122,7 +122,7 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
       const covered=companyIds.filter(id=>configured.has(id)).length;
       const configuredCompanyIds=companyIds.filter(id=>configured.has(id)),healthyCompanyIds=companyIds.filter(id=>news!.healthyCompanyIds.includes(id));
       newsCoverage={configured:covered,total:companyIds.length,healthy:healthyCompanyIds.length,companyIds,configuredCompanyIds,healthyCompanyIds};
-      if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} ${theme==='ai'?'US-listed ':''}${themeName(theme)} Map companies. US-listed companies use SEC disclosures and Chinese issuers use exchange filings; other companies require supported official-news adapters.`);
+      if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} ${theme==='ai'?'US-listed ':''}${theme} Map companies. US-listed companies use SEC disclosures and Chinese issuers use exchange filings; other companies require supported official-news adapters.`);
       truncated=truncated||news.truncated;
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
     }catch(error){statisticsComplete=false;console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}

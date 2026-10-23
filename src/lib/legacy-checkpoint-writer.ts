@@ -118,7 +118,7 @@ export async function applyCacheChange(db: Firestore, headers: Headers, project:
       // collectors collection; underscore IDs are excluded from event recursion.
       const changedDoc=await withLiveCompanyReads(()=>db.collection(collection).doc(id).get());
       const themes=changedDoc.get('themeIds');
-      if (!changedDoc.exists || (collection==='companies' && (!Array.isArray(themes) || !themes.some(theme=>['ai','robotics','space'].includes(theme))))) await db.collection('collectors')
+      if (!changedDoc.exists || (collection==='companies' && (!Array.isArray(themes) || !themes.some(theme=>typeof theme==='string' && /^[a-z][a-z0-9-]{0,79}$/.test(theme))))) await db.collection('collectors')
         .doc(`_cache_deleted_${companyChangeKey(`${collection}/${id}`)}`).set({cacheDeletedCollection:collection,sourceId:id,updatedAt:FieldValue.serverTimestamp()});
     }
     if (process.env.CENTRAL_CACHE_URL) {

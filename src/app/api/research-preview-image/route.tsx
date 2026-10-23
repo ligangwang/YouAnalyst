@@ -1,12 +1,14 @@
+import {loadThemeCatalog} from '@/lib/company-themes/catalog';
+import {catalogThemeName} from '@/lib/company-themes/catalog-model';
 import { ImageResponse } from "next/og";
 import { loadThemeGraph } from "@/lib/company-themes/graph-service";
-import { parseCompanyTheme, themeName } from "@/lib/company-themes/model";
+import { parseCompanyTheme } from "@/lib/company-themes/model";
 import { companyName } from "@/lib/knowledge-graph/model";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
-  const theme=parseCompanyTheme(q.get('theme')),title=themeName(theme);
+  const theme=parseCompanyTheme(q.get('theme')),title=catalogThemeName(await loadThemeCatalog(),theme);
   const raw = q.get("company") ?? "", id = raw.includes(":") ? raw.toUpperCase() : `US:${raw.toUpperCase()}`;
   const graph = /^[A-Z_]+:[A-Z0-9.-]{1,80}$/.test(id) ? await loadThemeGraph(theme).catch(()=>null) : null;
   const company = graph?.nodes.find(n=>n.kind==="COMPANY"&&n.id===id);

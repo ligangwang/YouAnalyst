@@ -4,7 +4,7 @@ import { localizedMetadata } from '@/lib/ui/i18n/server';
 import { browseCompanies } from '@/lib/hierarchy/companies';
 
 export async function generateMetadata() {
-  return localizedMetadata({ title: 'Investment themes | YouAnalyst', description: 'Explore the AI, Robotics and Space investment theme hierarchy.', alternates: { canonical: '/investment-themes' } });
+  return localizedMetadata({ title: 'Investment themes | YouAnalyst', description: 'Explore investment theme families, structural trends and the companies behind them.', alternates: { canonical: '/investment-themes' } });
 }
 
 export default async function InvestmentThemesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {

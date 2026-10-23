@@ -1,5 +1,6 @@
 "use client";
 
+import {useThemeCatalog} from './use-theme-catalog';
 import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
 import type { IntelligenceSnapshot } from '@/lib/intelligence/model';
@@ -11,7 +12,9 @@ const feedScope = (company:string,query:string,region:string) => JSON.stringify(
 
 /** Keeps the displayed theme usable until a validated replacement is ready. */
 export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, initialTheme = 'ai') {
-  const theme = parseCompanyTheme(useIndustryBrowseParam('theme', 'ai', initialTheme));
+  const {themes}=useThemeCatalog();
+  const defaultTheme=themes[0]??initialTheme;
+  const theme = parseCompanyTheme(useIndustryBrowseParam('theme', defaultTheme, initialTheme));
   const explicitCompany = useIndustryBrowseParam('feedCompany');
   const selectedCompany = useIndustryBrowseParam('company');
   const selectedEvent = useIndustryBrowseParam('event');
@@ -41,7 +44,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     const universeController = new AbortController();
     const isCurrentTheme = () => {
       const params = new URLSearchParams(window.location.search);
-      return !disposed && parseCompanyTheme(params.get('theme')) === theme && (themeIntent.current === theme || feedScope(feedCompany(params),params.get('q')??'',params.get('region')??'') === scope);
+      return !disposed && parseCompanyTheme(params.get('theme')||defaultTheme) === theme && (themeIntent.current === theme || feedScope(feedCompany(params),params.get('q')??'',params.get('region')??'') === scope);
     };
     // Start the directory independently. A late bootstrap must never replace
     // a complete feed or a response belonging to another theme/company.
@@ -112,7 +115,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [retry, theme, company, query, region, scope]);
+  }, [retry, theme, defaultTheme, company, query, region, scope]);
 
   const loadPreviousDay = () => {
     if(loadingOlder||!snapshot?.feedWindow?.hasMore)return;

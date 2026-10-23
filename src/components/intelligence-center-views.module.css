@@ -20,6 +20,7 @@
 .themeSelector select:focus-visible{outline:2px solid #65d9ff;outline-offset:3px}
 .themeSelector option{background:var(--ui-surface,#10212d);color:var(--ui-text,#dbe7ed)}
 .themeSelector small{color:var(--ui-muted,#8aa6ba);font-size:11px}
+.familySelector{grid-column:1/-1;color:var(--ui-text,#dbe7ed)}
 .compactTheme{margin:0;padding:2px 6px;background:transparent;border-color:transparent}
 .compactTheme select{font-size:11px;max-width:95px}
 @media(pointer:coarse){.themeSelector select{min-height:32px}}

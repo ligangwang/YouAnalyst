@@ -4,10 +4,11 @@ import type { Collection, RelationshipQuery } from '../central-cache/store';
 import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
 import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader} from './company-directory';
+import { themeIdBatches } from '../company-themes/company-query';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
 type DocumentStore={documents:Map<string,Group>;groups:Set<Group>};
-type Store={versions:Map<string,number>;queries:Map<string,Watch<Map<string,DocumentSnapshot>>>; documentStores:Map<Collection,DocumentStore>};
+type Store={versions:Map<string,number>;queries:Map<string,Watch<Map<string,DocumentSnapshot>>>; queryUsers?:Map<string,number>; documentStores:Map<Collection,DocumentStore>};
 // Next server bundles can evaluate this module more than once in one process.
 declare global { var __youAnalystEntityStoresV2: WeakMap<Firestore,Store> | undefined; }
 const stores=globalThis.__youAnalystEntityStoresV2 ??= new WeakMap<Firestore,Store>();
@@ -26,7 +27,8 @@ export async function localQuery(db:Firestore,key:string,query:Query,collection:
   created.close=()=>{if(s.queries.get(key)===created)s.queries.delete(key);close();};
   s.queries.set(key,watch);
  }
- return watch.read();
+ const users=s.queryUsers??=new Map();users.set(key,(users.get(key)??0)+1);
+ try{return await watch.read();}finally{const count=(users.get(key)??1)-1;if(count)users.set(key,count);else users.delete(key);}
 }
 
 async function documents(db:Firestore,collection:Collection,ids:string[]){
@@ -82,7 +84,20 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
  if(ids&&companyDirectoryEnabled(db))return ids.length?db.getAll(...ids.map(id=>db.collection(collection).doc(id))):[];
  if(typeof db.collection(collection).onSnapshot!=='function')return undefined;
  if(ids)return documents(db,collection,ids);
- const source=collection==='companies'?db.collection(collection).where('themeIds','array-contains-any',['ai','robotics','space']):db.collection(collection);
+ if(collection==='companies'){
+  const batches=await themeIdBatches(db),keys=new Set(batches.map(ids=>`companies:themes:${ids.join(',')}`));
+  // Catalog edits replace subscriptions; never close an active initial read.
+  const cached=store(db);
+  for(const [key,watch] of cached.queries)if(key.startsWith('companies:themes:')&&!keys.has(key)&&!cached.queryUsers?.get(key))watch.close();
+  const found=new Map<string,DocumentSnapshot>();
+  for(const ids of batches){
+   const query=db.collection(collection).where('themeIds','array-contains-any',ids);
+   const docs=await localQuery(db,`companies:themes:${ids.join(',')}`,query,collection);
+   for(const [id,doc] of docs)if(doc.data()?.isDeleted!==true)found.set(id,doc);
+  }
+  return [...found.values()].filter(doc=>!region || (typeof doc.get==='function'?doc.get('exchange_region'):doc.data()?.exchange_region)===region);
+ }
+ const source=db.collection(collection);
  if(collection==='company_fundamentals')throw Error('Fundamentals cache requires company IDs');
  let selected:DocumentSnapshot[];
  if(collection==='company_relationships'&&companyDirectoryEnabled(db)&&query&&(query.companyIds||query.exactIds)){

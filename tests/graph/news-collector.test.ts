@@ -1,3 +1,4 @@
+import {withThemeCatalog} from '../helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {Firestore} from 'firebase-admin/firestore';
@@ -23,7 +24,7 @@ test('database-only company feeds reach collection, public news and calendar val
   const feed={id:'new-company-ir',companyId:'US:NEW',name:'New company IR',url:'https://ir.newcompany.com/rss.xml',allowedHosts:['ir.newcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
   const docs=[{id:'US:NEW',data:()=>({name:'New company',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[feed]})}];
   const query={where:()=>query,get:async()=>({docs}),doc:()=>({get:async()=>({data:()=>({enabled:false})})})};
-  const configs=await loadNewsSources({collection:()=>query} as unknown as Firestore);
+  const configs=await loadNewsSources(withThemeCatalog({collection:()=>query} as unknown as Firestore));
   assert.equal(configs.length,1);assert.equal(configs[0].id,feed.id);
   const record={id:'announcement',version:1,type:'company_news',sourceType:'company_ir',sourceId:feed.id,companyId:feed.companyId,companyIds:[feed.companyId],title:'Company announces earnings call',url:'https://ir.newcompany.com/earnings',published_at:'2026-10-02T12:00:00Z',publication_date:'2026-10-02'};
   const graph:KnowledgeGraph={nodes:[{id:feed.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-06'};

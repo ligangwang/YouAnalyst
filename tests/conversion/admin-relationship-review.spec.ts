@@ -1,3 +1,4 @@
+import {legacyCatalog} from '../helpers/theme-catalog';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { build } from 'esbuild';
 import path from 'node:path';
@@ -25,6 +26,7 @@ async function fixture(page: Page, options: { signedIn?: boolean; filing?: boole
     const req = route.request(), u = new URL(req.url());
     if (u.origin !== origin) return route.abort();
     if (req.isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+    if(u.pathname==='/api/investment-themes')return route.fulfill({json:{nodes:legacyCatalog}});
     expect(u.pathname).toBe('/api/admin/relationships');
     expect(req.headers().authorization).toBe('Bearer isolated-test-token');
     if (req.method() === 'POST') {

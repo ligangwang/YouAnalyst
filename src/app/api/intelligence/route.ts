@@ -5,14 +5,17 @@ import { gzip } from 'node:zlib';
 import { promisify } from 'node:util';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-import { parseCompanyTheme } from '@/lib/company-themes/model';
+import {loadThemeCatalog} from '@/lib/company-themes/catalog';
+import {resolveCatalogTheme} from '@/lib/company-themes/catalog-model';
 const compress=promisify(gzip);
 export async function GET(request:Request){
   const params=new URL(request.url).searchParams;
   const before=params.get('before');
   if(before&&!/^\d{4}-\d{2}-\d{2}$/.test(before))return Response.json({error:'Invalid day cursor'},{status:400});
   try{
-    const snapshot=await (params.get('section')==='universe'?loadIntelligenceUniverse(new Date(),parseCompanyTheme(params.get('theme'))):loadCompanyIntelligenceSnapshot(new Date(),parseCompanyTheme(params.get('theme')),params.get('company')??'',params.get('q')??'',params.get('region')??'',after,params.get('before')??undefined));
+    const theme=resolveCatalogTheme(await loadThemeCatalog(),params.get('theme'));
+    if(!theme)return Response.json({error:'Unknown or unpublished theme'},{status:404,headers:{'Cache-Control':'no-store'}});
+    const snapshot=await (params.get('section')==='universe'?loadIntelligenceUniverse(new Date(),theme):loadCompanyIntelligenceSnapshot(new Date(),theme,params.get('company')??'',params.get('q')??'',params.get('region')??'',after,params.get('before')??undefined));
     const body=JSON.stringify(snapshot);
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json; charset=utf-8','Vary':'Accept-Encoding'};
     const etag=`W/"${createHash('sha256').update(body).digest('hex')}"`;

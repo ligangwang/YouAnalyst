@@ -1,5 +1,7 @@
+import { isThemeId, catalogThemeIds } from '../company-themes/catalog-model';
+import { loadThemeCatalog } from '../company-themes/catalog';
 import { FieldPath, type Firestore, type Transaction } from 'firebase-admin/firestore';
-import { COMPANY_THEMES, activeThemeIds, type CompanyThemeId, type ThemedCompany } from '../company-themes/model';
+import { activeThemeIds, type CompanyThemeId, type ThemedCompany } from '../company-themes/model';
 import { canonical, hash, mergeEdge, type ComputeBatch } from '../research/publisher';
 import { articleHash } from '../intelligence/collectors/news-analysis';
 import { canonicalEvidenceUrl } from '../intelligence/model';
@@ -46,7 +48,7 @@ function observation(id: string, data: Row): ReviewCandidate {
 }
 function company(id: string, data: Row): ReviewCompany {
   if (!['PUBLISHED', 'DIRECTORY'].includes(str(data.status)) || !str(data.name).trim()) fail(409, `Company ${id} is unavailable`);
-  const themes = activeThemeIds(data as ThemedCompany).filter(t => COMPANY_THEMES.includes(t as CompanyThemeId)) as CompanyThemeId[];
+  const themes = activeThemeIds(data as ThemedCompany).filter(t => isThemeId(t as CompanyThemeId)) as CompanyThemeId[];
   if (!row(data.themeMemberships).ai && row(data.inGraph).status === 'PUBLISHED') themes.push('ai');
   return { id, name: str(data.name), legalName: str(data.legalName) || str(data.name), themes: [...new Set(themes)] };
 }
@@ -101,8 +103,8 @@ export function parsePublication(raw: unknown): PublicationInput {
   if (Object.keys(d).some(k => !keys.includes(k)) || !/^[a-f0-9]{64}$/.test(str(d.version))
     || !companyId(d.sourceId) || !companyId(d.targetId) || d.sourceId === d.targetId
     || !REVIEW_TYPES.includes(d.type as PublicationInput['type']) || !['DOCUMENTED', 'ANNOUNCED', 'TERMINATED'].includes(str(d.state))
-    || !Array.isArray(d.themeIds) || !d.themeIds.length || d.themeIds.length > 3
-    || new Set(d.themeIds).size !== d.themeIds.length || !d.themeIds.every(t => COMPANY_THEMES.includes(t))
+    || !Array.isArray(d.themeIds) || !d.themeIds.length || d.themeIds.length > 30
+    || new Set(d.themeIds).size !== d.themeIds.length || !d.themeIds.every(t => isThemeId(t))
     || d.evidenceConfirmed !== true
     || d.eventDate !== undefined && d.eventDate !== null && !date(d.eventDate)) fail(400, 'Confirm distinct companies, relationship type, evidence, date and at least one theme');
   for (const key of ['summary', 'limitation', 'note']) if (typeof d[key] !== 'string' || !str(d[key]).trim() || str(d[key]).length > 1200) fail(400, 'Summary, limitations and review note are required (maximum 1,200 characters each)');
@@ -123,6 +125,8 @@ export async function publicationPlan(db: Firestore, tx: Transaction, input: Pub
   if (!candidate.evidence.length || candidate.evidence.some(e => !e.url || !e.title.trim() || e.title.length > 500 || !e.quote.trim() || e.quote.length > 20_000 || e.sourceDate && e.sourceDate > at.slice(0, 10))) fail(409, 'Candidate needs valid source evidence before publication');
   const context = await sourceContext(db, tx, data!);
   const docs = await tx.getAll(...[input.sourceId, input.targetId].map(id => db.collection('companies').doc(id)));
+  const allowedThemes=new Set(catalogThemeIds(await loadThemeCatalog(db)));
+  if(input.themeIds.some(id=>!allowedThemes.has(id)))fail(400,'Unknown or unpublished investment theme');
   const endpoints = docs.map(d => company(d.id, d.data() ?? {}));
   for (const theme of input.themeIds) if (endpoints.some(c => !c.themes.includes(theme))) fail(409, `Both companies must have published ${theme} memberships before publishing to that theme`);
   const n = canonical(input.sourceId, input.targetId, input.type);
@@ -139,7 +143,7 @@ export async function publicationPlan(db: Firestore, tx: Transaction, input: Pub
   if (automated && before && (before.communityOpenCount || before.communityReviewedAt || before.publicationOrigin !== 'AI')) fail(409, 'Existing editorial or community decision requires review');
   if (before && (before.status !== 'PUBLISHED' || canonical(str(before.source), str(before.target), str(before.type)).id !== n.id || ['NEWS_OBSERVATION', 'FILING_OBSERVATION'].includes(str(before.recordKind)))) fail(409, 'Existing relationship has a conflicting identity or editorial decision');
   const id = existing.exists ? existing.id : n.id;
-  const retainedThemes = before ? (Array.isArray(before.themeIds) ? before.themeIds.filter((t: unknown) => COMPANY_THEMES.includes(t as CompanyThemeId)) : ['ai']) as CompanyThemeId[] : [];
+  const retainedThemes = before ? (Array.isArray(before.themeIds) ? before.themeIds.filter((t: unknown) => isThemeId(t as CompanyThemeId)) : ['ai']) as CompanyThemeId[] : [];
   const themes = [...new Set([...retainedThemes, ...input.themeIds])].sort() as CompanyThemeId[];
   const batch: ComputeBatch = {
     batchId: automated ? `relationship-auto-${hash(input.candidateId).slice(0, 40)}` : auditId(input.candidateId), asOf: at.slice(0, 10),
