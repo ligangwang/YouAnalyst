@@ -18,7 +18,7 @@ export function secCooldownMs(status: number, retryAfter: string | null, now = D
 // A single shared gate serializes outbound requests across all application replicas
 // and jobs. Spacing starts after completion, so slow requests reduce throughput;
 // delayed processes cannot spend old reservations together in a burst.
-export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal }), random: () => number = Math.random) {
+export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal })) {
   const ref = db.collection(SEC_COLLECTOR_STATE_COLLECTION).doc("_sec_request_budget");
   const legacyRef = db.collection("company_fundamentals").doc("_sec_request_budget");
   return {
@@ -26,11 +26,9 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
       const owner = randomUUID();
       let cooldownMs = 0;
       let bridge = false;
-      let contentionWaitMs = 1000;
+      let contentionWaitMs = 250;
       for (;;) {
         signal.throwIfAborted();
-        // Sample once per attempt, not inside a transaction callback that can retry.
-        const leasePollMs = Math.round(contentionWaitMs * (1 + random()));
         const wait = await db.runTransaction(async tx => {
           const snap = await tx.get(ref);
           const now = snap.readTime.toMillis(); // Shared server clock, not replica clocks.
@@ -41,21 +39,19 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
           if (Number(stored?.cooldownUntil) > now) {
             throw Object.assign(new Error("SEC shared cooldown is active"), { code: 429 });
           }
-          const leaseRemaining = (Number(stored?.leaseUntil) || 0) - now;
-          if (leaseRemaining > 0) return { ms: Math.min(leaseRemaining, leasePollMs), contended: true };
-          const spacingRemaining = (Number(stored?.nextAllowedAt) || 0) - now;
-          if (spacingRemaining > 0) return { ms: spacingRemaining, contended: false };
+          const remaining = Math.max(Number(stored?.leaseUntil) || 0, Number(stored?.nextAllowedAt) || 0) - now;
+          if (remaining > 0) return Math.min(remaining, contentionWaitMs);
           signal.throwIfAborted();
           tx.set(ref, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
           if (bridge) tx.set(legacyRef, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
-          return { ms: 0, contended: false };
+          return 0;
         });
-        if (wait.ms > 0) {
-          await sleep(wait.ms, signal);
-          // Held leases use 1-2s, then 2-4s polling to reduce repeated reads
-          // and avoid synchronizing competitors. Spacing never gets jitter.
-          // The shared lock and cooldown are still checked before every send.
-          if (wait.contended) contentionWaitMs = Math.min(2000, contentionWaitMs * 2);
+        if (wait > 0) {
+          await sleep(wait, signal);
+          // A held 30-second lease used to be polled four times a second.
+          // Back off under contention, but always recheck the shared lock and
+          // cooldown before sending. Normal 200ms spacing remains exact.
+          contentionWaitMs=Math.min(1000,contentionWaitMs*2);
           continue;
         }
         break;

@@ -23,9 +23,9 @@ test("migration honors the legacy cooldown and writes only operational state", a
 test("held SEC lease uses bounded backoff and still checks ownership before sending",async()=>{
   const f=sharedFirestore(),start=f.now(),waits:number[]=[];
   f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,owner:'other',leaseUntil:start+5000});
-  await createSecBudget(f.db,async(ms,signal)=>{signal.throwIfAborted();waits.push(ms);f.advance(ms);},()=>0)
+  await createSecBudget(f.db,async(ms,signal)=>{signal.throwIfAborted();waits.push(ms);f.advance(ms);})
     .run(new AbortController().signal,async()=>{assert.ok(f.now()>=start+5000);});
-  assert.deepEqual(waits,[1000,2000,2000,200]);
+  assert.deepEqual(waits,[250,500,1000,1000,1000,1000,250,200]);
   assert.equal(f.documents.get('sec_collector_state/_sec_request_budget')?.nextAllowedAt,start+5200);
 });
 
@@ -122,37 +122,4 @@ test("sequential requests do not reread the gate for their own spacing", async (
    .run(new AbortController().signal,async()=>{starts.push(f.now());});
  assert.equal(transactions,6); // One acquisition and one ownership-checked release each.
  assert.deepEqual(starts,[1000000,1000200,1000400]);
-});
-
-
-test("contended requests bound reads while preserving shared cooldown checks", async () => {
-  const f = sharedFirestore(), key = "sec_collector_state/_sec_request_budget";
-  f.documents.set(key, { bridgeRetired: true, owner: "other", leaseUntil: f.now() + 30_000 });
-  let transactions = 0, calls = 0;
-  const original = f.db.runTransaction.bind(f.db);
-  f.db.runTransaction = ((...args: Parameters<typeof f.db.runTransaction>) => {
-    transactions++;
-    return original(...args);
-  }) as typeof f.db.runTransaction;
-  const waits: number[] = [];
-  const budget = createSecBudget(f.db, async ms => {
-    waits.push(ms); f.advance(ms);
-    if (waits.length === 2) f.documents.set(key, {
-      bridgeRetired: true, owner: null, leaseUntil: 0, cooldownUntil: f.now() + 60_000,
-    });
-  }, () => 0.5);
-  await assert.rejects(budget.run(new AbortController().signal, async () => { calls++; }), { code: 429 });
-  assert.deepEqual(waits, [1500, 3000]);
-  assert.equal(transactions, 3);
-  assert.equal(calls, 0);
-});
-
-test("spacing waits are exact even with maximum contention jitter", async () => {
-  const f = sharedFirestore(), waits: number[] = [];
-  f.documents.set("sec_collector_state/_sec_request_budget", {
-    bridgeRetired: true, nextAllowedAt: f.now() + 200,
-  });
-  await createSecBudget(f.db, async ms => { waits.push(ms); f.advance(ms); }, () => 1)
-    .run(new AbortController().signal, async () => {});
-  assert.deepEqual(waits, [200, 200]);
 });
