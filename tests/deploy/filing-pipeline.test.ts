@@ -12,6 +12,10 @@ function run(script: string, extra: Record<string, string> = {}) {
       gcloud() {
         echo "$*" >> "$CALLS"
         case "$*" in
+          "storage buckets get-iam-policy"*)
+            [[ "$*" != *"--filter"* ]] || return 2
+            if [[ "\${MISSING_IAM:-0}" == 1 ]]; then echo '{"bindings":[]}';
+            else echo '{"bindings":[{"role":"roles/storage.objectUser","members":["serviceAccount:directory-sync-runtime@demo.iam.gserviceaccount.com"]}]}'; fi ;;
           *"get-iam-policy"*)
             if [[ "\${MISSING_IAM:-0}" == 1 ]]; then return 0; fi
             local arg

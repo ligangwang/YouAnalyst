@@ -13,6 +13,12 @@ function run(extra:Record<string,string>={},arg=''){
         echo "$*" >> "$CALLS"
         if [[ -n "\${MISSING_RESOURCE:-}" && "$*" == *"describe $MISSING_RESOURCE "* ]]; then return 1; fi
         case "$*" in
+          "storage buckets get-iam-policy"*)
+            [[ "$*" != *"--filter"* ]] || { echo 'Storage get-iam-policy does not support --filter' >&2; return 2; }
+            if [[ "\${MISSING_BUCKET_IAM:-0}" == 1 ]]; then echo '{"bindings":[]}';
+            elif [[ "\${WRONG_BUCKET_MEMBER:-0}" == 1 ]]; then echo '{"bindings":[{"role":"roles/storage.objectUser","members":["serviceAccount:other@demo.iam.gserviceaccount.com"]}]}';
+            elif [[ "\${CONDITIONAL_BUCKET_IAM:-0}" == 1 ]]; then echo '{"bindings":[{"role":"roles/storage.objectUser","condition":{"expression":"false"},"members":["serviceAccount:directory-sync-runtime@demo.iam.gserviceaccount.com"]}]}';
+            else echo '{"bindings":[{"role":"roles/storage.objectUser","members":["serviceAccount:directory-sync-runtime@demo.iam.gserviceaccount.com"]}]}'; fi ;;
           *"get-iam-policy"*)
             if [[ "\${MISSING_IAM:-0}" == 1 ]]; then return 0; fi
             local arg
@@ -41,7 +47,7 @@ function run(extra:Record<string,string>={},arg=''){
 const mutations=/run deploy|run jobs deploy|add-iam-policy-binding|subscriptions (create|update)|topics create|buckets create/;
 test('SEC download preflight validates private storage, retention and exact queue ownership without mutations',()=>{
   const checked=run({},'--check');assert.equal(checked.status,0,checked.stderr);assert.doesNotMatch(checked.calls,mutations);
-  const cases:Record<string,string>[]=[{PUBLIC_BUCKET:'1'},{BAD_LIFECYCLE:'1'},{MISSING_IAM:'1'},{WRONG_TOPIC:'another-topic'},{SEC_DOCUMENT_CACHE_BUCKET:''},{MISSING_RESOURCE:'sec-filing-download-requests'}];
+  const cases:Record<string,string>[]=[{PUBLIC_BUCKET:'1'},{BAD_LIFECYCLE:'1'},{MISSING_IAM:'1'},{MISSING_BUCKET_IAM:'1'},{WRONG_BUCKET_MEMBER:'1'},{CONDITIONAL_BUCKET_IAM:'1'},{WRONG_TOPIC:'another-topic'},{SEC_DOCUMENT_CACHE_BUCKET:''},{MISSING_RESOURCE:'sec-filing-download-requests'}];
   for(const extra of cases){const rejected=run(extra);assert.notEqual(rejected.status,0,JSON.stringify(extra));assert.doesNotMatch(rejected.calls,mutations);}
 });
 test('SEC downloads and cleanup deploy bounded private workers without nightly bulk work',()=>{
