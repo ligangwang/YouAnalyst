@@ -71,6 +71,11 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
           if (legacy?.get("owner") === owner) tx.set(legacyRef, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
             cooldownUntil: Math.max(Number(legacy.get("cooldownUntil")) || 0, now + cooldownMs) }, { merge: true });
         });
+        // Wait locally after release instead of making the next request read
+        // Firestore merely to discover our own 200ms spacing. The next request
+        // still acquires the shared gate and checks other workers' cooldowns.
+        // An independent signal preserves the original work result on abort.
+        await sleep(SPACING_MS, new AbortController().signal);
       }
     },
   };

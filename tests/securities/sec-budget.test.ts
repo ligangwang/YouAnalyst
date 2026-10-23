@@ -25,7 +25,7 @@ test("held SEC lease uses bounded backoff and still checks ownership before send
   f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,owner:'other',leaseUntil:start+5000});
   await createSecBudget(f.db,async(ms,signal)=>{signal.throwIfAborted();waits.push(ms);f.advance(ms);})
     .run(new AbortController().signal,async()=>{assert.ok(f.now()>=start+5000);});
-  assert.deepEqual(waits,[250,500,1000,1000,1000,1000,250]);
+  assert.deepEqual(waits,[250,500,1000,1000,1000,1000,250,200]);
   assert.equal(f.documents.get('sec_collector_state/_sec_request_budget')?.nextAllowedAt,start+5200);
 });
 
@@ -107,4 +107,19 @@ test("403/429 cooldowns respect Retry-After seconds and dates", () => {
   assert.equal(secCooldownMs(429, "bad"), 60_000);
   assert.equal(secCooldownMs(429, new Date(300_000).toUTCString(), 100_000), 200_000);
   assert.equal(secCooldownMs(500, "120"), 0);
+});
+
+
+test("sequential requests do not reread the gate for their own spacing", async () => {
+ const f=sharedFirestore();let transactions=0;
+ const original=f.db.runTransaction.bind(f.db);
+ f.db.runTransaction=((...args:Parameters<typeof f.db.runTransaction>)=>{
+   transactions++;
+   return original(...args);
+ }) as typeof f.db.runTransaction;
+ const starts:number[]=[];
+ for(let i=0;i<3;i++)await createSecBudget(f.db,async ms=>{f.advance(ms);})
+   .run(new AbortController().signal,async()=>{starts.push(f.now());});
+ assert.equal(transactions,6); // One acquisition and one ownership-checked release each.
+ assert.deepEqual(starts,[1000000,1000200,1000400]);
 });
