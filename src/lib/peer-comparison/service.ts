@@ -1,3 +1,4 @@
+import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { loadPeerPrices } from './price-cache';
 import { getAdminFirestore } from '../firebase/admin';
@@ -17,7 +18,7 @@ export async function loadPeerComparison(companyId:string):Promise<PeerCompariso
  let complete=true;
  // Date is an input to the comparison, not a cache-expiry timer.
  const dateKey=[marketDate('US'),marketDate('CN_A')].join(':');
- try{return await changeCached(db,`peers:${companyId}:${dateKey}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
+ try{return await withCompanyPageReads(()=>changeCached(db,`peers:${companyId}:${dateKey}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
   const [catalog,documents]=await Promise.all([loadThemeCatalog(db),loadCompanyDocuments(db,'companies',[companyId])]);
   const selected=await findPeerThemeGroup(companyId,documents[0]?.data() as Partial<ThemedCompany>|undefined,
    catalogThemeIds(catalog),theme=>loadThemeGraph(theme).catch(()=>{complete=false;return null;}));
@@ -37,6 +38,6 @@ export async function loadPeerComparison(companyId:string):Promise<PeerCompariso
    return buildPeerComparison(companyId,graph.nodes,financials,prices,today);
   }
   return null;
- },()=>complete);}
+ },()=>complete));}
  catch(error){console.error('Company peer comparison unavailable',error);return null;}
 }

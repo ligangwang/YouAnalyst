@@ -32,3 +32,19 @@ test('separately bundled company loaders share a collection partition', async t 
  await Promise.all([first.readCompanyLookup(db,source),second.readCompanyLookup(db,source)]);
  assert.equal(opens,1);
 });
+
+
+test('company page read policy crosses independently bundled route and loader modules',async t=>{
+ t.after(closeLocalCaches);
+ const {enableCompanyDirectory,registerCompanySource}=await import('../../src/lib/local-cache/company-directory');
+ let files=0,opens=0;
+ const db={collection:()=>({doc:()=>source})};
+ const source={id:'US:A',isEqual:(other:unknown)=>other===source,
+  onSnapshot:(next:(snapshot:unknown)=>void)=>{opens++;queueMicrotask(()=>next({exists:true,data:()=>({name:'Alpha'})}));return ()=>{};}};
+ enableCompanyDirectory(db as never,db as never,{file:async()=>{files++;return new Map();},sync:false});
+ registerCompanySource(source,'US:A',[]);
+ const scope=bundle('src/lib/local-cache/company-page-scope.ts')(),loader=bundle('src/lib/company-lookup-cache.ts')();
+ await scope.withCompanyPageReads(()=>loader.readCompanyLookup(db,source));
+ assert.equal(files,0);assert.equal(opens,1);
+ await loader.readCompanyLookup(db,source);assert.equal(files,1,'page policy cannot leak to a later bulk request');
+});

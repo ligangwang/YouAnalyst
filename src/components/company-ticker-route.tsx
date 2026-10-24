@@ -2,7 +2,7 @@ import { CompanyClassifications } from './company-classifications';
 import { readCompanyLookup } from "@/lib/company-lookup-cache";
 import { companyName } from "@/lib/knowledge-graph/model";
 import { localizedPath } from "@/lib/ui/i18n/urls";
-import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
+import {withCompanyPageReads} from "@/lib/local-cache/company-page-scope";
 import { localizedMetadata } from "@/lib/ui/i18n/server";
 
 import { UiText } from "@/components/ui-text";
@@ -13,7 +13,7 @@ import { CompanyPeerComparisonLoader } from '@/components/company-peer-compariso
 import { TickerPage } from "@/components/ticker-page";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { notFound, permanentRedirect } from "next/navigation";
-import { loadCompanyResearch } from "@/lib/company-research-service";
+import { loadCompanyPageGraph, loadCompanyResearch } from "@/lib/company-research-service";
 import { companyPageHeadline, companyResearchDescription } from "@/lib/company-research";
 import { CompanyResearchOverview } from "@/components/company-research-overview";
 import {loadCompanyAnnouncements} from '@/lib/events/company-announcements';
@@ -30,13 +30,13 @@ import { headers } from "next/headers";
 import { companyOrganizationSchema } from "@/lib/company-schema";
 import { canonicalCompanyPath } from "@/lib/market-companies/slug-resolver";
 
-const loadChinaCompany = cache(async (id: string) => {
+const loadChinaCompany = cache((id: string) => withCompanyPageReads(async()=>{
   const db = getAdminFirestore();
   const doc = await readCompanyLookup(db, db.collection(COMPANY_COLLECTION).doc(id));
   const company = doc.exists ? publicChinaCompany(doc.id, doc.data()!) : null;
   if (!company) notFound();
   return company;
-});
+}));
 
 export const dynamic = "force-dynamic";
 
@@ -126,7 +126,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`}/></Suspense>} company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={earningsSummary} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`}/></Suspense>} company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={earningsSummary} graph={await loadCompanyPageGraph().catch(() => undefined)} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>

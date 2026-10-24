@@ -1,3 +1,4 @@
+import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
 import { readCompanyLookup } from "@/lib/company-lookup-cache";
 import { CompanyCountryFlag } from "@/components/company-country-flag";
 import { CompanyClassifications } from '@/components/company-classifications';
@@ -21,13 +22,13 @@ import { nvidiaEditorialCompany } from "@/lib/research/nvidia-manufacturing";
 import type { MarketCompany } from "@/lib/knowledge-graph/market-store";
 
 export const dynamic = "force-dynamic";
-const load = cache(async (id: string) => {
+const load = cache((id: string) => withCompanyPageReads(async()=>{
   const db = getAdminFirestore();
   const doc = await readCompanyLookup(db, db.collection("companies").doc(id));
   const data = nvidiaEditorialCompany(id, doc.exists ? doc.data() ?? {} : undefined);
   if (!data || !["PUBLISHED", "DIRECTORY"].includes(String(data.status)) || typeof data.name !== "string") notFound();
   return { ...data, id } as MarketCompany & { name: string };
-});
+}));
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const resolved = await resolveCompanyRoute((await params).id);
   if (!resolved?.path) notFound();

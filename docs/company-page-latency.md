@@ -1,0 +1,47 @@
+# Company page cold-read latency
+
+## Production evidence
+
+On revision `ifindata-web-00836-lad`, the request for
+`/en/company/interpump-group-s-p-a-adr` at 2026-10-24 00:14:30 UTC
+completed in 22.573 seconds. Logs for that same Cloud Run instance show:
+
+- Autoscaling started the instance at 00:14:30.170; Next was ready at 00:14:31.810.
+- A cold companies SQLite snapshot read completed at 00:14:45.317 (9,657 ms).
+- The relationships snapshot completed at 00:14:46.440 (455 ms).
+- The fundamentals snapshot completed at 00:14:51.279 (3,879 ms).
+
+These are request completion times, not browser first-paint measurements. They
+establish a contributing cold-cache dependency chain, not an exhaustive diagnosis
+of every slow response. Slow successful requests continued after rollout warmup.
+
+## Change
+
+Company routes, metadata, classifications, fundamentals, comparisons and their
+graph reads select the existing targeted push caches through an async read scope.
+Identity lookups subscribe to the exact document or bounded slug/ticker query;
+financial reads subscribe to the requested IDs; graph enrollment uses the
+existing theme-filtered queries. A company page no longer downloads the full
+company/fundamentals SQLite files as a prerequisite. Metadata and the overview
+also share one graph computation per React render request.
+
+The policy is isolated to company-page loaders. Bulk map/search/sitemap readers
+keep the file-backed directory, workers keep their existing policy, and
+transactions/live reads retain authoritative SDK behavior. No new persisted
+fields, collections, indexes, migrations, provider calls or credentials are used.
+Subscriptions still coalesce concurrent visitors, receive source updates, and
+use existing count/byte eviction budgets. This trades a bounded initial source
+subscription for the previous full-file transfer; it does not poll on every view.
+
+## Verification
+
+The regression fixture enables the real file-directory policy alongside targeted
+subscriptions. Twenty concurrent cold identity/fundamental reads must open only
+two subscriptions and zero snapshot files, reuse them on later visits, apply
+updates/deletions, preserve direct live reads, restore the bulk policy after a
+rejected render, and still load a file for an ordinary bulk reader. Existing
+cache, graph, projection and identity tests protect content/authorization behavior.
+
+After deployment, compare fresh-instance company requests and
+`entity_snapshot_file_read` logs with this baseline, alongside response errors
+and health. Do not infer a production latency percentile from local unit tests.
