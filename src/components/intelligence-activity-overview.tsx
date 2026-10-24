@@ -28,6 +28,7 @@ export function IntelligenceActivityOverview({events,documents,complete=false,hi
       <div><strong>{activity.signals}</strong><span>{text('Documents','文档')}</span></div>
     </div>
     {!historyPartial&&!complete&&<p className={styles.scopeNote}>{text('Partial data','部分数据')}</p>}
+    <div className={styles.breakdowns}>
     <details className={styles.breakdown}><summary>{text('By sector','按行业')}</summary>
     <div className={styles.sectors}>{sectors.map(sector=><button key={sector.id} onClick={()=>onSector(sector.id)} title={text('Explore this sector','探索此行业')}>
       <span>{chinese?sector.zh:sector.en}</span><i><b style={{width:`${sector.count/largest*100}%`,background:sector.color}}/></i><strong>{sector.count}</strong>
@@ -36,6 +37,7 @@ export function IntelligenceActivityOverview({events,documents,complete=false,hi
     <details className={styles.breakdown}><summary>{text('By source','按来源')}</summary>
     <div className={styles.sourceStrip}>{sources.map(source=><button key={source.name} onClick={()=>onSource(source.name)} style={{flexGrow:source.count,background:sourceColors[source.name]}} aria-label={`${source.name}: ${source.count}`} title={`${source.name} · ${source.count}`}/>)}</div>
     <div className={styles.sources}>{sources.map(source=><button key={source.name} onClick={()=>onSource(source.name)}><i style={{background:sourceColors[source.name]}}/>{source.name}<strong>{source.count}</strong></button>)}</div></details>
+    </div>
     {recentFallback&&<><div className={styles.heading}><span>{text('Recent event highlights','近期事件摘要')}</span></div><div className={styles.highlights}>{events.slice(0,3).map(event=><button key={event.id} onClick={()=>onEvent(event.id)}>{event.published_at?<RelativeTime value={event.published_at} interactive={false}/>:<time dateTime={event.publication_date}>{event.publication_date.slice(5)}</time>}<span>{event.title}</span><b>↗</b></button>)}</div><p className={styles.note}>{text('Recent sources, not new arrivals today. A document can appear in multiple sectors.','近期来源，并非今日新增。一份文档可涉及多个行业。')}</p></>}
   </section>;
 }
