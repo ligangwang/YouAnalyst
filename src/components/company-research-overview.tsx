@@ -15,7 +15,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graphContent, graph, timelineGraph=graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graphContent?:ReactNode; timelineGraph?:KnowledgeGraph; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
+export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graphContent, graph, timeline, announcements=[], earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graphContent?:ReactNode; timeline?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
@@ -34,7 +34,7 @@ export function CompanyResearchOverview({ company, classifications, fundamentals
         <CompanyProfileDetails profile={company.profile} />
         {classifications}
       </section>
-      <CompanyResearchTimeline company={timelineGraph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={timelineGraph} />
+      {timeline ?? <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />}
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graphContent && !graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">

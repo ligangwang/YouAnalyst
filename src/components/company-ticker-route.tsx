@@ -1,3 +1,6 @@
+import { CompanyResearchTimeline } from "./company-timeline";
+import type { CompanyResearch } from "@/lib/company-research";
+import type { KnowledgeGraph, GraphNode } from "@/lib/knowledge-graph/model";
 import { CompanyResearchPanel } from "./company-research-panel";
 import { loadCompanyFundamentals } from "@/lib/fundamentals/service";
 import type { ResolvedCompany } from "@/lib/company-research-service";
@@ -136,7 +139,7 @@ export async function CompanyTickerContent({ params, resolved }: { params: Promi
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`} data={resolved?.data}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} timelineGraph={company.neighborhood ?? undefined} graphContent={company.inMap || !company.graphAvailable ? <Suspense fallback={null}><CompanyGraph companyId={`US:${ticker}`}/></Suspense> : undefined} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`} data={resolved?.data}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} timeline={<Suspense fallback={null}><CompanyTimeline company={company} graph={company.neighborhood ?? undefined} pending={fundamentals}/></Suspense>} graphContent={company.inMap || !company.graphAvailable ? <Suspense fallback={null}><CompanyGraph companyId={`US:${ticker}`}/></Suspense> : undefined} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} pending={fundamentals} />
       </Suspense>
@@ -151,4 +154,15 @@ export async function companyTickerMetadata(...args: Parameters<typeof buildPage
 async function CompanyGraph({companyId}:{companyId:string}) {
  const graph=await loadCompanyPageGraph().catch(()=>undefined);
  return <CompanyResearchPanel companyId={companyId} initialGraph={graph}/>;
+}
+
+async function CompanyTimeline({company,graph,pending}:{company:CompanyResearch;graph?:KnowledgeGraph;pending:ReturnType<typeof loadCompanyFundamentals>}) {
+ const financials=await pending.catch(()=>null), cap=financials?.marketCap;
+ const node:GraphNode=graph?.nodes.find(node=>node.id===`US:${company.ticker}`) ?? {
+  id:`US:${company.ticker}`,kind:'COMPANY',order:0,name:company.name,names:company.names,
+  symbol:company.ticker,country:company.country ?? undefined,market:'US',listingStatus:company.listingStatus==='PRIVATE'?'PRIVATE':'PUBLIC',
+ };
+ const marketCap=cap?.status==='estimated' && cap.currency==='USD' && typeof cap.value==='number' && Number.isFinite(cap.value) && cap.value>0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? '')
+  ? {value:cap.value,currency:'USD' as const,priceDate:cap.priceDate!}:undefined;
+ return <CompanyResearchTimeline company={{...node,marketCap}} graph={graph}/>;
 }
