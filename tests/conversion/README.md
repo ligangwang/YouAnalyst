@@ -62,6 +62,11 @@ assertions run once in `tests/graph-layout.test.ts`, not in each browser project
 
 ## Adding coverage without duplicating it
 
+Tag a test `@desktop-only` (`test('title',{tag:'@desktop-only'},async…)`) when it
+checks renderer camera or tour logic that is identical on both devices; the mobile
+project excludes the tag, so balancing never counts it. Keep layout, touch,
+hit-testing and label-fitting checks on both projects.
+
 Keep pure calculations in the Node test suites. Market-cap scaling and formatting
 run once in `tests/graph-layout.test.ts`; browser tests cover how recorded values
 actually appear on the map.

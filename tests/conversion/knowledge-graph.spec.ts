@@ -1518,7 +1518,7 @@ for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(
  await expect(node).toHaveAttribute('aria-pressed','true');
 });
 
-test('three views vertical defaults to expanded and preserves zoom and pan when company cards open and close',async({page})=>{
+test('three views vertical defaults to expanded and preserves zoom and pan when company cards open and close',{tag:'@desktop-only'},async({page})=>{
  // Real scenery, camera settling and the card lifecycle share this software-WebGL budget.
  test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -1596,7 +1596,7 @@ test('company card starts at the top when switching from Micron to NVIDIA',async
  await expect.poll(()=>card.evaluate(el=>el.scrollTop)).toBe(0);
 });
 
-test('navigation: blank clicks recover automatically without pause controls',async({page})=>{
+test('navigation: blank clicks recover automatically without pause controls',{tag:'@desktop-only'},async({page})=>{
  test.setTimeout(45000);
  await navigationFixture(page);
  await page.emulateMedia({reducedMotion:'no-preference'});
@@ -1695,7 +1695,7 @@ test('navigation: company click settles immediately during the normal graph tour
  const drift=Math.max(...positions.map(p=>Math.hypot(...p.map((v,i)=>v-positions[0][i]))));
  expect(drift).toBeLessThan(.01);
 });
-test('navigation: zoomed and panned graph returns from selection before resuming at the user distance',async({page})=>{
+test('navigation: zoomed and panned graph returns from selection before resuming at the user distance',{tag:'@desktop-only'},async({page})=>{
  test.setTimeout(60000);
  await navigationFixture(page);
  const canvas=page.locator('canvas');
@@ -1852,7 +1852,7 @@ test('navigation: hierarchy clears previous company financials when selection ch
 });
 
 
-test('navigation: manual hierarchy stays put and cannot pause other charts',async({page})=>{
+test('navigation: manual hierarchy stays put and cannot pause other charts',{tag:'@desktop-only'},async({page})=>{
  test.setTimeout(45000);
  await navigationFixture(page,'hierarchy');
  await page.emulateMedia({reducedMotion:'no-preference'});
@@ -1894,7 +1894,7 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 });
 
 
-test('tree continuously surrounds the trunk and resumes after company details',async({page})=>{
+test('tree continuously surrounds the trunk and resumes after company details',{tag:'@desktop-only'},async({page})=>{
  await accelerateTours(page,0);await shortenIdleResume(page);
  // Two complete tour replays and software-WebGL screenshots share this
  // budget. Keep the individual motion and resume assertions bounded below.
@@ -2002,7 +2002,7 @@ test('manual hierarchy centers each parent vertically over its children after ex
  await chart.screenshot({path:test.info().outputPath('centered-hierarchy.png')});
 });
 
-test('closing tree sectors removes their branches and leaves without moving other sectors or the camera',async({page})=>{
+test('closing tree sectors removes their branches and leaves without moving other sectors or the camera',{tag:'@desktop-only'},async({page})=>{
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const members=['US:NVDA','US:AMD','US:MU','US:MSFT'];
@@ -2171,7 +2171,7 @@ test('hierarchy drags from node content without expanding and resets to a center
  await expect.poll(()=>svg.evaluate(el=>{const box=(el as SVGSVGElement).viewBox.baseVal,nodes=[...el.querySelectorAll('foreignObject')].filter(n=>n.querySelector('button')?.getAttribute('data-exiting')!=='true');const left=Math.min(...nodes.map(n=>n.x.baseVal.value)),right=Math.max(...nodes.map(n=>n.x.baseVal.value+240)),top=Math.min(...nodes.map(n=>n.y.baseVal.value)),bottom=Math.max(...nodes.map(n=>n.y.baseVal.value+76));return Math.max(Math.abs(box.x+box.width/2-(left+right)/2),Math.abs(box.y+box.height/2-(top+bottom)/2));})).toBeLessThan(.5);
 });
 
-test('tree reset reopens every layer after a manual zoom and collapse',async({page})=>{
+test('tree reset reopens every layer after a manual zoom and collapse',{tag:'@desktop-only'},async({page})=>{
  test.setTimeout(75000);await accelerateTours(page,8);await shortenIdleResume(page);await page.emulateMedia({reducedMotion:'no-preference'});
  // Keep this camera/reset lifecycle bounded on software WebGL. Full-universe
  // rendering and layer persistence are exercised by the separate camera test.
