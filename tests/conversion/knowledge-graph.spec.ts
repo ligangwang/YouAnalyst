@@ -346,11 +346,20 @@ test('tree layer changes preserve the manual camera and closed layers stay close
  const pose=()=>canvas.evaluate(el=>[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));
  const initial=await pose();
  const energy=tree.locator('[data-tree-kind="layer"][data-tree-node="energy"]');
- // At overview distance the first activation reveals culled company names.
- await energy.evaluate((el:HTMLButtonElement)=>el.click());
- await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').count()).toBeGreaterThan(0);
- expect(await pose()).toEqual(initial);
- await energy.evaluate((el:HTMLButtonElement)=>el.click());
+ // Overview collision placement can already expose a company label. Match the
+ // documented interaction: reveal only when every name is culled, otherwise
+ // close on the first activation. Read and click atomically to avoid a frame
+ // changing label visibility between separate browser evaluations.
+ const namesAlreadyVisible=await tree.evaluate(el=>{
+  const visible=el.querySelectorAll('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').length>0;
+  el.querySelector<HTMLButtonElement>('[data-tree-kind="layer"][data-tree-node="energy"]')!.click();return visible;
+ });
+ if(!namesAlreadyVisible){
+  await expect(canvas).toHaveAttribute('data-tour-open-layers',/energy/);
+  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').count()).toBeGreaterThan(0);
+  expect(await pose()).toEqual(initial);
+  await energy.evaluate((el:HTMLButtonElement)=>el.click());
+ }
  await expect(canvas).not.toHaveAttribute('data-tour-open-layers',/energy/);
  expect(await pose()).toEqual(initial);
  await page.emulateMedia({reducedMotion:'no-preference'});await pastIdleResume(page);
