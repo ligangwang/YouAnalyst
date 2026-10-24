@@ -8,6 +8,7 @@ import {readCompanyLookup} from '../../src/lib/company-lookup-cache';
 import {loadCompanyDocuments} from '../../src/lib/company-document-cache';
 import {lookupCompanyRoute} from '../../src/lib/market-companies/slug-lookup';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
+import {loadCompanyAnnouncementSources} from '../../src/lib/events/company-announcements';
 
 function fixture(){
  const rows=new Map<string,Record<string,unknown>>([
@@ -34,6 +35,7 @@ function fixture(){
    doc:(id:string)=>source(collection,id),
    where:(...args:unknown[])=>source(collection,undefined,[...steps,{method:'where',args}]),
    limit:(n:number)=>source(collection,undefined,[...steps,{method:'limit',args:[n]}]),
+   select:(...args:unknown[])=>source(collection,undefined,[...steps,{method:'select',args}]),
    get:async()=>{gets++;return read();},
    onSnapshot:(next:(snapshot:unknown)=>void)=>{opens++;const push=()=>next(read());listeners.add(push);queueMicrotask(push);return ()=>{listeners.delete(push);};},
   };
@@ -71,4 +73,28 @@ test('page cache scope does not change bulk readers, leak after rejection or cac
  assert.equal(f.counts().files,1,'bulk directory policy is unchanged outside company pages');
  const doc=await withCompanyPageReads(()=>readCompanyLookup(f.db,ref));
  assert.equal(doc.get('name'),'Small');assert.equal(f.counts().opens,1);
+});
+
+test('announcement source approval reads only its company, shares the push cache and applies withdrawals',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const source={id:'small-ir',companyId:'US:SMALL',name:'Small IR',url:'https://ir.smallcompany.com/rss.xml',allowedHosts:['ir.smallcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+ const company={name:'Small',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[source]};
+ f.rows.set('investment_themes/technology',{status:'PUBLISHED',parentId:null,names:{en:'Technology','zh-CN':'Technology'},order:0});
+ f.rows.set('investment_themes/ai',{status:'PUBLISHED',parentId:'technology',names:{en:'AI','zh-CN':'AI'},order:0});
+ f.rows.set('companies/US:SMALL',company);
+ // An unrelated invalid source cannot block this company's announcements.
+ f.rows.set('companies/US:OTHER',{...company,newsSources:[{...source,companyId:'US:OTHER',url:'http://unapproved.invalid'}]});
+ const read=()=>loadCompanyAnnouncementSources(f.db,'US:SMALL');
+ const results=await Promise.all(Array.from({length:20},read));
+ assert.equal(results[0][0]?.id,'small-ir');
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
+ f.rows.set('companies/US:SMALL',{...company,newsSources:[{...source,status:'WITHDRAWN'}]});f.push();
+ assert.deepEqual(await read(),[]);
+ f.rows.set('companies/US:SMALL',{...company,themeMemberships:{ai:{status:'WITHDRAWN'}}});f.push();
+ assert.deepEqual(await read(),[]);
+ f.rows.set('companies/US:SMALL',{...company,themeMemberships:{retired:{status:'PUBLISHED'}}});f.push();
+ assert.deepEqual(await read(),[],'membership in a retired theme cannot authorize a source');
+ f.rows.set('companies/US:SMALL',{...company,isDeleted:true});f.push();assert.deepEqual(await read(),[]);
+ f.rows.delete('companies/US:SMALL');f.push();assert.deepEqual(await read(),[]);
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
 });
