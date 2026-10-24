@@ -20,7 +20,10 @@ export async function traceCompanyPage<T>(kind:'page'|'metadata',headers:Pick<He
  // retain their behavior without logging. Never trust a client-supplied timer.
  const ingress=Number(headers.get('x-ya-company-start')),age=Date.now()-ingress;
  if(!id||!/^[a-f0-9-]{36}$/.test(id)||!Number.isFinite(age)||age<0||age>120000)return work();
- const emit=(row:Record<string,unknown>)=>sink({requestId:id,kind,revision:process.env.K_REVISION,timestamp:new Date().toISOString(),...row});
+ const cloudTraceId=headers.get('x-cloud-trace-context')?.split('/')[0];
+ const emit=(row:Record<string,unknown>)=>sink({requestId:id,kind,revision:process.env.K_REVISION,
+  cloudTraceId:cloudTraceId&&/^[a-f0-9]{32}$/.test(cloudTraceId)?cloudTraceId:undefined,
+  timestamp:new Date().toISOString(),...row});
  const trace:Trace={start:performance.now(),phases:[],emit},cpu=process.cpuUsage();
  try{return await scope.run(trace,work);}finally{
   const duration=performance.now()-trace.start,usage=process.cpuUsage(cpu);

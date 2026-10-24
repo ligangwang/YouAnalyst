@@ -291,13 +291,14 @@ test('company financial reads start before relationship resolution and the page 
 
 test('company phase diagnostics retain concurrent request identity, overlap and failure behavior',async()=>{
  const rows:Record<string,unknown>[]=[],sink=(row:Record<string,unknown>)=>{rows.push(row);};
- const headers=(id:string)=>new Headers({'x-ya-company-trace':id,'x-ya-company-start':String(Date.now())});
+ const headers=(id:string)=>new Headers({'x-ya-company-trace':id,'x-ya-company-start':String(Date.now()),'x-cloud-trace-context':'0123456789abcdef0123456789abcdef/123;o=1'});
  const first='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',second='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
  const one=traceCompanyPage('page',headers(first),()=>timeCompanyPhase('identity',async()=>{await gate;return 'one';}),sink);
  const two=traceCompanyPage('metadata',headers(second),async()=>timeCompanyPhaseSync('firestore_client',()=>2),sink);
  assert.equal(await two,2);release();assert.equal(await one,'one');
  assert.deepEqual(rows.map(row=>row.requestId),[second,first]);
+ assert(rows.every(row=>row.cloudTraceId==='0123456789abcdef0123456789abcdef'));
  assert.deepEqual(rows.map(row=>(row.phases as {name:string}[]).map(p=>p.name)),[['firestore_client'],['identity']]);
  const problem=new Error('original');
  await assert.rejects(traceCompanyPage('page',headers(first),()=>timeCompanyPhase('identity',async()=>{throw problem;}),()=>{throw Error('logging failed');}),error=>error===problem);
@@ -312,4 +313,44 @@ test('late financial phases are correlated after the HTML shell returns; malform
  assert.equal(rows[1].requestId,rows[0].requestId);assert.equal(rows[1].name,'financials');
  const malformed=new Headers({'x-ya-company-trace':'private-client-text','x-ya-company-start':'1'});
  assert.equal(await traceCompanyPage('page',malformed,async()=>42,()=>{throw Error('must not log');}),42);
+});
+
+test('peer prices start while financials are blocked, retaining the eight-query bound and complete results',async()=>{
+ const bundled=await build({entryPoints:['src/lib/peer-comparison/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{
+  name:'peer-read-fixture',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
+ }]});
+ const ids=Array.from({length:17},(_,i)=>`US:P${i}`),priceStarts:string[]=[],priceFinishes:(()=>void)[]=[];
+ let finishFinancials!:(docs:unknown[])=>void,active=0,maxActive=0,completed=false;
+ const financials=new Promise<unknown[]>(resolve=>{finishFinancials=resolve;});
+ const injected=(id:string)=>{
+  if(id.endsWith('/company-page-scope'))return {withCompanyPageReads:(work:()=>unknown)=>work()};
+  if(id.endsWith('/change-cache'))return {changeCached:(_db:unknown,_key:unknown,_collections:unknown,work:()=>unknown)=>work()};
+  if(id.endsWith('/company-page-timing'))return {timeCompanyPhase:(_name:string,work:()=>unknown)=>work()};
+  if(id.endsWith('/firebase/admin'))return {getAdminFirestore:()=>({})};
+  if(id.endsWith('/predictions/instrument'))return {marketDate:()=> '2026-10-24'};
+  if(id.endsWith('/company-themes/catalog'))return {loadThemeCatalog:async()=>({})};
+  if(id.endsWith('/company-themes/catalog-model'))return {catalogThemeIds:()=>['ai']};
+  if(id.endsWith('/company-themes/graph-service'))return {loadThemeGraphStructure:async()=>{throw Error('fixture selection owns graph');}};
+  if(id.endsWith('/theme-group'))return {findPeerThemeGroup:async()=>({graph:{nodes:ids},group:{companies:ids.map(id=>({id})),market:'US'}})};
+  if(id.endsWith('/company-document-cache'))return {loadCompanyDocuments:(_db:unknown,collection:string,requested:string[])=>{
+   assert.equal(collection,'company_fundamentals');assert.deepEqual(requested,ids);return financials;
+  }};
+  if(id.endsWith('/price-cache'))return {loadPeerPrices:async(_db:unknown,id:string)=>{
+   priceStarts.push(id);active++;maxActive=Math.max(maxActive,active);
+   await new Promise<void>(resolve=>{priceFinishes.push(resolve);});active--;return [{id}];
+  }};
+  if(id.endsWith('/model'))return {buildPeerComparison:(_id:string,nodes:string[],values:Map<string,unknown>,prices:Map<string,unknown>)=>{
+   assert.deepEqual(nodes,ids);assert.equal(values.size,17);assert.equal(prices.size,17);return {complete:true};
+  }};
+  throw Error(`Unexpected import ${id}`);
+ };
+ const evaluated={exports:{}};new Function('require','module','exports',bundled.outputFiles[0].text)(injected,evaluated,evaluated.exports);
+ const load=(evaluated.exports as {loadPeerComparison:(id:string,options:unknown)=>Promise<unknown>}).loadPeerComparison;
+ const pending=load('US:P0',{company:{}}).then(value=>{completed=true;return value;});
+ const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
+ await tick();assert.equal(priceStarts.length,8,'first price batch must not await financial documents');
+ while(priceStarts.length<17){priceFinishes.splice(0).forEach(finish=>finish());await tick();}
+ priceFinishes.splice(0).forEach(finish=>finish());await tick();
+ assert.equal(maxActive,8);assert.deepEqual(priceStarts,ids);assert.equal(completed,false,'comparison still waits for financials');
+ finishFinancials(ids.map(id=>({data:()=>({id})})));assert.deepEqual(await pending,{complete:true});
 });

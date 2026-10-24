@@ -15,6 +15,9 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
+  // Loading every API/page entry after readiness competes with the first
+  // visitors on Cloud Run. Load only the entries those visitors actually use.
+  experimental: { preloadEntriesOnStart: false },
   // Preserve the original origin for internal locale rewrites, including loopback hosts.
   skipProxyUrlNormalize: true,
   turbopack: {
