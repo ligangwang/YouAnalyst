@@ -74,6 +74,14 @@ export function createEarningsRequestGate(db: Firestore, options: { now?: () => 
     },
   };
 }
+// Reuse only the local waiting hint across company tasks. Every reservation
+// still reads shared state, including cooldowns written by other replicas.
+const sharedGates = new WeakMap<Firestore, ReturnType<typeof createEarningsRequestGate>>();
+export function sharedEarningsRequestGate(db: Firestore, options: Parameters<typeof createEarningsRequestGate>[1] = {}) {
+  let gate = sharedGates.get(db);
+  if (!gate) { gate = createEarningsRequestGate(db, options); sharedGates.set(db, gate); }
+  return gate;
+}
 export type EarningsDownload = { bytes: Uint8Array; mediaType: RawEarningsDocument["mediaType"]; pdfText?: string };
 export function createEarningsDownloader(db: Firestore, options: { userAgent: string; signal?: AbortSignal; fetcher?: typeof fetch } ) {
   if (!options.userAgent.trim()) throw new Error("SEC_USER_AGENT is required for the earnings pilot");

@@ -10,7 +10,7 @@ import { earningsSourceEvent, parseEarningsJob, type EarningsSourceDiscovered } 
 import { claimEarningsSource, discoverEarningsSource, EARNINGS_COLLECTORS, EARNINGS_RECORDS, EARNINGS_SOURCES, persistEarningsCapture, publishEarningsOutbox, readEarningsCapture, type EarningsWork } from "../../src/lib/earnings/live-store";
 import { processEarningsJob } from "../../src/lib/earnings/live-worker";
 import { collectLiveEarnings, inspectLiveEarnings } from "../../src/lib/earnings/live-collector";
-import { createEarningsRequestGate, readBoundedEarningsBody } from "../../src/lib/earnings/live-transport";
+import { sharedEarningsRequestGate, createEarningsRequestGate, readBoundedEarningsBody } from "../../src/lib/earnings/live-transport";
 import { createSecEarningsObserver, earningsScanWindow } from "../../src/lib/earnings/sec-observer";
 import { createSecFilingsSource } from "../../src/lib/sec-filings/source";
 import { secBudget } from "../../src/lib/sec-budget";
@@ -269,4 +269,20 @@ test("SEC raw observer captures only approved issuer earnings candidates, withou
 test("CLI modes make canary explicit and cannot combine reads with collection", () => {
   assert.equal(parseEarningsCollectorArgs([]), "dry-run"); assert.equal(parseEarningsCollectorArgs(["--apply", "--canary"]), "canary");
   for (const args of [["--canary"], ["--apply", "--diagnostics"], ["--apply", "--apply"], ["--all-companies"]]) assert.throws(() => parseEarningsCollectorArgs(args));
+});
+
+test("successive company tasks reuse spacing hints but recheck shared cooldowns", async () => {
+  const fx = earningsFirestore(), waits: number[] = [];
+  const options = {now:fx.now,sleep:async (ms:number) => {waits.push(ms);fx.advance(ms);}};
+  await sharedEarningsRequestGate(fx.db, options).beforeRequest({host:"www.cninfo.com.cn"});
+  await sharedEarningsRequestGate(fx.db, options).beforeRequest({host:"www.cninfo.com.cn"});
+  assert.deepEqual(waits,[1000]); assert.equal(fx.reads.length,2);
+  const other = createEarningsRequestGate(fx.db,options);
+  await other.onBlocked({host:"www.cninfo.com.cn",code:429,retryAfter:"120"});
+  const before = fx.writes.length;
+  await assert.rejects(sharedEarningsRequestGate(fx.db,options).beforeRequest({host:"www.cninfo.com.cn"}),/cooldown/);
+  assert.equal(fx.writes.length,before);
+  fx.advance(120000);
+  await sharedEarningsRequestGate(fx.db,options).beforeRequest({host:"www.cninfo.com.cn"});
+  assert.equal(fx.writes.length,before+1);
 });

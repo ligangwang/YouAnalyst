@@ -189,3 +189,28 @@ test("network failures and timeout aborts stop the host for this run", async () 
     assert.ok(requester.blockedHosts()["www.cninfo.com.cn"]);
   }
 });
+
+test("shared-gate rejection preserves cooldown without another provider failure", async () => {
+  const rejection = Object.assign(new Error("CNINFO earnings cooldown is active"), {code: 429});
+  let calls = 0, blocks = 0;
+  const requester = createCnEarningsRequester({spacingMs: 0,
+    beforeRequest: async () => { throw rejection; },
+    onBlocked: async () => { blocks++; },
+    fetcher: async () => { calls++; return new Response("{}"); },
+  });
+  for (let i = 0; i < 2; i++) await assert.rejects(requester.request("https://www.cninfo.com.cn/new/information/topSearch/query", {method:"POST",body:"",operation:"cninfo_earnings_org",companyId:"XSHE:301308"}), error => error === rejection);
+  assert.equal(calls, 0); assert.equal(blocks, 0);
+});
+
+test("a rejected redirect reservation does not report another provider failure", async () => {
+  let reservations = 0, requests = 0, blocks = 0;
+  const rejection = new Error("shared gate unavailable");
+  const endpoint = "https://www.cninfo.com.cn/new/information/topSearch/query";
+  const requester = createCnEarningsRequester({spacingMs:0,
+    beforeRequest:async () => { if (++reservations === 2) throw rejection; },
+    onBlocked:async () => { blocks++; },
+    fetcher:async () => { requests++; return new Response(null,{status:307,headers:{location:endpoint}}); },
+  });
+  await assert.rejects(requester.request(endpoint,{method:"POST",body:"",operation:"cninfo_earnings_org",companyId:"XSHE:301308"}), error => error === rejection);
+  assert.equal(requests,1); assert.equal(blocks,0);
+});

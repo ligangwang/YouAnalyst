@@ -15,6 +15,7 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
   deadline: number; now?: () => number;
   discoveryOwnedByMap?: boolean;
   companyId?:string;
+  completedSince?:string;
 }) {
   if(options.companyId&&!/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(options.companyId))throw new Error('Invalid A-share fallback company');
   const companies=earningsCompanies().filter(item=>!item.cik&&(!options.companyId||item.companyId===options.companyId));
@@ -37,6 +38,7 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
         }
       }
       const cursorRef = earningsMetadata(db, `cn_${company.companyId}`), cursor = (await cursorRef.get()).data();
+      if(options.companyId&&options.completedSince&&cursor?.status==='complete'&&Date.parse(String(cursor.lastCompleteAt))>=Date.parse(options.completedSince))return {...result,duplicate:true};
       if (cursor?.status==='complete'&&Number(cursor?.nextPollAtMs) > now()) { result.skipped++; continue; }
       result.companies++;
       const scanStartedAt = now();
