@@ -2,6 +2,7 @@ import { observeFirestore } from './firestore-observability';
 import * as admin from "firebase-admin";
 import { getStorage } from "firebase-admin/storage";
 import {enableCompanyDirectory} from '../local-cache/company-directory';
+import {timeCompanyPhaseSync} from '../company-page-timing';
 
 declare global {
   var __adminApp: admin.app.App | undefined;
@@ -39,9 +40,11 @@ export async function verifyIdToken(token: string): Promise<admin.auth.DecodedId
 }
 
 export function getAdminFirestore(): admin.firestore.Firestore {
+ return timeCompanyPhaseSync('firestore_client',()=>{
   const raw=getAdminApp().firestore(),db=observeFirestore(raw);
   if(typeof raw.settings==='function')enableCompanyDirectory(db,db);
   return db;
+ });
 }
 
 export function getAdminStorageBucket(bucketName?: string) {

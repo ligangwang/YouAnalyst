@@ -2,7 +2,7 @@ import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { loadPeerPrices } from './price-cache';
 import { getAdminFirestore } from '../firebase/admin';
-import { loadThemeGraph } from '../company-themes/graph-service';
+import { loadThemeGraphStructure } from '../company-themes/graph-service';
 import { loadThemeCatalog } from '../company-themes/catalog';
 import { catalogThemeIds } from '../company-themes/catalog-model';
 import { marketDate } from '../predictions/instrument';
@@ -21,7 +21,7 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
  try{return await withCompanyPageReads(()=>changeCached(db,`peers:${companyId}:${dateKey}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
   const [catalog,documents]=await Promise.all([loadThemeCatalog(db),options.company?Promise.resolve([{data:()=>options.company}]):loadCompanyDocuments(db,'companies',[companyId])]);
   const selected=await findPeerThemeGroup(companyId,documents[0]?.data() as Partial<ThemedCompany>|undefined,
-   catalogThemeIds(catalog).filter(theme=>theme!=='ai'||options.aiEligible!==false),theme=>loadThemeGraph(theme).catch(()=>{complete=false;return null;}));
+   catalogThemeIds(catalog).filter(theme=>theme!=='ai'||options.aiEligible!==false),theme=>loadThemeGraphStructure(theme).catch(()=>{complete=false;return null;}));
   if(selected){
    const {graph,group}=selected;
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);

@@ -8,7 +8,7 @@ import { predictionInstrument } from "@/lib/predictions/instrument";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
-import { CompanyTickerContent, companyTickerMetadata } from "@/components/company-ticker-route";
+import {traceCompanyPage,timeCompanyPhase} from '@/lib/company-page-timing';
 import { resolveCompanyRoute } from '@/lib/market-companies/slug-resolver';
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyGeography, companyGeographyLabel } from "@/lib/market-companies/identity";
@@ -30,16 +30,22 @@ const load = cache((id: string) => withCompanyPageReads(async()=>{
   return { ...data, id } as MarketCompany & { name: string };
 }));
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+ return traceCompanyPage('metadata',await headers(),async()=>{
   const resolved = await resolveCompanyRoute((await params).id);
   if (!resolved?.path) notFound();
-  if (resolved.id.startsWith('US:') || /^(XSHG|XSHE):/.test(resolved.id)) return companyTickerMetadata({ resolved, params: Promise.resolve({ symbol: resolved.id.startsWith('US:')?resolved.id.slice(3):resolved.id }) });
+  if (resolved.id.startsWith('US:') || /^(XSHG|XSHE):/.test(resolved.id)) {
+    const {companyTickerMetadata}=await timeCompanyPhase('ticker_module',()=>import('@/components/company-ticker-route'));
+    return timeCompanyPhase('metadata_content',()=>companyTickerMetadata({ resolved, params: Promise.resolve({ symbol: resolved.id.startsWith('US:')?resolved.id.slice(3):resolved.id }) }));
+  }
   const data = await load(resolved.id);
   return localizedMetadata({ title: `${data.name} | YouAnalyst`, description: String(data.description ?? ""), alternates: { canonical: resolved.path } }, { usePageCanonical: true });
+ });
 }
 export default async function CompanyPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+ return traceCompanyPage('page',await headers(),async()=>{
   const rawId = (await params).id;
   const resolved = await resolveCompanyRoute(rawId);
   if (!resolved?.path) notFound();
@@ -52,7 +58,17 @@ export default async function CompanyPage({ params, searchParams }: {
     }
     permanentRedirect(localizedPath(resolved.path, locale) + (query.size ? `?${query}` : ""));
   }
-  if (id.startsWith('US:') || /^(XSHG|XSHE):/.test(id)) return <CompanyTickerContent resolved={resolved} params={Promise.resolve({symbol:id.startsWith('US:')?id.slice(3):id})} />;
+  if (id.startsWith('US:') || /^(XSHG|XSHE):/.test(id)) {
+    // Begin the company's data read before evaluating the heavier content/chart
+    // module. Import time and I/O now overlap on a fresh server instance.
+    const financialModule=id.startsWith('US:')?await timeCompanyPhase('financial_module',()=>import('@/lib/fundamentals/service')):null;
+    const pendingFundamentals=financialModule?timeCompanyPhase('financials',()=>financialModule.loadCompanyFundamentals(id.slice(3))):undefined;
+    void pendingFundamentals?.catch(()=>undefined);
+    const {CompanyTickerContent}=await timeCompanyPhase('ticker_module',()=>import('@/components/company-ticker-route'));
+    // Invoke the server component inside this trace; its Suspense children retain
+    // the async context while rendering independently.
+    return timeCompanyPhase('ticker_content',()=>CompanyTickerContent({resolved,pendingFundamentals,params:Promise.resolve({symbol:id.startsWith('US:')?id.slice(3):id})}));
+  }
   const data = await load(id);
   const zh = locale === "zh-CN";
   const identity = companyGeography(data);
@@ -76,4 +92,5 @@ export default async function CompanyPage({ params, searchParams }: {
     </section>
 
   </main>;
+ });
 }
