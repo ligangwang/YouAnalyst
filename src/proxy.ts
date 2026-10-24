@@ -78,8 +78,9 @@ export function proxy(request: NextRequest) {
     const headers = new Headers(request.headers);
     // Overwrite these on every request so callers cannot forge startup timings.
     headers.delete('x-ya-company-trace');headers.delete('x-ya-company-start');
-    if(/^\/company\/[^/]+$/.test(plain)){
-      headers.set('x-ya-company-trace',crypto.randomUUID());
+    const companyRequestId=/^\/company\/[^/]+$/.test(plain)?crypto.randomUUID():undefined;
+    if(companyRequestId){
+      headers.set('x-ya-company-trace',companyRequestId);
       headers.set('x-ya-company-start',String(enteredAt));
     }
     headers.set("x-ya-language", locale);
@@ -90,6 +91,14 @@ export function proxy(request: NextRequest) {
     const rewrite = new URL(request.url);
     rewrite.pathname = plain;
     const response = prefix && localizable ? NextResponse.rewrite(rewrite, { request: { headers } }) : NextResponse.next({ request: { headers } });
+    if(companyRequestId){
+      response.headers.set('x-ya-company-request-id',companyRequestId);
+      const cloudTraceId=request.headers.get('x-cloud-trace-context')?.split('/')[0];
+      console.info(JSON.stringify({event:'company_proxy_timing',requestId:companyRequestId,
+        cloudTraceId:cloudTraceId&&/^[a-f0-9]{32}$/.test(cloudTraceId)?cloudTraceId:undefined,
+        revision:process.env.K_REVISION,ingressAt:new Date(enteredAt).toISOString(),
+        proxyWorkMs:Date.now()-enteredAt,processUptimeMs:Math.round(process.uptime()*1000)}));
+    }
     if ((explicit || prefix) && !request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.startsWith("/_next/")) {
       response.cookies.set("ya-language", locale, { path: "/", maxAge: 31536000, sameSite: "lax", secure: request.nextUrl.protocol === "https:" });
     }

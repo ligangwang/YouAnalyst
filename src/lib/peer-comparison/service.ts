@@ -10,6 +10,7 @@ import { buildPeerComparison, type PeerComparison } from './model';
 import {findPeerThemeGroup} from './theme-group';
 import type {ThemedCompany} from '../company-themes/model';
 import {changeCached} from '../change-cache';
+import {timeCompanyPhase} from '../company-page-timing';
 
 /** Read existing caches only. Comparison views never enqueue provider requests or create collections. */
 export async function loadPeerComparison(companyId:string,options:{company?:Record<string,unknown>;aiEligible?:boolean}={}):Promise<PeerComparison|null>{
@@ -25,16 +26,19 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
   if(selected){
    const {graph,group}=selected;
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);
-   for(let i=0;i<group.companies.length;i+=100){
-    const batch=group.companies.slice(i,i+100);
-    const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id)).catch(()=>{complete=false;return [];});
-    docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
-   }
-   // Bound concurrent reads while retaining every member of the published comparison group.
-   for(let i=0;i<group.companies.length;i+=8)await Promise.all(group.companies.slice(i,i+8).map(async company=>{
-    const rows=await loadPeerPrices(db,company.id,group.market,today).catch(()=>{complete=false;return [];});
-    prices.set(company.id,rows);
-   }));
+   await Promise.all([timeCompanyPhase('peer_financials',async()=>{
+    for(let i=0;i<group.companies.length;i+=100){
+     const batch=group.companies.slice(i,i+100);
+     const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id)).catch(()=>{complete=false;return [];});
+     docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
+    }
+   }),timeCompanyPhase('peer_prices',async()=>{
+    // Financial documents and prices are independent; keep the price bound of eight.
+    for(let i=0;i<group.companies.length;i+=8)await Promise.all(group.companies.slice(i,i+8).map(async company=>{
+     const rows=await loadPeerPrices(db,company.id,group.market,today).catch(()=>{complete=false;return [];});
+     prices.set(company.id,rows);
+    }));
+   })]);
    return buildPeerComparison(companyId,graph.nodes,financials,prices,today);
   }
   return null;
