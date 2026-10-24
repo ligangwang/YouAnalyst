@@ -103,10 +103,39 @@ jobs:
       - name: Verify industry graph projection
         run: npm run test:industry
 
+  # Releases skip browser shards only when a successful PR run tested this exact
+  # Git tree. Sequential merges change the tree, so those releases run the
+  # shards; a failed lookup also runs them rather than blocking the deploy.
+  browser-coverage:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      covered: ${{ steps.coverage.outputs.covered }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find PR browser coverage for this tree
+        id: coverage
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const { verifyBrowserCoverage } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/verify-browser-coverage.mjs`);
+            const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+            try {
+              const run = await verifyBrowserCoverage({ github, context, tree });
+              core.notice(`Reusing browser coverage for tree ${tree} from ${run.html_url}`);
+              core.setOutput('covered', 'true');
+            } catch (error) {
+              core.notice(`${error.message} Running browser tests for tree ${tree}.`);
+              core.setOutput('covered', 'false');
+            }
+
   browser-shard:
-    # Test the exact checkout on releases too; sequential merges can change the
-    # source tree after a PR's browser checks have passed.
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    needs: [browser-coverage]
+    if: ${{ !cancelled() && (github.event_name == 'pull_request' && github.event.pull_request.draft == false || github.event_name != 'pull_request' && needs.browser-coverage.outputs.covered != 'true') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -155,10 +184,11 @@ jobs:
           path: test-results/conversion/report.json
           retention-days: 7
 
-  # Keep one stable required check; every shard must pass, including auth on shard 1.
+  # Keep one stable required check; every shard must pass, including auth on
+  # shard 1, unless a release reuses successful PR coverage of the same tree.
   verify-browser:
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [browser-shard]
+    needs: [browser-coverage, browser-shard]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,7 +197,8 @@ jobs:
       - name: Require all browser shards
         env:
           SHARD_RESULT: ${{ needs.browser-shard.result }}
-        run: test "$SHARD_RESULT" = success
+          COVERED: ${{ needs.browser-coverage.outputs.covered }}
+        run: test "$SHARD_RESULT" = success || { test "$COVERED" = true && test "$SHARD_RESULT" = skipped; }
       - uses: actions/checkout@v4
       - name: Identify tested source tree
         id: tree

@@ -2,9 +2,11 @@
 
 Pull requests run lint, types, unit tests, a Next.js build, standalone packaging
 checks, and browser journeys across four runners. Branch releases repeat source
-checks and build the environment-specific release in parallel. They reuse PR
-browser coverage only when the tested Git tree exactly matches the release.
-Coverage records expire after 90 days; unmatched trees need fresh PR checks.
+checks and build the environment-specific release in parallel. They skip the
+browser shards only when a successful same-repository PR run tested exactly the
+release's Git tree (PR runs test the merge with the base, so this matches when
+the base has not moved since). Otherwise, including after sequential merges,
+expired records (90 days) or a failed lookup, releases run all shards again.
 
 Domain-only email authentication is a required release invariant. The required
 `verify-browser` gate requires `test:auth` on every pull request (browser shard 1). These
@@ -29,7 +31,7 @@ caches are separate for staging and production. Browser tests install only the
 Chromium headless shell they use.
 
 New commits cancel superseded pull-request checks, but do not cancel a running
-branch deployment. Deployment requires successful source checks, exact-tree PR
+branch deployment. Deployment requires successful source checks, browser shards or exact-tree PR
 browser coverage, release packaging checks, and the target environment's rules.
 Live smoke tests still run after rollout. Retired company initializers, graph
 seed imports and watchlist migration Actions are not part of deployment.
