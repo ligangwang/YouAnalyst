@@ -33,8 +33,9 @@ existing theme-filtered queries. A company page no longer downloads the full
 company/fundamentals SQLite files as a prerequisite. Metadata and the overview
 also share one graph computation per React render request.
 
-The policy is isolated to company-page loaders. Bulk map/search/sitemap readers
-keep the file-backed directory, workers keep their existing policy, and
+The policy applies to company-page loaders and the public graph response used
+by company charts. Bulk directory/search/sitemap readers keep the file-backed
+directory, workers keep their existing policy, and
 transactions/live reads retain authoritative SDK behavior. No new persisted
 fields, collections, indexes, migrations, provider calls or credentials are used.
 Subscriptions still coalesce concurrent visitors, receive source updates, and
@@ -76,3 +77,15 @@ cache instead. They retain the ticker/date filters, ordering, limit, correction
 updates and eviction budget. Larger chart histories and bulk readers continue
 to use partition files. A regression checks 20 concurrent visitors, date/ticker
 isolation, all 12 observations, pushed corrections and unchanged bulk behavior.
+
+Further scale-out validation found 12.311- and 13.575-second company responses
+on a newly used instance. Company charts also request `/api/knowledge-graph`,
+whose loader had escaped the targeted page scope. The same instance's API
+activity included whole-company and relationship file reads (11.990 and 3.477
+seconds). These overlapping observations identify another contributing cold
+dependency; they do not prove that file I/O accounts for the entire response.
+The public graph route now selects targeted published-company, relationship and
+valuation subscriptions too. Theme validation, complete graph output, errors
+and response headers are unchanged. A bundled HTTP regression exercises twenty
+concurrent requests, pushed corrections, invalid themes and source failures with
+zero full snapshot reads; unrelated bulk reads retain their original policy.
