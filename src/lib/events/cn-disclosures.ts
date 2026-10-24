@@ -35,7 +35,7 @@ export async function readCnMapDisclosures(companyId:string,from:string,to:strin
 }
 
 /** One public disclosure fetch path, also supplying the supported earnings parsers. */
-export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,request:CnEarningsJsonRequest,options:{deadline:number;runId:string;earningsEnabled:boolean;now?:()=>number;companyId?:string;publish?:(event:EarningsSourceDiscovered)=>Promise<string>}){
+export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,request:CnEarningsJsonRequest,options:{deadline:number;runId:string;earningsEnabled:boolean;now?:()=>number;companyId?:string;completedSince?:string;publish?:(event:EarningsSourceDiscovered)=>Promise<string>}){
   if(options.companyId&&!/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(options.companyId))throw new Error('Invalid A-share discovery company');
   if(options.companyId&&options.earningsEnabled&&!options.publish)throw new Error('Company task requires earnings publication before its checkpoint');
   const now=options.now??Date.now,meta=db.collection('collectors').doc(options.companyId?`exchange-task-${options.companyId}`:'exchange-map'),companies=mapListedCompanies(graph).filter(n=>n.market==='CN_A'&&(!options.companyId||n.id===options.companyId));
@@ -52,6 +52,7 @@ export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,
       if(!options.companyId&&!await acquireMaintenanceLeaseState(companyLease,options.runId,now(),cloudRunTaskAttempt())){result.deferred++;continue;}
       try{
       const ref=db.collection('collectors').doc(`exchange-${company.id}`),state=(await ref.get()).data();
+      if(options.companyId&&options.completedSince&&state?.status==='complete'&&Date.parse(String(state.lastSuccessAt))>=Date.parse(options.completedSince)&&(!options.earningsEnabled||state.earningsCoverageVersion===2))return {...result,duplicate:true};
       const earningsBaseline=options.earningsEnabled&&state?.earningsCoverageVersion!==2;
       if(state?.status==='complete'&&!earningsBaseline&&Number(state?.nextPollAtMs)>now())continue;
       const start=now(),at=new Date(start).toISOString(),to=new Date(start+8*3600000).toISOString().slice(0,10),from=!earningsBaseline&&state?.lastCompleteAt?new Date(Date.parse(state.lastCompleteAt)-7*86400000).toISOString().slice(0,10):DISCLOSURE_HISTORY_START;

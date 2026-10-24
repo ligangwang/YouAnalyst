@@ -53,12 +53,13 @@ test('worker rechecks canonical enrollment and completed deliveries before any p
   assert.equal((await processCnDiscoveryTask(task(),fx.db,log,options)).status,'ineligible');
   await assert.rejects(processCnDiscoveryTask(task(),fx.db,log,{...options,enabled:false}),/disabled/);
   await assert.rejects(processCnDiscoveryTask(task('earnings-fallback'),fx.db,log,{...options,earningsEnabled:false}),/disabled/);
-  const complete={status:'complete',lastSuccessAt:task().requestedAt,earningsCoverageVersion:2};
-  assert.equal((await processCnDiscoveryTask(task(),fx.db,log,{...options,loadCompany:async()=>graph,readState:async()=>complete})).duplicate,true);
+  fx.rows.set(`collectors/exchange-${id}`,{status:'complete',lastSuccessAt:task().requestedAt,earningsCoverageVersion:2});
+  assert.equal((await processCnDiscoveryTask(task(),fx.db,log,{...options,earningsEnabled:false,loadCompany:async()=>graph,announcements:undefined})).duplicate,true);
+  assert(!fx.rows.get(`collectors/exchange-task-${id}`)?.leaseOwner);
 });
 
 test('worker fails delivery for busy, failed or deferred company work',async()=>{
-  const fx=earningsFirestore(),options={enabled:true,earningsEnabled:true,now:fx.now,loadCompany:async()=>graph,readState:async()=>undefined,fallback:async()=>({})};
+  const fx=earningsFirestore(),options={enabled:true,earningsEnabled:true,now:fx.now,loadCompany:async()=>graph,fallback:async()=>({})};
   for(const result of [{status:'busy'},{failed:1},{deferred:1}])await assert.rejects(processCnDiscoveryTask(task(),fx.db,log,{...options,announcements:async()=>result}),/retry company/);
   assert.equal((await processCnDiscoveryTask(task(),fx.db,log,{...options,announcements:async()=>({failed:0,deferred:0})})).status,'verified');
 });
@@ -113,5 +114,32 @@ test('announcement earnings handoff failure leaves pending source and retries be
     const done=await run(false);assert.equal('completed' in done&&done.completed,1);assert.equal(fx.rows.get(checkpoint)?.earningsCoverageVersion,2);assert.equal(sent[0],sent[1]);
     assert.equal([...fx.rows.values()].filter(row=>row.recordType==='source').length,1);
     assert(!fx.rows.has(`collectors/exchange-${other}`));
+  }finally{restoreEarningsFixtures();}
+});
+
+test('completed delivery checks use one progress read under the company lease',async()=>{
+  const fx=earningsFirestore(),collection=fx.db.collection.bind(fx.db);let reads=0;
+  fx.db.collection=((name:string)=>{
+    const result=collection(name),doc=result.doc.bind(result);
+    result.doc=((key:string)=>{
+      const ref=doc(key),get=ref.get.bind(ref);
+      if(key===`exchange-${id}`||key===`cn_${id}`)ref.get=(async()=>{
+        reads++;assert.equal(fx.rows.get(`collectors/exchange-task-${id}`)?.leaseOwner,log.runId);
+        return get();
+      }) as typeof ref.get;
+      return ref;
+    }) as typeof result.doc;
+    return result;
+  }) as typeof fx.db.collection;
+  const at=task().requestedAt;
+  fx.rows.set(`collectors/exchange-${id}`,{status:'complete',lastSuccessAt:at,earningsCoverageVersion:2,nextPollAtMs:0});
+  const first=await processCnDiscoveryTask(task(),fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph});
+  assert.equal(first.duplicate,true);assert.equal(reads,1);
+  configureEarningsMap(graph,new Map());
+  try{
+    fx.rows.set(`earnings_collectors/cn_${id}`,{status:'complete',lastCompleteAt:at,nextPollAtMs:0});
+    const second=await collectLiveEarnings(fx.db,log,{companyId:id,completedSince:at,deadline:fx.now()+60000,now:fx.now,publish:async()=>assert.fail(),discoverCn:async()=>assert.fail()});
+    assert.equal('duplicate' in second&&second.duplicate,true);assert.equal(reads,2);
+    assert(!fx.rows.get(`collectors/exchange-task-${id}`)?.leaseOwner);
   }finally{restoreEarningsFixtures();}
 });

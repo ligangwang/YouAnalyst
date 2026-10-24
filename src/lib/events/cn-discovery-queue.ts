@@ -56,16 +56,13 @@ export async function loadCnDiscoveryCompany(db:Firestore,id:string):Promise<Kno
   return collectionUniverse({nodes:[],relationships:[],sources:[],asOf:''},doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[]);
 }
 export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:MaintenanceLog,options:{enabled:boolean;earningsEnabled:boolean;now?:()=>number;
-  loadCompany?:(id:string)=>Promise<KnowledgeGraph>;readState?:(id:string,mode:CnDiscoveryTask['mode'])=>Promise<State>;
+  loadCompany?:(id:string)=>Promise<KnowledgeGraph>;
   announcements?:()=>Promise<{status?:string;failed?:number;deferred?:number}>;fallback?:()=>Promise<{failed?:number;deferred?:number}>;
 }){
   const task=parseCnDiscoveryTask(input),now=options.now??Date.now;
   if(!options.enabled||task.mode==='earnings-fallback'&&!options.earningsEnabled)throw new Error('A-share discovery disabled; retain task');
   const graph=await (options.loadCompany??(id=>loadCnDiscoveryCompany(db,id)))(task.companyId);
   if(!mapListedCompanies(graph).some(node=>node.id===task.companyId&&node.market==='CN_A'))return {status:'ineligible',companyId:task.companyId};
-  const state=await (options.readState??((id,mode)=>cnDiscoveryState(db,id,mode)))(task.companyId,task.mode);
-  const complete=task.mode==='announcements'?state?.lastSuccessAt:state?.lastCompleteAt;
-  if(state?.status==='complete'&&Date.parse(String(complete))>=Date.parse(task.requestedAt)&&(task.mode==='earnings-fallback'||!options.earningsEnabled||state.earningsCoverageVersion===2))return {status:'verified',duplicate:true,companyId:task.companyId};
   if(task.mode==='earnings-fallback'&&!options.fallback)await loadEarningsMap(db,graph);
   const deadline=now()+7*60000;
   const gate=sharedEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
@@ -75,8 +72,8 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
   };
   const cn=createCnEarningsSources(request);
   const publish=(event:Parameters<typeof publishEarningsIntake>[1])=>publishEarningsIntake(db,event);
-  const result=task.mode==='announcements'?await (options.announcements??(()=>collectCnMapDisclosures(db,graph,request,{companyId:task.companyId,deadline,runId:log.runId,earningsEnabled:options.earningsEnabled,now,publish})))()
-    :await (options.fallback??(()=>collectLiveEarnings(db,log,{companyId:task.companyId,deadline,now,discoveryOwnedByMap:true,publish,discoverCn:async(id,from,to,at)=>(await cn.discover({companyId:id,from,to,firstSeenAt:at,maxPages:20})).sources})))();
+  const result=task.mode==='announcements'?await (options.announcements??(()=>collectCnMapDisclosures(db,graph,request,{companyId:task.companyId,completedSince:task.requestedAt,deadline,runId:log.runId,earningsEnabled:options.earningsEnabled,now,publish})))()
+    :await (options.fallback??(()=>collectLiveEarnings(db,log,{companyId:task.companyId,completedSince:task.requestedAt,deadline,now,discoveryOwnedByMap:true,publish,discoverCn:async(id,from,to,at)=>(await cn.discover({companyId:id,from,to,firstSeenAt:at,maxPages:20})).sources})))();
   if(('status' in result&&result.status==='busy')||('failed' in result&&result.failed)||('deferred' in result&&result.deferred))throw new Error('A-share discovery incomplete; retry company task');
   return {...result,status:'verified',companyId:task.companyId,mode:task.mode};
 }
