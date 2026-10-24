@@ -1,7 +1,7 @@
 # Browser integration checks
 
 Run `npm ci`, `npx playwright install chromium`, then `npm run test:conversion`.
-The deployment workflow runs these checks across four browser shards before deployment.
+The deployment workflow runs these checks across eight browser shards before deployment.
 
 The suite bundles real client components and, where relevant, route wrappers into
 in-memory browser fixtures. Each scenario mocks authentication, navigation and API
@@ -23,19 +23,23 @@ smoke checks remain separate checks.
 
 ## Chart timing and CI balancing
 
-`node scripts/conversion-shards.mjs 1/4 --reporter=line,json` collects the full
-suite and balances costly WebGL tests across four runners. It creates an exact
+`node scripts/conversion-shards.mjs 1/8 --reporter=line,json` collects the full
+suite and balances costly WebGL tests across eight runners. It creates an exact
 Playwright test list per runner, including both device projects and new tests.
 Use `--list` to inspect an assignment. Weights are estimates, not timeouts or
-selection filters; the required browser gate still requires all four runners.
+selection filters; the required browser gate still requires every runner.
 
 Weights come from measured seconds in `timings.json`: tests that took at least
 five seconds are listed by ID, and every other test uses its file's median, so
 new tests are balanced before they have history. When shard durations drift
-apart, download the four `browser-timings-*` artifacts from a passing run and
+apart, download every `browser-timings-*` artifact from a passing run and
 refresh the file:
 
     node scripts/conversion-shards.mjs --record-timings shard-*/report.json
+
+The workflow matrix sets the runner count. Renderer tests keep one worker per
+runner because two software-WebGL workers saturate a 4-CPU runner and break
+animation timing, so add runners rather than workers to cut wall-clock time.
 
 The map fixture's `tour-clock` esbuild plugin accelerates only the tour entry
 points in explicitly opted-in tests (8x by default). A rate of zero lets a test
@@ -57,6 +61,11 @@ fixture without waiting through another introduction. Pure graph data/layout
 assertions run once in `tests/graph-layout.test.ts`, not in each browser project.
 
 ## Adding coverage without duplicating it
+
+Tag a test `@desktop-only` (`test('title',{tag:'@desktop-only'},async…)`) when it
+checks renderer camera or tour logic that is identical on both devices; the mobile
+project excludes the tag, so balancing never counts it. Keep layout, touch,
+hit-testing and label-fitting checks on both projects.
 
 Keep pure calculations in the Node test suites. Market-cap scaling and formatting
 run once in `tests/graph-layout.test.ts`; browser tests cover how recorded values

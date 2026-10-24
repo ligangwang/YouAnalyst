@@ -29,8 +29,8 @@ test('empty or duplicate collections and invalid shard counts fail closed',()=>{
 });
 test('deployment uses balanced selection without disabling required browser coverage',()=>{
  const workflow=readFileSync('.github/workflows/deploy.yml','utf8');
- assert(workflow.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/4 --reporter=line,json'));
- assert(workflow.includes('needs: [browser-shard]'));
+ assert(workflow.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/${{ strategy.job-total }} --reporter=line,json'));
+ assert(workflow.includes('needs: [browser-coverage, browser-shard]'));
  assert(workflow.includes('test "$SHARD_RESULT" = success'));
 });
 

@@ -103,22 +103,64 @@ jobs:
       - name: Verify industry graph projection
         run: npm run test:industry
 
-  browser-shard:
-    # Test the exact checkout on releases too; sequential merges can change the
-    # source tree after a PR's browser checks have passed.
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+  # Releases skip browser shards only when a successful PR run tested this exact
+  # Git tree. Sequential merges change the tree, so those releases run the
+  # shards; a failed lookup also runs them rather than blocking the deploy.
+  browser-coverage:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      covered: ${{ steps.coverage.outputs.covered }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find PR browser coverage for this tree
+        id: coverage
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const { verifyBrowserCoverage } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/verify-browser-coverage.mjs`);
+            const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+            try {
+              const run = await verifyBrowserCoverage({ github, context, tree });
+              core.notice(`Reusing browser coverage for tree ${tree} from ${run.html_url}`);
+              core.setOutput('covered', 'true');
+            } catch (error) {
+              core.notice(`${error.message} Running browser tests for tree ${tree}.`);
+              core.setOutput('covered', 'false');
+            }
+
+  browser-shard:
+    needs: [browser-coverage]
+    if: ${{ !cancelled() && (github.event_name == 'pull_request' && github.event.pull_request.draft == false || github.event_name != 'pull_request' && needs.browser-coverage.outputs.covered != 'true') }}
+    runs-on: ubuntu-latest
+    # Renderer tests saturate a runner's CPUs with one worker, so wall-clock
+    # time scales with runners. The shard count comes from this matrix.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # The lockfile fully determines node_modules (there are no project
+      # install hooks), so an exact-key hit can skip npm ci.
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - name: Cache Playwright browser download
         uses: actions/cache@v4
         with:
@@ -136,7 +178,7 @@ jobs:
       - name: Verify user journeys
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/conversion/report.json
-        run: node scripts/conversion-shards.mjs ${{ matrix.shard }}/4 --reporter=line,json
+        run: node scripts/conversion-shards.mjs ${{ matrix.shard }}/${{ strategy.job-total }} --reporter=line,json
 
       - name: Save browser diagnostics
         if: failure()
@@ -155,10 +197,11 @@ jobs:
           path: test-results/conversion/report.json
           retention-days: 7
 
-  # Keep one stable required check; every shard must pass, including auth on shard 1.
+  # Keep one stable required check; every shard must pass, including auth on
+  # shard 1, unless a release reuses successful PR coverage of the same tree.
   verify-browser:
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [browser-shard]
+    needs: [browser-coverage, browser-shard]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,7 +210,8 @@ jobs:
       - name: Require all browser shards
         env:
           SHARD_RESULT: ${{ needs.browser-shard.result }}
-        run: test "$SHARD_RESULT" = success
+          COVERED: ${{ needs.browser-coverage.outputs.covered }}
+        run: test "$SHARD_RESULT" = success || { test "$COVERED" = true && test "$SHARD_RESULT" = skipped; }
       - uses: actions/checkout@v4
       - name: Identify tested source tree
         id: tree

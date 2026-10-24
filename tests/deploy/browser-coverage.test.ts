@@ -4,7 +4,7 @@ import { verifyBrowserCoverage } from '../../scripts/verify-browser-coverage.mjs
 
 const tree = 'a'.repeat(40);
 const current = { workflow_id: 7, repository: { id: 1 } };
-const passed = { ...current, id: 42, event: 'pull_request', status: 'completed', conclusion: 'success' };
+const passed = { ...current, id: 42, event: 'pull_request', status: 'completed', conclusion: 'success', head_repository: { id: 1 } };
 const artifact = { name: `browser-verified-${tree}`, expired: false, workflow_run: { id: 42 } };
 function fixture(record = artifact, run = passed) {
   return {
@@ -29,6 +29,7 @@ for (const [label, record, run] of [
   ['push instead of PR', artifact, {...passed, event:'push'}],
   ['different workflow', artifact, {...passed, workflow_id:8}],
   ['different repository', artifact, {...passed, repository:{id:2}}],
+  ['fork PR', artifact, {...passed, head_repository:{id:3}}],
 ] as const) test(`rejects ${label}`, async () => {
   await assert.rejects(verifyBrowserCoverage(fixture(record, run)), /No successful PR/);
 });

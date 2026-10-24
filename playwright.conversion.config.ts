@@ -11,6 +11,8 @@ export default defineConfig({
   use: { serviceWorkers: "block" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    // Camera and tour logic tagged @desktop-only renders the same on both
+    // devices; layout, touch and hit-testing checks still run on mobile.
+    { name: "mobile", use: { ...devices["Pixel 7"] }, grepInvert: /@desktop-only/ },
   ],
 });

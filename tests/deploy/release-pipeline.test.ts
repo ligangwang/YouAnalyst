@@ -20,26 +20,40 @@ test('both environments schedule identical US maintenance twice in New York time
 
 test('all browser shards and authentication must pass the stable release gate', () => {
   const shard = workflow.jobs['browser-shard'];
-  assert.equal(shard.if, "github.event_name != 'pull_request' || github.event.pull_request.draft == false");
-  assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4]);
+  assert.deepEqual(shard.needs, ['browser-coverage']);
+  // PRs always run the shards; releases skip them only on exact-tree coverage,
+  // and a failed lookup leaves the output unset so the shards still run.
+  assert.equal(shard.if, "${{ !cancelled() && (github.event_name == 'pull_request' && github.event.pull_request.draft == false || github.event_name != 'pull_request' && needs.browser-coverage.outputs.covered != 'true') }}");
+  assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4, 5, 6, 7, 8]);
   assert.equal(shard.strategy['fail-fast'], false);
-  assert(shard.steps.some((s: { run?: string }) => s.run?.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/4')));
+  assert(shard.steps.some((s: { run?: string }) => s.run?.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/${{ strategy.job-total }}')));
   const auth = shard.steps.find((s: { run?: string }) => s.run === 'npm run test:auth');
   assert.equal(auth.if, 'matrix.shard == 1');
   const gate = workflow.jobs['verify-browser'];
-  assert.deepEqual(gate.needs, ['browser-shard']);
+  assert.deepEqual(gate.needs, ['browser-coverage', 'browser-shard']);
   assert.match(gate.if, /^always\(\)/);
   assert.equal(gate.steps[0].env.SHARD_RESULT, '${{ needs.browser-shard.result }}');
-  assert.equal(gate.steps[0].run, 'test "$SHARD_RESULT" = success');
+  assert.equal(gate.steps[0].env.COVERED, '${{ needs.browser-coverage.outputs.covered }}');
+  assert.equal(gate.steps[0].run, 'test "$SHARD_RESULT" = success || { test "$COVERED" = true && test "$SHARD_RESULT" = skipped; }');
   assert.equal(gate.steps[0].if, undefined);
   const proof = gate.steps.find((s: { uses?: string }) => s.uses === 'actions/upload-artifact@v4');
   assert.equal(proof.if, "github.event_name == 'pull_request'");
   assert.equal(proof.with.name, 'browser-verified-${{ steps.tree.outputs.sha }}');
-  // Releases run the actual shards on their checkout; stale PR artifacts must
-  // never substitute for successful release browser tests.
-  assert(!gate.steps.some((s: { uses?: string }) => s.uses === 'actions/github-script@v7'));
   assert(shard.steps.some((s: { uses?: string; with?: { ref?: string } }) =>
     s.uses === 'actions/checkout@v4' && s.with?.ref === undefined));
+});
+
+test('releases reuse only exact-tree PR browser coverage and never block on the lookup', () => {
+  const coverage = workflow.jobs['browser-coverage'];
+  assert.equal(coverage.if, "github.event_name != 'pull_request'");
+  assert.deepEqual(coverage.permissions, { contents: 'read', actions: 'read' });
+  assert.equal(coverage.outputs.covered, '${{ steps.coverage.outputs.covered }}');
+  const lookup = coverage.steps.find((s: { id?: string }) => s.id === 'coverage');
+  assert.equal(lookup.uses, 'actions/github-script@v7');
+  assert.match(lookup.with.script, /scripts\/verify-browser-coverage\.mjs/);
+  assert.match(lookup.with.script, /'rev-parse', 'HEAD\^\{tree\}'/);
+  assert.match(lookup.with.script, /catch \(error\)[\s\S]*setOutput\('covered', 'false'\)/);
+  assert(!coverage.steps.some((s: { with?: { ref?: string } }) => s.with?.ref !== undefined));
 });
 
 test('parallel release preparation cannot deploy and both environments require the checked artifact', () => {
