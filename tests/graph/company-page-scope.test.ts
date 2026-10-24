@@ -10,6 +10,9 @@ import {lookupCompanyRoute} from '../../src/lib/market-companies/slug-lookup';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 import {loadCompanyAnnouncementSources} from '../../src/lib/events/company-announcements';
 import {loadPeerPrices} from '../../src/lib/peer-comparison/price-cache';
+import {build} from 'esbuild';
+import {createRequire} from 'node:module';
+import {legacyCatalog} from '../helpers/theme-catalog';
 
 function fixture(){
  const rows=new Map<string,Record<string,unknown>>([
@@ -79,6 +82,42 @@ test('cold peer prices share a bounded live query without downloading yearly fil
  assert.equal((await read())[0].close,123);assert.equal(f.counts().opens,1);
  await assert.rejects(loadPeerPrices(f.db,'US:SMALL','US','2026-10-19'),/price partition requested/);
  assert.equal(f.counts().files,1,'bulk readers retain their yearly partition policy');
+});
+
+test('public graph HTTP reads retain the targeted cache boundary for cold company charts',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const root=globalThis as typeof globalThis&{__graphRouteRead?:(theme:string)=>Promise<unknown>};
+ const previous=root.__graphRouteRead;
+ t.after(()=>{if(previous)root.__graphRouteRead=previous;else delete root.__graphRouteRead;});
+ // Replace only the graph/catalog data dependencies; execute the real bundled
+ // HTTP route and its async cache scope against the enabled file directory.
+ const result=await build({entryPoints:['src/app/api/knowledge-graph/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{
+  name:'graph-route-fixture',setup(plugin){
+   plugin.onLoad({filter:/company-themes[\\/]graph-service\.ts$/},()=>({contents:'export const loadThemeGraph=async theme=>globalThis.__graphRouteRead(theme);',loader:'js'}));
+   plugin.onLoad({filter:/company-themes[\\/]catalog\.ts$/},()=>({contents:`export const loadThemeCatalog=async()=>${JSON.stringify(legacyCatalog)};`,loader:'js'}));
+  }
+ }]});
+ const evaluated={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),evaluated,evaluated.exports);
+ const {GET}=evaluated.exports as {GET:(request:Request)=>Promise<Response>};
+ root.__graphRouteRead=async theme=>{
+  const company=await readCompanyLookup(f.db,f.db.collection('companies').doc('US:SMALL'));
+  const [financials]=await loadCompanyDocuments(f.db,'company_fundamentals',['US:SMALL']);
+  return {theme,company:company.get('name'),value:financials.get('value')};
+ };
+ const read=()=>GET(new Request('https://example.test/api/knowledge-graph?theme=ai'));
+ const responses=await Promise.all(Array.from({length:20},read));
+ assert(responses.every(response=>response.status===200));
+ assert.deepEqual(await responses[0].json(),{theme:'ai',company:'Small',value:{fetchedAt:'2026-10-24',revenue:17}});
+ assert.equal(responses[0].headers.get('Cache-Control'),'no-store');
+ assert.equal(responses[0].headers.get('X-Graph-Storage'),'company_relationships');
+ assert.deepEqual(f.counts(),{files:0,opens:2,gets:0});
+ f.rows.set('company_fundamentals/US:SMALL',{value:{revenue:23}});f.push();
+ assert.equal((await(await read()).json()).value.revenue,23);
+ assert.equal((await GET(new Request('https://example.test/api/knowledge-graph?theme=missing'))).status,404);
+ root.__graphRouteRead=async()=>{throw Error('source unavailable');};
+ assert.equal((await read()).status,503);
+ await readCompanyLookup(f.db,f.db.collection('companies').doc('US:SMALL'));
+ assert.equal(f.counts().files,1,'the scope restores the existing bulk policy after responses and errors');
 });
 
 test('page cache scope does not change bulk readers, leak after rejection or cache authoritative reads',async t=>{
