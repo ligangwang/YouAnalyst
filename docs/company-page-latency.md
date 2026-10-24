@@ -66,3 +66,13 @@ share earnings reads per React request. Independently bundled routes also share
 the pending published theme catalog. First Firestore listener snapshots now log
 their elapsed duration so subsequent cold-start analysis can distinguish startup,
 source reads and rendering. No persisted application schema changes are needed.
+
+Production validation on revision `00845-jat` identified a second cold path:
+peer comparisons still selected ticker/year price files despite requesting only
+12 observations. A Microsoft response took 4.675 seconds and its surrounding
+ten-second window contained 51 price synchronization callbacks. Company-page
+price queries limited to at most 12 rows now use the existing exact-query push
+cache instead. They retain the ticker/date filters, ordering, limit, correction
+updates and eviction budget. Larger chart histories and bulk readers continue
+to use partition files. A regression checks 20 concurrent visitors, date/ticker
+isolation, all 12 observations, pushed corrections and unchanged bulk behavior.

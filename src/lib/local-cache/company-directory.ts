@@ -161,6 +161,10 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
  if(spec.collection==='eod_prices'&&process.env.PRICE_SNAPSHOT_READY!=='1')return undefined;
  const plan=spec.collection==='eod_prices'?pricePlan(spec.id,spec.steps):undefined;
  if(spec.collection==='eod_prices'&&!plan)return undefined;
+ // A comparison needs only its latest twelve observations. Let the exact
+ // bounded source subscription serve it instead of loading a ticker/year file.
+ // Larger chart histories and bulk readers keep the partition snapshot policy.
+ if(pageReads.getStore()&&plan?.limit!==undefined&&plan.limit>0&&plan.limit<=12)return undefined;
  return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection)).then(rows=>{
   if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data,spec.collection);}
   const filters=spec.steps.filter(s=>s.method==='where');
