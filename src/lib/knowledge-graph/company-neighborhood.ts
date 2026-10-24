@@ -1,6 +1,6 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
-import { readCompanyLookup } from '../company-lookup-cache';
+import { loadCompanyDocuments } from '../company-document-cache';
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from './market-store';
 import { relationshipBelongsToTheme } from './relationship-cache';
 import { loadKnowledgeGraphStructure } from './service';
@@ -25,8 +25,9 @@ export async function loadCompanyNeighborhood(db: Firestore, id: string, data: R
   }
   const ids = [...new Set([...records.values()].flatMap(row => [row.source, row.target]))]
     .filter(neighbor => neighbor !== id && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(neighbor));
-  const neighbors = [];
-  for (let i=0;i<ids.length;i+=20) neighbors.push(...await Promise.all(ids.slice(i,i+20).map(neighbor => readCompanyLookup(db, db.collection('companies').doc(neighbor)))));
+  // Share the existing ID-batch push cache instead of opening a separate stream
+  // per neighbor. It retains missing/deleted records and live withdrawals too.
+  const neighbors = await loadCompanyDocuments(db, 'companies', ids);
   const companies = neighbors.filter(doc => doc.exists).map(doc => ({ ...doc.data(), id: doc.id }) as MarketCompany);
   if (data) companies.push({ ...data, id } as MarketCompany);
   return graphFromMarket(companies, [...records.values()]);

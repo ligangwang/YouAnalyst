@@ -16,6 +16,7 @@ const REDIRECT_HOSTS = new Set([
 const CANONICAL_HOST = "youanalyst.com";
 
 export function proxy(request: NextRequest) {
+  const enteredAt=Date.now();
   // Log at ingress so sitemap cache hits and redirects are recorded too.
   const pathname = request.nextUrl.pathname;
   if (pathname === "/sitemap.xml" || pathname.startsWith("/sitemaps/")) {
@@ -75,6 +76,12 @@ export function proxy(request: NextRequest) {
       }
     }
     const headers = new Headers(request.headers);
+    // Overwrite these on every request so callers cannot forge startup timings.
+    headers.delete('x-ya-company-trace');headers.delete('x-ya-company-start');
+    if(/^\/company\/[^/]+$/.test(plain)){
+      headers.set('x-ya-company-trace',crypto.randomUUID());
+      headers.set('x-ya-company-start',String(enteredAt));
+    }
     headers.set("x-ya-language", locale);
     headers.set("x-ya-pathname", localizable ? plain : "");
     const explicitMarket = parseMarket(request.nextUrl.searchParams.get("market"));

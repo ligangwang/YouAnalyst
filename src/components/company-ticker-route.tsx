@@ -35,6 +35,8 @@ import { loadCnFundamentals } from "@/lib/fundamentals/cn-service";
 import { headers } from "next/headers";
 import { companyOrganizationSchema } from "@/lib/company-schema";
 import { canonicalCompanyPath } from "@/lib/market-companies/slug-resolver";
+import {timeCompanyPhase} from '@/lib/company-page-timing';
+import type {CompanyFundamentals} from '@/lib/fundamentals/model';
 
 const loadCompanyEarnings=cache(loadLatestCompanyEarnings);
 const loadChinaCompany = cache((id: string) => withCompanyPageReads(async()=>{
@@ -101,7 +103,7 @@ async function buildPageMetadata({
   };
 }
 
-export async function CompanyTickerContent({ params, resolved }: { params: Promise<{ symbol: string }>; resolved?: ResolvedCompany }) {
+export async function CompanyTickerContent({ params, resolved, pendingFundamentals }: { params: Promise<{ symbol: string }>; resolved?: ResolvedCompany; pendingFundamentals?:Promise<CompanyFundamentals|null> }) {
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const { symbol: rawSymbol } = await params;
   const symbol = decodeRouteSymbol(rawSymbol);
@@ -115,7 +117,7 @@ export async function CompanyTickerContent({ params, resolved }: { params: Promi
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
-  const fundamentals=loadCompanyFundamentals(ticker);
+  const fundamentals=pendingFundamentals ?? timeCompanyPhase('financials',()=>loadCompanyFundamentals(ticker));
   // Observe rejection while the financial component waits for its boundary.
   void fundamentals.catch(()=>undefined);
   const company = await loadCompanyResearch(ticker,resolved);
@@ -139,7 +141,7 @@ export async function CompanyTickerContent({ params, resolved }: { params: Promi
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`} data={resolved?.data}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} timeline={<Suspense fallback={null}><CompanyTimeline company={company} graph={company.neighborhood ?? undefined} pending={fundamentals}/></Suspense>} graphContent={company.inMap || !company.graphAvailable ? <Suspense fallback={null}><CompanyGraph companyId={`US:${ticker}`}/></Suspense> : undefined} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`} data={resolved?.data}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} timeline={<Suspense fallback={null}><CompanyTimeline company={company} graph={company.neighborhood ?? undefined} pending={fundamentals}/></Suspense>} graphContent={company.inMap || !company.graphAvailable ? <Suspense fallback={null}><CompanyGraph companyId={`US:${ticker}`} neighborhood={company.neighborhood ?? undefined}/></Suspense> : undefined} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} pending={fundamentals} />
       </Suspense>
@@ -151,8 +153,10 @@ export async function companyTickerMetadata(...args: Parameters<typeof buildPage
   return localizedMetadata(await buildPageMetadata(...args), { usePageCanonical: true });
 }
 
-async function CompanyGraph({companyId}:{companyId:string}) {
- const graph=await loadCompanyPageGraph().catch(()=>undefined);
+async function CompanyGraph({companyId,neighborhood}:{companyId:string;neighborhood?:KnowledgeGraph}) {
+ // This panel shows direct relationships only. Chart/stock switching still
+ // hydrates the complete client graph independently, including sector peers.
+ const graph=neighborhood ?? await loadCompanyPageGraph().catch(()=>undefined);
  return <CompanyResearchPanel companyId={companyId} initialGraph={graph}/>;
 }
 

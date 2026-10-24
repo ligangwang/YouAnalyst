@@ -17,6 +17,7 @@ import {loadCompanyNeighborhood} from '../../src/lib/knowledge-graph/company-nei
 import {companyResearchGraph} from '../../src/lib/knowledge-graph/company-research-projection';
 import {buildCompanyResearch} from '../../src/lib/company-research';
 import {legacyCatalog} from '../helpers/theme-catalog';
+import {traceCompanyPage,timeCompanyPhase,timeCompanyPhaseSync} from '../../src/lib/company-page-timing';
 
 function fixture(){
  const rows=new Map<string,Record<string,unknown>>([
@@ -190,19 +191,61 @@ test('an uncovered company does not read global graph, neighbors or valuations',
  assert.deepEqual(f.counts(),{files:0,opens:2,gets:0});
 });
 
+test('a connected company batches all neighbors and reuses live corrections without one stream per neighbor',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const membership={status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:0,asOf:'2026-10-24'};
+ const company={name:'Small',symbol:'SMALL',status:'PUBLISHED',inGraph:membership};
+ for(let i=0;i<45;i++){
+  const id=`US:N${i}`;
+  f.rows.set(`companies/${id}`,{name:`Neighbor ${i}`,symbol:`N${i}`,status:'DIRECTORY'});
+  f.rows.set(`company_relationships/e${i}`,{source:'US:SMALL',target:id,type:'SUPPLIER_OF',status:'PUBLISHED',evidence:[{id:'filing',title:'Source',url:'https://www.sec.gov/Archives/filing'}]});
+ }
+ const read=()=>withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:SMALL',company));
+ const result=await read();assert.equal(result.relationships.filter(e=>e.type==='SUPPLIER_OF').length,45);
+ assert.deepEqual(f.counts(),{files:0,opens:4,gets:0},'two endpoint queries plus two ID batches cover all45neighbors');
+ f.rows.set('companies/US:N1',{name:'Corrected',symbol:'N1',status:'DIRECTORY'});f.push();
+ assert.equal((await read()).nodes.find(n=>n.id==='US:N1')?.name,'Corrected');
+ f.rows.set('companies/US:N1',{isDeleted:true});f.push();
+ assert.equal((await read()).nodes.some(n=>n.id==='US:N1'),false);
+ assert.equal(f.counts().opens,4,'corrections and withdrawals reuse the same subscriptions');
+});
+
+test('theme membership lookup avoids valuation enrichment while the complete public graph retains it',async()=>{
+ const root=globalThis as typeof globalThis&{__structureReads?:number;__valuationReads?:number};
+ const before=[root.__structureReads,root.__valuationReads];root.__structureReads=0;root.__valuationReads=0;
+ try{
+ const graph={nodes:[{id:'US:MSFT',kind:'COMPANY',name:'Microsoft',stageIds:['cloud']}],relationships:[],sources:[],asOf:'2026-10-24'};
+ const result=await build({entryPoints:['src/lib/company-themes/graph-service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{
+  name:'graph-structure-fixture',setup(plugin){
+   plugin.onLoad({filter:/knowledge-graph[\\/]service\.ts$/},()=>({contents:`export async function loadKnowledgeGraphStructure(){globalThis.__structureReads++;return ${JSON.stringify(graph)};}export async function loadKnowledgeGraph(){throw Error('unexpected full graph');}export async function loadGraphValuations(db,graph){globalThis.__valuationReads++;return {...graph,nodes:graph.nodes.map(n=>({...n,marketCap:{value:123,currency:'USD'}}))};}`,loader:'js'}));
+   plugin.onLoad({filter:/company-themes[\\/]catalog\.ts$/},()=>({contents:`export const loadThemeCatalog=async()=>${JSON.stringify(legacyCatalog)};`,loader:'js'}));
+   plugin.onLoad({filter:/firebase[\\/]admin\.ts$/},()=>({contents:'export const getAdminFirestore=()=>({});',loader:'js'}));
+   plugin.onLoad({filter:/^server-only$/},()=>({contents:'',loader:'js'}));
+  }
+ }]});
+ const evaluated={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),evaluated,evaluated.exports);
+ const {loadThemeGraphStructure,loadThemeGraph}=evaluated.exports as {loadThemeGraphStructure:(id:string)=>Promise<typeof graph>;loadThemeGraph:(id:string)=>Promise<typeof graph>};
+ assert.equal((await loadThemeGraphStructure('ai')).nodes[0].name,'Microsoft');assert.equal(root.__valuationReads,0);
+ const full=await loadThemeGraph('ai');assert.equal((full.nodes[0] as unknown as {marketCap:{value:number}}).marketCap.value,123);assert.equal(root.__valuationReads,1);
+ await assert.rejects(loadThemeGraphStructure('missing'),/unpublished/);
+ }finally{[root.__structureReads,root.__valuationReads]=before;}
+});
+
 test('company financial reads start before relationship resolution and the page does not await them or the global graph',async()=>{
  const bundle=await build({entryPoints:['src/components/company-ticker-route.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',plugins:[{
   name:'page-dependencies',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
  }]});
- const require=createRequire(import.meta.url);let finish!:()=>void,finishFinancials!:(value:unknown)=>void,financials=0,graphReads=0,researchReads=0;
+ const require=createRequire(import.meta.url);let finish!:()=>void,finishFinancials!:(value:unknown)=>void,financials=0,graphReads=0,researchReads=0,inMap=false;
+ const neighborhood={nodes:[],relationships:[],sources:[],asOf:'2026-10-24'};
  const researchGate=new Promise<void>(resolve=>{finish=resolve;});
  const resolved={id:'US:SMALL',path:'/company/small',data:{symbol:'SMALL'}};
  const injected=(id:string)=>{
   if(id==='react'||id==='react/jsx-runtime')return require(id);
   if(id==='next/headers')return {headers:async()=>new Headers()};
+  if(id.endsWith('/company-page-timing'))return {timeCompanyPhase:(_name:string,work:()=>unknown)=>work()};
   if(id.endsWith('/predictions/types'))return {normalizeTicker:(s:string)=>s};
   if(id.endsWith('/company-research-service'))return {
-   loadCompanyResearch:async(ticker:string,record:unknown)=>{assert.equal(record,resolved);researchReads++;await researchGate;return {ticker,name:'Small',known:true,inMap:false,graphAvailable:true,neighborhood:null};},
+   loadCompanyResearch:async(ticker:string,record:unknown)=>{assert.equal(record,resolved);researchReads++;await researchGate;return {ticker,name:'Small',known:true,inMap,graphAvailable:true,neighborhood:inMap?neighborhood:null};},
    loadCompanyPageGraph:async()=>{graphReads++;throw Error('unrelated graph');}
   };
   if(id.endsWith('/fundamentals/service'))return {loadCompanyFundamentals:()=>{financials++;return new Promise(resolve=>{finishFinancials=resolve;});}};
@@ -225,4 +268,36 @@ test('company financial reads start before relationship resolution and the page 
  assert.equal(props(chart).graph,undefined,'partial neighborhoods must not suppress complete client graph hydration or sector peers');
  assert.deepEqual((props(chart).company as Record<string,unknown>).marketCap,{value:123,currency:'USD',priceDate:'2026-10-24'});
  assert.equal(financials,1,'timeline valuation reuses the pending company financial read');
+ inMap=true;
+ const mapped=await CompanyTickerContent({params:Promise.resolve({symbol:'SMALL'}),resolved,pendingFundamentals:Promise.resolve(null)});
+ assert.equal(financials,1,'the financial promise started before the content import is reused');
+ const mappedOverview=props((props(mapped).children as unknown[])[1]).overview;
+ const panel=props(props(mappedOverview).graphContent).children as {type:(props:unknown)=>Promise<unknown>;props:unknown};
+ assert.equal(props(await panel.type(panel.props)).initialGraph,neighborhood);
+ assert.equal(graphReads,0,'direct relationship panel must not fetch unrelated global valuations');
+});
+
+test('company phase diagnostics retain concurrent request identity, overlap and failure behavior',async()=>{
+ const rows:Record<string,unknown>[]=[],sink=(row:Record<string,unknown>)=>{rows.push(row);};
+ const headers=(id:string)=>new Headers({'x-ya-company-trace':id,'x-ya-company-start':String(Date.now())});
+ const first='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',second='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+ const one=traceCompanyPage('page',headers(first),()=>timeCompanyPhase('identity',async()=>{await gate;return 'one';}),sink);
+ const two=traceCompanyPage('metadata',headers(second),async()=>timeCompanyPhaseSync('firestore_client',()=>2),sink);
+ assert.equal(await two,2);release();assert.equal(await one,'one');
+ assert.deepEqual(rows.map(row=>row.requestId),[second,first]);
+ assert.deepEqual(rows.map(row=>(row.phases as {name:string}[]).map(p=>p.name)),[['firestore_client'],['identity']]);
+ const problem=new Error('original');
+ await assert.rejects(traceCompanyPage('page',headers(first),()=>timeCompanyPhase('identity',async()=>{throw problem;}),()=>{throw Error('logging failed');}),error=>error===problem);
+});
+
+test('late financial phases are correlated after the HTML shell returns; malformed timers do not log',async()=>{
+ const rows:Record<string,unknown>[]=[],headers=new Headers({'x-ya-company-trace':'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa','x-ya-company-start':String(Date.now())});
+ let release!:()=>void,pending!:Promise<number>;const gate=new Promise<void>(resolve=>{release=resolve;});
+ await traceCompanyPage('page',headers,async()=>{pending=timeCompanyPhase('financials',async()=>{await gate;return 7;});},row=>{rows.push(row);});
+ release();assert.equal(await pending,7);
+ assert.equal(rows[0].event,'company_page_timing');assert.equal(rows[1].event,'company_page_phase');
+ assert.equal(rows[1].requestId,rows[0].requestId);assert.equal(rows[1].name,'financials');
+ const malformed=new Headers({'x-ya-company-trace':'private-client-text','x-ya-company-start':'1'});
+ assert.equal(await traceCompanyPage('page',malformed,async()=>42,()=>{throw Error('must not log');}),42);
 });

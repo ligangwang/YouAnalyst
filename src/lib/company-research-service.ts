@@ -6,6 +6,7 @@ import { companyResearchGraph } from "./knowledge-graph/company-research-project
 import { buildCompanyResearch } from "./company-research";
 import { loadCompanyNeighborhood } from "./knowledge-graph/company-neighborhood";
 import { readCompanyLookup } from "./company-lookup-cache";
+import {timeCompanyPhase} from './company-page-timing';
 
 // Metadata needs identities/relationships; valuation I/O starts independently.
 const loadCompanyStructure=cache(()=>withCompanyPageReads(()=>loadKnowledgeGraphStructure()));
@@ -22,6 +23,6 @@ const loadTickerRecord=cache(async(ticker:string)=>{
 export const loadCompanyResearch = cache((ticker:string,resolved?:ResolvedCompany)=>withCompanyPageReads(async()=>{
  const db=getAdminFirestore(), id=`US:${ticker}`;
  const data=resolved?.id===id?resolved.data:await loadTickerRecord(ticker);
- const neighborhood=await loadCompanyNeighborhood(db,id,data,loadCompanyStructure).catch(()=>null);
+ const neighborhood=await timeCompanyPhase('relationships',()=>loadCompanyNeighborhood(db,id,data,loadCompanyStructure)).catch(()=>null);
  return {...buildCompanyResearch(ticker,data?[data]:[],neighborhood?companyResearchGraph(neighborhood):null),neighborhood};
 }));
