@@ -9,13 +9,15 @@ import { TOUR_IDLE_RESUME_MS } from '../../../src/lib/ui/knowledge-graph/tour-mo
 // test opts into shortenIdleResume.
 //
 // Software WebGL is the suite's bottleneck: each tree frame took ~580ms, and
-// every Playwright call waits behind it. Fixtures render without MSAA at half
-// resolution (~170ms). Hit testing, HTML labels and camera state use CSS
-// pixels, and no test reads scene pixels, so assertions are unaffected.
-const FIXTURE_RENDERER:[string,string][]=[
-  ['dpr={[1,1.5]}','dpr={.5}'],
-  ['antialias:true','antialias:false'],
-];
+// every Playwright call waits behind it. Fixtures render without MSAA, which
+// changes no geometry, and the tree also renders at half resolution (~170ms):
+// its meshes are sized in world units and its labels in CSS pixels. The graph
+// keeps its pixel ratio because its star sprites and click radii scale with it.
+// No test reads scene pixels.
+const FIXTURE_RENDERER:Record<string,[string,string][]>={
+  'company-graph-3d.tsx':[['antialias:true','antialias:false']],
+  'industry-tree-scene.tsx':[['antialias:true','antialias:false'],['dpr={[1,1.5]}','dpr={.5}']],
+};
 export const tourClockPlugin: Plugin = {
   name: 'fixture-tour-clock',
   setup(build) {
@@ -25,7 +27,7 @@ export const tourClockPlugin: Plugin = {
         ? 'introPath.current(delta, controls.current.polarAngle, speed)'
         : 'presentation.current(delta,navigation.speed)';
       if(!source.includes(entry))throw new Error(`Tour fixture entry point changed: ${path}`);
-      for(const [setting,fixture] of FIXTURE_RENDERER){
+      for(const [setting,fixture] of FIXTURE_RENDERER[path.endsWith('company-graph-3d.tsx')?'company-graph-3d.tsx':'industry-tree-scene.tsx']){
         if(source.split(setting).length!==2)throw new Error(`Fixture renderer setting changed: ${setting} in ${path}`);
         source=source.replace(setting,fixture);
       }
