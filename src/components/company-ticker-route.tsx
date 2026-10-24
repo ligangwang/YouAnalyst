@@ -164,5 +164,8 @@ async function CompanyTimeline({company,graph,pending}:{company:CompanyResearch;
  };
  const marketCap=cap?.status==='estimated' && cap.currency==='USD' && typeof cap.value==='number' && Number.isFinite(cap.value) && cap.value>0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? '')
   ? {value:cap.value,currency:'USD' as const,priceDate:cap.priceDate!}:undefined;
- return <CompanyResearchTimeline company={{...node,marketCap}} graph={graph}/>;
+ // The neighborhood is sufficient for server identity, but chart stock switching
+ // and sector browsing need the complete graph. Let the existing client loader
+ // hydrate it independently rather than treating a partial graph as complete.
+ return <CompanyResearchTimeline company={{...node,marketCap}}/>;
 }

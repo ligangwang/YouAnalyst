@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {isValidElement} from 'react';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
 import {FieldPath} from 'firebase-admin/firestore';
@@ -193,7 +194,7 @@ test('company financial reads start before relationship resolution and the page 
  const bundle=await build({entryPoints:['src/components/company-ticker-route.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',plugins:[{
   name:'page-dependencies',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
  }]});
- const require=createRequire(import.meta.url);let finish!:()=>void,financials=0,graphReads=0,researchReads=0;
+ const require=createRequire(import.meta.url);let finish!:()=>void,finishFinancials!:(value:unknown)=>void,financials=0,graphReads=0,researchReads=0;
  const researchGate=new Promise<void>(resolve=>{finish=resolve;});
  const resolved={id:'US:SMALL',path:'/company/small',data:{symbol:'SMALL'}};
  const injected=(id:string)=>{
@@ -204,7 +205,7 @@ test('company financial reads start before relationship resolution and the page 
    loadCompanyResearch:async(ticker:string,record:unknown)=>{assert.equal(record,resolved);researchReads++;await researchGate;return {ticker,name:'Small',known:true,inMap:false,graphAvailable:true,neighborhood:null};},
    loadCompanyPageGraph:async()=>{graphReads++;throw Error('unrelated graph');}
   };
-  if(id.endsWith('/fundamentals/service'))return {loadCompanyFundamentals:()=>{financials++;return new Promise(()=>{});}};
+  if(id.endsWith('/fundamentals/service'))return {loadCompanyFundamentals:()=>{financials++;return new Promise(resolve=>{finishFinancials=resolve;});}};
   if(id.endsWith('/market-companies/routes'))return {chinaCompanyId:()=>null,companyPageUrl:()=>'/company/small'};
   if(id==='next/navigation')return {notFound:()=>{throw Error('404');},permanentRedirect:()=>{throw Error('redirect');}};
   return new Proxy({},{get:(_target,key)=>key==='__esModule'?false:()=>null});
@@ -214,6 +215,14 @@ test('company financial reads start before relationship resolution and the page 
  const page=CompanyTickerContent({params:Promise.resolve({symbol:'SMALL'}),resolved});
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(financials,1,'own financials begin while relationships are still blocked');assert.equal(researchReads,1);
- finish();assert(await page,'HTML shell returns even though financial data has not resolved');
+ finish();const shell=await page;assert(shell,'HTML shell returns even though financial data has not resolved');
  assert.equal(financials,1);assert.equal(graphReads,0);
+ const props=(value:unknown)=>{assert(isValidElement(value));return value.props as Record<string,unknown>;};
+ const ticker=(props(shell).children as unknown[])[1],overview=props(ticker).overview;
+ const timeline=props(props(overview).timeline).children as {type:(props:unknown)=>Promise<unknown>;props:unknown};
+ finishFinancials({marketCap:{status:'estimated',currency:'USD',value:123,priceDate:'2026-10-24'}});
+ const chart=await timeline.type(timeline.props);
+ assert.equal(props(chart).graph,undefined,'partial neighborhoods must not suppress complete client graph hydration or sector peers');
+ assert.deepEqual((props(chart).company as Record<string,unknown>).marketCap,{value:123,currency:'USD',priceDate:'2026-10-24'});
+ assert.equal(financials,1,'timeline valuation reuses the pending company financial read');
 });
