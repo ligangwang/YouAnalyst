@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {isValidElement} from 'react';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
 import {FieldPath} from 'firebase-admin/firestore';
@@ -12,6 +13,9 @@ import {loadCompanyAnnouncementSources} from '../../src/lib/events/company-annou
 import {loadPeerPrices} from '../../src/lib/peer-comparison/price-cache';
 import {build} from 'esbuild';
 import {createRequire} from 'node:module';
+import {loadCompanyNeighborhood} from '../../src/lib/knowledge-graph/company-neighborhood';
+import {companyResearchGraph} from '../../src/lib/knowledge-graph/company-research-projection';
+import {buildCompanyResearch} from '../../src/lib/company-research';
 import {legacyCatalog} from '../helpers/theme-catalog';
 
 function fixture(){
@@ -154,4 +158,71 @@ test('announcement source approval reads only its company, shares the push cache
  f.rows.set('companies/US:SMALL',{...company,isDeleted:true});f.push();assert.deepEqual(await read(),[]);
  f.rows.delete('companies/US:SMALL');f.push();assert.deepEqual(await read(),[]);
  assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
+});
+
+
+test('an unenrolled company reads only its endpoints; graph-only neighbors retain incoming sources and withdrawals',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const membership={status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:0,asOf:'2026-10-24'};
+ const company={name:'Small',symbol:'SMALL',status:'DIRECTORY',active:true,predictionSupported:true};
+ f.rows.set('companies/US:SMALL',company);
+ f.rows.set('companies/US:SUPPLIER',{name:'Supplier',symbol:'SUPPLIER',status:'PUBLISHED',inGraph:membership});
+ const edge={source:'US:SUPPLIER',target:'US:SMALL',type:'SUPPLIER_OF',status:'PUBLISHED',evidence:[{id:'filing',title:'Filing',url:'https://www.sec.gov/Archives/filing'}]};
+ f.rows.set('company_relationships/supplier',edge);
+ f.rows.set('company_relationships/hidden',{...edge,status:'WITHDRAWN'});
+ f.rows.set('company_relationships/other-theme',{...edge,themeIds:['energy']});
+ f.rows.set('company_relationships/deleted',{...edge,isDeleted:true});
+ const read=()=>withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:SMALL',company));
+ const results=await Promise.all(Array.from({length:20},read));
+ const research=buildCompanyResearch('SMALL',[company],companyResearchGraph(results[0]));
+ assert.equal(research.inMap,true,'direct enrollment is not necessary for published graph neighbors');
+ assert.equal(research.connections.length,1);assert.equal(research.connections[0].label,'Supplier supplies Small');
+ assert.equal(research.connections[0].evidence[0].filingUrl,edge.evidence[0].url);
+ assert.deepEqual(f.counts(),{files:0,opens:3,gets:0},'two endpoint queries and one neighbor; no target, directory or financial reread');
+ f.rows.set('company_relationships/supplier',{...edge,status:'WITHDRAWN'});f.push();
+ assert.equal((await read()).nodes.some(node=>node.id==='US:SMALL'),false,'withdrawal removes relationship-only membership');
+});
+
+test('an uncovered company does not read global graph, neighbors or valuations',async t=>{
+ t.after(closeLocalCaches);const f=fixture(),company={name:'Small',symbol:'SMALL',status:'DIRECTORY'};
+ const graph=await withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:SMALL',company));
+ assert.deepEqual(graph.nodes,[]);assert.deepEqual(graph.relationships,[]);
+ assert.deepEqual(f.counts(),{files:0,opens:2,gets:0});
+});
+
+test('company financial reads start before relationship resolution and the page does not await them or the global graph',async()=>{
+ const bundle=await build({entryPoints:['src/components/company-ticker-route.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',plugins:[{
+  name:'page-dependencies',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
+ }]});
+ const require=createRequire(import.meta.url);let finish!:()=>void,finishFinancials!:(value:unknown)=>void,financials=0,graphReads=0,researchReads=0;
+ const researchGate=new Promise<void>(resolve=>{finish=resolve;});
+ const resolved={id:'US:SMALL',path:'/company/small',data:{symbol:'SMALL'}};
+ const injected=(id:string)=>{
+  if(id==='react'||id==='react/jsx-runtime')return require(id);
+  if(id==='next/headers')return {headers:async()=>new Headers()};
+  if(id.endsWith('/predictions/types'))return {normalizeTicker:(s:string)=>s};
+  if(id.endsWith('/company-research-service'))return {
+   loadCompanyResearch:async(ticker:string,record:unknown)=>{assert.equal(record,resolved);researchReads++;await researchGate;return {ticker,name:'Small',known:true,inMap:false,graphAvailable:true,neighborhood:null};},
+   loadCompanyPageGraph:async()=>{graphReads++;throw Error('unrelated graph');}
+  };
+  if(id.endsWith('/fundamentals/service'))return {loadCompanyFundamentals:()=>{financials++;return new Promise(resolve=>{finishFinancials=resolve;});}};
+  if(id.endsWith('/market-companies/routes'))return {chinaCompanyId:()=>null,companyPageUrl:()=>'/company/small'};
+  if(id==='next/navigation')return {notFound:()=>{throw Error('404');},permanentRedirect:()=>{throw Error('redirect');}};
+  return new Proxy({},{get:(_target,key)=>key==='__esModule'?false:()=>null});
+ };
+ const evaluated={exports:{}};new Function('require','module','exports',bundle.outputFiles[0].text)(injected,evaluated,evaluated.exports);
+ const {CompanyTickerContent}=evaluated.exports as {CompanyTickerContent:(props:unknown)=>Promise<unknown>};
+ const page=CompanyTickerContent({params:Promise.resolve({symbol:'SMALL'}),resolved});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(financials,1,'own financials begin while relationships are still blocked');assert.equal(researchReads,1);
+ finish();const shell=await page;assert(shell,'HTML shell returns even though financial data has not resolved');
+ assert.equal(financials,1);assert.equal(graphReads,0);
+ const props=(value:unknown)=>{assert(isValidElement(value));return value.props as Record<string,unknown>;};
+ const ticker=(props(shell).children as unknown[])[1],overview=props(ticker).overview;
+ const timeline=props(props(overview).timeline).children as {type:(props:unknown)=>Promise<unknown>;props:unknown};
+ finishFinancials({marketCap:{status:'estimated',currency:'USD',value:123,priceDate:'2026-10-24'}});
+ const chart=await timeline.type(timeline.props);
+ assert.equal(props(chart).graph,undefined,'partial neighborhoods must not suppress complete client graph hydration or sector peers');
+ assert.deepEqual((props(chart).company as Record<string,unknown>).marketCap,{value:123,currency:'USD',priceDate:'2026-10-24'});
+ assert.equal(financials,1,'timeline valuation reuses the pending company financial read');
 });
