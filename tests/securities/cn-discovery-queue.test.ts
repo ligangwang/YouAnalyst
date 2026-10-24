@@ -54,7 +54,8 @@ test('worker rechecks canonical enrollment and completed deliveries before any p
   await assert.rejects(processCnDiscoveryTask(task(),fx.db,log,{...options,enabled:false}),/disabled/);
   await assert.rejects(processCnDiscoveryTask(task('earnings-fallback'),fx.db,log,{...options,earningsEnabled:false}),/disabled/);
   fx.rows.set(`collectors/exchange-${id}`,{status:'complete',lastSuccessAt:task().requestedAt,earningsCoverageVersion:2});
-  assert.equal((await processCnDiscoveryTask(task(),fx.db,log,{...options,earningsEnabled:false,loadCompany:async()=>graph,announcements:undefined})).duplicate,true);
+  const duplicate=await processCnDiscoveryTask(task(),fx.db,log,{...options,earningsEnabled:false,loadCompany:async()=>graph,announcements:undefined});
+  assert.equal('duplicate' in duplicate&&duplicate.duplicate,true);
   assert(!fx.rows.get(`collectors/exchange-task-${id}`)?.leaseOwner);
 });
 
@@ -134,7 +135,7 @@ test('completed delivery checks use one progress read under the company lease',a
   const at=task().requestedAt;
   fx.rows.set(`collectors/exchange-${id}`,{status:'complete',lastSuccessAt:at,earningsCoverageVersion:2,nextPollAtMs:0});
   const first=await processCnDiscoveryTask(task(),fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph});
-  assert.equal(first.duplicate,true);assert.equal(reads,1);
+  assert.equal('duplicate' in first&&first.duplicate,true);assert.equal(reads,1);
   configureEarningsMap(graph,new Map());
   try{
     fx.rows.set(`earnings_collectors/cn_${id}`,{status:'complete',lastCompleteAt:at,nextPollAtMs:0});
