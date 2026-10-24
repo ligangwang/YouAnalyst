@@ -1,3 +1,4 @@
+import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
 import { CN_COMPANY_ID } from "../knowledge-graph/cn-companies";
@@ -51,6 +52,6 @@ export async function readCnFundamentals(id:string,db:ReturnType<typeof getAdmin
     stale:Boolean(annual&&now-Date.parse(annual.fetchedAt)>3*86400000)};
 }
 export async function loadCnFundamentals(id:string){
-  try{return await readCnFundamentals(id,getAdminFirestore());}
+  try{return await withCompanyPageReads(()=>readCnFundamentals(id,getAdminFirestore()));}
   catch(error){console.error(JSON.stringify({severity:'ERROR',message:'fundamentals: cn_read_failed',company:id,error:maintenanceError(error)}));return null;}
 }

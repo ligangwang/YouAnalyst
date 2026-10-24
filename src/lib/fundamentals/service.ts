@@ -1,3 +1,4 @@
+import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { usFundamentalsId, validFundamentalsTicker } from "./identity";
 import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
@@ -45,7 +46,7 @@ export async function requestMissingCompanyFundamentals(ticker: string, db: Data
 
 export async function loadCompanyFundamentals(ticker: string): Promise<CompanyFundamentals | null> {
   try {
-    return await requestMissingCompanyFundamentals(ticker, getAdminFirestore());
+    return await withCompanyPageReads(()=>requestMissingCompanyFundamentals(ticker, getAdminFirestore()));
   } catch (error) {
     console.error(JSON.stringify({ severity: "ERROR", message: "fundamentals: cache_request_failed", ticker, error: maintenanceError(error) }));
     return null;

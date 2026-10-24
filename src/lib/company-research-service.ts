@@ -1,3 +1,4 @@
+import {withCompanyPageReads} from './local-cache/company-page-scope';
 import { cache } from "react";
 import { getAdminFirestore } from "./firebase/admin";
 import { loadKnowledgeGraph } from "./knowledge-graph/service";
@@ -5,8 +6,11 @@ import { companyResearchGraph } from "./knowledge-graph/company-research-project
 import { buildCompanyResearch } from "./company-research";
 import { readCompanyLookup } from "./company-lookup-cache";
 
+// Metadata and page content share the complete graph computation as well as I/O.
+export const loadCompanyPageGraph=cache(()=>withCompanyPageReads(()=>loadKnowledgeGraph()));
+
 // Shared by metadata and page rendering; no new extraction or client-side identity reads.
-export const loadCompanyResearch = cache(async (ticker: string) => {
+export const loadCompanyResearch = cache((ticker: string) => withCompanyPageReads(async()=>{
   const [listings, graph] = await Promise.all([
     (async () => {
       try {
@@ -15,7 +19,7 @@ export const loadCompanyResearch = cache(async (ticker: string) => {
         return result.docs.map((doc) => doc.data());
       } catch { return []; }
     })(),
-    loadKnowledgeGraph().then(graph=>companyResearchGraph(graph)).catch(() => null),
+    loadCompanyPageGraph().then(graph=>companyResearchGraph(graph)).catch(() => null),
   ]);
   return buildCompanyResearch(ticker, listings, graph);
-});
+}));
