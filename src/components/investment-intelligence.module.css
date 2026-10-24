@@ -20,7 +20,8 @@
 
 .eventOverlay a{color:inherit;text-decoration:underline;text-underline-offset:3px}.eventOverlay a:hover{color:var(--accent)}.eventOverlay a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
 
-.eventList small>span:last-child{margin-left:auto}
+/* The open-detail arrow trails the date instead of taking its own row. */
+.eventList>div>button>div:first-child>:last-child::after{content:"↗" / "";margin-left:6px;color:var(--text-secondary,#92b3bd)}
 .companyList>.selectedCompany{background:var(--ui-selected,#173c42);box-shadow:inset 4px 0 #9ff4e1,inset 0 0 0 1px #77dcca}
 .companyList>.selectedCompany>button:first-child,.companyList>.selectedCompany span{color:var(--ui-text,#edfff9);font-weight:700}
 .companyList>.selectedCompany strong{color:var(--ui-text,#a8ffeb);font-weight:800}
