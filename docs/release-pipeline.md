@@ -1,7 +1,7 @@
 # Release pipeline
 
 Pull requests run lint, types, unit tests, a Next.js build, standalone packaging
-checks, and browser journeys across four runners. Branch releases repeat source
+checks, and browser journeys across eight runners. Branch releases repeat source
 checks and build the environment-specific release in parallel. They skip the
 browser shards only when a successful same-repository PR run tested exactly the
 release's Git tree (PR runs test the merge with the base, so this matches when

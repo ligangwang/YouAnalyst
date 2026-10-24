@@ -24,9 +24,9 @@ test('all browser shards and authentication must pass the stable release gate', 
   // PRs always run the shards; releases skip them only on exact-tree coverage,
   // and a failed lookup leaves the output unset so the shards still run.
   assert.equal(shard.if, "${{ !cancelled() && (github.event_name == 'pull_request' && github.event.pull_request.draft == false || github.event_name != 'pull_request' && needs.browser-coverage.outputs.covered != 'true') }}");
-  assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4]);
+  assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4, 5, 6, 7, 8]);
   assert.equal(shard.strategy['fail-fast'], false);
-  assert(shard.steps.some((s: { run?: string }) => s.run?.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/4')));
+  assert(shard.steps.some((s: { run?: string }) => s.run?.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/${{ strategy.job-total }}')));
   const auth = shard.steps.find((s: { run?: string }) => s.run === 'npm run test:auth');
   assert.equal(auth.if, 'matrix.shard == 1');
   const gate = workflow.jobs['verify-browser'];

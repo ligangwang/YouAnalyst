@@ -137,17 +137,30 @@ jobs:
     needs: [browser-coverage]
     if: ${{ !cancelled() && (github.event_name == 'pull_request' && github.event.pull_request.draft == false || github.event_name != 'pull_request' && needs.browser-coverage.outputs.covered != 'true') }}
     runs-on: ubuntu-latest
+    # Renderer tests saturate a runner's CPUs with one worker, so wall-clock
+    # time scales with runners. The shard count comes from this matrix.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      # The lockfile fully determines node_modules (there are no project
+      # install hooks), so an exact-key hit can skip npm ci.
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - name: Cache Playwright browser download
         uses: actions/cache@v4
         with:
@@ -165,7 +178,7 @@ jobs:
       - name: Verify user journeys
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/conversion/report.json
-        run: node scripts/conversion-shards.mjs ${{ matrix.shard }}/4 --reporter=line,json
+        run: node scripts/conversion-shards.mjs ${{ matrix.shard }}/${{ strategy.job-total }} --reporter=line,json
 
       - name: Save browser diagnostics
         if: failure()
