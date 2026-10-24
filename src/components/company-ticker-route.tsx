@@ -30,6 +30,7 @@ import { headers } from "next/headers";
 import { companyOrganizationSchema } from "@/lib/company-schema";
 import { canonicalCompanyPath } from "@/lib/market-companies/slug-resolver";
 
+const loadCompanyEarnings=cache(loadLatestCompanyEarnings);
 const loadChinaCompany = cache((id: string) => withCompanyPageReads(async()=>{
   const db = getAdminFirestore();
   const doc = await readCompanyLookup(db, db.collection(COMPANY_COLLECTION).doc(id));
@@ -67,9 +68,9 @@ async function buildPageMetadata({
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
-  const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
-  // Cached per company, so the page render reuses this read.
-  const content = { earnings: company.inMap && Boolean(await loadLatestCompanyEarnings(`US:${ticker}`)) };
+  const [canonicalPath,earnings]=await Promise.all([canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null]);
+  const canonical = canonicalPath ?? companyPageUrl(ticker,'US',company.slug);
+  const content = { earnings: Boolean(earnings) };
   const title = `${companyPageHeadline(company, locale, content)} | YouAnalyst`;
   const description = companyResearchDescription(company, locale, content);
 
@@ -101,16 +102,20 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
-    const [company, fundamentals] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId)]);
+    const [company, fundamentals,announcements,earningsSummary] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId),loadCompanyAnnouncements(chinaId),loadCompanyEarnings(chinaId)]);
     const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A",company.slug), locale));
     const schema = { "@context": "https://schema.org", ...companyOrganizationSchema(company, locale, url, chinaId.split(":")[1], chinaId.startsWith("XSHG:") ? "SSE" : "SZSE") };
-    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage classifications={<Suspense fallback={null}><CompanyClassifications companyId={chinaId}/></Suspense>} company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={chinaId}/></Suspense>} /></>;
+    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage classifications={<Suspense fallback={null}><CompanyClassifications companyId={chinaId}/></Suspense>} company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={announcements} earningsSummary={earningsSummary} comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={chinaId}/></Suspense>} /></>;
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
+  const graphPromise=loadCompanyPageGraph().catch(()=>undefined);
   const company = await loadCompanyResearch(ticker);
-  const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
-  const earningsSummary = company.inMap ? await loadLatestCompanyEarnings(`US:${ticker}`) : null;
+  const [canonicalPath,earningsSummary,announcements,graph]=await Promise.all([
+    canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null,
+    company.inMap?loadCompanyAnnouncements(`US:${ticker}`):[],graphPromise,
+  ]);
+  const canonical = canonicalPath ?? companyPageUrl(ticker,'US',company.slug);
   const content = { earnings: Boolean(earningsSummary) };
   const schema = {
     "@context": "https://schema.org",
@@ -126,7 +131,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`}/></Suspense>} company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={earningsSummary} graph={await loadCompanyPageGraph().catch(() => undefined)} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} graph={graph} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>
