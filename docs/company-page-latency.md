@@ -53,3 +53,16 @@ cache, graph, projection and identity tests protect content/authorization behavi
 After deployment, compare fresh-instance company requests and
 `entity_snapshot_file_read` logs with this baseline, alongside response errors
 and health. Do not infer a production latency percentile from local unit tests.
+
+## Remaining cold-start work
+
+The next change removes sequential dependencies without omitting page content.
+Company metadata shares the identity/relationship structure with the page but no
+longer waits for valuation enrichment. The complete page graph enriches a copy;
+US and A-share valuation reads run together with the same batching, validation
+and independent failure handling. Earnings, announcements and canonical identity
+reads run concurrently, including on A-share pages. Metadata and page rendering
+share earnings reads per React request. Independently bundled routes also share
+the pending published theme catalog. First Firestore listener snapshots now log
+their elapsed duration so subsequent cold-start analysis can distinguish startup,
+source reads and rendering. No persisted application schema changes are needed.

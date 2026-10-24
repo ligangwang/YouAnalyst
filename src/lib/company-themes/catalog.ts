@@ -3,7 +3,8 @@ import { getAdminFirestore } from '../firebase/admin';
 import { validateThemeCatalog, type ThemeCatalog } from './catalog-model';
 
 type State = { value?: ThemeCatalog; pending?: Promise<ThemeCatalog> };
-const states = new WeakMap<Firestore,State>();
+declare global {var __companyThemeCatalogV1:WeakMap<Firestore,State>|undefined;}
+const states = globalThis.__companyThemeCatalogV1??=new WeakMap<Firestore,State>();
 /** Load once per server lifetime. A new deployment/process loads the published catalog again. */
 export async function loadThemeCatalog(db=getAdminFirestore()): Promise<ThemeCatalog> {
   let state=states.get(db);
