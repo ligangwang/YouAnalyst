@@ -15,6 +15,14 @@ These are request completion times, not browser first-paint measurements. They
 establish a contributing cold-cache dependency chain, not an exhaustive diagnosis
 of every slow response. Slow successful requests continued after rollout warmup.
 
+Production validation of the first fix exposed an announcement-panel escape: an
+11.057-second company request on revision `00839-koj` overlapped a 9,000 ms,
+160,821,248-byte companies snapshot read. Announcements had loaded the global
+news-source directory outside the page scope. They now read only the requested
+company's approved sources through the bounded push cache, retaining published
+theme, enrollment, deletion and publisher approval checks. Collector-wide source
+discovery retains its existing behavior.
+
 ## Change
 
 Company routes, metadata, classifications, fundamentals, comparisons and their

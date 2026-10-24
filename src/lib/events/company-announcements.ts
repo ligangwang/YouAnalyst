@@ -1,11 +1,25 @@
 import {getAdminFirestore} from '../firebase/admin';
+import type {Firestore} from 'firebase-admin/firestore';
 import type {NewsSource} from '../intelligence/collectors/sources';
-import {loadNewsSources} from '../intelligence/collectors/source-service';
+import {approvedCompanyNewsSources} from '../intelligence/collectors/sources';
+import {readCompanyLookup} from '../company-lookup-cache';
+import {withCompanyPageReads} from '../local-cache/company-page-scope';
+import {loadThemeCatalog} from '../company-themes/catalog';
+import {catalogThemeIds} from '../company-themes/catalog-model';
+import {isCollectionCompany,type ThemedCompany} from '../company-themes/model';
 import {canonicalEvidenceUrl,observation} from '../intelligence/model';
 import {loadCompanyEventSnapshot} from './company-events-cache';
 import {newsArticles} from '../intelligence/collectors/article-quality';
 
 export type CompanyAnnouncement={id:string;title:string;url:string;date:string;channel:'IR'|'SEC'|'Exchange';earnings:boolean;form?:string};
+/** A page needs this publisher's current approval, not the global source directory. */
+export function loadCompanyAnnouncementSources(db:Firestore,companyId:string):Promise<NewsSource[]>{
+  return withCompanyPageReads(async()=>{
+    const [doc,catalog]=await Promise.all([readCompanyLookup(db,db.collection('companies').doc(companyId)),loadThemeCatalog(db)]);
+    const company:ThemedCompany={...doc.data(),id:doc.id};
+    return approvedCompanyNewsSources(doc.exists&&company.isDeleted!==true&&isCollectionCompany(company,catalogThemeIds(catalog))?[company]:[]);
+  });
+}
 export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:string,sources:readonly NewsSource[]):CompanyAnnouncement|null{
   const url=typeof row.url==='string'?canonicalEvidenceUrl(row.url):null,date=observation(row.published_at??row.publication_date);
   if(row.version!==1||row.companyId!==companyId||typeof row.id!=='string'||typeof row.title!=='string'||!url||!date)return null;
@@ -20,7 +34,7 @@ export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:s
 export async function loadCompanyAnnouncements(companyId:string){
   if(!/^(?:US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId))return [];
   try{
-    const db=getAdminFirestore(),sources=await loadNewsSources(db);
+    const db=getAdminFirestore(),sources=await loadCompanyAnnouncementSources(db,companyId);
     const page=await loadCompanyEventSnapshot(db,companyId);
     const today=new Date().toISOString().slice(0,10);
     return newsArticles(page.docs.map(doc=>doc.data()),sources).map(row=>publicCompanyAnnouncement(row,companyId,sources)).filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today)).slice(0,12);
