@@ -1,3 +1,6 @@
+import { CompanyResearchPanel } from "./company-research-panel";
+import { loadCompanyFundamentals } from "@/lib/fundamentals/service";
+import type { ResolvedCompany } from "@/lib/company-research-service";
 import { CompanyClassifications } from './company-classifications';
 import { readCompanyLookup } from "@/lib/company-lookup-cache";
 import { companyName } from "@/lib/knowledge-graph/model";
@@ -53,9 +56,9 @@ function resolveTicker(symbol: string) {
 }
 
 async function buildPageMetadata({
-  params,
+  params, resolved,
 }: {
-  params: Promise<{ symbol: string }>;
+  params: Promise<{ symbol: string }>; resolved?: ResolvedCompany;
 }): Promise<Metadata> {
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const { symbol: rawSymbol } = await params;
@@ -67,8 +70,8 @@ async function buildPageMetadata({
       alternates: { canonical: companyPageUrl(chinaId, "CN_A",company.slug) } };
   }
   const ticker = resolveTicker(symbol);
-  const company = await loadCompanyResearch(ticker);
-  const [canonicalPath,earnings]=await Promise.all([canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null]);
+  const company = await loadCompanyResearch(ticker,resolved);
+  const [canonicalPath,earnings]=await Promise.all([resolved?.path ?? canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null]);
   const canonical = canonicalPath ?? companyPageUrl(ticker,'US',company.slug);
   const content = { earnings: Boolean(earnings) };
   const title = `${companyPageHeadline(company, locale, content)} | YouAnalyst`;
@@ -95,7 +98,7 @@ async function buildPageMetadata({
   };
 }
 
-export async function CompanyTickerContent({ params }: { params: Promise<{ symbol: string }> }) {
+export async function CompanyTickerContent({ params, resolved }: { params: Promise<{ symbol: string }>; resolved?: ResolvedCompany }) {
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const { symbol: rawSymbol } = await params;
   const symbol = decodeRouteSymbol(rawSymbol);
@@ -109,11 +112,13 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
-  const graphPromise=loadCompanyPageGraph().catch(()=>undefined);
-  const company = await loadCompanyResearch(ticker);
-  const [canonicalPath,earningsSummary,announcements,graph]=await Promise.all([
-    canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null,
-    company.inMap?loadCompanyAnnouncements(`US:${ticker}`):[],graphPromise,
+  const fundamentals=loadCompanyFundamentals(ticker);
+  // Observe rejection while the financial component waits for its boundary.
+  void fundamentals.catch(()=>undefined);
+  const company = await loadCompanyResearch(ticker,resolved);
+  const [canonicalPath,earningsSummary,announcements]=await Promise.all([
+    resolved?.path ?? canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null,
+    company.inMap?loadCompanyAnnouncements(`US:${ticker}`):[],
   ]);
   const canonical = canonicalPath ?? companyPageUrl(ticker,'US',company.slug);
   const content = { earnings: Boolean(earningsSummary) };
@@ -131,14 +136,19 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} graph={graph} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview classifications={<Suspense fallback={null}><CompanyClassifications companyId={`US:${ticker}`} data={resolved?.data}/></Suspense>} company={company} announcements={announcements} earningsSummary={earningsSummary} timelineGraph={company.neighborhood ?? undefined} graphContent={company.inMap || !company.graphAvailable ? <Suspense fallback={null}><CompanyGraph companyId={`US:${ticker}`}/></Suspense> : undefined} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
-        <CompanyFundamentalsLoader ticker={ticker} />
+        <CompanyFundamentalsLoader ticker={ticker} pending={fundamentals} />
       </Suspense>
-    } comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={`US:${ticker}`}/></Suspense>} />} />
+    } comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={`US:${ticker}`} company={resolved?.data} aiEligible={company.graphAvailable ? company.inMap : undefined}/></Suspense>} />} />
   </>;
 }
 
 export async function companyTickerMetadata(...args: Parameters<typeof buildPageMetadata>) {
   return localizedMetadata(await buildPageMetadata(...args), { usePageCanonical: true });
+}
+
+async function CompanyGraph({companyId}:{companyId:string}) {
+ const graph=await loadCompanyPageGraph().catch(()=>undefined);
+ return <CompanyResearchPanel companyId={companyId} initialGraph={graph}/>;
 }

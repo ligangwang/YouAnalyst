@@ -32,7 +32,7 @@ const load = cache((id: string) => withCompanyPageReads(async()=>{
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const resolved = await resolveCompanyRoute((await params).id);
   if (!resolved?.path) notFound();
-  if (resolved.id.startsWith('US:') || /^(XSHG|XSHE):/.test(resolved.id)) return companyTickerMetadata({ params: Promise.resolve({ symbol: resolved.id.startsWith('US:')?resolved.id.slice(3):resolved.id }) });
+  if (resolved.id.startsWith('US:') || /^(XSHG|XSHE):/.test(resolved.id)) return companyTickerMetadata({ resolved, params: Promise.resolve({ symbol: resolved.id.startsWith('US:')?resolved.id.slice(3):resolved.id }) });
   const data = await load(resolved.id);
   return localizedMetadata({ title: `${data.name} | YouAnalyst`, description: String(data.description ?? ""), alternates: { canonical: resolved.path } }, { usePageCanonical: true });
 }
@@ -52,7 +52,7 @@ export default async function CompanyPage({ params, searchParams }: {
     }
     permanentRedirect(localizedPath(resolved.path, locale) + (query.size ? `?${query}` : ""));
   }
-  if (id.startsWith('US:') || /^(XSHG|XSHE):/.test(id)) return <CompanyTickerContent params={Promise.resolve({symbol:id.startsWith('US:')?id.slice(3):id})} />;
+  if (id.startsWith('US:') || /^(XSHG|XSHE):/.test(id)) return <CompanyTickerContent resolved={resolved} params={Promise.resolve({symbol:id.startsWith('US:')?id.slice(3):id})} />;
   const data = await load(id);
   const zh = locale === "zh-CN";
   const identity = companyGeography(data);
