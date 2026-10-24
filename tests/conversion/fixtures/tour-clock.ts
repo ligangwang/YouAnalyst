@@ -7,15 +7,28 @@ import { TOUR_IDLE_RESUME_MS } from '../../../src/lib/ui/knowledge-graph/tour-mo
 // test flag or alternate timing. Accelerate tour entry points, not nested delta
 // helpers, CSS fades or damping. The idle-resume deadline stays real unless a
 // test opts into shortenIdleResume.
+//
+// Software WebGL is the suite's bottleneck: each tree frame took ~580ms, and
+// every Playwright call waits behind it. Fixtures render without MSAA at half
+// resolution (~170ms). Hit testing, HTML labels and camera state use CSS
+// pixels, and no test reads scene pixels, so assertions are unaffected.
+const FIXTURE_RENDERER:[string,string][]=[
+  ['dpr={[1,1.5]}','dpr={.5}'],
+  ['antialias:true','antialias:false'],
+];
 export const tourClockPlugin: Plugin = {
   name: 'fixture-tour-clock',
   setup(build) {
     build.onLoad({filter: /(?:company-graph-3d|industry-tree-scene)\.tsx$/}, ({path}) => {
-      const source=readFileSync(path,'utf8');
+      let source=readFileSync(path,'utf8');
       const entry=path.endsWith('company-graph-3d.tsx')
         ? 'introPath.current(delta, controls.current.polarAngle, speed)'
         : 'presentation.current(delta,navigation.speed)';
       if(!source.includes(entry))throw new Error(`Tour fixture entry point changed: ${path}`);
+      for(const [setting,fixture] of FIXTURE_RENDERER){
+        if(source.split(setting).length!==2)throw new Error(`Fixture renderer setting changed: ${setting} in ${path}`);
+        source=source.replace(setting,fixture);
+      }
       const scaled=entry.replace(/speed\)$/, 'speed * (globalThis.__fixtureTourRate ?? 1))');
       return {loader:'tsx',contents:source.replace(entry,scaled)};
     });
