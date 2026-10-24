@@ -6,7 +6,7 @@ import {mapListedCompanies} from './disclosures';
 import {collectCnMapDisclosures} from './cn-disclosures';
 import {collectLiveEarnings} from '../earnings/live-collector';
 import {loadEarningsMap} from '../earnings/map-issuers';
-import {createEarningsRequestGate} from '../earnings/live-transport';
+import {sharedEarningsRequestGate} from '../earnings/live-transport';
 import {createCnEarningsRequester,createCnEarningsSources,type CnEarningsJsonRequest} from '../earnings/live-cn';
 import {newsCollectorIsFresh} from '../intelligence/collectors/projection';
 import {publishEarningsIntake} from '../sec-filings/intake-routing';
@@ -68,7 +68,7 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
   if(state?.status==='complete'&&Date.parse(String(complete))>=Date.parse(task.requestedAt)&&(task.mode==='earnings-fallback'||!options.earningsEnabled||state.earningsCoverageVersion===2))return {status:'verified',duplicate:true,companyId:task.companyId};
   if(task.mode==='earnings-fallback'&&!options.fallback)await loadEarningsMap(db,graph);
   const deadline=now()+7*60000;
-  const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
+  const gate=sharedEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
   const request:CnEarningsJsonRequest=async(url,init)=>{
     if(now()+30000>=deadline)throw new Error('A-share discovery deadline reached');
     return transport.request(url,init);

@@ -46,6 +46,7 @@ export function createCnEarningsRequester(options: {
     let unlock!: () => void;
     queue = new Promise<void>(resolve => { unlock = resolve; });
     await prior;
+    let requestStarted = false;
     try {
       if (blocked.has(host)) throw new CnEarningsSourceError("CNINFO host blocked for this run", "HOST_SKIPPED");
       let current = url;
@@ -53,9 +54,11 @@ export function createCnEarningsRequester(options: {
       for (let redirects = 0; redirects <= 2; redirects++) {
         const delay = spacingMs - (Date.now() - lastStarted);
         if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+        requestStarted = false;
         await options.beforeRequest?.({ operation: init.operation, companyId: init.companyId, url: current, host });
         if (signal.aborted) throw new CnEarningsSourceError("CNINFO request timed out", "TIMEOUT");
         lastStarted = Date.now();
+        requestStarted = true;
         const response = await fetcher(current, { method: "POST", body: init.body, signal, redirect: "manual", cache: "no-store", credentials: "omit",
           headers: { "user-agent": options.userAgent ?? "YouAnalyst/1.0 (company disclosures)", "content-type": "application/x-www-form-urlencoded; charset=UTF-8", referer: "https://www.cninfo.com.cn/new/disclosure" } });
         if (response.status >= 300 && response.status < 400) {
@@ -98,6 +101,9 @@ export function createCnEarningsRequester(options: {
       }
       throw new CnEarningsSourceError("CNINFO redirect limit exceeded", "UNSAFE_REDIRECT");
     } catch (cause) {
+      // Shared-gate rejections made no provider request; preserve the original
+      // error and do not renew the durable cooldown as a network failure.
+      if (!requestStarted) throw cause;
       const error = cause instanceof CnEarningsSourceError ? cause : new CnEarningsSourceError("CNINFO network or timeout failure", cause instanceof Error && /timeout|abort/i.test(cause.name) ? "TIMEOUT" : "NETWORK");
       if ([403, 429, "TIMEOUT", "NETWORK"].includes(error.code)) {
         const block = { host, code: error.code, retryAfter: error.retryAfter };
