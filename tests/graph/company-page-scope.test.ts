@@ -235,7 +235,9 @@ test('company financial reads start before relationship resolution and the page 
  const bundle=await build({entryPoints:['src/components/company-ticker-route.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',plugins:[{
   name:'page-dependencies',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
  }]});
- const require=createRequire(import.meta.url);let finish!:()=>void,finishFinancials!:(value:unknown)=>void,financials=0,graphReads=0,researchReads=0,inMap=false;
+ const require=createRequire(import.meta.url);let finish!:()=>void,finishFinancials!:(value:unknown)=>void,finishEarnings!:()=>void,financials=0,graphReads=0,researchReads=0,inMap=false,peerReads=0;
+ const earningsGate=new Promise<void>(resolve=>{finishEarnings=resolve;});
+ const comparison=Promise.resolve({panels:[]});
  const neighborhood={nodes:[],relationships:[],sources:[],asOf:'2026-10-24'};
  const researchGate=new Promise<void>(resolve=>{finish=resolve;});
  const resolved={id:'US:SMALL',path:'/company/small',data:{symbol:'SMALL'}};
@@ -249,6 +251,8 @@ test('company financial reads start before relationship resolution and the page 
    loadCompanyPageGraph:async()=>{graphReads++;throw Error('unrelated graph');}
   };
   if(id.endsWith('/fundamentals/service'))return {loadCompanyFundamentals:()=>{financials++;return new Promise(resolve=>{finishFinancials=resolve;});}};
+  if(id.endsWith('/peer-comparison/service'))return {loadPeerComparison:(_id:string,options:{company:unknown;aiEligible:boolean})=>{assert.equal(options.company,resolved.data);assert.equal(options.aiEligible,inMap);peerReads++;return comparison;}};
+  if(id.endsWith('/earnings/public-service'))return {loadLatestCompanyEarnings:async()=>{await earningsGate;return null;}};
   if(id.endsWith('/market-companies/routes'))return {chinaCompanyId:()=>null,companyPageUrl:()=>'/company/small'};
   if(id==='next/navigation')return {notFound:()=>{throw Error('404');},permanentRedirect:()=>{throw Error('redirect');}};
   return new Proxy({},{get:(_target,key)=>key==='__esModule'?false:()=>null});
@@ -269,9 +273,17 @@ test('company financial reads start before relationship resolution and the page 
  assert.deepEqual((props(chart).company as Record<string,unknown>).marketCap,{value:123,currency:'USD',priceDate:'2026-10-24'});
  assert.equal(financials,1,'timeline valuation reuses the pending company financial read');
  inMap=true;
- const mapped=await CompanyTickerContent({params:Promise.resolve({symbol:'SMALL'}),resolved,pendingFundamentals:Promise.resolve(null)});
+ let mappedSettled=false;
+ const mappedPending=CompanyTickerContent({params:Promise.resolve({symbol:'SMALL'}),resolved,pendingFundamentals:Promise.resolve(null)});
+ void mappedPending.then(()=>{mappedSettled=true;});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(mappedSettled,false,'earnings remain blocked while comparison work is already running');
+ assert.equal(peerReads,2,'peer comparison starts before earnings resolve, with successful graph absence retained for the first page');
+ finishEarnings();const mapped=await mappedPending;
  assert.equal(financials,1,'the financial promise started before the content import is reused');
  const mappedOverview=props((props(mapped).children as unknown[])[1]).overview;
+ const peerLoader=props(props(mappedOverview).comparison).children;
+ assert.equal(props(peerLoader).pending,comparison,'the streamed panel reuses the already-started comparison');
  const panel=props(props(mappedOverview).graphContent).children as {type:(props:unknown)=>Promise<unknown>;props:unknown};
  assert.equal(props(await panel.type(panel.props)).initialGraph,neighborhood);
  assert.equal(graphReads,0,'direct relationship panel must not fetch unrelated global valuations');
