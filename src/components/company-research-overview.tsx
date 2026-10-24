@@ -15,7 +15,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
+export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graphContent, graph, timeline, announcements=[], earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graphContent?:ReactNode; timeline?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
@@ -34,9 +34,9 @@ export function CompanyResearchOverview({ company, classifications, fundamentals
         <CompanyProfileDetails profile={company.profile} />
         {classifications}
       </section>
-      <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
+      {timeline ?? <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />}
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
-      {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
+      {!graphContent && !graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
         <Link href={`/map?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4"><UiText text={"Explore "} />{company.ticker}<UiText text={" on the company map"} /></Link>
       </div>}
@@ -47,11 +47,12 @@ export function CompanyResearchOverview({ company, classifications, fundamentals
         {company.listingStatus !== "PRIVATE" && <a href="#analyst-views"><UiText text={"Analyst views"} /></a>}
       </nav>
     </header>
+    {graphContent}
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
     {fundamentals}
     {comparison}
-    {!graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
+    {!graphContent && !graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and partners"} /></h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? <UiText text={`${company.connections.length} relationships in the loaded sources. `} /> : ""}<UiText text={"Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active."} /></p>
       {!company.connections.length && <p className="mt-3 text-sm text-slate-400">{company.graphAvailable ? <UiText text={"No published relationships are available for this company yet."} /> : <UiText text={"Company relationships are temporarily unavailable."} />}</p>}
