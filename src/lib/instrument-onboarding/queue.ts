@@ -4,6 +4,7 @@ import {Timestamp,type Firestore,type Transaction} from 'firebase-admin/firestor
 import {isSupportedCompany} from '../company-support/model';
 import {instrumentId,validInstrumentId,instrumentFromCompany,validateInstrument,type Instrument} from '../instruments/model';
 import {maintenanceError} from '../maintenance-log';
+import {REQUESTERS_COLLECTION,requesterId} from './requesters';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
 
 const LEASE_MS=20*60_000;
@@ -28,16 +29,26 @@ export async function requestInstrumentOnboarding(db:Firestore,id:string,request
   const companyId=existing?.companyId??source?.supersededByCompanyId??listing;
   if(typeof companyId!=='string'||!companyId||companyId.includes('/'))throw new OnboardingBlocked('Invalid company identity');
   const companyRef=db.collection('companies').doc(companyId),ref=db.collection(ONBOARDING_COLLECTION).doc(id);
+  const requesterRef=ref.collection(REQUESTERS_COLLECTION).doc(requesterId(requestedByUid));
   return db.runTransaction(async tx=>{
-    const [inst,sourceDoc,owner,saved]=await tx.getAll(instRef,sourceRef,companyRef,ref),company=owner.data(),source=sourceDoc.data();
+    const [inst,sourceDoc,owner,saved,requester]=await tx.getAll(instRef,sourceRef,companyRef,ref,requesterRef),company=owner.data(),source=sourceDoc.data();
     if(!company||!source||source.isDeleted||source.listingStatus==='PRIVATE')throw new OnboardingBlocked('Company listing is unavailable');
     if(String(source.supersededByCompanyId??listing)!==companyId)throw new OnboardingBlocked('Instrument company link requires review');
     const record=inst.exists?validateInstrument(inst.data() as Instrument):instrumentFromCompany(listing,source,companyId);
     if(!record||record.companyId!==companyId||record.providerSymbols.youanalyst!==listing)throw new OnboardingBlocked('Instrument company link changed');
     instrumentOnboardingIdentity(record,company);
+    if(saved.exists){
+      const current=parseOnboardingRequest(saved.data());if(current.instrumentId!==id||current.companyId!==companyId)throw new OnboardingBlocked('Onboarding identity mismatch');
+      // Keep the original requester represented for staged/older job documents.
+      const originalRef=ref.collection(REQUESTERS_COLLECTION).doc(requesterId(current.requestedByUid));
+      const original=current.requestedByUid===requestedByUid?requester:await tx.get(originalRef);
+      if(!original.exists)tx.create(originalRef,{requestedByUid:current.requestedByUid,requestedAt:current.requestedAt});
+      if(current.requestedByUid!==requestedByUid&&!requester.exists)tx.create(requesterRef,{requestedByUid,requestedAt:new Date(now).toISOString()});
+      return {instrumentId:id,companyId,status:current.status};
+    }
     if(isSupportedCompany(company)&&record.onboarding?.status==='SUPPORTED')return {instrumentId:id,companyId,status:'SUPPORTED' as const};
-    if(saved.exists){const current=parseOnboardingRequest(saved.data());if(current.instrumentId!==id||current.companyId!==companyId)throw new OnboardingBlocked('Onboarding identity mismatch');return {instrumentId:id,companyId,status:current.status};}
     const request=createOnboardingRequest(id,record,company,requestedByUid,new Date(now));tx.create(ref,request);
+    if(!requester.exists)tx.create(requesterRef,{requestedByUid,requestedAt:request.requestedAt});
     tx.set(instRef,{...(!inst.exists?{...record,createdAt:Timestamp.fromMillis(now)}:{}),onboarding:onboardingSummary('QUEUED',now,request.requestedAt),updatedAt:Timestamp.fromMillis(now)},{merge:true});
     if(!isSupportedCompany(company)&&!company.onboarding)tx.update(companyRef,{onboarding:onboardingSummary('QUEUED',now,request.requestedAt),updatedAt:Timestamp.fromMillis(now)});
     return {instrumentId:id,companyId,status:'QUEUED' as const};

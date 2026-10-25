@@ -18,6 +18,10 @@ test('admin sees separated readiness and can retry just the failed step',async({
     if(url.pathname==='/api/admin/me')return route.fulfill({json:{isAdmin:true}});
     if(url.pathname==='/api/admin/instrument-onboarding'){
       expect(request.headers().authorization).toBe('Bearer isolated-test-token');
+      if(url.searchParams.has('instrumentId')){
+        expect(url.searchParams.get('instrumentId')).toBe(id);
+        return route.fulfill({json:url.searchParams.has('requesterCursor')?{items:[{requestedByUid:'second-user-456',requestedAt:'2026-10-25T14:00:00Z'}],nextCursor:null}:{items:[{requestedByUid:'requester-user-123',requestedAt:item.request.requestedAt}],nextCursor:'a'.repeat(64)}});
+      }
       if(request.method()==='POST'){
         writes++;expect(request.postDataJSON()).toEqual({instrumentId:id,step:'prices',updatedAt:item.request.updatedAt});
         await new Promise(resolve=>setTimeout(resolve,200));queued=true;return route.fulfill({json:{status:'QUEUED'}});
@@ -32,6 +36,11 @@ test('admin sees separated readiness and can retry just the failed step',async({
   await expect(page.getByText('Instrument: BLOCKED',{exact:true})).toBeVisible();
   await expect(page.getByText(item.request.lastError,{exact:true})).toBeVisible();
   await expect(page.getByText('requester-user-123',{exact:true})).toBeVisible();
+  await page.getByText('View all requesters',{exact:true}).click();
+  await expect(page.locator('details').getByText('requester-user-123',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Load more requesters',exact:true}).click();
+  await expect(page.getByText('second-user-456',{exact:true})).toBeVisible();
+  await expect(page.locator('details time').last()).toHaveAttribute('datetime','2026-10-25T14:00:00Z');
   await expect(page.locator('li[aria-current=step]')).toContainText('prices');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
   await page.screenshot({path:info.outputPath('instrument-onboarding-admin.png'),fullPage:true});

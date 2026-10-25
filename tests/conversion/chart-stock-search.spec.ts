@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { companyResearchPath } from '../../src/lib/ui/chart-share';
 import { componentFixtureHtml } from './fixtures/component-html';
-const nvda = { id: 'US:NVDA', symbol: 'NVDA', name: 'NVIDIA', market: 'US', exchange: 'NASDAQ' };
-const msft = { id: 'US:MSFT', symbol: 'MSFT', name: 'Microsoft', market: 'US', exchange: 'NASDAQ' };
-const maotai = { id: 'XSHG:600519', symbol: '600519', name: '贵州茅台', market: 'CN_A', exchange: 'XSHG' };
+const nvda = { supportState:'SUPPORTED', id: 'US:NVDA', symbol: 'NVDA', name: 'NVIDIA', market: 'US', exchange: 'NASDAQ' };
+const msft = { supportState:'SUPPORTED', id: 'US:MSFT', symbol: 'MSFT', name: 'Microsoft', market: 'US', exchange: 'NASDAQ' };
+const maotai = { supportState:'SUPPORTED', id: 'XSHG:600519', symbol: '600519', name: '贵州茅台', market: 'CN_A', exchange: 'XSHG' };
 let html: string;
 test.beforeAll(async () => {
   html = await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';createRoot(document.getElementById('root')).render(<CompanyTimeline companyId="US:AMD" graph={{nodes:[{id:'US:AMD',kind:'COMPANY',order:0,name:'AMD',symbol:'AMD',market:'US'}],relationships:[],sources:[],asOf:'2026-10-13'}}/>);`, { jsx: 'automatic', plugins: [{ name: 'stock-chart-providers', setup(build) {
     build.onResolve({ filter: /(?:auth-provider|locale-provider|company-follow-button)$/ }, args => ({ path: args.path.split('/').at(-1)!, namespace: 'stock-mock' }));
-    build.onLoad({ filter: /.*/, namespace: 'stock-mock' }, args => ({ loader: 'tsx', contents: args.path === 'auth-provider' ? `export function useAuth(){return {user:null,getIdToken:async()=>null}}` : args.path === 'company-follow-button' ? `export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],loading:false,ready:true,error:false,refresh:async()=>{},change:async()=>{}}}` : `export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}}` }));
+    build.onLoad({ filter: /.*/, namespace: 'stock-mock' }, args => ({ loader: 'tsx', contents: args.path === 'auth-provider' ? `export function useAuth(){return {user:null,getIdToken:async()=>null}}export const useOptionalAuth=useAuth;` : args.path === 'company-follow-button' ? `export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],loading:false,ready:true,error:false,refresh:async()=>{},change:async()=>{}}}` : `export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}}` }));
   } }] }, 'body{margin:0;font-family:Arial}*{box-sizing:border-box}');
 });
 async function open(page: import('@playwright/test').Page, chinese = false) {

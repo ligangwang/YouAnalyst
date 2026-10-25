@@ -5,9 +5,36 @@ import {useAuth} from '@/components/providers/auth-provider';
 import {useLocale} from '@/components/providers/locale-provider';
 import {ONBOARDING_STEPS,COMPANY_STEPS} from '@/lib/instrument-onboarding/progress';
 import type {AdminOnboardingItem,AdminOnboardingPage} from '@/lib/instrument-onboarding/admin';
+import type {InstrumentRequestersPage,InstrumentRequester} from '@/lib/instrument-onboarding/requesters';
 import styles from './admin-instrument-onboarding.module.css';
 
 const time=(value:string|number|null)=>value?new Date(value).toLocaleString():'—';
+function AdminRequesters({instrumentId}:{instrumentId:string}){
+  const {getIdToken}=useAuth(),{text}=useLocale();
+  const [items,setItems]=useState<InstrumentRequester[]>([]),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(false);
+  const lock=useRef(false),mounted=useRef(true);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  async function load(after?:string){
+    if(lock.current)return;lock.current=true;setBusy(true);setError(false);
+    try{
+      const token=await getIdToken();if(!token)throw Error('Unauthorized');
+      const params=new URLSearchParams({instrumentId,...(after?{requesterCursor:after}:{})});
+      const response=await fetch('/api/admin/instrument-onboarding?'+params,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
+      if(!response.ok)throw Error('Unable to load requesters');
+      const data:InstrumentRequestersPage=await response.json();
+      if(mounted.current){setItems(current=>after?[...current,...data.items.filter(row=>!current.some(item=>item.requestedByUid===row.requestedByUid))]:data.items);setCursor(data.nextCursor);}
+    }catch{if(mounted.current)setError(true);}
+    finally{lock.current=false;if(mounted.current)setBusy(false);}
+  }
+  return <details className={styles.requesterDetails} onToggle={event=>{if(event.currentTarget.open)void load();}}>
+    <summary>{text('View all requesters','查看所有请求用户')}</summary>
+    {busy&&<p role="status">{text('Loading requesters…','加载请求用户中…')}</p>}
+    {error&&<p role="alert">{text('Unable to load requesters.','无法加载请求用户。')} <button onClick={()=>void load()}>{text('Try again','重试')}</button></p>}
+    <ul className={styles.requesterList}>{items.map(item=><li key={item.requestedByUid}><code>{item.requestedByUid}</code><time dateTime={item.requestedAt}>{time(item.requestedAt)}</time></li>)}</ul>
+    {!busy&&!error&&!items.length&&<p>{text('No requester records yet.','暂无请求用户记录。')}</p>}
+    {cursor&&<button disabled={busy} onClick={()=>void load(cursor)}>{text('Load more requesters','加载更多请求用户')}</button>}
+  </details>;
+}
 export function AdminInstrumentOnboardingPage(){
   const {user,loading,getIdToken}=useAuth(),{text}=useLocale();
   const [items,setItems]=useState<AdminOnboardingItem[]>([]),[cursor,setCursor]=useState<string|null>(null);
@@ -48,7 +75,8 @@ export function AdminInstrumentOnboardingPage(){
       <div className={styles.title}><div><h2>{item.listing||item.instrumentName}</h2><p>{item.companyName} · {item.request.companyId}</p><small>{item.request.instrumentId}</small></div><strong className={styles.badge}>{item.request.status}</strong></div>
       <div className={styles.readiness}><span>{text('Company','公司')}: <strong>{item.companyStatus}</strong></span><span>{text('Instrument','证券')}: <strong>{item.instrumentStatus}</strong></span></div>
       <ol className={styles.steps}>{ONBOARDING_STEPS.map(step=><li key={step} data-complete={item.request.steps[step]==='COMPLETE'} aria-current={item.step===step?'step':undefined}><span>{item.request.steps[step]==='COMPLETE'?'✓':'○'} {step}</span><small>{COMPANY_STEPS.includes(step as typeof COMPANY_STEPS[number])?text('Company','公司'):text('Instrument','证券')}</small></li>)}</ol>
-      <dl><div><dt>{text('Requester UID','请求用户 UID')}</dt><dd>{item.request.requestedByUid}</dd></div><div><dt>{text('Request time','请求时间')}</dt><dd>{time(item.request.requestedAt)}</dd></div><div><dt>{text('Updated','更新时间')}</dt><dd>{time(item.request.updatedAt)}</dd></div><div><dt>{text('History through','历史数据截至')}</dt><dd>{item.request.targetThrough}</dd></div><div><dt>{text('Failed attempts','失败次数')}</dt><dd>{item.request.attemptCount}</dd></div><div><dt>{text('Retry eligible after','可重试时间')}</dt><dd>{time(item.request.nextAttemptAt)}</dd></div><div><dt>{text('Worker lease until','工作租约截至')}</dt><dd>{time(item.request.leaseExpiresAt)}</dd></div></dl>
+      <dl><div><dt>{text('First requester UID','首位请求用户 UID')}</dt><dd>{item.request.requestedByUid}</dd></div><div><dt>{text('First request time','首次请求时间')}</dt><dd>{time(item.request.requestedAt)}</dd></div><div><dt>{text('Updated','更新时间')}</dt><dd>{time(item.request.updatedAt)}</dd></div><div><dt>{text('History through','历史数据截至')}</dt><dd>{item.request.targetThrough}</dd></div><div><dt>{text('Failed attempts','失败次数')}</dt><dd>{item.request.attemptCount}</dd></div><div><dt>{text('Retry eligible after','可重试时间')}</dt><dd>{time(item.request.nextAttemptAt)}</dd></div><div><dt>{text('Worker lease until','工作租约截至')}</dt><dd>{time(item.request.leaseExpiresAt)}</dd></div></dl>
+      <AdminRequesters instrumentId={item.request.instrumentId}/>
       {item.request.lastError&&<p className={styles.error}>{item.request.lastError}</p>}
       <button disabled={!item.canRetry||pending!==null||busy} onClick={()=>void retry(item)}>{pending===item.request.instrumentId?text('Queuing…','排队中…'):text('Retry failed step','重试失败步骤')}</button>
     </article>)}</div>

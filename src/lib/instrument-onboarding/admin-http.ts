@@ -6,8 +6,9 @@ import {ONBOARDING_STEPS,type OnboardingStep} from './model';
 import {listInstrumentOnboarding} from './admin';
 import {retryInstrumentOnboarding} from './queue';
 import {validInstrumentId} from '../instruments/model';
+import {listInstrumentRequesters,validRequesterCursor} from './requesters';
 
-const dependencies={getUser:getDecodedUserFromRequest,isAdmin:isAdminUser,db:getAdminFirestore,list:listInstrumentOnboarding,retry:retryInstrumentOnboarding};
+const dependencies={getUser:getDecodedUserFromRequest,isAdmin:isAdminUser,db:getAdminFirestore,list:listInstrumentOnboarding,requesters:listInstrumentRequesters,retry:retryInstrumentOnboarding};
 const headers={'Cache-Control':'private, no-store'};
 const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers});
 
@@ -15,6 +16,12 @@ export async function adminOnboardingResponse(request:NextRequest,deps=dependenc
   const user=await deps.getUser(request);if(!user)return json({error:'Unauthorized'},401);
   if(!await deps.isAdmin(user))return json({error:'Forbidden'},403);
   if(request.method==='GET'){
+    const instrumentId=request.nextUrl.searchParams.get('instrumentId');
+    if(instrumentId!==null){
+      const cursor=request.nextUrl.searchParams.get('requesterCursor')??undefined;
+      if(!validInstrumentId(instrumentId)||(cursor&&!validRequesterCursor(cursor)))return json({error:'Invalid requester query'},400);
+      try{return json(await deps.requesters(deps.db(),instrumentId,cursor));}catch{return json({error:'Unable to load requesters'},503);}
+    }
     const cursor=request.nextUrl.searchParams.get('cursor')??undefined;
     if(cursor&&!validInstrumentId(cursor))return json({error:'Invalid cursor'},400);
     try{return json(await deps.list(deps.db(),cursor));}catch{return json({error:'Unable to load onboarding requests'},503);}

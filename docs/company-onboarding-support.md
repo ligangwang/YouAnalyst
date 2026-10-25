@@ -107,7 +107,15 @@ Requests deduplicate per instrument. They never execute providers or auto-resume
 blocked request. `requestedByUid` is the verified Firebase UID from the bearer
 token, never a client-provided identity. `requestedAt` is the server-generated
 request time. Duplicate users/requests, checkpoints, and retries preserve the
-original UID and time. These details appear only in the admin API/page, not
+original UID and time on the shared job. Each distinct user also gets an immutable
+record in the approved `instrument_onboarding_requests/{instrumentId}/requesters/{hashedUid}`
+subcollection, containing only `requestedByUid` and `requestedAt`. The UID is hashed
+for a safe document key; the stored UID remains the exact authenticated identity.
+Repeated clicks by one user preserve that user's first request time. New users
+append attribution in the same transaction without changing the job status,
+lease, checkpoints, or retry timestamps; no additional workflow is created.
+Existing first-request attribution is seeded into this subcollection when needed.
+These details appear only in the admin API/page, not
 public company/instrument summaries or search responses. No per-user quota fields
 are added.
 
@@ -117,7 +125,10 @@ are added.
 API operation independently authenticates and checks the existing admin role.
 The page shows separate company/instrument states, completed and current steps,
 last error, attempts, requester UID, request/updated times, cutoff, retry eligibility, and lease
-expiry. Pages are bounded to 25 requests with a continuation cursor.
+expiry. Pages are bounded to 25 requests with a continuation cursor. Each job
+has a View all requesters disclosure, loaded on demand in independent 25-user
+pages using the same admin-authenticated API. Requesters never appear in public
+search results.
 
 GET `/api/admin/instrument-onboarding` returns private, non-cacheable summaries.
 POST accepts `{instrumentId, step, updatedAt}`. Retry checks the current first

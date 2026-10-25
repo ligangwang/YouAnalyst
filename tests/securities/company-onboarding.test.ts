@@ -8,11 +8,12 @@ import {requestInstrumentOnboarding,processInstrumentOnboarding,retryInstrumentO
 import {onboardingActions,backfillOnboardingActions} from '../../src/lib/instrument-onboarding/actions';
 import {instrumentId,instrumentFromCompany} from '../../src/lib/instruments/model';
 import {isSupportedInstrument} from '../../src/lib/instruments/support';
+import {requesterId} from '../../src/lib/instrument-onboarding/requesters';
 import {planInstrumentSupportMigration} from '../../src/lib/instruments/support-migration';
 
 export function onboardingFixture(){
   const rows=new Map<string,Record<string,unknown>>([['companies/US:NEW',{name:'New',status:'DIRECTORY',cik:'123'}],['companies/XSHE:000001',{name:'A-share',status:'DIRECTORY'}]]);
-  const ref=(path:string)=>({path,id:path.split('/').at(-1),get:async()=>snapshot(path)});
+  const ref=(path:string)=>({path,id:path.split('/').at(-1),get:async()=>snapshot(path),collection:(name:string)=>collection(`${path}/${name}`)});
   const snapshot=(path:string)=>({ref:ref(path),id:path.split('/').at(-1),exists:rows.has(path),data:()=>rows.get(path),get:(key:string)=>rows.get(path)?.[key]});
   const collection=(name:string)=>{
     const query={name,field:'',value:undefined as unknown,where:(field:string,_op:string,value:unknown)=>({...query,field,value}),get:async()=>({docs:[...rows.keys()].filter(path=>path.startsWith(name+'/')).map(snapshot)})};
@@ -37,7 +38,7 @@ export function onboardingFixture(){
 
 test('instrument requests validate listing/issuer linkage, deduplicate and make no provider calls',async()=>{
   const f=onboardingFixture();await Promise.all([f.enqueue(),f.enqueue()]);
-  assert.equal(f.rows.size,4);assert.equal(f.request().status,'QUEUED');assert.deepEqual(f.calls,[]);
+  assert.equal(f.rows.size,5);assert.equal(f.request().status,'QUEUED');assert.deepEqual(f.calls,[]);
   const at=f.request().requestedAt;await f.enqueue();assert.equal(f.request().requestedAt,at);
   assert.equal(at,new Date(f.clock()).toISOString());assert.equal(f.request().requestedByUid,'requester-one');
   await requestInstrumentOnboarding(f.db,f.id,'another-user','US:NEW',f.clock()+5000);
@@ -59,6 +60,27 @@ test('issuer readiness completes independently before instrument prices and acti
     assert.equal((stock.onboarding as {status:string}).status,step==='verify'?'SUPPORTED':'PROCESSING');
   }
   assert.deepEqual(f.calls,[...ONBOARDING_STEPS]);assert.equal(f.request().status,'SUPPORTED');assert.equal((await f.process()).status,'SKIPPED');
+});
+
+test('each user gets one immutable request record while the instrument is onboarded only once',async()=>{
+  const f=onboardingFixture(),start=f.clock();
+  await Promise.all([
+    requestInstrumentOnboarding(f.db,f.id,'first-user','US:NEW',start),
+    requestInstrumentOnboarding(f.db,f.id,'second/user 名','US:NEW',start+1000),
+    requestInstrumentOnboarding(f.db,f.id,'first-user','US:NEW',start+2000),
+  ]);
+  const prefix=`${ONBOARDING_COLLECTION}/${f.id}/requesters/`;
+  assert.equal([...f.rows.keys()].filter(path=>path.startsWith(prefix)).length,2);
+  assert.deepEqual(f.rows.get(prefix+requesterId('first-user')),{requestedByUid:'first-user',requestedAt:new Date(start).toISOString()});
+  assert.deepEqual(f.rows.get(prefix+requesterId('second/user 名')),{requestedByUid:'second/user 名',requestedAt:new Date(start+1000).toISOString()});
+  const saved=structuredClone(f.request());
+  await requestInstrumentOnboarding(f.db,f.id,'third-user','US:NEW',start+3000);assert.deepEqual(f.request(),saved);
+  for(let n=0;n<ONBOARDING_STEPS.length;n++)await f.process();
+  assert.deepEqual(f.calls,[...ONBOARDING_STEPS]);
+  const done=structuredClone(f.request());
+  await requestInstrumentOnboarding(f.db,f.id,'fourth-user','US:NEW',start+4000);assert.deepEqual(f.request(),done);
+  assert.equal((await f.process()).status,'SKIPPED');assert.equal(f.calls.length,ONBOARDING_STEPS.length);
+  assert.equal([...f.rows.keys()].filter(path=>path.startsWith(prefix)).length,4);
 });
 
 test('another share class reuses issuer work but must finish its own price and action checkpoints',async()=>{
@@ -92,6 +114,9 @@ test('an active worker cannot be retried or overwritten by another worker',async
   const f=onboardingFixture();await f.enqueue();let release:()=>void=()=>{},entered:()=>void=()=>{};
   const started=new Promise<void>(resolve=>{entered=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
   const running=f.process({...f.handlers,identity:async()=>{entered();await hold;}});await started;
+  const active=structuredClone(f.request());
+  await requestInstrumentOnboarding(f.db,f.id,'another-requester','US:NEW',f.clock()+1000);
+  assert.deepEqual(f.request(),active,'New requester must not change a running lease or checkpoint');
   assert.equal((await f.process()).status,'SKIPPED');
   await assert.rejects(()=>retryInstrumentOnboarding(f.db,f.id,{step:'identity',updatedAt:String(f.request().updatedAt)},f.clock()),/active/);
   f.rows.set(`${ONBOARDING_COLLECTION}/${f.id}`,{...f.request(),leaseOwner:'replacement'});release();await running;assert.equal(f.request().leaseOwner,'replacement');
