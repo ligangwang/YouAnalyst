@@ -74,7 +74,7 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   t.mock.method(console, "info", recordLog);
   t.mock.method(console, "warn", recordLog);
   t.mock.method(console, "error", recordLog);
-  const companies = graph.nodes.filter(node => node.kind === "COMPANY").map(node => ({ id: node.id, data: () => ({ name: node.name || node.id, status: "PUBLISHED", inGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: node.order, asOf: runDate } }) }));
+  const companies = graph.nodes.filter(node => node.kind === "COMPANY").map(node => ({ id: node.id, data: () => ({ name: node.name || node.id, status: "PUBLISHED", onboarding:{status:"SUPPORTED"}, inGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: node.order, asOf: runDate } }) }));
   const db = withThemeCatalog({
     getAll: async (...refs: ({ get: () => unknown } | { fieldMask: string[] })[]) => Promise.all(refs.filter((ref): ref is { get: () => unknown } => "get" in ref).map(ref => ref.get())),
     runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({ getAll: (...refs: {get: () => unknown}[]) => Promise.all(refs.map(ref => ref.get())), get: (ref: { get: () => unknown }) => ref.get(), set: (ref: { set: (v: unknown) => unknown }, value: unknown) => ref.set(value) }),
