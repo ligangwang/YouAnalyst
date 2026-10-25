@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
 import { loadFundamentalsCompanyIds } from '../../src/lib/fundamentals/company-scope';
 
-test('fundamentals use one theme query and retain canonical IDs for both markets', async () => {
+test('fundamentals use one supported query and retain canonical IDs for both markets', async () => {
   const membership = {status:'PUBLISHED',primarySector:'compute',reviewedAt:'2026-10-18'};
   const rows = [
     {id:'US:NVDA',name:'NVIDIA',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:membership}},

@@ -192,7 +192,7 @@ test('announcement source approval reads only its company, shares the push cache
  const read=()=>loadCompanyAnnouncementSources(f.db,'US:SMALL');
  const results=await Promise.all(Array.from({length:20},read));
  assert.equal(results[0][0]?.id,'small-ir');
- assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
  f.rows.set('companies/US:SMALL',{...company,newsSources:[{...source,status:'WITHDRAWN'}]});f.push();
  assert.deepEqual(await read(),[]);
  f.rows.set('companies/US:SMALL',{...company,onboarding:{status:'BLOCKED'}});f.push();
@@ -201,7 +201,7 @@ test('announcement source approval reads only its company, shares the push cache
  assert.deepEqual(await read(),[],'queued onboarding cannot authorize a source');
  f.rows.set('companies/US:SMALL',{...company,isDeleted:true});f.push();assert.deepEqual(await read(),[]);
  f.rows.delete('companies/US:SMALL');f.push();assert.deepEqual(await read(),[]);
- assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
 });
 
 

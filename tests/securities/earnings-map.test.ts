@@ -65,7 +65,7 @@ test('SEC identity snapshots avoid disclosure rereads, but failed scans reload d
   assert.equal(reads.get('sec-US:AMAT'),3);
 });
 
-test('SEC and earnings discovery reuse one theme scope without reading relationships or valuations',async()=>{
+test('SEC and earnings discovery reuse one supported scope without reading relationships or valuations',async()=>{
   const fx=earningsFirestore();
   fx.rows.set('collectors/sec-identity-US:MU',{companyId:'US:MU',cik:'0000723125'});
   const published={status:'PUBLISHED',primarySector:'compute',reviewedAt:'2026-10-17'};
