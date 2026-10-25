@@ -50,4 +50,3 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch,ca
     return Object.entries(fields).every(([key,value])=>isDeepStrictEqual(record[key],value))?[]:[{id:proposal.id,fields}];
   });
 }
-
