@@ -11,6 +11,7 @@ import { refreshCompanyMarketCaps } from "../src/lib/fundamentals/market-cap";
 import { backfillLatestEod } from "../src/lib/predictions/backfill-latest-eod";
 import { publishPendingFundamentals, verifyFundamentalsDelivery } from "../src/lib/fundamentals/pubsub-batch";
 import { publishFundamentalsMessage } from "../src/lib/fundamentals/pubsub";
+import {queueMarketCapRefresh} from '../src/lib/fundamentals/market-cap-queue';
 
 const log = createMaintenanceLog("refresh-sec-fundamentals");
 async function main() {
@@ -51,9 +52,11 @@ async function main() {
       : await drainFundamentalsQueue(db, log, deadline - 120_000);
     const coverage = await auditMapFundamentals(db, tickers);
     log.stage("market_caps");
-    const marketCaps = await refreshCompanyMarketCaps(db, log, tickers);
+    const marketCaps = asynchronous
+      ? await queueMarketCapRefresh(db,process.env.CLOUD_RUN_EXECUTION??log.runId,tickers,topic!)
+      : await refreshCompanyMarketCaps(db, log, tickers);
     await lease.set({ lastRunAt: new Date().toISOString(), result, coverage, marketCaps }, { merge: true });
-    const failed = ("failed" in result && result.failed) || marketCaps.failed;
+    const failed = ("failed" in result && result.failed) || ('failed' in marketCaps && marketCaps.failed);
     log.emit(failed ? "ERROR" : "INFO", "run_completed", { ...result, coverage, marketCaps });
     if (failed) throw new Error("Fundamentals or market-cap refresh failed or is incomplete; see run summary");
   } finally {

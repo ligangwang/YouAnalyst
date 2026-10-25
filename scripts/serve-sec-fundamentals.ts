@@ -5,16 +5,19 @@ import { processFundamentalsBatch } from "../src/lib/fundamentals/pubsub-batch";
 import { fundamentalsRequestForFiling, parseFundamentalsRequest, publishFundamentalsMessage } from "../src/lib/fundamentals/pubsub";
 import {secCacheOwner,withSecDocumentProcessing} from '../src/lib/sec-filings/document-cache';
 import {secFilingDocumentUrl} from '../src/lib/sec-filings/download-worker';
+import {parseMarketCapMessage,processMarketCapMessage,type MarketCapMessage} from '../src/lib/fundamentals/market-cap-queue';
+import type {FundamentalsRequest} from '../src/lib/fundamentals/pubsub';
 
 if (!process.env.GCP_PROJECT_ID || !process.env.SEC_USER_AGENT || !process.env.FUNDAMENTALS_RESULT_TOPIC
   || !process.env.FUNDAMENTALS_SUBSCRIPTION) throw new Error("Missing fundamentals subscriber configuration");
 initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
 const db = getFirestore();
-createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: process.env.FUNDAMENTALS_SUBSCRIPTION,
-  job: "sec-fundamentals-batch", parse: parseFundamentalsRequest,
+createJobSubscriber<FundamentalsRequest|MarketCapMessage>({ project: process.env.GCP_PROJECT_ID, subscription: process.env.FUNDAMENTALS_SUBSCRIPTION,
+  job: "sec-fundamentals-batch", parse: value => ['company.work.requested','market-cap.refresh.requested'].includes(String((value as {type?:string})?.type))?parseMarketCapMessage(value):parseFundamentalsRequest(value),
   additionalSubscriptions: process.env.SEC_FILINGS_FUNDAMENTALS_SUBSCRIPTION
     ? [{ subscription: process.env.SEC_FILINGS_FUNDAMENTALS_SUBSCRIPTION, parse: fundamentalsRequestForFiling }] : [],
   process: (request, log) => {
+    if(request.type!=='fundamentals.refresh.requested')return processMarketCapMessage(request,db,log);
     const work=()=>processFundamentalsBatch(request,db,log,event=>publishFundamentalsMessage(process.env.FUNDAMENTALS_RESULT_TOPIC!,event));
     return request.filing?withSecDocumentProcessing(secCacheOwner('fundamentals',request.filing.eventId),secFilingDocumentUrl(request.filing),work,result=>result.failed===0&&result.remaining===0):work();
   },

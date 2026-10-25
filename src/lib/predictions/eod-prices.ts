@@ -1307,9 +1307,11 @@ export async function scanEodPredictions(
 
   while (limit === null || predictionsToProcess.length < limit) {
     let stoppedByLimit = false;
-    let query = db
-      .collection("predictions")
-      .where("status", "in", ["CREATED", "OPEN", "SETTLED", "OPENING", "CLOSING", "CLOSED"])
+    // One-company deliveries use the existing single-field ticker index. Status
+    // eligibility is still validated below; no ticker/status composite is needed.
+    const base = db.collection('predictions');
+    let query = (manualTickers.length===1?base.where('ticker','==',manualTickers[0]):base
+      .where("status", "in", ["CREATED", "OPEN", "SETTLED", "OPENING", "CLOSING", "CLOSED"]))
       .orderBy("__name__")
       .limit(POSITION_SCAN_PAGE_SIZE);
 
@@ -1370,20 +1372,72 @@ export async function scanEodPredictions(
   };
 }
 
-export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {}): Promise<DailyEodMaintenanceResult> {
+export type EodCompanyExecution = {taskId:string;price?:EodPrice};
+
+/** Freeze the full interested-symbol scope before publishing any company task. */
+export async function planEodCompanyWork(input:DailyEodMaintenanceInput,db=getAdminFirestore()) {
+  const market=input.market??'US',runDate=resolveRunDate(input.runDate,market);
+  const scan=await scanEodPredictions(db,runDate,null,input.tickers??[],market);
+  const universe=await loadEodPriceUniverse({market,loadPrices:input.loadPrices!==false,manualTickers:input.tickers??[],predictionTickers:scan.predictionsToProcess.map(p=>p.ticker)});
+  const tickers=input.loadPrices!==false&&!input.tickers?.length&&runDate===marketDate(market)
+    ? await corporateActionTickers(db,market,universe.requestedTickers):universe.requestedTickers;
+  if(market==='US'&&input.loadPrices!==false){
+    const fx=await loadUsdCnyEod(db,runDate);
+    if(fx.failed)throw Error('EOD FX remains incomplete');
+  }
+  // Keep the existing five-symbol history repair budget, once per parent plan.
+  if(input.loadPrices!==false&&!input.tickers?.length&&runDate>=historyThrough(market)&&process.env.EODHD_API_TOKEN&&process.env.EODHD_BULK_EOD_BUCKET){
+    const history=await backfillPriceHistory({db,bucket:getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET),tickers:[...universe.mapTickers,...universe.benchmarkTickers],through:historyThrough(market),limit:5,token:process.env.EODHD_API_TOKEN});
+    if(history.failures.length)console.warn('[daily-eod-maintenance] Bounded history repair incomplete', {failed:history.failures.length});
+  }
+  return [...new Set(tickers)].map(ticker=>predictionInstrument(ticker)!.companyId);
+}
+
+/** Raw exchange files remain in GCS; each receipt carries only its selected bar. */
+export async function prepareEodCompanyPrices(input:DailyEodMaintenanceInput,companyIds:string[]) {
+  const market=input.market??'US',date=resolveRunDate(input.runDate,market),now=new Date().toISOString();
+  const tickers=companyIds.map(id=>market==='US'?id.slice(3):id);
+  const cached=await readCachedEodPrices(tickers,date);
+  const missing=tickers.filter(ticker=>!cached.has(ticker));
+  if(input.loadPrices!==false&&missing.length){
+    const bulk=await fetchEodhdBulkEodPrices(missing,date,now,market);
+    for(const price of bulk?.prices??[])cached.set(price.ticker,price);
+  }
+  return Object.fromEntries(tickers.map(ticker=>[predictionInstrument(ticker)!.companyId,cached.has(ticker)?{price:cached.get(ticker)!}:{}]));
+}
+
+/** Called only after the coordinator verifies every required company receipt. */
+export async function finalizeEodCompanyScores(input:DailyEodMaintenanceInput,cursor:string|null,db=getAdminFirestore()):Promise<string|null> {
+  const market=input.market??'US',runDate=resolveRunDate(input.runDate,market);
+  if(input.markPredictions===false)return null;
+  let query=db.collection('prediction_daily_marks').where('date','==',runDate).orderBy('__name__').limit(50);
+  if(cursor)query=query.startAfter(cursor);
+  const page=await query.get(),users=[...new Set(page.docs.filter(doc=>predictionInstrument(String(doc.get('ticker')??''))?.market===market).map(doc=>String(doc.get('userId'))))];
+  const now=new Date().toISOString();
+  for(const user of users){
+    if(!await recomputeUserAnalytics(db,user,now))throw Error('EOD portfolio analytics incomplete');
+  }
+  const written=await writeUserDailyScoreSnapshots(db,users,runDate,now);
+  if(written.skippedUsers)throw Error('EOD portfolio scores incomplete');
+  return page.size===50?page.docs.at(-1)!.id:null;
+}
+
+export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {}, execution?:EodCompanyExecution): Promise<DailyEodMaintenanceResult> {
   const market = input.market ?? "US";
   if (market !== "US" && market !== "CN_A") throw new Error("Invalid EOD market");
+  if(execution&&(!input.tickers||input.tickers.length!==1||execution.price&&!isPriceForEodDate(execution.price,input.tickers[0],input.runDate!)))throw Error('Invalid prepared company price');
   const log = createMaintenanceLog("daily-eod-maintenance", { market, requestedDate: input.runDate, dryRun: input.dryRun === true, trigger: input.trigger ?? "internal", requestedBy: input.requestedBy });
   // Share the lock between scheduled and admin runs, including different dates
   // for the same market, because they can touch the same prediction scores.
-  const lease = input.dryRun || input.rollForward ? null : getAdminFirestore().collection("eod_runs").doc(`_active_${market}`);
+  if(!execution&&!input.dryRun&&(await getAdminFirestore().collection('eod_runs').doc('_company_pipeline').get()).get('activeRequest'))throw Object.assign(Error('Company EOD run is active'),{code:'EOD_ALREADY_RUNNING'});
+  const lease = execution || input.dryRun || input.rollForward ? null : getAdminFirestore().collection("eod_runs").doc(`_active_${market}`);
   if (lease && !await acquireMaintenanceLease(lease, log.runId)) {
     log.emit("WARNING", "run_skipped", { reason: "EOD_ALREADY_RUNNING" });
     throw Object.assign(new Error("An EOD job is already running for this market"), { code: "EOD_ALREADY_RUNNING" });
   }
   log.emit("INFO", "run_started");
   try {
-    const result = await runDailyEodMaintenanceImpl(input, log);
+    const result = await runDailyEodMaintenanceImpl(input, log, execution);
     log.emit(result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred ? "WARNING" : "INFO", "run_completed", { corporateActions:result.corporateActions??null, fx: result.fx ?? null, runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
     return { ...result, runId: log.runId };
   } catch (error) {
@@ -1394,7 +1448,7 @@ export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {
   }
 }
 
-async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: MaintenanceLog): Promise<DailyEodMaintenanceResult> {
+async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: MaintenanceLog, execution?:EodCompanyExecution): Promise<DailyEodMaintenanceResult> {
   const db = getAdminFirestore();
   const dryRun = input.dryRun === true;
   const recompute = input.recompute === true;
@@ -1442,7 +1496,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     };
   }
 
-  const runRef = db.collection("eod_runs").doc(eodRunDocId(runDate, market));
+  const runRef = db.collection("eod_runs").doc(execution?`_company_${execution.taskId}`:eodRunDocId(runDate, market));
 
   console.info("[daily-eod-maintenance] Starting run", {
     runDate,
@@ -1486,9 +1540,9 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     let corporateActions:DailyEodMaintenanceResult['corporateActions'];
     // Historical repair/replay and mark-only requests retain their original scope.
     // The current daily run discovers all map/watchlist listings before loading prices.
-    if(loadPrices&&!dryRun&&!input.skipHistoryBackfill&&!manualTickers.length&&runDate===marketDate(market)){
+    if(loadPrices&&!dryRun&&!input.skipHistoryBackfill&&(!manualTickers.length||execution)&&runDate===marketDate(market)){
       log.stage('sync_corporate_actions');
-      const tickers=await eodWorkOnce(`action-universe:${market}`, () => corporateActionTickers(db,market,mapTickers));
+      const tickers=execution?manualTickers:await eodWorkOnce(`action-universe:${market}`, () => corporateActionTickers(db,market,mapTickers));
       corporateActions=await eodWorkOnce(`actions:${market}:${runDate}`, () => syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL}), result => !result.failures.length && !result.deferred);
       log.emit(corporateActions.failures.length||corporateActions.deferred?'ERROR':'INFO','corporate_actions_synced',corporateActions);
       await runRef.set({corporateActions},{merge:true});
@@ -1522,7 +1576,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     };
 
     let fx: DailyEodMaintenanceResult["fx"];
-    if (market === "US" && loadPrices && !dryRun) {
+    if (market === "US" && loadPrices && !dryRun && !execution) {
       try { fx = await eodWorkOnce(`fx:${runDate}`, () => loadUsdCnyEod(db, runDate), result => !result.failed); log.emit("INFO", "fx_completed", fx); }
       catch (error) { fx = {processed:0,failed:1,error:maintenanceError(error).message}; log.emit("ERROR", "fx_failed", fx); }
     }
@@ -1544,7 +1598,10 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       const tickersToFetch = requestedTickers.filter((ticker) => !cachedPrices.has(ticker));
       // Bulk files stay in GCS. Only this run's requested symbols reach Firestore;
       // missing dated bars are repaired individually, including the later US run.
-      const fetched = await (manualTickers.length && (input.scheduledBatch || market === 'CN_A')
+      const fetched:EodPriceFetchResult = execution
+        ? execution.price ? {provider:execution.price.source,prices:tickersToFetch.length?[execution.price]:[],failures:[],rawGcsPath:null,rawCacheHit:true}
+          : await fetchEodhdDailyPrices(tickersToFetch,runDate,nowIso,market)
+        : await (manualTickers.length && (input.scheduledBatch || market === 'CN_A')
         ? fetchEodhdDailyPrices(tickersToFetch, runDate, nowIso, market)
         : input.scheduledBatch ? fetchEodhdMarketPrices(tickersToFetch, runDate, nowIso, market)
         : market === "CN_A" ? fetchEodhdMarketPrices(tickersToFetch, runDate, nowIso, market) : fetchEodPrices(tickersToFetch, runDate, nowIso));
@@ -1967,7 +2024,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     }
 
     log.stage("user_analytics", { transactionsCompleted, users: usersNeedingAnalytics.size });
-    if (!dryRun && usersNeedingAnalytics.size > 0) {
+    if (!dryRun && !execution && usersNeedingAnalytics.size > 0) {
       for (const userId of Array.from(usersNeedingAnalytics).sort()) {
         log.emit("INFO", "user_analytics_started", { document: `users/${userId}` });
         const recomputed = await recomputeUserAnalytics(db, userId, nowIso);
@@ -1978,7 +2035,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     }
 
     log.stage("daily_scores", { users: usersNeedingDailyScores.size });
-    if (!dryRun && usersNeedingDailyScores.size > 0) {
+    if (!dryRun && !execution && usersNeedingDailyScores.size > 0) {
       const written = await writeUserDailyScoreSnapshots(
         db,
         Array.from(usersNeedingDailyScores).sort(),
