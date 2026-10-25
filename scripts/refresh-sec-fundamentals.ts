@@ -3,15 +3,13 @@ import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
 import { loadFundamentalsCompanyIds } from "../src/lib/fundamentals/company-scope";
 import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
-import { auditMapFundamentals, drainFundamentalsQueue, seedMapFundamentals } from "../src/lib/fundamentals/batch";
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
-import { refreshCompanyMarketCaps } from "../src/lib/fundamentals/market-cap";
 import { backfillLatestEod } from "../src/lib/predictions/backfill-latest-eod";
-import { publishPendingFundamentals, verifyFundamentalsDelivery } from "../src/lib/fundamentals/pubsub-batch";
+import { verifyFundamentalsDelivery } from "../src/lib/fundamentals/pubsub-batch";
 import { publishFundamentalsMessage } from "../src/lib/fundamentals/pubsub";
-import {queueMarketCapRefresh} from '../src/lib/fundamentals/market-cap-queue';
+import {queueFundamentalsSeeding} from '../src/lib/fundamentals/seed-queue';
 
 const log = createMaintenanceLog("refresh-sec-fundamentals");
 async function main() {
@@ -27,7 +25,6 @@ async function main() {
   }
   const lease = db.collection(FUNDAMENTALS_COLLECTION).doc("_worker");
   if (!await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) throw new Error("Another fundamentals worker holds the lease");
-  const deadline = Date.now() + 18 * 60_000;
   try {
     if (process.argv.includes("--backfill-latest-only")) {
       log.stage("backfill_latest_prices");
@@ -40,25 +37,11 @@ async function main() {
     // Provider messages retain raw tickers; storage converts them back to US: keys.
     const tickers = companyIds.map(id => usFundamentalsTicker(id)!);
     if (!tickers.length) throw new Error("No US map companies found; refusing an incomplete coverage check");
-    log.emit("INFO", "map_seeded", await seedMapFundamentals(db, tickers));
-    if (process.argv.includes("--seed-only")) return;
-    log.stage("fetch_queue");
-    // Reserve time for valuation updates even when SEC requests consume their budget.
-    const topic = process.env.FUNDAMENTALS_REQUEST_TOPIC;
-    const asynchronous = Boolean(topic && !process.argv.includes("--direct"));
-    const result = asynchronous
-      ? await publishPendingFundamentals(db, process.env.CLOUD_RUN_EXECUTION ?? log.runId,
-        request => publishFundamentalsMessage(topic!, request), log)
-      : await drainFundamentalsQueue(db, log, deadline - 120_000);
-    const coverage = await auditMapFundamentals(db, tickers);
-    log.stage("market_caps");
-    const marketCaps = asynchronous
-      ? await queueMarketCapRefresh(db,process.env.CLOUD_RUN_EXECUTION??log.runId,tickers,topic!)
-      : await refreshCompanyMarketCaps(db, log, tickers);
-    await lease.set({ lastRunAt: new Date().toISOString(), result, coverage, marketCaps }, { merge: true });
-    const failed = ("failed" in result && result.failed) || ('failed' in marketCaps && marketCaps.failed);
-    log.emit(failed ? "ERROR" : "INFO", "run_completed", { ...result, coverage, marketCaps });
-    if (failed) throw new Error("Fundamentals or market-cap refresh failed or is incomplete; see run summary");
+    const topic=process.env.FUNDAMENTALS_REQUEST_TOPIC;
+    if(!topic)throw Error('Fundamentals request queue is required');
+    if(process.argv.includes('--direct'))throw Error('Direct all-company refresh is retired; use the queued publisher');
+    const result=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??log.runId,companyIds,topic,process.argv.includes('--seed-only'));
+    log.emit('INFO','seeding_queued',result);
   } finally {
     await releaseMaintenanceLease(lease, log.runId);
   }

@@ -16,6 +16,17 @@ export function validateCniDirectory(input: unknown) {
   return { payload, rows };
 }
 
+/** The queued path applies this same reviewed merge policy to one company. */
+export function writeCniCompany(tx:FirebaseFirestore.Transaction,db:Firestore,r:Record<string,unknown>,profile:Record<string,unknown>,payload:Record<string,unknown>,now:string){
+  const classification=assignedClassificationCodes('CNI',r.classification);
+  const classificationMetadata={...cniMetadata(text(payload.source),text(payload.snapshot),now),catalogVersion:taxonomyCatalog('CNI').version};
+  tx.set(db.collection('company_directory').doc(text(r.id)),{...r,market:'CN_A',taxonomy:'CNI',classificationMetadata,snapshot:payload.snapshot,source:payload.source,updatedAt:now},{merge:true});
+  tx.set(db.collection(MARKET_COMPANIES).doc(text(r.id)),{
+    ...companyFields(text(r.id),{...r,...profile}),classification,taxonomy:'CNI',classificationMetadata,status:profile.status??'DIRECTORY',
+    ...(!profile.source?{source:payload.source,sourceLabel:`国证行业分类 ${payload.snapshot}`} :{}),updatedAt:now,
+  },{merge:true});
+}
+
 export async function importCniDirectory(db: Firestore, input: unknown, log?: MaintenanceLog,
   options: { checkpoint?: DocumentReference; deadline?: number; owner?: string } = {}) {
   const { payload, rows } = validateCniDirectory(input);
@@ -26,7 +37,6 @@ export async function importCniDirectory(db: Firestore, input: unknown, log?: Ma
   if (prior?.snapshot && dateKey(text(payload.snapshot)) < dateKey(prior.snapshot)) throw new Error("Refusing an older snapshot.");
   if (prior?.sha256 === payload.sha256) return { unchanged: true, count: rows.length };
   const now = new Date().toISOString();
-  const classificationMetadata = {...cniMetadata(text(payload.source), text(payload.snapshot), now), catalogVersion:taxonomyCatalog('CNI').version};
   // Bounded transactions; a partial import is safe to replay. Only mark the snapshot complete at the end.
   const start = options.checkpoint ? Number((await options.checkpoint.get()).get("offset") ?? 0) : 0;
   if (!Number.isInteger(start) || start < 0 || start > rows.length || (start !== rows.length && start % 100)) throw Error("Invalid directory checkpoint");
@@ -40,16 +50,7 @@ export async function importCniDirectory(db: Firestore, input: unknown, log?: Ma
       }
       if (options.checkpoint && Number((await tx.get(options.checkpoint)).get("offset") ?? 0) !== offset) throw Error("Directory progress changed");
       const profiles = await tx.getAll(...group.map(r => db.collection(MARKET_COMPANIES).doc(text(r.id))));
-      group.forEach((r, i) => {
-        const classification = assignedClassificationCodes('CNI',r.classification);
-        tx.set(db.collection("company_directory").doc(text(r.id)), { ...r, market: "CN_A", taxonomy: "CNI", classificationMetadata, snapshot: payload.snapshot, source: payload.source, updatedAt: now }, { merge: true });
-        const profile = profiles[i].data() ?? {};
-        tx.set(db.collection(MARKET_COMPANIES).doc(text(r.id)), {
-          ...companyFields(text(r.id), {...r, ...profile}), classification, taxonomy:"CNI", classificationMetadata,
-          status:profile.status ?? "DIRECTORY",
-          ...(!profile.source ? {source:payload.source,sourceLabel:`国证行业分类 ${payload.snapshot}`} : {}), updatedAt:now,
-        }, {merge:true});
-      });
+      group.forEach((r, i) => writeCniCompany(tx,db,r,profiles[i].data()??{},payload,now));
       if (options.checkpoint) tx.set(options.checkpoint, { offset: offset + group.length }, { merge: true });
     };
     if (log) await loggedTransaction(db, log, { batchOffset: offset, batchSize: group.length }, writeBatch);

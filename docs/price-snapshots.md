@@ -6,7 +6,7 @@ Ordinary US and A-share EOD runs fetch whole-exchange daily JSON files without a
 
 Only the run's interested symbols (enrolled map companies, prediction symbols and the existing benchmark) are selected from those files and written to the existing price documents. Unrelated exchange rows are never imported into Firestore. Symbol mapping preserves dotted US tickers and canonical A-share exchange identities. Every selected bar must match the requested trading date. A missing, invalid or wrong-date bar is repaired through the single-symbol endpoint, so an early cached file cannot hide a later close. Valid stored prices skip provider work; explicit scheduled/A-share ticker repairs retain single-symbol scope. A bulk HTTP failure fails scheduled acquisition instead of launching one request for every symbol. Existing ordinary US Twelve Data fallback remains in place.
 
-New daily requests then use [per-company queued processing](eod-company-queue.md). Company tasks retain corporate-action prerequisites and prediction ordering; portfolio analytics and daily scores wait for every required company receipt. Historical roll-forward and already-checkpointed legacy deliveries retain their original execution path.
+New daily requests and historical roll-forward use [per-company queued processing](eod-company-queue.md). Company tasks retain corporate-action prerequisites and prediction ordering; portfolio analytics and daily scores wait for every required company receipt. Historical replay finalizes each trading date before advancing. Only already-checkpointed legacy deliveries retain their original execution path.
 
 ## Website snapshots
 

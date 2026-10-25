@@ -2,7 +2,7 @@ import type {DocumentReference, Firestore} from 'firebase-admin/firestore';
 import {digest} from './fundamentals/pubsub';
 import {acquireMaintenanceLease, releaseMaintenanceLease} from './maintenance-lease';
 
-export type CompanyWorkKind = 'eod' | 'us-market-cap';
+export type CompanyWorkKind = 'eod' | 'us-market-cap' | 'us-fundamentals-seed' | 'directory' | 'instrument-sync';
 export type CompanyWorkRequest = {version:1;type:'company.work.requested';kind:CompanyWorkKind;batchId:string;parentBatchId:string;companyId:string;requestedAt:string};
 export type RunMessage = {batchId:string;requestedAt:string};
 export type CompanyRun<R extends RunMessage> = {
@@ -16,7 +16,7 @@ export function companyWorkRequest(kind:CompanyWorkKind,parent:RunMessage,compan
 export function parseCompanyWorkRequest(value:unknown,kind:CompanyWorkKind):CompanyWorkRequest {
   const v=value as CompanyWorkRequest;
   if(!v||v.version!==1||v.type!=='company.work.requested'||v.kind!==kind||typeof v.parentBatchId!=='string'||!/^[\w-]{1,100}$/.test(v.parentBatchId)
-    ||typeof v.companyId!=='string'||!/^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(v.companyId)
+    ||typeof v.companyId!=='string'||!/^(US:[A-Z0-9.-]+|ORG:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(v.companyId)
     ||typeof v.requestedAt!=='string'||!Number.isFinite(Date.parse(v.requestedAt))||v.batchId!==companyWorkRequest(kind,{batchId:v.parentBatchId,requestedAt:v.requestedAt},v.companyId).batchId) throw Error('Invalid company work request');
   return companyWorkRequest(kind,{batchId:v.parentBatchId,requestedAt:v.requestedAt},v.companyId);
 }

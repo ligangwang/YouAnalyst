@@ -5,7 +5,7 @@ import {digest} from '../fundamentals/pubsub';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
 import type {MaintenanceLog} from '../maintenance-log';
 import {parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsub';
-import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,type EodPrice} from './eod-prices';
+import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,readRollForwardDates,type EodPrice} from './eod-prices';
 
 export type EodCompanyRunRequest=Omit<EodRequest,'version'|'type'>&{version:2;type:'eod.company-run.requested'};
 export type EodMessage=EodRequest|EodCompanyRunRequest|CompanyWorkRequest;
@@ -25,7 +25,8 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
   if(message.type==='company.work.requested')return processCompanyWork<EodCompanyRunRequest>(message,{
     db,parent:parentRef(db,message.parentBatchId),state,collection:'eod_runs',owner:log.runId,publish,
     work:async(parent,prepared,cursor)=>{
-      const input=parent.input,market=input.market,ticker=market==='US'?message.companyId.slice(3):message.companyId;
+      const replay=(await parentRef(db,parent.batchId).get()).get('result')?.parentRequest;
+      const input={...parent.input,...(replay?{skipHistoryBackfill:true}:{})},market=input.market,ticker=market==='US'?message.companyId.slice(3):message.companyId;
       const result=await (dependencies.run??runDailyEodMaintenance)({...input,rollForward:false,tickers:[ticker],afterPredictionId:cursor??undefined},
         {taskId:message.batchId,...(prepared.price?{price:prepared.price as EodPrice}:{})});
       if(result.priceLoad.failed||result.marking.missingPrice||result.corporateActions?.failures.length||result.corporateActions?.deferred)throw Error('Company EOD processing remains incomplete');
@@ -34,10 +35,10 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     },
   });
   const ref=parentRef(db,message.batchId),prior=(await ref.get()).data();
-  // Finish requests already checkpointed by the old worker and historical replays
-  // through their original path. Ordinary new daily requests use company receipts.
+  // Finish already checkpointed old requests through their original path.
+  // New daily requests and historical replays use company receipts.
   if(message.type==='eod.maintenance.requested'){
-    if(message.input.rollForward||prior?.dates)return processEodMaintenance(message,db,log);
+    if(prior?.dates&&prior.request?.type==='eod.maintenance.requested')return processEodMaintenance(message,db,log);
     // Persist the new protocol before publication. Old workers compare the stored
     // request digest and reject a replay of the old message instead of finalizing.
     const legacyLease=db.collection('eod_runs').doc(`_queue_${message.input.market}`);
@@ -56,8 +57,9 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     if(!upgraded)return processEodMaintenance(message,db,log);
     await publish(upgraded);return {batchId:message.batchId,upgraded:true};
   }
-  const input=message.input;
-  return processCompanyRun(message,{
+  if(message.input.rollForward)return processEodReplay(message,db,log,publish);
+  const input={...message.input,...(prior?.result?.parentRequest?{skipHistoryBackfill:true}:{})};
+  const outcome=await processCompanyRun(message,{
     db,ref,state,collection:'eod_runs',kind:'eod',owner:log.runId,publish,
     plan:async()=>{
       for(const key of [`_active_${input.market}`,`_queue_${input.market}`])
@@ -71,7 +73,7 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       const next=await (dependencies.finalize??finalizeEodCompanyScores)(input,cursor,db);
       if(next===null){
         await db.collection('eod_runs').doc(`${input.market}_${input.runDate}`).set({status:'COMPLETED',completedAt:new Date().toISOString(),error:null},{merge:true});
-        const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(input)}`);
+        const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(message.input)}`);
         await db.runTransaction(async tx=>{
           if((await tx.get(dispatch)).get('activeRequest')?.batchId===message.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});
         });
@@ -79,4 +81,40 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       return next;
     },
   });
+  if(outcome.phase==='completed'||outcome.duplicate){
+    const parentRequest=(await ref.get()).get('result')?.parentRequest;
+    if(parentRequest)await publish(parseEodMessage(parentRequest));
+  }
+  return outcome;
+}
+
+/** Historical dates remain ordered; each date uses the same company barrier. */
+async function processEodReplay(request:EodCompanyRunRequest,db:Firestore,log:MaintenanceLog,publish:(message:EodMessage)=>Promise<unknown>){
+  const ref=parentRef(db,request.batchId);
+  if(!await acquireMaintenanceLease(ref,log.runId))throw Error('EOD replay is busy');
+  try{
+    let saved=(await ref.get()).data();
+    if(!saved?.request||digest(saved.request)!==digest(request))throw Error('Unknown EOD replay');
+    if(saved.completed)return {duplicate:true,batchId:request.batchId};
+    if(!saved.dates){
+      const count=request.input.rollForwardBatchSize??5,dates=await readRollForwardDates(db,request.input.runDate,count+1);
+      await ref.set({dates:dates.slice(0,count),nextRunDate:dates[count]??null,dateIndex:0},{merge:true});saved=(await ref.get()).data()!;
+    }
+    if(saved.dateIndex>=saved.dates.length){
+      if(!saved.dates.length)throw Error('No EOD replay dates found');
+      const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(request.input)}`);
+      await db.runTransaction(async tx=>{
+        const active=(await tx.get(dispatch)).get('activeRequest');
+        tx.set(ref,{completed:true,completedAt:new Date().toISOString()},{merge:true});
+        if(active?.batchId===request.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});
+      });return {completed:true,batchId:request.batchId};
+    }
+    const date=saved.dates[saved.dateIndex],batchId=digest({replay:request.batchId,date}),child=parentRef(db,batchId);
+    if((await child.get()).get('completed')===true){
+      await ref.set({dateIndex:saved.dateIndex+1},{merge:true});await publish(request);return {advanced:true,batchId:request.batchId};
+    }
+    const daily:EodCompanyRunRequest={...request,batchId,input:{...request.input,runDate:date,rollForward:false}};
+    await db.runTransaction(async tx=>{if(!(await tx.get(child)).exists)tx.create(child,{request:daily,result:{parentRequest:request}});});
+    await publish(daily);return {waiting:true,batchId:request.batchId};
+  }finally{await releaseMaintenanceLease(ref,log.runId);}
 }

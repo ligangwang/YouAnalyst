@@ -6,7 +6,7 @@ import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { withSecRequestContext } from "../sec-request";
 import { refreshCompanyMarketCaps } from "./market-cap";
-import { digest, fundamentalsVersion, MAX_BATCH_COMPANIES, parseFundamentalsRequest,
+import { digest, fundamentalsVersion, parseFundamentalsRequest,
   type FundamentalsRequest, type FundamentalsUpdate } from "./pubsub";
 
 type Progress = { before: string; completed?: boolean; failed?: boolean; version?: string; changed?: boolean };
@@ -34,8 +34,8 @@ export async function publishPendingFundamentals(db: Firestore, runId: string,
     if (page.size < 100) break;
   }
   let batches = 0;
-  for (let offset = 0; offset < companyIds.length; offset += MAX_BATCH_COMPANIES) {
-    const companies = companyIds.slice(offset, offset + MAX_BATCH_COMPANIES);
+  for (let offset = 0; offset < companyIds.length; offset++) {
+    const companies = companyIds.slice(offset, offset + 1);
     const request: FundamentalsRequest = { version: 1, type: "fundamentals.refresh.requested",
       batchId: digest({ runId, companies }), companyIds: companies,
       requestedAt: new Date().toISOString(), reason: "scheduled_or_manual" };

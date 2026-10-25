@@ -1379,14 +1379,14 @@ export async function planEodCompanyWork(input:DailyEodMaintenanceInput,db=getAd
   const market=input.market??'US',runDate=resolveRunDate(input.runDate,market);
   const scan=await scanEodPredictions(db,runDate,null,input.tickers??[],market);
   const universe=await loadEodPriceUniverse({market,loadPrices:input.loadPrices!==false,manualTickers:input.tickers??[],predictionTickers:scan.predictionsToProcess.map(p=>p.ticker)});
-  const tickers=input.loadPrices!==false&&!input.tickers?.length&&runDate===marketDate(market)
+  const tickers=input.loadPrices!==false&&!input.skipHistoryBackfill&&!input.tickers?.length&&runDate===marketDate(market)
     ? await corporateActionTickers(db,market,universe.requestedTickers):universe.requestedTickers;
   if(market==='US'&&input.loadPrices!==false){
     const fx=await loadUsdCnyEod(db,runDate);
     if(fx.failed)throw Error('EOD FX remains incomplete');
   }
   // Keep the existing five-symbol history repair budget, once per parent plan.
-  if(input.loadPrices!==false&&!input.tickers?.length&&runDate>=historyThrough(market)&&process.env.EODHD_API_TOKEN&&process.env.EODHD_BULK_EOD_BUCKET){
+  if(input.loadPrices!==false&&!input.skipHistoryBackfill&&!input.tickers?.length&&runDate>=historyThrough(market)&&process.env.EODHD_API_TOKEN&&process.env.EODHD_BULK_EOD_BUCKET){
     const history=await backfillPriceHistory({db,bucket:getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET),tickers:[...universe.mapTickers,...universe.benchmarkTickers],through:historyThrough(market),limit:5,token:process.env.EODHD_API_TOKEN});
     if(history.failures.length)console.warn('[daily-eod-maintenance] Bounded history repair incomplete', {failed:history.failures.length});
   }

@@ -7,6 +7,27 @@ import type {DailyEodMaintenanceResult,EodCompanyExecution,EodPrice} from '../..
 import {companyWorkRequest,type CompanyWorkRequest} from '../../src/lib/company-work-queue';
 import {queueMarketCapRefresh,processMarketCapMessage,parseMarketCapMessage,type MarketCapMessage} from '../../src/lib/fundamentals/market-cap-queue';
 
+test('historical replay orders dates and finishes each company barrier before advancing',async()=>{
+  const f=pubsubFirestore();
+  Object.assign(f.db,{getAll:(...refs:FirebaseFirestore.DocumentReference[])=>Promise.all(refs.map(ref=>ref.get()))});
+  const messages:EodMessage[]=[],publish=async(message:EodMessage)=>{messages.push(message);};
+  await queueEodMaintenance({market:'US',runDate:'2026-01-02',rollForward:true},f.db,publish);
+  const original=messages.shift()!;
+  await processEodCompanyMessage(original,f.db,f.log,publish);
+  Object.assign(f.rows.get(`eod_runs/_request_${original.batchId}`)!,{dates:['2026-01-02','2026-01-05'],dateIndex:0});
+  const work:string[]=[],scores:string[]=[];
+  const deps={plan:async(input:{skipHistoryBackfill?:boolean})=>{assert.equal(input.skipHistoryBackfill,true);return ['US:AMD','US:MSFT'];},prepare:async()=>({}),
+    run:async(input:{runDate?:string;tickers?:string[];skipHistoryBackfill?:boolean}={})=>{
+      assert.equal(input.skipHistoryBackfill,true);assert.equal(input.tickers?.length,1);
+      work.push(`${input.runDate}:${input.tickers![0]}`);
+      return {priceLoad:{failed:0},marking:{missingPrice:0},hasMoreCandidatePredictions:false} as DailyEodMaintenanceResult;
+    },finalize:async(input:{runDate?:string})=>{assert.equal(work.filter(item=>item.startsWith(input.runDate!)).length,2);scores.push(input.runDate!);return null;}};
+  for(let i=0;messages.length;i++){assert.ok(i<30);await processEodCompanyMessage(messages.shift()!,f.db,f.log,publish,deps);}
+  assert.deepEqual(scores,['2026-01-02','2026-01-05']);
+  assert.deepEqual(work,['2026-01-02:AMD','2026-01-02:MSFT','2026-01-05:AMD','2026-01-05:MSFT']);
+  assert.equal(f.rows.get(`eod_runs/_request_${original.batchId}`)?.completed,true);
+});
+
 test('daily EOD routes one company and its prepared price per task, then finalizes portfolios behind receipts',async()=>{
   const f=pubsubFirestore();
   Object.assign(f.db,{getAll:(...refs:FirebaseFirestore.DocumentReference[])=>Promise.all(refs.map(ref=>ref.get()))});
