@@ -1,5 +1,5 @@
 import {syncPricePartitions} from '../src/lib/entity-snapshots/price-sync';
-import {syncSnapshotInstruments} from '../src/lib/instruments/snapshot-sync';
+import {queueFundamentalsSeeding} from '../src/lib/fundamentals/seed-queue';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getStorage} from 'firebase-admin/storage';
 import {getFirestore} from '../src/lib/firebase/firestore';
@@ -27,9 +27,7 @@ async function main(){
     if(collection==='instruments'){
       const companies=(await files.load('companies')).snapshot;
       if(!companies)throw Error('Company snapshot required before instrument sync');
-      let instruments=(await files.load('instruments')).snapshot;
-      if(!instruments){await syncCollection('instruments',source,files);instruments=(await files.load('instruments')).snapshot;}
-      const synchronized=await syncSnapshotInstruments(db,companies,instruments);
+      const synchronized=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`snapshot-${companies.watermark.toMillis()}`,companies.rows.map(row=>row.id),'sec-fundamentals-requests','instruments');
       console.info(JSON.stringify({job:'sync-entity-snapshots',event:'instrument_directory_sync',...synchronized}));
     }
     const result=await syncCollection(collection,source,files);

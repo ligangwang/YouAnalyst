@@ -46,7 +46,7 @@ test("batch publisher chunks all eligible companies and leaves fresh caches defe
   const messages: FundamentalsRequest[] = [];
   const result = await publishPendingFundamentals(f.db, "run-1", async r => { messages.push(r); }, f.log);
   assert.equal(result.requested, 45);
-  assert.deepEqual(messages.map(m => m.companyIds.length), [20, 20, 5]);
+  assert.deepEqual(messages.map(m => m.companyIds.length), Array(45).fill(1));
   assert.equal(new Set(messages.flatMap(m => m.companyIds)).size, 45);
   assert.ok(messages.every(m => f.rows.has(`_batch_${m.batchId}`)));
 });

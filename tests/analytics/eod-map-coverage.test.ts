@@ -1,4 +1,6 @@
 import type {Firestore} from 'firebase-admin/firestore';
+import * as admin from 'firebase-admin';
+import {getStorage} from 'firebase-admin/storage';
 import {withThemeCatalog} from '../helpers/theme-catalog';
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -56,12 +58,14 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   const previousApp = globalThis.__adminApp;
   const previousToken = process.env.EODHD_API_TOKEN;
   const previousTwelve = process.env.TWELVE_DATA_API_KEY;
+  const previousBucket = process.env.EODHD_BULK_EOD_BUCKET;
   delete process.env.EODHD_API_TOKEN;
   process.env.TWELVE_DATA_API_KEY = "synthetic-test-key";
   t.after(() => {
     globalThis.__adminApp = previousApp;
     if (previousToken === undefined) delete process.env.EODHD_API_TOKEN; else process.env.EODHD_API_TOKEN = previousToken;
     if (previousTwelve === undefined) delete process.env.TWELVE_DATA_API_KEY; else process.env.TWELVE_DATA_API_KEY = previousTwelve;
+    if (previousBucket === undefined) delete process.env.EODHD_BULK_EOD_BUCKET; else process.env.EODHD_BULK_EOD_BUCKET = previousBucket;
   });
   const runDate = "2026-09-18";
   const documents = new Map<string, Record<string, unknown>>();
@@ -114,9 +118,26 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   assert.equal(third.priceLoad.failed, 1);
   assert.ok(events.some(event => event.severity === "ERROR" && String(event.message).endsWith("map_price_coverage") && (event.missing as string[]).includes("TSM")));
   process.env.EODHD_API_TOKEN = "synthetic-test-key";
+  process.env.EODHD_BULK_EOD_BUCKET = 'synthetic-bulk-bucket';
+  const app = admin.initializeApp({projectId:'synthetic-eod'}, 'eod-map-bulk-test');
+  globalThis.__adminApp = app;
+  t.mock.method(app, 'firestore', () => db);
+  t.after(() => app.delete());
+  const files = new Map<string, string>();
+  const storage = getStorage(app);
+  t.mock.method(storage, 'bucket', () => ({file:(path:string) => ({
+    exists:async()=>[files.has(path)], download:async()=>[Buffer.from(files.get(path)!)],
+    save:async(value:string)=>{files.set(path,value);},
+  })}) as ReturnType<typeof storage.bucket>);
   const dailyRequests: string[] = [];
+  let bulkRequests = 0;
   t.mock.method(globalThis, "fetch", async (url: URL) => {
     const request = new URL(url);
+    if (request.pathname === '/api/eod-bulk-last-day/US') {
+      bulkRequests++;
+      assert.equal(request.searchParams.has('symbols'), false);
+      return Response.json([{code:'UNINTERESTED',exchange_short_name:'US',date:runDate,open:1,high:1,low:1,close:1}]);
+    }
     assert.equal(request.pathname, "/api/eod/TSM.US");
     assert.equal(request.searchParams.get("from"), runDate);
     assert.equal(request.searchParams.get("to"), runDate);
@@ -134,6 +155,16 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
     await runDailyEodMaintenance({ market: "US", runDate, limit: 1, scheduledBatch, skipHistoryBackfill: true });
     assert.equal(dailyRequests.length, scheduledBatch === "1630" ? 1 : 2);
   }
+  assert.equal(bulkRequests, 1, 'reuse the full raw file across schedules; repair its missing TSM individually');
+  assert.ok(!documents.has(`eod_prices/US_UNINTERESTED_${runDate}`));
+  files.set(`eodhd-bulk-eod/US/${runDate}.json`, JSON.stringify(['TSM','UNINTERESTED'].map(code => ({code,exchange_short_name:'US',date:runDate,open:99,high:101,low:98,close:100,adjusted_close:99,volume:1000}))));
+  documents.delete(`eod_prices/US_TSM_${runDate}`);
+  const bulkLoaded = await runDailyEodMaintenance({market:'US',runDate,limit:1,scheduledBatch:'2000',skipHistoryBackfill:true});
+  assert.equal(bulkLoaded.priceLoad.loaded, 1);
+  assert.equal(bulkLoaded.priceLoad.rawCacheHit, true);
+  assert.equal(documents.get(`eod_prices/US_TSM_${runDate}`)?.source, 'eodhd-bulk-eod');
+  assert.ok(!documents.has(`eod_prices/US_UNINTERESTED_${runDate}`));
+  assert.equal(dailyRequests.length, 2, 'valid cached bulk prices need no per-symbol request');
   t.mock.method(globalThis, "fetch", async (url: URL) => {
     assert.equal(new URL(url).pathname, "/api/eod/BRK-B.US");
     return Response.json([{date: runDate, open: 99, high: 101, low: 98, close: 100, adjusted_close: 99, volume: 1000}]);

@@ -22,6 +22,7 @@ for topic in "$request" "$dead"; do
 done
 for topic in "$request"; do
   gcloud pubsub topics add-iam-policy-binding "$topic" --project "$GCP_PROJECT_ID" --member "serviceAccount:$web_runtime" --role roles/pubsub.publisher --quiet >/dev/null
+  gcloud pubsub topics add-iam-policy-binding "$topic" --project "$GCP_PROJECT_ID" --member "serviceAccount:$runtime" --role roles/pubsub.publisher --quiet >/dev/null
 done
 # Retain failed requests for inspection and replay.
 for pair in "$dead:eod-maintenance-dead-letter-audit"; do
@@ -54,7 +55,7 @@ trap 'rm -f -- "$env_file"' EXIT
 node -e 'const fs=require("fs"); const e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",EOD_SUBSCRIPTION:"eod-maintenance-worker"}; for(const key of ["CENTRAL_CACHE_URL","TWELVE_DATA_API_KEY","TWELVE_DATA_API_URL","EODHD_API_TOKEN","EODHD_API_URL","EODHD_BULK_EOD_BUCKET"]) if(e[key]) values[key]=e[key]; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
-  --command node --args dist/serve-eod-maintenance.cjs --min-instances 0 --max-instances 1 \
+  --command node --args dist/serve-eod-maintenance.cjs --min-instances 0 --max-instances 4 \
   --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
   --env-vars-file "$env_file" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \

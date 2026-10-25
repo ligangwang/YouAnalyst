@@ -36,7 +36,7 @@ export async function publishDirectoryRequest(db: Firestore, execution: string, 
   return { requested: 1, batchId: saved.batchId, mode: "pubsub" };
 }
 
-async function downloadDirectory() {
+export async function downloadDirectory() {
   const directory = await mkdtemp(path.join(tmpdir(), "cni-pubsub-"));
   const file = path.join(directory, "snapshot.json");
   try {
