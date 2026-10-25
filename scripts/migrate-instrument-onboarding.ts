@@ -5,24 +5,25 @@ import {Timestamp,type DocumentSnapshot} from 'firebase-admin/firestore';
 import {getAdminFirestore} from '../src/lib/firebase/admin';
 import {closeLocalCaches} from '../src/lib/local-cache/watch';
 import {instrumentId,type Instrument} from '../src/lib/instruments/model';
-import {planInstrumentSupportMigration} from '../src/lib/instruments/support-migration';
+import {planInstrumentSupportMigration,instrumentMigrationScope} from '../src/lib/instruments/support-migration';
 
 /** Staged operator tool. Dry run is the default; never selects new coverage. */
 async function main(){
   const project=process.env.GCP_PROJECT_ID,file=process.argv.find(arg=>arg.startsWith('--source-backup='))?.slice(16);
   if(!project||!file)throw Error('Explicit GCP_PROJECT_ID and --source-backup=<company migration backup> are required');
   const source=JSON.parse(await readFile(file,'utf8')) as {project:string;selected:string[]};
-  if(source.project!==project||!Array.isArray(source.selected)||source.selected.length>10_000||source.selected.some(id=>typeof id!=='string'||! /^(US:[A-Z0-9.-]+|XSHG:\d{6}|XSHE:\d{6})$/.test(id))||new Set(source.selected).size!==source.selected.length)throw Error('Invalid frozen legacy coverage backup');
+  if(source.project!==project||!Array.isArray(source.selected)||source.selected.length>10_000||source.selected.some(id=>typeof id!=='string'||! /^(US:[A-Z0-9.-]+|XSHG:\d{6}|XSHE:\d{6}|XBSE:\d{6}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id))||new Set(source.selected).size!==source.selected.length)throw Error('Invalid frozen legacy coverage backup');
+  const selected=instrumentMigrationScope(source.selected),skippedCompanies=source.selected.filter(id=>!selected.includes(id));
   initializeApp({credential:applicationDefault(),projectId:project});const db=getAdminFirestore();
   const inputs:{id:string;company:Record<string,unknown>;instrument:Instrument|undefined;companyDoc:DocumentSnapshot;instrumentDoc:DocumentSnapshot}[]=[];
-  for(let offset=0;offset<source.selected.length;offset+=100){
-    const ids=source.selected.slice(offset,offset+100),docs=await db.getAll(...ids.flatMap(id=>[db.collection('companies').doc(id),db.collection('instruments').doc(instrumentId(id))]));
+  for(let offset=0;offset<selected.length;offset+=100){
+    const ids=selected.slice(offset,offset+100),docs=await db.getAll(...ids.flatMap(id=>[db.collection('companies').doc(id),db.collection('instruments').doc(instrumentId(id))]));
     for(let n=0;n<ids.length;n++)inputs.push({id:ids[n],company:docs[n*2].data()??{},instrument:docs[n*2+1].data() as Instrument|undefined,companyDoc:docs[n*2],instrumentDoc:docs[n*2+1]});
   }
-  const plan=planInstrumentSupportMigration(inputs,source.selected),at=Timestamp.now(),write=process.argv.includes('--write');
+  const plan=planInstrumentSupportMigration(inputs,selected),at=Timestamp.now(),write=process.argv.includes('--write');
   await mkdir('output/instrument-onboarding-backups',{recursive:true});
   const backup=`output/instrument-onboarding-backups/${randomUUID()}.json`;
-  await writeFile(backup,JSON.stringify({project,sourceBackup:file,mode:write?'write':'preview',selected:plan.map(row=>row.id),originals:inputs.map(row=>({id:row.id,company:row.company,instrument:row.instrument}))},null,2),{flag:'wx'});
+  await writeFile(backup,JSON.stringify({project,sourceBackup:file,mode:write?'write':'preview',selected:plan.map(row=>row.id),skippedCompanies,originals:inputs.map(row=>({id:row.id,company:row.company,instrument:row.instrument}))},null,2),{flag:'wx'});
   let written=0;
   for(let offset=0;write&&offset<plan.length;offset+=5){
     const batch=plan.slice(offset,offset+5);
@@ -43,6 +44,6 @@ async function main(){
     written+=batch.length;console.log(JSON.stringify({written,total:plan.length,backup}));
     if(offset+5<plan.length)await new Promise<void>(resolve=>setTimeout(resolve,1000));
   }
-  console.log(JSON.stringify({mode:write?'written':'preview',selected:plan.length,written,backup}));
+  console.log(JSON.stringify({mode:write?'written':'preview',selected:plan.length,skippedCompanies,written,backup}));
 }
 main().finally(closeLocalCaches).catch(()=>{console.error('Instrument migration stopped; inspect the saved backup and retry only after review');process.exitCode=1;});

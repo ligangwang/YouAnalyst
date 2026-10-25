@@ -1,5 +1,11 @@
 import {instrumentFromCompany,instrumentId,validateInstrument,type Instrument} from './model';
 import {isSupportedCompany} from '../company-support/model';
+import {predictionInstrument} from '../predictions/instrument';
+
+/** Company coverage also includes private/non-priceable editorial profiles. */
+export function instrumentMigrationScope(ids:readonly string[]){
+  return ids.filter(id=>/^(US:|XSHG:|XSHE:)/.test(id)&&Boolean(predictionInstrument(id.startsWith('US:')?id.slice(3):id)));
+}
 
 /** Only an explicit frozen legacy-coverage list may be grandfathered. */
 export function planInstrumentSupportMigration(rows:{id:string;company:Record<string,unknown>;instrument?:Instrument}[],legacyIds:readonly string[]){

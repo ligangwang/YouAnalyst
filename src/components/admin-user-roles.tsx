@@ -43,13 +43,13 @@ export function AdminUserRoles(){
     </form>
     {error&&<p role="alert" className={styles.error}>{error}</p>}{message&&<p role="status">{message}</p>}
     {target&&<div className={styles.account}>
-      <strong>{target.nickname?`@${target.nickname}`:target.displayName??target.id}</strong><p>{target.email??text('No email address','无邮箱地址')}</p><p>UID: <code>{target.id}</code></p>
+      <strong>{target.nickname?`@${target.nickname}`:target.displayName??target.id}</strong><p>{target.email??text('No email address','无邮箱地址')}</p><p>{text('UID: ','用户 UID：')}<code>{target.id}</code></p>
       <p>{text('Current access','当前权限')}: <strong>{target.admin?text('Administrator','管理员'):text('Standard user','普通用户')}</strong></p>
       {target.claimsAdmin&&<p>{text('Admin access is managed by Firebase authentication claims. Manage those claims separately.','管理员权限由 Firebase 身份验证声明管理，请单独管理这些声明。')}</p>}
       {target.disabled&&<p>{text('This account is disabled in Firebase Authentication.','此账户已在 Firebase 身份验证中停用。')}</p>}
       {target.self&&target.admin&&<p>{text('You cannot revoke your own admin access.','不能撤销您自己的管理员权限。')}</p>}
       {confirm===null?<button disabled={busy||target.claimsAdmin||target.disabled||(target.self&&target.admin)} onClick={()=>setConfirm(!target.admin)}>{target.admin?text('Revoke admin access','撤销管理员权限'):text('Grant admin access','授予管理员权限')}</button>:<div className={styles.confirm} role="group" aria-label={text('Confirm administrator access change','确认管理员权限更改')} onKeyDown={event=>{if(event.key==='Escape'&&!busy)setConfirm(null);}}>
-        <strong>{confirm?text('Grant full administrator access?','授予完整管理员权限？'):text('Revoke administrator access?','撤销管理员权限？')}</strong><p>{target.email??target.nickname??target.id} · UID: {target.id}</p>
+        <strong>{confirm?text('Grant full administrator access?','授予完整管理员权限？'):text('Revoke administrator access?','撤销管理员权限？')}</strong><p>{target.email??target.nickname??target.id}{text(' · UID: ',' · 用户 UID：')}{target.id}</p>
         <p>{confirm?text('This account will be able to use all admin tools.','此账户将能够使用全部管理工具。'):text('This removes admin access stored in the user profile.','这将移除用户资料中保存的管理员权限。')}</p>
         <div><button type="button" disabled={busy} onClick={()=>void save()}>{confirm?text('Confirm grant','确认授予'):text('Confirm revoke','确认撤销')}</button><button type="button" disabled={busy} onClick={()=>setConfirm(null)}>{text('Cancel','取消')}</button></div>
       </div>}

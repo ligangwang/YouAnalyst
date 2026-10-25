@@ -133,7 +133,9 @@ search results.
 GET `/api/admin/instrument-onboarding` returns private, non-cacheable summaries.
 POST accepts `{instrumentId, step, updatedAt}`. Retry checks the current first
 unfinished step and optimistic timestamp, refuses active leases/completed/changed
-requests, clears the failure/backoff, and queues that checkpoint. Completed work
+requests, clears the failure/backoff, and queues that checkpoint. An explicit US
+fundamentals retry also releases that issuer's saved SEC error/retry hold; automatic
+retries do not clear it. Completed work
 is preserved. The page never calls providers or dispatches an execution. Error
 messages are sanitized; credentials and provider URLs are not exposed publicly.
 
@@ -156,7 +158,8 @@ Backups are under `output/company-onboarding-backups/`.
 
 After company migration, preview the instrument grandfather migration with
 `GCP_PROJECT_ID=<project> npx tsx scripts/migrate-instrument-onboarding.ts --source-backup=<frozen-company-migration-backup>`.
-It selects only that frozen legacy list, checks canonical support and instrument
+It selects only priceable US/XSHG/XSHE listings from that frozen legacy list,
+reports private/non-priceable company profiles as skipped, checks canonical support and instrument
 identity, rejects active onboarding, saves a backup, and requires `--write` for
 writes. Writes are fenced and throttled to five per batch with one-second pauses.
 No migration is executed by the UI or application startup. Before release,

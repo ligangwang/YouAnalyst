@@ -46,6 +46,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     const data=(await db.collection('company_fundamentals').doc(request.companyId).get()).data();
     const annual=instrument.market==='US'?data?.value:data?.cnAnnual;
     if(!annual||!Array.isArray(annual.metrics)||!annual.metrics.some((metric:{value:unknown})=>typeof metric.value==='number'&&Number.isFinite(metric.value))){
+      if(instrument.market==='US'&&['error','retry'].includes(data?.outcome))throw new OnboardingBlocked('SEC financial refresh requires an administrator retry');
       if(data?.outcome==='unavailable')throw new OnboardingBlocked('Required financial metrics are unavailable');
       throw Error('Required financial metrics are not ready');
     }

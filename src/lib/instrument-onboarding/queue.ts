@@ -80,10 +80,8 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
       return null;
     }
     const current={...request,steps:{...request.steps},status:'PROCESSING' as const,leaseOwner:owner,leaseExpiresAt:clock()+LEASE_MS,updatedAt:new Date(clock()).toISOString()};
-    if(request.steps.prices==='COMPLETE'){
-      const through=createOnboardingRequest(id,context.instrument,context.company,request.requestedByUid,new Date(clock())).targetThrough;
-      if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','metrics','verify'] as const)delete current.steps[key];}
-    }
+    const through=createOnboardingRequest(id,context.instrument,context.company,request.requestedByUid,new Date(clock())).targetThrough;
+    if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','metrics','verify'] as const)delete current.steps[key];}
     const step=ONBOARDING_STEPS.find(key=>current.steps[key]!=='COMPLETE')??'verify';
     if(companyStep(step)){
       const siblings=await tx.get(db.collection(ONBOARDING_COLLECTION).where('companyId','==',request.companyId));
@@ -144,6 +142,11 @@ export async function retryInstrumentOnboarding(db:Firestore,id:string,expected:
     const request=parseOnboardingRequest(doc.data());const step=ONBOARDING_STEPS.find(key=>request.steps[key]!=='COMPLETE');
     if(request.instrumentId!==id||request.status==='SUPPORTED'||request.leaseExpiresAt>now||!request.lastError||request.updatedAt!==expected.updatedAt||step!==expected.step)throw Error('Request changed or is active; refresh before retrying');
     const fresh=await readiness(tx,db,request);
+    // The SEC worker deliberately holds saved failures until an administrator
+    // retries them. Release only this issuer's failed cache with the same action.
+    const financialRef=step==='fundamentals'&&request.companyId.startsWith('US:')?db.collection('company_fundamentals').doc(request.companyId):null;
+    const financial=financialRef?await tx.get(financialRef):null;
+    if(financialRef&&['error','retry'].includes(financial?.get('outcome')))tx.set(financialRef,{outcome:'pending',pending:true,refreshAfter:0},{merge:true});
     tx.set(ref,{...request,status:'QUEUED',attemptCount:0,nextAttemptAt:0,lastError:null,leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(now).toISOString()});
     tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary('PROCESSING',now,request.requestedAt,fresh.instrument.onboarding),updatedAt:Timestamp.fromMillis(now)});
     if(companyStep(step)&&!isSupportedCompany(fresh.company))tx.update(db.collection('companies').doc(request.companyId),{onboarding:onboardingSummary('PROCESSING',now,request.requestedAt,fresh.company.onboarding),updatedAt:Timestamp.fromMillis(now)});

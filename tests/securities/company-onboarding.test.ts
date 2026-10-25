@@ -9,7 +9,7 @@ import {onboardingActions,backfillOnboardingActions} from '../../src/lib/instrum
 import {instrumentId,instrumentFromCompany} from '../../src/lib/instruments/model';
 import {isSupportedInstrument} from '../../src/lib/instruments/support';
 import {requesterId} from '../../src/lib/instrument-onboarding/requesters';
-import {planInstrumentSupportMigration} from '../../src/lib/instruments/support-migration';
+import {planInstrumentSupportMigration,instrumentMigrationScope} from '../../src/lib/instruments/support-migration';
 
 export function onboardingFixture(){
   const rows=new Map<string,Record<string,unknown>>([['companies/US:NEW',{name:'New',status:'DIRECTORY',cik:'123'}],['companies/XSHE:000001',{name:'A-share',status:'DIRECTORY'}]]);
@@ -137,6 +137,30 @@ test('date rollover catches up only instrument history and preserves company adm
   assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'SUPPORTED');
 });
 
+test('a request waiting in the queue uses the latest cutoff before doing any work',async()=>{
+  const f=onboardingFixture();await f.enqueue();const originalTime=f.request().requestedAt;
+  f.advance(7*86400_000);await f.process();
+  assert.equal(f.request().targetThrough,'2026-10-31');assert.equal(f.request().requestedAt,originalTime);assert.deepEqual(f.calls,['identity']);
+});
+
+test('a cutoff change between actions and prices restarts both for one consistent range',async()=>{
+  const f=onboardingFixture();await f.enqueue();for(let n=0;n<7;n++)await f.process();
+  assert.equal((f.request().steps as Record<string,unknown>).corporateActions,'COMPLETE');
+  f.advance(86400_000);assert.equal((await f.process()).step,'corporateActions');assert.equal(f.request().targetThrough,'2026-10-25');
+});
+
+test('an explicit admin fundamentals retry releases only the selected issuer saved failure',async()=>{
+  const f=onboardingFixture();await f.enqueue();for(let n=0;n<3;n++)await f.process();
+  const saved={outcome:'error',pending:false,value:{keep:'last-good'},lastError:{message:'SEC unavailable'}};
+  f.rows.set('company_fundamentals/US:NEW',saved);f.rows.set('company_fundamentals/US:OTHER',{outcome:'error'});
+  await f.process({...f.handlers,fundamentals:async()=>{throw new OnboardingBlocked('SEC financial refresh requires an administrator retry');}});
+  assert.deepEqual(f.rows.get('company_fundamentals/US:NEW'),saved);
+  await retryInstrumentOnboarding(f.db,f.id,{step:'fundamentals',updatedAt:String(f.request().updatedAt)},f.clock());
+  assert.deepEqual(f.rows.get('company_fundamentals/US:NEW'),{...saved,outcome:'pending',pending:true,refreshAfter:0});
+  assert.deepEqual(f.rows.get('company_fundamentals/US:OTHER'),{outcome:'error'});
+  assert.deepEqual(f.request().steps,{identity:'COMPLETE',themes:'COMPLETE',profile:'COMPLETE'});
+});
+
 test('concurrent theme edits or instrument reparenting cannot publish stale instrument readiness',async()=>{
   const f=onboardingFixture();await f.enqueue();for(let i=0;i<9;i++)await f.process();
   await f.process({...f.handlers,verify:async()=>{f.rows.set('companies/US:NEW',{...f.rows.get('companies/US:NEW'),themeMemberships:{}});}});
@@ -158,6 +182,7 @@ test('instrument migration grandfathers only the frozen legacy list and refuses 
   const record=instrumentFromCompany('US:OLD',company)!;
   assert.deepEqual(planInstrumentSupportMigration([{...input,instrument:{...record,onboarding:onboarding()}}],['US:OLD']),[]);
   assert.throws(()=>planInstrumentSupportMigration([{...input,instrument:{...record,onboarding:onboarding('QUEUED')}}],['US:OLD']),/conflicts/);
+  assert.deepEqual(instrumentMigrationScope(['ORG:OPENAI','US:OLD','XSHG:600000','ORG:ANTHROPIC','XSHE:000001','XBSE:830001']),['US:OLD','XSHG:600000','XSHE:000001']);
 });
 
 test('invalidated instrument is blocked for admin correction without reverting its company',async()=>{
