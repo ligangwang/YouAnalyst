@@ -64,3 +64,36 @@ test('non-admin cannot view onboarding requests or retry controls',async({page})
   await expect(page.getByRole('alert')).toHaveText('This page is available to administrators only.');expect(reads).toBe(0);
   await expect(page.getByRole('button',{name:'Retry failed step'})).toHaveCount(0);
 });
+
+test('admin batch form resolves exact listings and submits once with the signed-in identity',async({page},info)=>{
+  await page.addInitScript(()=>{window.authScenario={signedIn:true};});
+  let writes=0;const lookedUp:string[]=[];
+  await page.route('**/*',async route=>{
+    const req=route.request(),url=new URL(req.url());
+    if(url.pathname==='/api/admin/me')return route.fulfill({json:{isAdmin:true}});
+    if(url.pathname==='/api/admin/instrument-onboarding')return route.fulfill({json:{items:[],nextCursor:null}});
+    if(url.pathname==='/api/tickers/search'){
+      const listing=url.searchParams.get('q')!;lookedUp.push(listing);
+      return route.fulfill({json:{items:[{id:listing,instrumentId:listing==='US:IBM'?id:'INS_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}]}});
+    }
+    if(url.pathname==='/api/admin/instrument-onboarding/requests'){
+      writes++;expect(req.headers().authorization).toBe('Bearer isolated-test-token');
+      expect(req.postDataJSON()).toEqual({items:[{listingId:'US:IBM',instrumentId:id},{listingId:'XSHE:300274',instrumentId:'INS_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}]});
+      await new Promise(resolve=>setTimeout(resolve,150));
+      return route.fulfill({status:503,json:{items:[{index:0,status:'QUEUED',outcome:'QUEUED'},{index:1,status:'DEFERRED',outcome:'DEFERRED',error:'Batch stopped; safe to retry'}]}});
+    }
+    return route.fulfill({contentType:'text/html',body:html});
+  });
+  await page.goto(origin+'/admin/instrument-onboarding');
+  await page.getByLabel('Listings (one per line)',{exact:true}).fill('us:ibm\nXSHE:300274\nUS:IBM');
+  await page.getByRole('button',{name:'Submit onboarding requests',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Submitting…',exact:true})).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('US:IBM — Onboarding Queued');
+  await expect(page.getByRole('status')).toContainText('XSHE:300274 — Deferred');
+  expect(writes).toBe(1);expect(lookedUp).toEqual(['US:IBM','XSHE:300274']);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+  await page.screenshot({path:info.outputPath('onboarding-batch-form.png'),fullPage:true});
+  await page.getByLabel('Listings (one per line)',{exact:true}).fill('NOT_A_LISTING');
+  await page.getByRole('button',{name:'Submit onboarding requests',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('Enter 1–25');expect(writes).toBe(1);
+});

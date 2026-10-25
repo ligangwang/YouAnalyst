@@ -6,6 +6,7 @@ import {isAdminUser} from '../firebase/admin-role';
 import {validInstrumentId} from '../instruments/model';
 import {OnboardingBlocked,validRequesterUid} from './model';
 import {requestInstrumentOnboarding} from './queue';
+import {hasTrustedRequestOrigin} from '../request-origin';
 
 const dependencies={getUser:getDecodedUserFromRequest,isAdmin:isAdminUser,db:getAdminFirestore,enqueue:requestInstrumentOnboarding,pause:()=>new Promise<void>(resolve=>setTimeout(resolve,200))};
 const json=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'private, no-store'}});
@@ -16,7 +17,7 @@ type Result={index:number;instrumentId?:string;companyId?:string;status:Accepted
 export async function adminBatchOnboardingResponse(request:NextRequest,deps=dependencies){
   const user=await deps.getUser(request);if(!user)return json({error:'Unauthorized'},401);
   if(!validRequesterUid(user.uid)||!user.firebase?.sign_in_provider||user.firebase.sign_in_provider==='anonymous'||!await deps.isAdmin(user))return json({error:'Forbidden'},403);
-  const origin=request.headers.get('origin');if(origin&&origin!==request.nextUrl.origin)return json({error:'Invalid request origin'},403);
+  if(!hasTrustedRequestOrigin(request))return json({error:'Invalid request origin'},403);
   if(Number(request.headers.get('content-length'))>16384)return json({error:'Request too large'},413);
   let value:unknown;
   try{const body=await request.text();if(Buffer.byteLength(body,'utf8')>16384)return json({error:'Request too large'},413);value=JSON.parse(body);}catch{return json({error:'Invalid request'},400);}
