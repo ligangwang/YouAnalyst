@@ -28,6 +28,8 @@ test('supported membership is explicit and excludes queued, deleted and hidden c
   const legacy={...supported,themeMemberships:undefined,inGraph:{status:'PUBLISHED',stageIds:['compute']}};
   assert.deepEqual(supportedCompanyUniverse([legacy]).nodes[0].stageIds,['compute']);
   assert.deepEqual(supportedCompanyUniverse([{...legacy,themeMemberships:{ai:{...member,status:'WITHDRAWN'}}}]).nodes[0].stageIds,[]);
+  const robotics={...supported,themeMemberships:{robotics:{...member,primarySector:'compute-control',secondaryRoles:['sensors-vision']}}};
+  assert.deepEqual(supportedCompanyUniverse([robotics]).nodes[0].stageIds,['robotics:compute-control','robotics:sensors-vision']);
 });
 
 test('migration grandfathers published coverage including legacy AI, but never overrides an active request',()=>{

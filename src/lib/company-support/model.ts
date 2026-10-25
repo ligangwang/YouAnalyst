@@ -40,6 +40,9 @@ function supportedCompanyStages(company: ThemedCompany) {
   const legacy=company.inGraph as {status?:string;stageIds?:unknown} | undefined;
   const stages=legacy?.status==='PUBLISHED' && !company.themeMemberships?.ai && Array.isArray(legacy.stageIds)
     ? legacy.stageIds.filter((stage):stage is string=>typeof stage==='string') : [];
-  return [...new Set([...stages,...Object.values(company.themeMemberships ?? {})
-    .filter(member=>member.status==='PUBLISHED').map(member=>member.primarySector)])];
+  return [...new Set([...stages,...Object.entries(company.themeMemberships ?? {})
+    .filter(([,member])=>member.status==='PUBLISHED').flatMap(([theme,member])=>{
+      const roles=member.assignments?member.assignments.filter(item=>item.status==='PUBLISHED').map(item=>item.nodeId):[member.primarySector,...member.secondaryRoles??[]];
+      return roles.map(role=>theme==='ai'?role:role.startsWith(`${theme}:`)?role:`${theme}:${role.replace(new RegExp(`^${theme}\\.`),'')}`);
+    })])];
 }
