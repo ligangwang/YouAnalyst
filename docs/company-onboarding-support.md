@@ -207,3 +207,33 @@ duplicates can still return their known result. Retry the same batch safely;
 existing jobs, request times, requester records and leases are preserved. Raw
 storage diagnostics are not exposed. The endpoint is private and non-cacheable.
 It has not been deployed or called against production.
+
+
+## Admin account role management (staged)
+
+The admin dashboard includes **Manage administrator access**. An existing admin
+can look up an existing user profile by exact UID, email, or @nickname, review its
+verified Firebase email and UID, and explicitly confirm Grant/Revoke. Editing the
+lookup clears the selected account and pending confirmation. There is no
+email/username-based automatic admin assignment or self-service promotion.
+
+GET `/api/admin/users/role?q=<identifier>` and PATCH `/api/admin/users/role`
+authenticate the caller and resolve current admin authority using the existing
+profile role fields and fresh Firebase Authentication claims. PATCH accepts
+`{userId, admin, version}`; it rechecks the actor's profile inside the transaction
+and fences the target against the version shown during lookup. Responses are
+private and non-cacheable. The service needs Firebase Authentication user-read
+permission for identity/disabled/custom-claim checks; it never changes custom
+claims or provisions accounts.
+
+Grants use the existing `users.role = admin` field. Revocation removes all existing
+profile admin variants (`role`, `admin`, `isAdmin`, admin entries in `roles`) while
+preserving non-admin roles and unrelated profile/billing data. Existing `updatedAt`
+is updated; no new persisted fields or collections are introduced. Role changes
+are recorded in structured server logs with actor UID, target UID, and action.
+
+Self-revocation is blocked. Firebase-claim-managed admins and disabled accounts
+are read-only in this control and must be managed separately in Firebase.
+At least one existing admin (profile role or authentication claim) is needed to
+use this page; initial bootstrap remains an operator action. No role grant or
+revocation has been performed against production, and this feature is undeployed.

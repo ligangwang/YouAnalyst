@@ -1,6 +1,7 @@
 "use client";
 
 import { UiText, useUiText } from "@/components/ui-text";
+import {AdminUserRoles} from './admin-user-roles';
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -348,6 +349,7 @@ export function AdminDashboardPage() {
 
         {planMessage ? <p className="mt-3 text-sm text-slate-300">{<UiText text={planMessage} />}</p> : null}
       </section>
+      <AdminUserRoles/>
     </main>
   );
 }

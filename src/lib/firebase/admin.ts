@@ -39,6 +39,8 @@ export async function verifyIdToken(token: string): Promise<admin.auth.DecodedId
   return getAdminApp().auth().verifyIdToken(token);
 }
 
+export function getAdminAuth() { return getAdminApp().auth(); }
+
 export function getAdminFirestore(): admin.firestore.Firestore {
  return timeCompanyPhaseSync('firestore_client',()=>{
   const raw=getAdminApp().firestore(),db=observeFirestore(raw);
