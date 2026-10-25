@@ -53,7 +53,8 @@ export function parseOnboardingRequest(value:unknown):OnboardingRequest{
   const v=value as OnboardingRequest;
   if(!v||v.version!==1||!validRequesterUid(v.requestedByUid)||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
     ||!validDay(v.targetThrough)||v.targetThrough<ONBOARDING_START||!Number.isFinite(Date.parse(v.requestedAt))||!Number.isFinite(Date.parse(v.updatedAt))
-    ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>!ONBOARDING_STEPS.includes(k as OnboardingStep)||s!=='COMPLETE')
+    // Retain readability of staged checkpoints from before graph was removed.
+    ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>(k!=='graph'&&!ONBOARDING_STEPS.includes(k as OnboardingStep))||s!=='COMPLETE')
     ||!Number.isSafeInteger(v.attemptCount)||v.attemptCount<0||!Number.isFinite(v.nextAttemptAt)||v.nextAttemptAt<0||!Number.isFinite(v.leaseExpiresAt)||v.leaseExpiresAt<0
     ||(v.leaseOwner!==null&&typeof v.leaseOwner!=='string'))throw Error('Invalid onboarding request');
   return v;

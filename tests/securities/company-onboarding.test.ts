@@ -63,6 +63,17 @@ test('issuer readiness completes independently before instrument prices and acti
   assert.deepEqual(f.calls,[...ONBOARDING_STEPS]);assert.equal(f.request().status,'SUPPORTED');assert.equal((await f.process()).status,'SKIPPED');
 });
 
+test('company admission has no graph checkpoint and tolerates a completed legacy checkpoint',async()=>{
+  const f=onboardingFixture();await f.enqueue();
+  await f.process();await f.process();await f.process();
+  assert.deepEqual(f.calls,['identity','themes','profile']);
+  // Older staged requests may still contain the removed COMPLETE checkpoint.
+  f.request().steps={...f.request().steps as object,graph:'COMPLETE'};
+  assert.equal((await f.process()).step,'events');
+  assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'SUPPORTED');
+  assert(!f.calls.includes('graph'));assert.equal((await f.process()).step,'corporateActions');
+});
+
 test('each user gets one immutable request record while the instrument is onboarded only once',async()=>{
   const f=onboardingFixture(),start=f.clock();
   await Promise.all([
@@ -133,7 +144,7 @@ test('company work is serialized across requests for the same issuer',async()=>{
 });
 
 test('date rollover catches up only instrument history and preserves company admission',async()=>{
-  const f=onboardingFixture();await f.enqueue();for(let i=0;i<9;i++)await f.process();f.advance(86400_000);
+  const f=onboardingFixture();await f.enqueue();for(let i=0;i<ONBOARDING_STEPS.indexOf('verify');i++)await f.process();f.advance(86400_000);
   assert.equal((await f.process()).step,'corporateActions');assert.equal(f.request().targetThrough,'2026-10-25');
   assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'SUPPORTED');
 });
@@ -145,7 +156,7 @@ test('a request waiting in the queue uses the latest cutoff before doing any wor
 });
 
 test('a cutoff change between actions and prices restarts both for one consistent range',async()=>{
-  const f=onboardingFixture();await f.enqueue();for(let n=0;n<7;n++)await f.process();
+  const f=onboardingFixture();await f.enqueue();for(let n=0;n<ONBOARDING_STEPS.indexOf('prices');n++)await f.process();
   assert.equal((f.request().steps as Record<string,unknown>).corporateActions,'COMPLETE');
   f.advance(86400_000);assert.equal((await f.process()).step,'corporateActions');assert.equal(f.request().targetThrough,'2026-10-25');
 });
@@ -181,7 +192,7 @@ test('scheduled fundamentals can remain pending without blocking company support
 });
 
 test('concurrent theme edits or instrument reparenting cannot publish stale instrument readiness',async()=>{
-  const f=onboardingFixture();await f.enqueue();for(let i=0;i<9;i++)await f.process();
+  const f=onboardingFixture();await f.enqueue();for(let i=0;i<ONBOARDING_STEPS.indexOf('verify');i++)await f.process();
   await f.process({...f.handlers,verify:async()=>{f.rows.set('companies/US:NEW',{...f.rows.get('companies/US:NEW'),themeMemberships:{}});}});
   assert.equal(f.request().status,'QUEUED');assert.equal((f.request().steps as Record<string,unknown>).verify,undefined);
 });

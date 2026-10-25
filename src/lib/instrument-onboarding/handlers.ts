@@ -130,9 +130,6 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       }});
       await financials(request,record);
     },
-    // Published, evidenced theme memberships supply graph entry points. Zero
-    // commercial edges is valid; the worker never invents relationships.
-    graph:async({request})=>{if(!isSupportedCompany(await current(request.companyId)))await themes(request.companyId);},
     events:async({request})=>{
       if(isSupportedCompany(await current(request.companyId)))return;
       await themes(request.companyId);

@@ -6,7 +6,7 @@ until the user authorizes the release. No production data was written.
 ## Readiness contracts
 
 `companies.onboarding` certifies shared issuer readiness: canonical identity/CIK,
-reviewed profile, evidenced themes, graph entry, and event routing. SUPPORTED
+reviewed profile, evidenced themes, and event routing. SUPPORTED
 enrolls the company in scheduled maintenance; fundamentals may still be pending.
 `instruments.onboarding` certifies listing readiness: linked issuer, corporate
 actions, price history, listing-specific metrics, and final validation. A company
@@ -56,15 +56,17 @@ Stages run in order:
 1. identity (instrument-to-issuer linkage)
 2. themes (company)
 3. profile (company)
-4. graph (company)
-5. events (company readiness verification and admission)
-6. corporateActions (instrument splits and dividends)
-7. prices (instrument historical prices)
-8. fundamentals (read-only dependency check for instrument metrics)
-9. metrics (instrument-specific valuation/share data)
-10. verify (company and instrument readiness, then instrument admission)
+4. events (company readiness verification and admission)
+5. corporateActions (instrument splits and dividends)
+6. prices (instrument historical prices)
+7. fundamentals (read-only dependency check for instrument metrics)
+8. metrics (instrument-specific valuation/share data)
+9. verify (company and instrument readiness, then instrument admission)
 
-A supported issuer reuses its theme/profile/graph/event checkpoints. Normal
+A supported issuer reuses its theme/profile/event checkpoints. There is no graph
+checkpoint or graph construction/verification prerequisite. Theme assignments
+remain required; older staged COMPLETE graph checkpoints are accepted but ignored.
+Normal
 scheduled financial jobs collect missing issuer fundamentals after admission.
 Onboarding never starts a financial collector: its fundamentals checkpoint reads
 and validates issuer identity and usable metrics. Pending data leaves the instrument
