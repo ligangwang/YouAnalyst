@@ -206,6 +206,7 @@ export function AdminDashboardPage() {
         {error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
       </div>
 
+      <Link href="/admin/instrument-onboarding" className="mb-6 block rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4 text-cyan-200">{text('Instrument onboarding · Progress, errors and retries','证券入驻 · 进度、错误和重试')}</Link>
       <Link href="/admin/jobs" className="mb-6 block rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4 text-cyan-200">
         {ui("Tasks")}
       </Link>

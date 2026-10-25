@@ -9,7 +9,8 @@ import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing"
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
-import {companySupportState,type CompanySupportState} from '@/lib/company-onboarding/search-state';
+import type {Instrument} from '@/lib/instruments/model';
+import {companySupportState,type CompanySupportState} from '@/lib/instrument-onboarding/search-state';
 
 type TickerSearchItem = {
   supportState?: CompanySupportState;
@@ -178,7 +179,7 @@ export async function GET(request: NextRequest) {
       .filter(doc => doc.data().isDeleted !== true)
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
       .filter(doc => directory || request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
-      .map((doc) => {const item=toSearchItem(doc.id,doc.data());return item?{...item,...(directory?{supportState:companySupportState(doc.id,doc.data())}:{})}:null;})
+      .map((doc) => toSearchItem(doc.id,doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
       .filter(item => query.length <= 32 || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, "").includes(query.replace(/\s+/g, ""))))
       .sort((left, right) => {
@@ -206,6 +207,22 @@ export async function GET(request: NextRequest) {
         score: scoreTicker(item, query),
       }));
     const items = tickerItems.slice(0, limit).map(({ item }) => item);
+    if(directory){
+      const stockItems=items.filter(item=>item.instrumentId);
+      const instruments=stockItems.length?await db.getAll(...stockItems.map(item=>db.collection('instruments').doc(item.instrumentId!))):[];
+      const records=new Map(instruments.map(doc=>[doc.id,doc.data() as Instrument|undefined]));
+      const sources=new Map(candidateDocs.map(doc=>[doc.id,doc.data()]));
+      const ownerIds=[...new Set(stockItems.map(item=>records.get(item.instrumentId!)?.companyId??item.companyId).filter((id):id is string=>Boolean(id)&&!sources.has(id!)))];
+      const owners=ownerIds.length?await db.getAll(...ownerIds.map(id=>db.collection('companies').doc(id))):[];
+      for(const doc of owners)sources.set(doc.id,doc.data()??{});
+      for(const item of items){
+        const source=sources.get(item.id)??{},record=item.instrumentId?records.get(item.instrumentId):undefined;
+        const companyId=record?.companyId??item.companyId;
+        item.supportState=companySupportState(item.id,source,record,companyId?sources.get(companyId):undefined);
+        if(companyId)item.companyId=companyId;
+      }
+    }
+
 
     return NextResponse.json({ items }, { headers: { 'X-Company-Search-Version': String(COMPANY_SEARCH_VERSION),...(directory?{'Cache-Control':'no-store'}:{}) } });
   } catch (error) {

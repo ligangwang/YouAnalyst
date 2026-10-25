@@ -5,7 +5,8 @@ import {catalogThemeIds} from '../company-themes/catalog-model';
 import {catalogGraphSectors} from '../company-themes/catalog-graph';
 import {activeThemeIds,type ThemedCompany} from '../company-themes/model';
 import {planEnrollment,type EnrollmentBatch} from '../company-themes/enrollment';
-import {syncCompanyInstrument} from '../instruments/service';
+import {isSupportedCompany} from '../company-support/model';
+import type {Instrument} from '../instruments/model';
 import {backfillPriceHistory,historyBars,historyProviderSymbol} from '../predictions/history-backfill';
 import {saveLatestEodPrice} from '../predictions/latest-eod';
 import {refreshCompanyFundamentals} from '../fundamentals/worker';
@@ -15,7 +16,7 @@ import {refreshCnFundamentals} from '../fundamentals/cn-refresh';
 import {createCnRequester,createCnSources} from '../fundamentals/cn-sources';
 import type {MaintenanceLog} from '../maintenance-log';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
-import {ONBOARDING_START,OnboardingBlocked,onboardingIdentity,validDay,type OnboardingRequest} from './model';
+import {ONBOARDING_START,OnboardingBlocked,instrumentOnboardingIdentity,validDay,type OnboardingRequest} from './model';
 import type {OnboardingHandlers} from './queue';
 import {backfillOnboardingActions} from './actions';
 
@@ -40,8 +41,8 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     }
     return ids;
   };
-  const financials=async(request:OnboardingRequest)=>{
-    const company=await current(request.companyId),{instrument,cik}=onboardingIdentity(request.companyId,company);
+  const financials=async(request:OnboardingRequest,record:Instrument)=>{
+    const company=await current(request.companyId),{instrument,cik}=instrumentOnboardingIdentity(record,company);
     const data=(await db.collection('company_fundamentals').doc(request.companyId).get()).data();
     const annual=instrument.market==='US'?data?.value:data?.cnAnnual;
     if(!annual||!Array.isArray(annual.metrics)||!annual.metrics.some((metric:{value:unknown})=>typeof metric.value==='number'&&Number.isFinite(metric.value))){
@@ -52,8 +53,8 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     if(instrument.market==='CN_A'&&annual.companyId!==request.companyId)throw new OnboardingBlocked('Financial report issuer does not match the company');
     return data!;
   };
-  const priceHistory=async(request:OnboardingRequest)=>{
-    const {instrument}=onboardingIdentity(request.companyId,await current(request.companyId));
+  const priceHistory=async(request:OnboardingRequest,record:Instrument)=>{
+    const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
     const receipt=(await db.collection('collectors').doc(`eod-history_${instrument.market}_${instrument.ticker}_${ONBOARDING_START}_${request.targetThrough}`).get()).data();
     if(receipt?.status!=='completed'||receipt.from!==ONBOARDING_START||receipt.through!==request.targetThrough||!receipt.cachePath)throw Error('Historical price receipt is incomplete');
     const expected=`eod-history/${instrument.market}/${encodeURIComponent(instrument.ticker)}/${ONBOARDING_START}_${request.targetThrough}.json`;
@@ -61,11 +62,13 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     const bars=historyBars(JSON.parse((await bucket.file(expected).download())[0].toString('utf8')),ONBOARDING_START,request.targetThrough);
     return {instrument,bars};
   };
-  const ready=async(request:OnboardingRequest,guard:()=>Promise<void>)=>{
-    await themes(request.companyId);const financial=await financials(request);
-    if(!financial.marketCap||!['estimated','unavailable'].includes(financial.marketCap.status))throw Error('Derived metrics are not ready');
+  const ready=async(request:OnboardingRequest,record:Instrument,guard:()=>Promise<void>)=>{
+    if(!isSupportedCompany(await current(request.companyId)))throw Error('Company is not ready');
+    await financials(request,record);
+    const financial=(await db.collection('company_fundamentals').doc(record.providerSymbols.youanalyst).get()).data();
+    if(!financial?.marketCap||!['estimated','unavailable'].includes(financial.marketCap.status))throw Error('Derived metrics are not ready');
     if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
-    const {instrument,bars}=await priceHistory(request);
+    const {instrument,bars}=await priceHistory(request,record);
     for(let i=0;i<bars.length;i+=100){
       await guard();const page=bars.slice(i,i+100),docs=await db.getAll(...page.map(bar=>db.collection('eod_prices').doc(`${instrument.market}_${instrument.ticker}_${bar.date}`)));
       for(let n=0;n<page.length;n++){
@@ -75,8 +78,9 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     }
   };
   return {
-    identity:async({request,company,guard})=>{onboardingIdentity(request.companyId,company);await guard();await syncCompanyInstrument(db,request.companyId,company);},
+    identity:async({instrument:record,company,guard})=>{instrumentOnboardingIdentity(record,company);await guard();},
     themes:async({request,guard})=>{
+      if(isSupportedCompany(await current(request.companyId)))return;
       const catalog=await loadThemeCatalog(db);
       for(const batch of options.themeBatches??[]){
         const companies=batch.companies.filter(row=>row.id===request.companyId);if(!companies.length)continue;
@@ -89,9 +93,9 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       }
       await themes(request.companyId);
     },
-    profile:async({request})=>{const company=await current(request.companyId);if(typeof company.description!=='string'||!company.description.trim())throw new OnboardingBlocked('Reviewed company description is required');},
-    corporateActions:async({request,guard})=>{
-      const {instrument}=onboardingIdentity(request.companyId,await current(request.companyId));
+    profile:async({request})=>{const company=await current(request.companyId);if(isSupportedCompany(company))return;if(typeof company.description!=='string'||!company.description.trim())throw new OnboardingBlocked('Reviewed company description is required');},
+    corporateActions:async({request,instrument:record,guard})=>{
+      const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       // Share exclusion with the normal splits worker without advancing its checkpoint.
       const state=db.collection('collectors').doc(`split-history_${instrument.market}_${instrument.ticker}`),owner=log.runId;
       const acquired=await db.runTransaction(async tx=>{const doc=await tx.get(state);if(Number(doc.get('leaseUntil'))>Date.now())return false;tx.set(state,{leaseOwner:owner,leaseUntil:Date.now()+20*60_000},{merge:true});return true;});
@@ -99,25 +103,29 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       try{await backfillOnboardingActions({db,bucket,ticker:instrument.ticker,market:instrument.market,providerSymbol:historyProviderSymbol(instrument.ticker),through:request.targetThrough,token:options.token,guard});}
       finally{await db.runTransaction(async tx=>{if((await tx.get(state)).get('leaseOwner')===owner)tx.set(state,{leaseOwner:null,leaseUntil:0},{merge:true});});}
     },
-    prices:async({request,guard})=>{
-      const {instrument}=onboardingIdentity(request.companyId,await current(request.companyId));
+    prices:async({request,instrument:record,guard})=>{
+      const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await guard();
       const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:5,beforeBatch:guard,
         afterBatch:async()=>{await guard();await new Promise<void>(resolve=>setTimeout(resolve,1000));}});
       if(result.failures.length)throw Error('Historical price backfill incomplete');
-      const {bars}=await priceHistory(request),last=bars.at(-1)!;
+      const {bars}=await priceHistory(request,record),last=bars.at(-1)!;
       await guard();await saveLatestEodPrice(db,{ticker:instrument.ticker,market:instrument.market,tradingDate:last.date,close:last.close,currency:instrument.currency,source:'eodhd-eod',loadedAt:new Date().toISOString()});
     },
-    fundamentals:async({request,guard})=>{
-      await guard();const {instrument,cik}=onboardingIdentity(request.companyId,await current(request.companyId));
+    fundamentals:async({request,instrument:record,guard})=>{
+      await guard();
+      try{await financials(request,record);return;}catch(error){if(error instanceof OnboardingBlocked)throw error;}
+      const {instrument,cik}=instrumentOnboardingIdentity(record,await current(request.companyId));
+      if(instrument.market==='US'&&!request.companyId.startsWith('US:'))throw new OnboardingBlocked('Canonical issuer financial provider identity requires review');
+      if(instrument.market==='CN_A'&&record.providerSymbols.youanalyst!==request.companyId)throw new OnboardingBlocked('A-share issuer financial provider identity requires review');
       await withFinancialLease(instrument.market,async()=>{
-        if(instrument.market==='US')await refreshCompanyFundamentals(instrument.ticker,{db,identify:async()=>cik,log});
+        if(instrument.market==='US')await refreshCompanyFundamentals(request.companyId.slice(3),{db,identify:async()=>cik,log});
         else{const result=await refreshCnAnnual({db,companies:[request.companyId],deadline:Date.now()+120_000,log});if(result.failed||result.deferred)throw Error('A-share annual refresh incomplete');}
       });
-      await financials(request);
+      await financials(request,record);
     },
-    metrics:async({request,guard})=>{
-      await guard();const {instrument}=onboardingIdentity(request.companyId,await current(request.companyId));
+    metrics:async({request,instrument:record,guard})=>{
+      await guard();const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await withFinancialLease(instrument.market,async()=>{if(instrument.market==='US'){
         const result=await refreshCompanyMarketCaps(db,log,[instrument.ticker]);if(result.failed)throw Error('Market cap calculation failed');
       }else{
@@ -126,12 +134,17 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
         const stored=(await db.collection('company_fundamentals').doc(request.companyId).get()).data();
         if(result.failed||result.sourcesIncomplete||result.actions.failed||result.actions.skipped||result.shares.failed||result.shares.skipped||result.marketCaps.failed||(result.shares.deferred&&stored?.cnShareStatus?.outcome!=='unavailable'))throw Error('A-share metrics incomplete');
       }});
-      await financials(request);
+      await financials(request,record);
     },
     // Published, evidenced theme memberships supply graph entry points. Zero
     // commercial edges is valid; the worker never invents relationships.
-    graph:async({request})=>{await themes(request.companyId);},
-    events:async({request})=>{await themes(request.companyId);if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');},
-    verify:async({request,guard})=>ready(request,guard),
+    graph:async({request})=>{if(!isSupportedCompany(await current(request.companyId)))await themes(request.companyId);},
+    events:async({request,instrument:record})=>{
+      if(isSupportedCompany(await current(request.companyId)))return;
+      await themes(request.companyId);await financials(request,record);
+      const company=await current(request.companyId);if(typeof company.description!=='string'||!company.description.trim())throw new OnboardingBlocked('Reviewed company description is required');
+      if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
+    },
+    verify:async({request,instrument:record,guard})=>ready(request,record,guard),
   };
 }

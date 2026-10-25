@@ -1,12 +1,14 @@
 import {historyThrough} from '../predictions/history-range';
 import {predictionInstrument} from '../predictions/instrument';
+import {validInstrumentId,type Instrument} from '../instruments/model';
 
-export const ONBOARDING_COLLECTION='company_onboarding_requests';
+export const ONBOARDING_COLLECTION='instrument_onboarding_requests';
 export const ONBOARDING_START='2020-12-30';
-export const ONBOARDING_STEPS=['identity','themes','profile','corporateActions','prices','fundamentals','metrics','graph','events','verify'] as const;
+import {ONBOARDING_STEPS} from './progress';
+export {COMPANY_STEPS,ONBOARDING_STEPS} from './progress';
 export type OnboardingStep=typeof ONBOARDING_STEPS[number];
 export type OnboardingRequest={
-  companyId:string;version:1;status:'QUEUED'|'PROCESSING'|'BLOCKED'|'SUPPORTED';
+  instrumentId:string;companyId:string;version:1;status:'QUEUED'|'PROCESSING'|'BLOCKED'|'SUPPORTED';
   requestedAt:string;updatedAt:string;targetThrough:string;
   steps:Partial<Record<OnboardingStep,'COMPLETE'>>;attemptCount:number;nextAttemptAt:number;
   leaseOwner:string|null;leaseExpiresAt:number;lastError:string|null;
@@ -29,17 +31,26 @@ export function onboardingIdentity(companyId:string,company:Record<string,unknow
   return {instrument,cik};
 }
 
-export function createOnboardingRequest(companyId:string,company:Record<string,unknown>,now=new Date()):OnboardingRequest{
-  const {instrument}=onboardingIdentity(companyId,company),at=now.toISOString();
-  return {companyId,version:1,status:'QUEUED',requestedAt:at,updatedAt:at,targetThrough:historyThrough(instrument.market,now),
+export function instrumentOnboardingIdentity(instrument:Instrument,company:Record<string,unknown>){
+  if(instrument.status==='DELISTED'||(instrument as Instrument&{isDeleted?:boolean}).isDeleted)throw new OnboardingBlocked('Instrument is not available');
+  const listing=instrument.providerSymbols?.youanalyst;
+  if(typeof listing!=='string')throw new OnboardingBlocked('Provider listing identity is unavailable');
+  return onboardingIdentity(listing,company);
+}
+
+export function createOnboardingRequest(instrumentId:string,record:Instrument,company:Record<string,unknown>,now=new Date()):OnboardingRequest{
+  if(!validInstrumentId(instrumentId))throw new OnboardingBlocked('Invalid instrument identity');
+  const {instrument}=instrumentOnboardingIdentity(record,company),at=now.toISOString();
+  return {instrumentId,companyId:record.companyId,version:1,status:'QUEUED',requestedAt:at,updatedAt:at,targetThrough:historyThrough(instrument.market,now),
     steps:{},attemptCount:0,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:null};
 }
 
 export function parseOnboardingRequest(value:unknown):OnboardingRequest{
   const v=value as OnboardingRequest;
-  if(!v||v.version!==1||typeof v.companyId!=='string'||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
-    ||!validDay(v.targetThrough)||v.targetThrough<ONBOARDING_START||!Number.isFinite(Date.parse(v.requestedAt))
+  if(!v||v.version!==1||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
+    ||!validDay(v.targetThrough)||v.targetThrough<ONBOARDING_START||!Number.isFinite(Date.parse(v.requestedAt))||!Number.isFinite(Date.parse(v.updatedAt))
     ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>!ONBOARDING_STEPS.includes(k as OnboardingStep)||s!=='COMPLETE')
-    ||!Number.isSafeInteger(v.attemptCount)||v.attemptCount<0||!Number.isFinite(v.nextAttemptAt)||!Number.isFinite(v.leaseExpiresAt))throw Error('Invalid onboarding request');
+    ||!Number.isSafeInteger(v.attemptCount)||v.attemptCount<0||!Number.isFinite(v.nextAttemptAt)||v.nextAttemptAt<0||!Number.isFinite(v.leaseExpiresAt)||v.leaseExpiresAt<0
+    ||(v.leaseOwner!==null&&typeof v.leaseOwner!=='string'))throw Error('Invalid onboarding request');
   return v;
 }

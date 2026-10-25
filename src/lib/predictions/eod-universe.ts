@@ -1,4 +1,4 @@
-import { loadCollectionUniverse } from "../company-themes/service";
+import { loadSupportedInstrumentUniverse } from "../instruments/support-service";
 import {eodWorkOnce} from './eod-work-scope';
 import { usMapTickers } from "../knowledge-graph/us-companies";
 import { cnMapCompanies } from "../knowledge-graph/cn-companies";
@@ -7,7 +7,7 @@ import { TRACK_RECORD_BENCHMARK } from "./track-record";
 
 export async function loadEodPriceUniverse(input: {
   market: PredictionMarket; loadPrices: boolean; manualTickers: string[]; predictionTickers: string[];
-}, loadGraph = loadCollectionUniverse) {
+}, loadGraph = loadSupportedInstrumentUniverse) {
   const base = input.manualTickers.length ? input.manualTickers : input.predictionTickers;
   let mapTickers: string[] = [];
   // Explicit manual repairs keep their requested scope. Every ordinary price run

@@ -1,3 +1,4 @@
+import {instrumentFromCompany,instrumentId} from '../../src/lib/instruments/model';
 import type {Firestore} from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import {getStorage} from 'firebase-admin/storage';
@@ -79,12 +80,13 @@ test("the EOD job prices the entire explicit supported set, ignores theme-only c
   // still onboarding must not be admitted by graph/theme inference.
   companies.push({id:'US:BRK.B',data:()=>({name:'Berkshire',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}})});
   companies.push({id:'US:THEMEONLY',data:()=>({name:'Not supported yet',status:'DIRECTORY',onboarding:{status:'QUEUED'},inGraph:{status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:runDate}})});
+  const instruments=companies.flatMap(doc=>{const company=doc.data(),record=instrumentFromCompany(doc.id,company);return record?[{id:instrumentId(doc.id),data:()=>({...record,onboarding:company.onboarding})}]:[];});
   const db = withThemeCatalog({
     getAll: async (...refs: ({ get: () => unknown } | { fieldMask: string[] })[]) => Promise.all(refs.filter((ref): ref is { get: () => unknown } => "get" in ref).map(ref => ref.get())),
     runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({ getAll: (...refs: {get: () => unknown}[]) => Promise.all(refs.map(ref => ref.get())), get: (ref: { get: () => unknown }) => ref.get(), set: (ref: { set: (v: unknown) => unknown }, value: unknown) => ref.set(value) }),
     collection: (name: string) => {
       const query = { where: () => query, orderBy: () => query, limit: () => query,
-        get: async () => ({ docs: name === "companies" ? companies : [], empty: name !== "companies", size: name === "companies" ? companies.length : 0 }),
+        get: async () => ({ docs: name === "companies" ? companies : name === "instruments" ? instruments : [], empty: !["companies","instruments"].includes(name), size: name === "companies" ? companies.length : name === "instruments" ? instruments.length : 0 }),
         doc: (id: string) => ({ firestore: db, get: async () => ({ id, exists: documents.has(`${name}/${id}`), data: () => documents.get(`${name}/${id}`), get: (key: string) => documents.get(`${name}/${id}`)?.[key] }),
           create: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, value); },
           update: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, { ...documents.get(name + "/" + id), ...value }); },

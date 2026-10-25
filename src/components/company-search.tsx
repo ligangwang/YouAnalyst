@@ -95,7 +95,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     requestLock.current=true;setPending(item.id);setRequestError(null);
     try{
       const token=await auth.getIdToken();if(!token)throw Error('auth');
-      const response=await fetch('/api/company-onboarding/requests',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({companyId:item.companyId??item.id})});
+      const response=await fetch('/api/instrument-onboarding/requests',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({instrumentId:item.instrumentId,listingId:item.id})});
       if(response.status===401||response.status===403)throw Error('auth');
       if(!response.ok)throw Error('request');
       const data=await response.json();

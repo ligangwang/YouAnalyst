@@ -9,7 +9,7 @@ import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-grap
 // records the destination and renders it, so navigation is observable without a server.
 const origin = "http://companies.test";
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-const nvidia = { supportState: "SUPPORTED", id: "US:NVDA", kind: "ticker", symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", micCode: "XNAS", type: "Common Stock", market: "US" };
+const nvidia = { instrumentId:"INS_0123456789abcdef0123456789abcdef", supportState: "SUPPORTED", id: "US:NVDA", kind: "ticker", symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", micCode: "XNAS", type: "Common Stock", market: "US" };
 const leveraged = { supportState: "SUPPORTED", id: "US:NVDL", kind: "ticker", symbol: "NVDL", name: "GraniteShares 2x Long NVDA Daily ETF", exchange: "NASDAQ", micCode: "XNAS", type: "ETF", market: "US" };
 const openai = { supportState: "SUPPORTED", id: "ORG:OPENAI", kind: "ticker", symbol: "ORG:OPENAI", name: "OpenAI", exchange: null, micCode: null, type: null, market: "GLOBAL" };
 let html: string;
@@ -178,8 +178,8 @@ for(const state of ['QUEUED','PROCESSING','BLOCKED','CIK_UNMATCHED'] as const)te
 test('registered user queues once with a bearer token and sees the confirmed status',async({page},info)=>{
  await page.addInitScript(()=>{window.authScenario={signedIn:true};});await open(page);
  await page.route('**/api/tickers/search?*',route=>route.fulfill({json:{items:[{...nvidia,supportState:'ELIGIBLE'}]}}));
- let writes=0;await page.route('**/api/company-onboarding/requests',async route=>{
-  writes++;expect(route.request().headers().authorization).toBe('Bearer isolated-test-token');expect(route.request().postDataJSON()).toEqual({companyId:'US:NVDA'});
+ let writes=0;await page.route('**/api/instrument-onboarding/requests',async route=>{
+  writes++;expect(route.request().headers().authorization).toBe('Bearer isolated-test-token');expect(route.request().postDataJSON()).toEqual({instrumentId:nvidia.instrumentId,listingId:'US:NVDA'});
   await new Promise(resolve=>setTimeout(resolve,250));await route.fulfill({json:{ok:true,status:'QUEUED'}});
  });
  await input(page).fill('nvda');await page.getByRole('button',{name:'Request Full Support',exact:true}).click();
@@ -198,7 +198,7 @@ test('signed-out search offers sign-in and never enqueues on Enter',async({page}
 test('failed onboarding request stays eligible and can be retried',async({page})=>{
  await page.addInitScript(()=>{window.authScenario={signedIn:true};});await open(page);
  await page.route('**/api/tickers/search?*',route=>route.fulfill({json:{items:[{...nvidia,supportState:'ELIGIBLE'}]}}));
- await page.route('**/api/company-onboarding/requests',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
+ await page.route('**/api/instrument-onboarding/requests',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
  await input(page).fill('nvda');await page.getByRole('button',{name:'Request Full Support',exact:true}).click();
  await expect(page.getByRole('alert')).toHaveText('Unable to request full support. Try again.');
  await expect(page.getByRole('button',{name:'Request Full Support',exact:true})).toBeEnabled();await expect(page.getByText('Onboarding Queued',{exact:true})).toHaveCount(0);

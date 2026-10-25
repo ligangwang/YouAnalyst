@@ -16,7 +16,7 @@ export type CompanyOnboarding = {
 /** The sole regular-job membership rule. Theme decisions do not enroll a company. */
 export function isSupportedCompany(company: Record<string, unknown>) {
   const onboarding = company.onboarding as Partial<CompanyOnboarding> | undefined;
-  return company.isDeleted !== true && ['PUBLISHED', 'DIRECTORY'].includes(String(company.status))
+  return company.isDeleted !== true && !company.supersededByCompanyId && ['PUBLISHED', 'DIRECTORY'].includes(String(company.status))
     && typeof company.name === 'string' && Boolean(company.name.trim())
     && onboarding?.status === 'SUPPORTED';
 }

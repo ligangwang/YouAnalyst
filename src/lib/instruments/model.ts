@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 export const INSTRUMENT_TYPES = ['COMMON_SHARE', 'PREFERRED_SHARE', 'DEPOSITARY_RECEIPT', 'OTHER_EQUITY'] as const;
 export type InstrumentType = typeof INSTRUMENT_TYPES[number];
 export type Instrument = {
+  onboarding?: import('../company-support/model').CompanyOnboarding;
   companyId: string; name: string; symbol: string;
   instrumentType?: InstrumentType; shareClass?: string;
   exchangeMic?: string; exchangeName?: string; exchange_region?: string; currency?: string;

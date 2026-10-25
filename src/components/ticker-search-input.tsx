@@ -8,7 +8,8 @@ import { formatTickerSymbol } from "@/components/prediction-ui";
 
 export type TickerSuggestion = {
   companyId?: string;
-  supportState?: import('@/lib/company-onboarding/search-state').CompanySupportState;
+  instrumentId?: string;
+  supportState?: import('@/lib/instrument-onboarding/search-state').CompanySupportState;
   slug?: string;
   id: string;
   kind?: "ticker";
