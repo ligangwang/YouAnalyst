@@ -764,7 +764,7 @@ export async function fetchEodhdDailyPrices(tickers: string[], requestedDate: st
 }
 
 export async function fetchChinaEodPrices(tickers: string[], requestedDate: string, loadedAt: string): Promise<EodPriceFetchResult> {
-  return fetchEodhdMarketPrices(tickers, requestedDate, loadedAt, 'CN_A');
+  return fetchEodhdDailyPrices(tickers, requestedDate, loadedAt, 'CN_A');
 }
 
 /** Persist only requested companies; repair gaps in an early/cached bulk file individually. */
@@ -1547,7 +1547,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       const fetched = await (manualTickers.length && (input.scheduledBatch || market === 'CN_A')
         ? fetchEodhdDailyPrices(tickersToFetch, runDate, nowIso, market)
         : input.scheduledBatch ? fetchEodhdMarketPrices(tickersToFetch, runDate, nowIso, market)
-        : market === "CN_A" ? fetchChinaEodPrices(tickersToFetch, runDate, nowIso) : fetchEodPrices(tickersToFetch, runDate, nowIso));
+        : market === "CN_A" ? fetchEodhdMarketPrices(tickersToFetch, runDate, nowIso, market) : fetchEodPrices(tickersToFetch, runDate, nowIso));
       const loadedPrices = await withTickerDailyReturns(db, [...cachedPrices.values(), ...fetched.prices]);
       priceLoad.provider = fetched.provider;
       priceLoad.rawGcsPath = fetched.rawGcsPath;
