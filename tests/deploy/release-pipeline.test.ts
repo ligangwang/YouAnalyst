@@ -104,3 +104,16 @@ test('browser downloads are reused without skipping fresh-runner OS setup or rel
  assert(setup.includes('timeout --kill-after=15s 180s'));
  assert(setup.includes('await chromium.launch()'));
 });
+
+test('verify and browser shards share installed dependencies and still install on a miss', () => {
+  const key = (job: string) => workflow.jobs[job].steps.find((s: { id?: string }) => s.id === 'node-modules');
+  for (const job of ['verify', 'browser-shard']) {
+    const cache = key(job);
+    assert.equal(cache.uses, 'actions/cache@v4');
+    assert.equal(cache.with.path, 'node_modules\n!node_modules/.cache\n');
+    assert.equal(cache.with.key, "${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}");
+    const install = workflow.jobs[job].steps.find((s: { run?: string }) => s.run === 'npm ci');
+    assert.equal(install.if, "steps.node-modules.outputs.cache-hit != 'true'");
+  }
+  assert.equal(workflow.jobs.verify['runs-on'], workflow.jobs['browser-shard']['runs-on']);
+});
