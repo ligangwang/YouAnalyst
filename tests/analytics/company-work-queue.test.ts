@@ -31,6 +31,17 @@ function fixture(ids=['US:AMD','US:MSFT']){
   return {...f,root,ref,state,published,work,scores,parent,child,fail:(id:string)=>{fail=id;},more:(id:string)=>{more=id;},finalizeMore:(v:boolean)=>{finalizeMore=v;},publishFails:(v:boolean)=>{publishFails=v;}};
 }
 
+test('bulk cleanup lease fences company planning before any preparation or dispatch',async()=>{
+  const f=fixture();
+  f.rows.set(f.state.path,{leaseOwner:'bulk-cleanup',leaseExpiresAtMs:Date.now()+60_000});
+  await assert.rejects(f.parent(),/maintenance is active/);
+  assert.deepEqual(f.published,[]);
+  assert.equal(f.rows.get(f.ref.path)?.companyIds,undefined);
+  assert.equal(f.rows.get(f.state.path)?.leaseOwner,'bulk-cleanup');
+  f.rows.set(f.state.path,{leaseExpiresAtMs:Date.now()-1});
+  await f.parent();assert.equal(f.published.filter(m=>'companyId'in m).length,2);
+});
+
 test('scores wait for every company and every prediction page; failed tasks and duplicates preserve the barrier',async()=>{
   const f=fixture();
   await f.parent();

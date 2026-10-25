@@ -19,7 +19,7 @@ These are documents in existing collections. No collection is introduced.
 
 The [hourly SEC download pipeline](sec-incremental-downloads.md) caches originals
 before existing filing consumers run, with processing-aware 90-day retention and
-unchanged public SEC URLs. It performs no nightly bulk downloads.
+unchanged public SEC URLs. Its individual-document path performs no nightly bulk downloads. Separate [nightly financial JSON archives](sec-bulk-financials.md) feed scheduled company fundamentals while new-filing processing remains incremental.
 
 See [news source queue](news-source-queue.md) for source-level retries, bounded worker
 scaling, setup, activation and rollback. Downstream news enrichment remains scheduled.

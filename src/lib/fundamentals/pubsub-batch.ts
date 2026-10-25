@@ -6,6 +6,7 @@ import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { withSecRequestContext } from "../sec-request";
 import { refreshCompanyMarketCaps } from "./market-cap";
+import {withSecBulkFinancialReads} from './sec-bulk-scope';
 import { digest, fundamentalsVersion, parseFundamentalsRequest,
   type FundamentalsRequest, type FundamentalsUpdate } from "./pubsub";
 
@@ -201,6 +202,7 @@ export async function processFundamentalsBatch(...args: Parameters<typeof execut
   if(existing && digest(existing.request)!==digest(request))throw Error('Batch ID reused with different contents');
   const stopped=(ledger:Ledger|undefined)=>{const completed=request.companyIds.filter(id=>ledger?.progress?.[id]?.completed&&!ledger.progress[id].failed).length;return {status:'needs_admin',batchId:request.batchId,requested:request.companyIds.length,completed,failed:request.companyIds.length-completed,remaining:0};};
   if (existing?.manualRequired === true) return stopped(existing);
+  return withSecBulkFinancialReads({companyIds:request.companyIds,incremental:Boolean(request.filing),verification:request.reason==='verification'||existing?.completed===true},async()=>{
   try {
     const result=await executeFundamentalsBatch(...args);
     if(result.failed) await ref.set({manualRequired:true,lastError:{message:`${result.failed} company refreshes failed. Review company errors below.`},failedAt:new Date().toISOString()},{merge:true});
@@ -217,4 +219,5 @@ export async function processFundamentalsBatch(...args: Parameters<typeof execut
     log.emit('ERROR','batch_requires_admin',{batchId:request.batchId,error:details});
     return stopped(ledger);
   }
+  });
 }
