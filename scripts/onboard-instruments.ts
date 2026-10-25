@@ -2,6 +2,7 @@ import {readFile} from 'node:fs/promises';
 import {initializeApp,applicationDefault} from 'firebase-admin/app';
 import {getAdminFirestore,getAdminStorageBucket} from '../src/lib/firebase/admin';
 import {closeLocalCaches} from '../src/lib/local-cache/watch';
+import {withLiveCompanyReads} from '../src/lib/local-cache/company-directory';
 import {createMaintenanceLog} from '../src/lib/maintenance-log';
 import {createOnboardingHandlers} from '../src/lib/instrument-onboarding/handlers';
 import {processInstrumentOnboarding,requestInstrumentOnboarding,retryInstrumentOnboarding} from '../src/lib/instrument-onboarding/queue';
@@ -46,4 +47,4 @@ async function main(){
     if(result.status==='INCOMPLETE')process.exitCode=1;
   }
 }
-main().finally(closeLocalCaches).catch(()=>{console.error('Instrument onboarding job failed; inspect its request checkpoint');process.exitCode=1;});
+withLiveCompanyReads(main).finally(closeLocalCaches).catch(()=>{console.error('Instrument onboarding job failed; inspect its request checkpoint');process.exitCode=1;});
