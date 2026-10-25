@@ -9,8 +9,11 @@ import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing"
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
+import type {Instrument} from '@/lib/instruments/model';
+import {companySupportState,type CompanySupportState} from '@/lib/instrument-onboarding/search-state';
 
 type TickerSearchItem = {
+  supportState?: CompanySupportState;
   instrumentId?: string; companyId?: string; instrumentType?: InstrumentType;
   slug?: string;
   id: string;
@@ -93,6 +96,7 @@ function toSearchItem(id: string, data: TickerDocument) {
 
   return {
     id,
+    supportState: undefined as CompanySupportState | undefined,
     companyId: readString(data.supersededByCompanyId) ?? id,
     ...(/^(US:[A-Z0-9.-]+|XSHG:\d{6}|XSHE:\d{6}|XBSE:\d{6})$/.test(id) && data.listingStatus !== 'PRIVATE' ? {instrumentId:instrumentId(id),instrumentType:instrumentType(data.type)} : {}),
     kind: "ticker" as const,
@@ -118,6 +122,7 @@ export async function GET(request: NextRequest) {
   const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(Math.trunc(limitParam), 20)) : 10;
 
   const coveredOnly = request.nextUrl.searchParams.get('scope') === 'covered';
+  const directory = request.nextUrl.searchParams.get('scope') === 'directory';
   if (query.length === 0 && !coveredOnly) {
     return NextResponse.json({ items: [] });
   }
@@ -146,11 +151,11 @@ export async function GET(request: NextRequest) {
     }
     const db = getAdminFirestore();
     const collection = db.collection("companies");
-    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus');
+    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus',...(directory?['onboarding','cik']:[]));
     // Return ranking/display metadata, not the potentially large prefix array.
     // Scalar symbol range keeps partial codes ahead of a full page of name matches.
     const symbolSearch = indexed.where('symbolLower', '>=', query).where('symbolLower', '<=', query + '\uf8ff').limit(50).get();
-    const nameSearch = query.length === 1 && request.nextUrl.searchParams.get('scope') !== 'all'
+    const nameSearch = query.length === 1 && !directory && request.nextUrl.searchParams.get('scope') !== 'all'
       ? symbolSearch
       : indexed.where('searchPrefixes', 'array-contains', query.replace(/\s+/g, '').slice(0,32)).limit(50).get();
     const [nameSnapshot, symbolSnapshot, exactSnapshot] = await Promise.all([
@@ -173,8 +178,8 @@ export async function GET(request: NextRequest) {
     const tickerItems: ScoredSearchItem[] = [...candidateDocs, ...editorialDocs]
       .filter(doc => doc.data().isDeleted !== true)
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
-      .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
-      .map((doc) => toSearchItem(doc.id, doc.data()))
+      .filter(doc => directory || request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
+      .map((doc) => toSearchItem(doc.id,doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
       .filter(item => query.length <= 32 || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, "").includes(query.replace(/\s+/g, ""))))
       .sort((left, right) => {
@@ -188,6 +193,7 @@ export async function GET(request: NextRequest) {
       .map((item) => ({
         item: {
           id: item.id,
+          ...(directory?{supportState:item.supportState}:{}),
           instrumentId:item.instrumentId, companyId:item.companyId, instrumentType:item.instrumentType,
           kind: item.kind,
           symbol: item.symbol,
@@ -201,8 +207,24 @@ export async function GET(request: NextRequest) {
         score: scoreTicker(item, query),
       }));
     const items = tickerItems.slice(0, limit).map(({ item }) => item);
+    if(directory){
+      const stockItems=items.filter(item=>item.instrumentId);
+      const instruments=stockItems.length?await db.getAll(...stockItems.map(item=>db.collection('instruments').doc(item.instrumentId!))):[];
+      const records=new Map(instruments.map(doc=>[doc.id,doc.data() as Instrument|undefined]));
+      const sources=new Map(candidateDocs.map(doc=>[doc.id,doc.data()]));
+      const ownerIds=[...new Set(stockItems.map(item=>records.get(item.instrumentId!)?.companyId??item.companyId).filter((id):id is string=>Boolean(id)&&!sources.has(id!)))];
+      const owners=ownerIds.length?await db.getAll(...ownerIds.map(id=>db.collection('companies').doc(id))):[];
+      for(const doc of owners)sources.set(doc.id,doc.data()??{});
+      for(const item of items){
+        const source=sources.get(item.id)??{},record=item.instrumentId?records.get(item.instrumentId):undefined;
+        const companyId=record?.companyId??item.companyId;
+        item.supportState=companySupportState(item.id,source,record,companyId?sources.get(companyId):undefined);
+        if(companyId)item.companyId=companyId;
+      }
+    }
 
-    return NextResponse.json({ items }, { headers: { 'X-Company-Search-Version': String(COMPANY_SEARCH_VERSION) } });
+
+    return NextResponse.json({ items }, { headers: { 'X-Company-Search-Version': String(COMPANY_SEARCH_VERSION),...(directory?{'Cache-Control':'no-store'}:{}) } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to search tickers";
     return NextResponse.json({ error: message }, { status: 500 });

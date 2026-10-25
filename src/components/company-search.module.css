@@ -16,3 +16,5 @@
 .searchField input { min-height:40px;font-size:14px; }
 .backdrop { background:color-mix(in srgb,var(--bg-canvas) 65%,transparent); }
 @media(max-width:700px) { .searchField input { min-height:44px;font-size:16px; } }
+
+.resultRow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--ui-line,#2b4054)}.resultRow:last-child{border-bottom:0}.resultRow>[role=option]{flex:1;min-width:0}.panel .supportAction{flex:0 1 44%;min-height:44px;padding:8px;color:var(--ui-link,#62d7e7);font-size:12px;border:1px solid var(--ui-line,#2b4054);border-radius:8px}.panel .supportAction:disabled{opacity:.55;cursor:wait}.panel .supportStatus{color:var(--ui-link,#62d7e7)}

@@ -4,7 +4,7 @@ import {Firestore} from '@google-cloud/firestore';
 import {Storage,type StorageOptions} from '@google-cloud/storage';
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
-import {loadCollectionUniverse} from '../src/lib/company-themes/service';
+import {loadSupportedInstrumentUniverse} from '../src/lib/instruments/support-service';
 import {usMapTickers} from '../src/lib/knowledge-graph/us-companies';
 import {cnMapCompanies} from '../src/lib/knowledge-graph/cn-companies';
 import {normalizeHistoryPrices} from '../src/lib/predictions/normalize-history-prices';
@@ -17,7 +17,7 @@ async function main(){
   const authClient=process.env.GOOGLE_OAUTH_ACCESS_TOKEN?new OAuth2Client():undefined;
   authClient?.setCredentials({access_token:process.env.GOOGLE_OAUTH_ACCESS_TOKEN});
   const db=observeFirestore(new Firestore({projectId,authClient,preferRest:true}));
-  const graph=await loadCollectionUniverse(db,{nodes:[],relationships:[],sources:[],asOf:''});
+  const graph=await loadSupportedInstrumentUniverse(db);
   const result=await normalizeHistoryPrices({db,bucket:new Storage({projectId,authClient:authClient as unknown as StorageOptions['authClient']}).bucket(bucketName),tickers:[...usMapTickers(graph),...cnMapCompanies(graph)],write:process.argv.includes('--write'),onProgress:result=>{if(result.stocks%10===0)console.log(JSON.stringify(result));}});
   console.log(JSON.stringify({write:process.argv.includes('--write'),...result}));
   if(result.missing)process.exitCode=1;

@@ -49,7 +49,7 @@ async function workspaceFixture(realCharts=false,fixture=snapshot,initial=true,h
       build.onLoad({filter:/.*/,namespace:'lifecycle-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
     }
     build.onResolve({filter:realCharts?/(?:locale-provider|auth-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|auth-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
-    build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='auth-provider'?`export function useAuth(){return {user:null,getIdToken:async()=>null}}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
+    build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='auth-provider'?`export function useAuth(){return {user:null,getIdToken:async()=>null}}export const useOptionalAuth=useAuth;`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
   }},...(realCharts?[tourClockPlugin]:[])]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}');
 }
 test.beforeAll(async()=>{
@@ -281,7 +281,7 @@ function bookmarkedQuery(page:import('@playwright/test').Page) {
 }
 for(const view of ['graph','tree','hierarchy','table'])test(`shared company dialog selects a company in ${view}`,async({page})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);
- await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
  await expect(page.getByPlaceholder('Search company / ticker')).toHaveCount(0);
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  const input=page.getByRole('combobox',{name:'Search company',exact:true});await expect(input).toBeFocused();
@@ -302,7 +302,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`sector selection re
 
 for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,async({page})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);
- await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'},{id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}));
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'},{supportState:'SUPPORTED',id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
@@ -346,7 +346,7 @@ test('fullscreen lookup keeps chart closed until requested while event sources l
   }
   return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
  });
- await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',currency:'USD',available:true,prices:[{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
  await page.goto('http://workspace.test/?view=graph');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
@@ -1692,7 +1692,7 @@ test('selected graph keeps its relationships while hovering partners and clickin
 test('fullscreen lookup switches a stock inside the live workspace without remounting the chart', async ({ page }) => {
  await open(page);
  await page.route('**/api/company-timeline?*', route => { const companyId=new URL(route.request().url()).searchParams.get('company');return route.fulfill({json:{companyId,start:'2026-01-01',end:'2026-10-13',currency:'USD',interval:'daily',prices:[{date:'2026-10-12',open:100,high:110,low:99,close:105,volume:1000}],available:true}}); });
- await page.route('**/api/tickers/search?*', route => route.fulfill({json:{items:[{id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US',exchange:'NASDAQ'}]}}));
+ await page.route('**/api/tickers/search?*', route => route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US',exchange:'NASDAQ'}]}}));
  await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
  const chart=page.locator('[data-company-timeline="US:MU"]');
  await chart.getByRole('button',{name:'Full screen',exact:true}).click();
@@ -1704,7 +1704,7 @@ test('fullscreen lookup switches a stock inside the live workspace without remou
 
 for(const chinese of [false,true])test(`Explore text-to-search is quiet, ignores control keys and works on mobile ${chinese?'Chinese':'English'}`,async({page},info)=>{
  await open(page,chinese);
- await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
  const name=chinese?'搜索公司':'Search company';
  await page.locator('main').click({position:{x:2,y:2}});
  for(const key of ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Escape','Enter','Tab','F2','Control+k','Alt+a','Meta+a']){
@@ -1727,7 +1727,7 @@ for(const chinese of [false,true])test(`Explore text-to-search is quiet, ignores
 
 test('header and Explore entry points share one dialog and fullscreen gives the nested chart priority',async({page})=>{
  const body=await workspaceFixture(false,snapshot,true,true);
- await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().url().includes('/api/tickers/search')?route.fulfill({json:{items:[{id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
+ await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().url().includes('/api/tickers/search')?route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
  await page.goto('http://workspace.test/?company=US%3AMU');
  const header=page.locator('[data-company-search-owner="global"] button[data-company-search-trigger]');
  await header.click();await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(1);

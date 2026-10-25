@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../knowledge-graph/model';
-import {collectionUniverse,type ThemedCompany} from '../company-themes/model';
+import type {ThemedCompany} from '../company-themes/model';
+import {supportedCompanyUniverse} from '../company-support/model';
 import {mapListedCompanies} from './disclosures';
 import {collectCnMapDisclosures} from './cn-disclosures';
 import {collectLiveEarnings} from '../earnings/live-collector';
@@ -53,7 +54,7 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
 export async function loadCnDiscoveryCompany(db:Firestore,id:string):Promise<KnowledgeGraph>{
   if(!validId(id))throw new Error('Invalid A-share company');
   const doc=await db.collection('companies').doc(id).get();
-  return collectionUniverse({nodes:[],relationships:[],sources:[],asOf:''},doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[]);
+  return supportedCompanyUniverse(doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[]);
 }
 export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:MaintenanceLog,options:{enabled:boolean;earningsEnabled:boolean;now?:()=>number;
   loadCompany?:(id:string)=>Promise<KnowledgeGraph>;

@@ -1,3 +1,4 @@
+import {instrumentFromCompany,instrumentId} from '../../src/lib/instruments/model';
 import type {Firestore} from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 import {getStorage} from 'firebase-admin/storage';
@@ -54,7 +55,7 @@ test("coverage rejects wrong dates, identities, markets and invalid closes", () 
   assert.deepEqual(mapEodCoverage(["AMD", "NVDA", "TSM", "AVGO"], date, prices, new Set(["AMD", "TSM"])), { runDate: date, requested: 4, cached: 1, fetched: 1, missing: ["TSM", "AVGO"] });
 });
 
-test("the EOD job fetches and persists all 68 map prices with zero predictions, reuses cache, and reports gaps", async t => {
+test("the EOD job prices the entire explicit supported set, ignores theme-only candidates, and reports gaps", async t => {
   const previousApp = globalThis.__adminApp;
   const previousToken = process.env.EODHD_API_TOKEN;
   const previousTwelve = process.env.TWELVE_DATA_API_KEY;
@@ -74,13 +75,18 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   t.mock.method(console, "info", recordLog);
   t.mock.method(console, "warn", recordLog);
   t.mock.method(console, "error", recordLog);
-  const companies = graph.nodes.filter(node => node.kind === "COMPANY").map(node => ({ id: node.id, data: () => ({ name: node.name || node.id, status: "PUBLISHED", inGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: node.order, asOf: runDate } }) }));
+  const companies:{id:string;data:()=>Record<string,unknown>}[] = graph.nodes.filter(node => node.kind === "COMPANY").map(node => ({ id: node.id, data: () => ({ name: node.name || node.id, status: "PUBLISHED", onboarding:{status:"SUPPORTED"}, inGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: node.order, asOf: runDate } }) }));
+  // A supported company outside the graph must be included; a themed candidate
+  // still onboarding must not be admitted by graph/theme inference.
+  companies.push({id:'US:BRK.B',data:()=>({name:'Berkshire',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}})});
+  companies.push({id:'US:THEMEONLY',data:()=>({name:'Not supported yet',status:'DIRECTORY',onboarding:{status:'QUEUED'},inGraph:{status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:runDate}})});
+  const instruments=companies.flatMap(doc=>{const company=doc.data(),record=instrumentFromCompany(doc.id,company);return record?[{id:instrumentId(doc.id),data:()=>({...record,onboarding:company.onboarding})}]:[];});
   const db = withThemeCatalog({
     getAll: async (...refs: ({ get: () => unknown } | { fieldMask: string[] })[]) => Promise.all(refs.filter((ref): ref is { get: () => unknown } => "get" in ref).map(ref => ref.get())),
     runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({ getAll: (...refs: {get: () => unknown}[]) => Promise.all(refs.map(ref => ref.get())), get: (ref: { get: () => unknown }) => ref.get(), set: (ref: { set: (v: unknown) => unknown }, value: unknown) => ref.set(value) }),
     collection: (name: string) => {
       const query = { where: () => query, orderBy: () => query, limit: () => query,
-        get: async () => ({ docs: name === "companies" ? companies : [], empty: name !== "companies", size: name === "companies" ? companies.length : 0 }),
+        get: async () => ({ docs: name === "companies" ? companies : name === "instruments" ? instruments : [], empty: !["companies","instruments"].includes(name), size: name === "companies" ? companies.length : name === "instruments" ? instruments.length : 0 }),
         doc: (id: string) => ({ firestore: db, get: async () => ({ id, exists: documents.has(`${name}/${id}`), data: () => documents.get(`${name}/${id}`), get: (key: string) => documents.get(`${name}/${id}`)?.[key] }),
           create: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, value); },
           update: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, { ...documents.get(name + "/" + id), ...value }); },
@@ -104,6 +110,7 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   // 68 map companies plus the QQQ benchmark; map coverage counts only the map.
   assert.equal(new Set(requested).size, 69);
   assert.ok(requested.includes("QQQ"));
+  assert.ok(requested.includes("BRK.B"));assert(!requested.includes("THEMEONLY"));
   assert.equal(first.priceLoad.loaded, 69);
   assert.deepEqual(first.priceLoad.mapCoverage, { runDate, requested: 68, cached: 0, fetched: 68, missing: [] });
   assert.equal([...documents.keys()].filter(key => key.startsWith("eod_prices/")).length, 69);

@@ -7,31 +7,35 @@ import styles from './company-search.module.css';
 import { companyPageUrl } from '@/lib/market-companies/routes';
 import { localizedPath } from '@/lib/ui/i18n/urls';
 import { createPortal } from 'react-dom';
+import {useOptionalAuth} from '@/components/providers/auth-provider';
 
 export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
-  const [coverageCount, setCoverageCount] = useState<number | null>(null);
+  const [featuredCount,setFeaturedCount]=useState<number|null>(null);
+  const auth=useOptionalAuth();
+  const [requests,setRequests]=useState<Record<string,NonNullable<SearchSuggestion['supportState']>>>({});
+  const [pending,setPending]=useState<string|null>(null),[requestError,setRequestError]=useState<string|null>(null);
+  const requestLock=useRef(false);
   const [active, setActive] = useState(0), [busy, setBusy] = useState(false), [error, setError] = useState(false);
   const input = useRef<HTMLInputElement>(null), panel = useRef<HTMLDivElement>(null), previousFocus = useRef<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId(), composing = useRef(false);
   const queuedQuery = useRef<string | null>(null), destination = useRef({onSelect, locale});
   useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
-  const coverageVisible = inline || open;
-  useEffect(() => {
-    if (!enabled || !coverageVisible) return;
-    const controller = new AbortController();
-    void fetch('/api/tickers/search?scope=covered', { signal: controller.signal })
-      .then(async response => { if (response.ok) { const data = await response.json(); if (!controller.signal.aborted && Number.isInteger(data.total)) setCoverageCount(data.total); } })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [enabled, coverageVisible]);
+  useEffect(()=>{
+    if(!enabled||(!inline&&!open)||featuredCount!==null)return;
+    const controller=new AbortController();
+    void fetch('/api/tickers/search?scope=covered&limit=1',{signal:controller.signal,cache:'no-store'})
+      .then(async response=>{if(!response.ok)return;const data=await response.json();if(!controller.signal.aborted&&Number.isSafeInteger(data.total)&&data.total>=0)setFeaturedCount(data.total);})
+      .catch(()=>{});
+    return()=>controller.abort();
+  },[enabled,inline,open,featuredCount]);
   const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
-  const choose = useCallback((item: SearchSuggestion) => { close(); if (clearOnSelect) { setQuery(''); setResults(null); } const current = destination.current; if (current.onSelect) current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.market === 'GLOBAL' ? item.id : item.symbol, item.market, item.slug), current.locale)); }, [close, clearOnSelect]);
+  const choose = useCallback((item: SearchSuggestion) => { close(); if (clearOnSelect) { setQuery(''); setResults(null); } const current = destination.current; if (current.onSelect && item.supportState === 'SUPPORTED') current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.market === 'GLOBAL' ? item.id : item.symbol, item.market, item.slug), current.locale)); }, [close, clearOnSelect]);
   const show = useCallback((initial = '') => {
     queuedQuery.current = null; composing.current = false;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -66,8 +70,8 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setBusy(true); setError(false);
-      void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'covered' }), { signal: controller.signal })
-        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { if (Number.isInteger(data.total)) setCoverageCount(data.total); const matches: SearchSuggestion[] = data.items ?? []; setResults({ query: searched, items: matches }); setActive(0); if (queuedQuery.current === searched) { queuedQuery.current = null; if (matches[0]) choose(matches[0]); } } })
+      void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'directory' }), { signal: controller.signal })
+        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { const matches: SearchSuggestion[] = data.items ?? []; setResults({ query: searched, items: matches }); setActive(0); if (queuedQuery.current === searched) { queuedQuery.current = null; if (matches[0]) choose(matches[0]); } } })
         .catch(() => { if (!controller.signal.aborted) { setError(true); setResults(null); } })
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 180);
@@ -83,18 +87,46 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const field = <input ref={input} data-company-search-trigger={inline || undefined} value={query} maxLength={120} role="combobox" aria-label={text('Search company', '搜索公司')} aria-autocomplete="list" aria-expanded={open && items.length > 0} aria-controls={listId} aria-activedescendant={open && items[active] ? `${listId}-${active}` : undefined}
           placeholder={text('Search company', '搜索公司')}
           onFocus={() => { if (inline) setOpen(true); }}
-          onChange={event => { if (inline) setOpen(true); queuedQuery.current = null; setQuery(event.target.value); setActive(0); setError(false); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
+          onChange={event => { if (inline) setOpen(true); queuedQuery.current = null; setQuery(event.target.value); setActive(0); setError(false); setRequestError(null); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
           onKeyDown={event => {
             if (composing.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (inline && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return; }
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); event.stopPropagation(); if (inline) setOpen(true); if (items.length) setActive(index => (index + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length); }
-            if (event.key === 'Enter' && searched) { event.preventDefault(); event.stopPropagation(); if (items[active]) choose(items[active]); else queuedQuery.current = searched; }
+            if (event.key === 'Enter' && searched) { event.preventDefault(); event.stopPropagation(); if (items[active]) choose({...items[active],supportState:items[active].supportState==='ELIGIBLE'?(requests[items[active].id]??items[active].supportState):items[active].supportState}); else queuedQuery.current = searched; }
           }} />;
+  const supportLabel=(state:SearchSuggestion['supportState'])=>state==='QUEUED'?text('Onboarding Queued','等待入驻'):state==='PROCESSING'?text('Onboarding…','入驻中…'):state==='BLOCKED'?text('Onboarding Needs Attention','入驻需要处理'):state==='CIK_UNMATCHED'?text('CIK not matched','CIK 未匹配'):null;
+  async function requestSupport(item:SearchSuggestion){
+    if(requestLock.current)return;
+    if(!auth?.user||auth.user.isAnonymous){
+      const next=localizedPath(companyPageUrl(item.market==='GLOBAL'?item.id:item.symbol,item.market,item.slug),locale);
+      location.assign(localizedPath('/auth',locale)+'?'+new URLSearchParams({next}));return;
+    }
+    requestLock.current=true;setPending(item.id);setRequestError(null);
+    try{
+      const token=await auth.getIdToken();if(!token)throw Error('auth');
+      const response=await fetch('/api/instrument-onboarding/requests',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({instrumentId:item.instrumentId,listingId:item.id})});
+      if(response.status===401||response.status===403)throw Error('auth');
+      if(!response.ok)throw Error('request');
+      const data=await response.json();
+      if(!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(data.status))throw Error('request');
+      setRequests(current=>({...current,[item.id]:data.status}));
+    }catch(error){setRequestError(error instanceof Error&&error.message==='auth'?text('Sign in to request full support.','请登录后申请完整支持。'):text('Unable to request full support. Try again.','暂时无法申请完整支持，请重试。'));}
+    finally{requestLock.current=false;setPending(null);}
+  }
   const suggestions = <>
-    <div id={listId} role="listbox" aria-label={text('Matching companies', '匹配公司')}>{items.map((item, index) => <button id={`${listId}-${index}`} key={item.id} type="button" role="option" aria-selected={active === index} onPointerMove={() => setActive(index)} onClick={() => choose(item)}><strong>{item.name}</strong><span>{item.symbol} · {item.market ?? ''} {item.exchange ?? ''}</span></button>)}</div>
-        {error ? <p role="alert">{text('Search unavailable. Try again.', '搜索暂时不可用，请重试。')}</p> : busy && searched ? <p role="status">{text('Searching…', '搜索中…')}</p> : searched && results?.query === searched && !items.length ? <p role="status">{text('No covered companies match your search.', '未找到匹配的已覆盖公司。')}</p> : null}
+    <div id={listId} role="listbox" aria-label={text('Matching companies', '匹配公司')}>{items.map((result, index) => {
+      const item={...result,supportState:result.supportState==='ELIGIBLE'?(requests[result.id]??result.supportState):result.supportState};
+      const label=supportLabel(item.supportState);
+      return <div className={styles.resultRow} key={item.id}>
+        <button id={`${listId}-${index}`} type="button" role="option" aria-selected={active === index} onPointerMove={() => setActive(index)} onClick={() => choose(item)}><strong>{item.name}</strong><span>{item.symbol} · {item.market ?? ''} {item.exchange ?? ''}</span>{label&&<span className={styles.supportStatus} aria-live="polite">{label}</span>}</button>
+        {item.supportState==='ELIGIBLE'&&<button className={styles.supportAction} type="button" disabled={pending!==null||auth?.loading} onClick={()=>void requestSupport(item)}>{pending===item.id?text('Requesting…','申请中…'):auth?.user&&!auth.user.isAnonymous?text('Request Full Support','申请完整支持'):text('Sign in to request full support','登录以申请完整支持')}</button>}
+      </div>;
+    })}</div>
+    {requestError&&<p role="alert">{requestError}</p>}
+    {error ? <p role="alert">{text('Search unavailable. Try again.', '搜索暂时不可用，请重试。')}</p> : busy && searched ? <p role="status">{text('Searching…', '搜索中…')}</p> : searched && results?.query === searched && !items.length ? <p role="status">{text('No companies match your search.', '未找到匹配的公司。')}</p> : null}
   </>;
-  const coverageHint = <p className={styles.coverageHint}>{coverageCount === null ? text('Company coverage is growing.', '公司覆盖范围持续扩充中。') : text(`${coverageCount.toLocaleString('en-US')} companies covered · More coming soon`, `已覆盖 ${coverageCount.toLocaleString('zh-CN')} 家公司，持续扩充中。`)}</p>;
+  const formattedCount=featuredCount===null?null:new Intl.NumberFormat(locale).format(featuredCount);
+  const coverageHint = <p className={styles.coverageHint}>{formattedCount===null?text('Stocks featured','精选股票'):text(`${formattedCount} ${featuredCount===1?'stock':'stocks'} featured`,`已精选 ${formattedCount} 只股票`)}</p>;
   if (inline) return <div className={styles.embedded} data-company-search-owner={owner}>
     <div ref={panel} className={`${styles.panel} ${styles.inline}`} data-company-search={open || undefined} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) close(); }}>
       <div className={styles.searchField}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>{field}</div>

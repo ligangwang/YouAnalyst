@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import {isCollectionCompany,type ThemedCompany} from '../../company-themes/model';
+import type {ThemedCompany} from '../../company-themes/model';
+import {isSupportedCompany} from '../../company-support/model';
 
 export type NewsSource = {
   id:string; companyId:string; name:string; url:string; allowedHosts:string[]; articleHostAliases?:Record<string,string>; publicationFromArticle?:boolean; articleDateFormat?:'apple-newsroom'; pollMs:number;
@@ -39,7 +40,7 @@ export function validateCompanyNewsSource(value:unknown,companyId:string):Compan
 
 export function approvedCompanyNewsSources(records:ThemedCompany[]):NewsSource[]{
   const sources:NewsSource[]=[],ids=new Set<string>();
-  for(const company of records.filter(record=>isCollectionCompany(record))){
+  for(const company of records.filter(record=>isSupportedCompany(record))){
     if(company.newsSources===undefined)continue;
     assert(Array.isArray(company.newsSources),`${company.id}: invalid newsSources`);
     for(const raw of company.newsSources){

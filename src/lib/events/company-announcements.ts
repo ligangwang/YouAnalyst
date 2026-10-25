@@ -4,9 +4,8 @@ import type {NewsSource} from '../intelligence/collectors/sources';
 import {approvedCompanyNewsSources} from '../intelligence/collectors/sources';
 import {readCompanyLookup} from '../company-lookup-cache';
 import {withCompanyPageReads} from '../local-cache/company-page-scope';
-import {loadThemeCatalog} from '../company-themes/catalog';
-import {catalogThemeIds} from '../company-themes/catalog-model';
-import {isCollectionCompany,type ThemedCompany} from '../company-themes/model';
+import type {ThemedCompany} from '../company-themes/model';
+import {isSupportedCompany} from '../company-support/model';
 import {canonicalEvidenceUrl,observation} from '../intelligence/model';
 import {loadCompanyEventSnapshot} from './company-events-cache';
 import {newsArticles} from '../intelligence/collectors/article-quality';
@@ -15,9 +14,9 @@ export type CompanyAnnouncement={id:string;title:string;url:string;date:string;c
 /** A page needs this publisher's current approval, not the global source directory. */
 export function loadCompanyAnnouncementSources(db:Firestore,companyId:string):Promise<NewsSource[]>{
   return withCompanyPageReads(async()=>{
-    const [doc,catalog]=await Promise.all([readCompanyLookup(db,db.collection('companies').doc(companyId)),loadThemeCatalog(db)]);
+    const doc=await readCompanyLookup(db,db.collection('companies').doc(companyId));
     const company:ThemedCompany={...doc.data(),id:doc.id};
-    return approvedCompanyNewsSources(doc.exists&&company.isDeleted!==true&&isCollectionCompany(company,catalogThemeIds(catalog))?[company]:[]);
+    return approvedCompanyNewsSources(doc.exists&&company.isDeleted!==true&&isSupportedCompany(company)?[company]:[]);
   });
 }
 export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:string,sources:readonly NewsSource[]):CompanyAnnouncement|null{

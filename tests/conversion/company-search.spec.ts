@@ -9,9 +9,9 @@ import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-grap
 // records the destination and renders it, so navigation is observable without a server.
 const origin = "http://companies.test";
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-const nvidia = { id: "US:NVDA", kind: "ticker", symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", micCode: "XNAS", type: "Common Stock", market: "US" };
-const leveraged = { id: "US:NVDL", kind: "ticker", symbol: "NVDL", name: "GraniteShares 2x Long NVDA Daily ETF", exchange: "NASDAQ", micCode: "XNAS", type: "ETF", market: "US" };
-const openai = { id: "ORG:OPENAI", kind: "ticker", symbol: "ORG:OPENAI", name: "OpenAI", exchange: null, micCode: null, type: null, market: "GLOBAL" };
+const nvidia = { instrumentId:"INS_0123456789abcdef0123456789abcdef", supportState: "SUPPORTED", id: "US:NVDA", kind: "ticker", symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ", micCode: "XNAS", type: "Common Stock", market: "US" };
+const leveraged = { supportState: "SUPPORTED", id: "US:NVDL", kind: "ticker", symbol: "NVDL", name: "GraniteShares 2x Long NVDA Daily ETF", exchange: "NASDAQ", micCode: "XNAS", type: "ETF", market: "US" };
+const openai = { supportState: "SUPPORTED", id: "ORG:OPENAI", kind: "ticker", symbol: "ORG:OPENAI", name: "OpenAI", exchange: null, micCode: null, type: null, market: "GLOBAL" };
 let html: string;
 
 test.beforeAll(async () => {
@@ -47,8 +47,8 @@ async function open(page: Page, query = "", delayMs = 0) {
     const url = new URL(request.url());
     if (url.origin !== origin || request.method() !== "GET") return route.abort();
     if (url.pathname === "/api/tickers/search") {
-      expect(url.searchParams.get('scope')).toBe('covered');
-      if (!url.searchParams.get('q')) return route.fulfill({ json: { items: [], total: 123 } });
+      if (!url.searchParams.get('q')) {expect(url.searchParams.get('scope')).toBe('covered');return route.fulfill({ json: { items: [], total: 123 } });}
+      expect(url.searchParams.get('scope')).toBe('directory');
       searches.push(url.search);
       if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
       const q = url.searchParams.get("q")?.toUpperCase() ?? "";
@@ -85,7 +85,7 @@ test('typing focuses embedded search, control keys do not start it, and Escape d
 });
 test('missing company results stay in search rather than fabricating a destination',async({page})=>{
  await open(page);await launch(page);await input(page).fill('no such co');
- await expect(page.getByRole('status')).toHaveText('No covered companies match your search.');await input(page).press('Enter');
+ await expect(page.getByRole('status')).toHaveText('No companies match your search.');await input(page).press('Enter');
  await expect(page).toHaveURL(`${origin}/`);
 });
 
@@ -132,7 +132,7 @@ test('page search is directly visible, header focuses it and suggestions stay be
  page.on('request', request => { const url = new URL(request.url()); if (url.pathname === '/api/tickers/search' && !url.searchParams.get('q')) countRequests++; });
  await open(page);
  await expect(input(page)).toBeVisible();await expect(input(page)).not.toBeFocused();
- await expect(page.getByText('123 companies covered · More coming soon', {exact:true})).toBeVisible();
+ await expect(page.getByText('123 stocks featured', {exact:true})).toBeVisible();
  expect(countRequests).toBe(1);
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  await expect(input(page)).toBeFocused();await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -165,4 +165,41 @@ test('typing from below the embedded field scrolls it into view',async({page})=>
  await page.keyboard.type('nvidia');await expect(input(page)).toHaveValue('nvidia');await expect(input(page)).toBeFocused();
  const field=(await input(page).boundingBox())!;
  expect(field.y).toBeGreaterThanOrEqual(0);expect(field.y+field.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+});
+
+for(const state of ['QUEUED','PROCESSING','BLOCKED','CIK_UNMATCHED'] as const)test(`directory search displays ${state} without another request action`,async({page})=>{
+ await open(page);await page.route('**/api/tickers/search?*',route=>route.fulfill({json:{items:[{...nvidia,supportState:state}]}}));
+ await input(page).fill('nvda');
+ const label={QUEUED:'Onboarding Queued',PROCESSING:'Onboarding…',BLOCKED:'Onboarding Needs Attention',CIK_UNMATCHED:'CIK not matched'}[state];
+ await expect(page.getByRole('option')).toContainText(label);
+ await expect(page.getByRole('button',{name:'Request Full Support',exact:true})).toHaveCount(0);
+});
+
+test('registered user queues once with a bearer token and sees the confirmed status',async({page},info)=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});await open(page);
+ await page.route('**/api/tickers/search?*',route=>route.fulfill({json:{items:[{...nvidia,supportState:'ELIGIBLE'}]}}));
+ let writes=0;await page.route('**/api/instrument-onboarding/requests',async route=>{
+  writes++;expect(route.request().headers().authorization).toBe('Bearer isolated-test-token');expect(route.request().postDataJSON()).toEqual({instrumentId:nvidia.instrumentId,listingId:'US:NVDA'});
+  await new Promise(resolve=>setTimeout(resolve,250));await route.fulfill({json:{ok:true,status:'QUEUED'}});
+ });
+ await input(page).fill('nvda');await page.getByRole('button',{name:'Request Full Support',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Requesting…',exact:true})).toBeDisabled();
+ await expect(page.getByRole('option')).toContainText('Onboarding Queued');expect(writes).toBe(1);await expect(page).toHaveURL(`${origin}/`);
+ await page.screenshot({path:info.outputPath('onboarding-queued.png')});
+});
+
+test('signed-out search offers sign-in and never enqueues on Enter',async({page})=>{
+ await open(page);await page.route('**/api/tickers/search?*',route=>route.fulfill({json:{items:[{...nvidia,supportState:'ELIGIBLE'}]}}));
+ let writes=0;page.on('request',r=>{if(r.method()==='POST')writes++;});
+ await input(page).fill('nvda');await expect(page.getByRole('button',{name:'Sign in to request full support',exact:true})).toBeVisible();
+ await input(page).press('Enter');await expect(page.getByText('Destination /en/company/nvidia',{exact:true})).toBeVisible();expect(writes).toBe(0);
+});
+
+test('failed onboarding request stays eligible and can be retried',async({page})=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});await open(page);
+ await page.route('**/api/tickers/search?*',route=>route.fulfill({json:{items:[{...nvidia,supportState:'ELIGIBLE'}]}}));
+ await page.route('**/api/instrument-onboarding/requests',route=>route.fulfill({status:503,json:{error:'unavailable'}}));
+ await input(page).fill('nvda');await page.getByRole('button',{name:'Request Full Support',exact:true}).click();
+ await expect(page.getByRole('alert')).toHaveText('Unable to request full support. Try again.');
+ await expect(page.getByRole('button',{name:'Request Full Support',exact:true})).toBeEnabled();await expect(page.getByText('Onboarding Queued',{exact:true})).toHaveCount(0);
 });

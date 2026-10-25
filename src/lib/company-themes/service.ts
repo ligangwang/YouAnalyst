@@ -1,12 +1,11 @@
-import { localDocuments } from '../local-cache/entities';
+import { loadSupportedCompanies, loadSupportedCompanyUniverse } from '../company-support/service';
+import { supportedCompanyUniverse } from '../company-support/model';
 import { loadThemeEnrolledCompanies } from '../knowledge-graph/company-cache';
 import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../firebase/admin';
-import { loadKnowledgeGraph } from '../knowledge-graph/service';
 import type { KnowledgeGraph } from '../knowledge-graph/model';
-import { collectionUniverse, isCollectionCompany, type CompanyThemeId, type ThemedCompany } from './model';
-import { queryThemeCompanies } from './company-query';
+import { isCollectionCompany, type CompanyThemeId, type ThemedCompany } from './model';
 import { loadThemeCatalog } from './catalog';
 import { catalogThemeIds } from './catalog-model';
 
@@ -18,31 +17,16 @@ export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFir
     .filter(company => company.themeIds?.includes(theme) && isCollectionCompany(company) && company.themeMemberships?.[theme]?.status === 'PUBLISHED');
 }
 
-/** Include negative decisions so legacy graph enrollment cannot override them. */
-async function loadEnrollmentRecords(db: Firestore, region?: ExchangeRegion) {
-  const local = await localDocuments(db, 'companies', undefined, undefined, undefined, region);
-  if (local !== undefined) return local;
-  const snapshot = await queryThemeCompanies(db,region);
-  return snapshot.docs;
-}
+/** Compatibility names for callers; every regular job uses the supported selector. */
+export const loadCollectionCompanies = loadSupportedCompanies;
 
-/** Read published memberships from companies, retaining legacy AI enrollment. */
-export async function loadCollectionCompanies(db: Firestore, region?: ExchangeRegion) {
-  const allowed=catalogThemeIds(await loadThemeCatalog(db));
-  return (await loadEnrollmentRecords(db, region)).filter(doc => isCollectionCompany({ ...doc.data(), id: doc.id } as ThemedCompany,allowed));
-}
-
-/** Company metadata for collectors; no relationship expansion or valuation reads. */
 export async function loadCollectionCompanyScope(db: Firestore, region?: ExchangeRegion): Promise<KnowledgeGraph> {
-  const companies = await loadCollectionCompanies(db, region);
-  return collectionUniverse({ nodes: [], relationships: [], sources: [], asOf: '' },
-    companies.map(doc => ({ ...doc.data(), id: doc.id } as ThemedCompany)));
+  return supportedCompanyUniverse((await loadSupportedCompanies(db, region)).map(doc => ({...doc.data(), id: doc.id} as ThemedCompany)));
 }
 
-export async function loadCollectionUniverse(db = getAdminFirestore(), legacy?: KnowledgeGraph) {
-  const allowed=catalogThemeIds(await loadThemeCatalog(db));
-  const companies = await loadEnrollmentRecords(db);
-  // Reuse the same enrollment snapshot while retaining relationship-only neighbors.
-  const graph = legacy ?? await loadKnowledgeGraph({ db, companies });
-  return collectionUniverse(graph, companies.map(doc => ({ ...doc.data(), id: doc.id } as ThemedCompany)),allowed);
+// The old graph argument is accepted for callers during rollout, but must never
+// add relationship-only neighbors to scheduled job coverage.
+export async function loadCollectionUniverse(db = getAdminFirestore(), _legacy?: KnowledgeGraph) {
+  void _legacy;
+  return loadSupportedCompanyUniverse(db);
 }

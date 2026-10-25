@@ -1,8 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {Firestore} from 'firebase-admin/firestore';
-import {collectionUniverse,type ThemedCompany} from '../company-themes/model';
-import {loadThemeCatalog} from '../company-themes/catalog';
-import {catalogThemeIds} from '../company-themes/catalog-model';
+import type {ThemedCompany} from '../company-themes/model';
+import {supportedCompanyUniverse} from '../company-support/model';
 import {readSecCollectorCursor,secCollectorFreshness,secCollectorMetadata} from './store';
 
 export const SEC_DISCOVERY_TOPIC='sec-company-discovery-requests';
@@ -39,8 +38,7 @@ export async function processSecDiscoveryTask(input:unknown,db:Firestore,options
   const task=parseSecDiscoveryTask(input);
   if(!options.enabled)throw new Error('SEC discovery worker disabled; retain task');
   const doc=await db.collection('companies').doc(task.companyId).get();
-  const allowed=catalogThemeIds(await loadThemeCatalog(db));
-  const graph=collectionUniverse({nodes:[],relationships:[],sources:[],asOf:''},doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[],allowed);
+  const graph=supportedCompanyUniverse(doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[]);
   if(!graph.nodes.some(node=>node.id===task.companyId))return {status:'ineligible',companyId:task.companyId};
   return options.run(task.companyId.slice(3));
 }

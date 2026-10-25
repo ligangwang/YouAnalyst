@@ -25,10 +25,12 @@ test('SEC dispatcher is bounded, retries stable identities, and rotates a trunca
 test('SEC worker rechecks enrollment before source work and cannot run when disabled',async()=>{
  const f=earningsFirestore(),db=withThemeCatalog(f.db);let runs=0;const opts={enabled:true,run:async(ticker:string)=>{assert.equal(ticker,'AMD');runs++;return {status:'verified'};}};
  assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'ineligible');
- f.rows.set('companies/US:AMD',{name:'AMD',status:'PUBLISHED',themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
+ f.rows.set('companies/US:AMD',{name:'AMD',status:'PUBLISHED',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
  assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'verified');assert.equal(runs,1);
- f.rows.get('companies/US:AMD')!.themeMemberships={ai:{status:'WITHDRAWN'}};
- assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'ineligible');assert.equal(runs,1);
+ f.rows.get('companies/US:AMD')!.themeMemberships={};
+ assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'verified');assert.equal(runs,2);
+ f.rows.get('companies/US:AMD')!.onboarding={status:'BLOCKED'};
+ assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'ineligible');assert.equal(runs,2);
  await assert.rejects(processSecDiscoveryTask(task,db,{...opts,enabled:false}),/disabled/);
 });
 test('company fencing excludes duplicate tasks and old global collectors without serializing other companies',async()=>{
@@ -53,7 +55,7 @@ test('queued freshness uses completed coverage of every company, not accepted ta
 test('live company discovery loads only its issuer snapshot and shares the ticker directory across tasks',async()=>{
  const f=earningsFirestore(),originalFetch=globalThis.fetch,gate=secBudget.run,agent=process.env.SEC_USER_AGENT,earnings=process.env.EARNINGS_COLLECTION_ENABLED;
  const calls:string[]=[];
- for(const [ticker,cik] of [['AMD','0000002488'],['NVDA','0001045810']])f.rows.set(`companies/US:${ticker}`,{name:ticker,cik,status:'PUBLISHED',themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
+ for(const [ticker,cik] of [['AMD','0000002488'],['NVDA','0001045810']])f.rows.set(`companies/US:${ticker}`,{name:ticker,cik,status:'PUBLISHED',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
  f.rows.set('sec_collector_state/_sec_filings_collector',{bridgeRetired:true});
  try{
   process.env.SEC_USER_AGENT='Existing test contact';process.env.EARNINGS_COLLECTION_ENABLED='0';

@@ -1,3 +1,4 @@
+import {onboarding} from '../helpers/company-onboarding';
 import {withThemeCatalog} from '../helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -22,7 +23,7 @@ const entry=(id:string)=>`<item><title>Announcement ${id}</title><link>https://n
 
 test('database-only company feeds reach collection, public news and calendar validation without a static adapter',async()=>{
   const feed={id:'new-company-ir',companyId:'US:NEW',name:'New company IR',url:'https://ir.newcompany.com/rss.xml',allowedHosts:['ir.newcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
-  const docs=[{id:'US:NEW',data:()=>({name:'New company',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[feed]})}];
+  const docs=[{id:'US:NEW',data:()=>({name:'New company',status:'DIRECTORY',onboarding:onboarding(),themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[feed]})}];
   const query={where:()=>query,get:async()=>({docs}),doc:()=>({get:async()=>({data:()=>({enabled:false})})})};
   const configs=await loadNewsSources(withThemeCatalog({collection:()=>query} as unknown as Firestore));
   assert.equal(configs.length,1);assert.equal(configs[0].id,feed.id);
@@ -38,10 +39,10 @@ test('database-only company feeds reach collection, public news and calendar val
 test('source publication is authoritative; invalid identities, host overrides and unsupported adapters are rejected',()=>{
   for(const source of [...NEWS_SOURCES,...IR_SOURCES_REQUIRING_REVIEW])validateCompanyNewsSource({...source,status:source.reviewRequired?'DRAFT':'PUBLISHED',reviewedAt:'2026-10-06'},source.companyId);
   const source={...NEWS_SOURCES[0],status:'PUBLISHED' as const,reviewedAt:'2026-10-06'};
-  const record={id:source.companyId,name:'NVIDIA',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED' as const,primarySector:'compute',reviewedAt:'2026-10-06'}},newsSources:[source]};
+  const record={id:source.companyId,name:'NVIDIA',status:'DIRECTORY',onboarding:onboarding(),themeMemberships:{ai:{status:'PUBLISHED' as const,primarySector:'compute',reviewedAt:'2026-10-06'}},newsSources:[source]};
   assert.equal(approvedCompanyNewsSources([record]).length,1);
   assert.equal(approvedCompanyNewsSources([{...record,newsSources:[{...source,status:'WITHDRAWN'}]}]).length,0);
-  assert.equal(approvedCompanyNewsSources([{...record,themeMemberships:{ai:{...record.themeMemberships.ai,status:'WITHDRAWN'}}}]).length,0);
+  assert.equal(approvedCompanyNewsSources([{...record,onboarding:onboarding('PROCESSING')}]).length,0);
   assert.throws(()=>validateCompanyNewsSource({...source,companyId:'US:OTHER'},record.id),/identity/);
   assert.throws(()=>validateCompanyNewsSource({...source,url:'https://127.0.0.1/private',allowedHosts:['127.0.0.1']},record.id),/hosts/);
   assert.throws(()=>validateCompanyNewsSource({...source,format:'unsupported'},record.id),/format/);

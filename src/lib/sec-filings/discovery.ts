@@ -1,7 +1,6 @@
 import type {Firestore,DocumentData} from 'firebase-admin/firestore';
-import {collectionUniverse,type ThemedCompany} from '../company-themes/model';
-import {loadThemeCatalog} from '../company-themes/catalog';
-import {catalogThemeIds} from '../company-themes/catalog-model';
+import type {ThemedCompany} from '../company-themes/model';
+import {supportedCompanyUniverse} from '../company-support/model';
 import {createSecCompanySync} from '../industry-classification/sec-sync';
 import {createMaintenanceLog} from '../maintenance-log';
 import {createSecFilingsSource} from './source';
@@ -30,7 +29,7 @@ async function resolveDiscoveryCik(ticker:string,agent:string){
 export async function discoverSecCompany(db:Firestore,ticker:string){
   if(!process.env.SEC_USER_AGENT)throw new Error('SEC_USER_AGENT required');
   const id=`US:${ticker}`,doc=await db.collection('companies').doc(id).get();
-  const companies=collectionUniverse({nodes:[],relationships:[],sources:[],asOf:''},doc.exists?[{...doc.data(),id} as ThemedCompany]:[],catalogThemeIds(await loadThemeCatalog(db)));
+  const companies=supportedCompanyUniverse(doc.exists?[{...doc.data(),id} as ThemedCompany]:[]);
   if(!companies.nodes.length)return {status:'ineligible',companyId:id};
   const log=createMaintenanceLog('sec-company-discovery'),deadline=Date.now()+8*60000;
   const sync=createSecCompanySync(db,new Map([[id,doc.data()??{}]]));

@@ -39,7 +39,7 @@ async function readCalendar(from: string, to: string, db: Firestore): Promise<Ca
     const instant=calendarInstant(event);
     if(!event.scheduled_at&&instant){event.scheduled_at=instant;event.source_timezone=event.source_timezone??sourceScheduleZone(event.timezone_text,event,event.timeEvidence);event.time_precision='exact';}
     const themes=activeThemeIds({themeMemberships:record?.themeMemberships});
-    if(!record?.themeMemberships?.ai && !themes.includes('ai') && node.stageIds?.some(stage=>!stage.includes(':')))themes.push('ai');
+    if(!record?.themeMemberships?.ai && !themes.includes('ai') && record?.inGraph?.status==='PUBLISHED')themes.push('ai');
     return [{...event,companyName:node.name??node.symbol??node.id,companyNames:reviewedCompanyNames(node.id,node.name??'',node.names),ticker:node.symbol||node.id.split(':')[1],themes,sector:companySector(node)}];
   });
   return {events:reconcileCalendarSchedules(events).schedules,total:count.data().count,truncated:count.data().count>snapshot.size,from,to,

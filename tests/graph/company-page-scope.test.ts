@@ -183,7 +183,7 @@ test('page cache scope does not change bulk readers, leak after rejection or cac
 test('announcement source approval reads only its company, shares the push cache and applies withdrawals',async t=>{
  t.after(closeLocalCaches);const f=fixture();
  const source={id:'small-ir',companyId:'US:SMALL',name:'Small IR',url:'https://ir.smallcompany.com/rss.xml',allowedHosts:['ir.smallcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
- const company={name:'Small',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[source]};
+ const company={name:'Small',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[source]};
  f.rows.set('investment_themes/technology',{status:'PUBLISHED',parentId:null,names:{en:'Technology','zh-CN':'Technology'},order:0});
  f.rows.set('investment_themes/ai',{status:'PUBLISHED',parentId:'technology',names:{en:'AI','zh-CN':'AI'},order:0});
  f.rows.set('companies/US:SMALL',company);
@@ -192,16 +192,16 @@ test('announcement source approval reads only its company, shares the push cache
  const read=()=>loadCompanyAnnouncementSources(f.db,'US:SMALL');
  const results=await Promise.all(Array.from({length:20},read));
  assert.equal(results[0][0]?.id,'small-ir');
- assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
  f.rows.set('companies/US:SMALL',{...company,newsSources:[{...source,status:'WITHDRAWN'}]});f.push();
  assert.deepEqual(await read(),[]);
- f.rows.set('companies/US:SMALL',{...company,themeMemberships:{ai:{status:'WITHDRAWN'}}});f.push();
+ f.rows.set('companies/US:SMALL',{...company,onboarding:{status:'BLOCKED'}});f.push();
  assert.deepEqual(await read(),[]);
- f.rows.set('companies/US:SMALL',{...company,themeMemberships:{retired:{status:'PUBLISHED'}}});f.push();
- assert.deepEqual(await read(),[],'membership in a retired theme cannot authorize a source');
+ f.rows.set('companies/US:SMALL',{...company,onboarding:{status:'QUEUED'}});f.push();
+ assert.deepEqual(await read(),[],'queued onboarding cannot authorize a source');
  f.rows.set('companies/US:SMALL',{...company,isDeleted:true});f.push();assert.deepEqual(await read(),[]);
  f.rows.delete('companies/US:SMALL');f.push();assert.deepEqual(await read(),[]);
- assert.deepEqual(f.counts(),{files:0,opens:1,gets:1});
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
 });
 
 
