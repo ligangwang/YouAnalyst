@@ -4,7 +4,7 @@ import path from 'node:path';
 
 let html:string;
 const origin='http://onboarding.test',id='INS_0123456789abcdef0123456789abcdef';
-const item={request:{instrumentId:id,companyId:'US:NEW',version:1,status:'BLOCKED',requestedAt:'2026-10-25T12:00:00Z',updatedAt:'2026-10-25T13:00:00Z',targetThrough:'2026-10-24',steps:{identity:'COMPLETE',themes:'COMPLETE',profile:'COMPLETE',fundamentals:'COMPLETE',graph:'COMPLETE',events:'COMPLETE',corporateActions:'COMPLETE'},attemptCount:2,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:'prices: Historical price provider returned HTTP 503'},companyName:'New company',instrumentName:'New class B',listing:'US:NEW.B',companyStatus:'SUPPORTED',instrumentStatus:'BLOCKED',step:'prices',canRetry:true};
+const item={request:{instrumentId:id,companyId:'US:NEW',version:1,status:'BLOCKED',requestedByUid:'requester-user-123',requestedAt:'2026-10-25T12:00:00Z',updatedAt:'2026-10-25T13:00:00Z',targetThrough:'2026-10-24',steps:{identity:'COMPLETE',themes:'COMPLETE',profile:'COMPLETE',fundamentals:'COMPLETE',graph:'COMPLETE',events:'COMPLETE',corporateActions:'COMPLETE'},attemptCount:2,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:'prices: Historical price provider returned HTTP 503'},companyName:'New company',instrumentName:'New class B',listing:'US:NEW.B',companyStatus:'SUPPORTED',instrumentStatus:'BLOCKED',step:'prices',canRetry:true};
 test.beforeAll(async()=>{
   const mock=path.resolve('tests/conversion/fixtures/mocks.tsx');
   const bundle=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {AdminAccessGuard} from './src/components/admin-access-guard';import {AdminInstrumentOnboardingPage} from './src/components/admin-instrument-onboarding-page';import {LocaleProvider} from './src/components/providers/locale-provider';createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><AdminAccessGuard><AdminInstrumentOnboardingPage/></AdminAccessGuard></LocaleProvider>);`,loader:'tsx',resolveDir:process.cwd()},bundle:true,write:false,outfile:'admin-fixture.js',platform:'browser',alias:{'@/components/providers/auth-provider':mock,'next/link':mock,'next/navigation':mock},define:{'process.env':'{}'}});
@@ -31,6 +31,7 @@ test('admin sees separated readiness and can retry just the failed step',async({
   await expect(page.getByText('Company: SUPPORTED',{exact:true})).toBeVisible();
   await expect(page.getByText('Instrument: BLOCKED',{exact:true})).toBeVisible();
   await expect(page.getByText(item.request.lastError,{exact:true})).toBeVisible();
+  await expect(page.getByText('requester-user-123',{exact:true})).toBeVisible();
   await expect(page.locator('li[aria-current=step]')).toContainText('prices');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
   await page.screenshot({path:info.outputPath('instrument-onboarding-admin.png'),fullPage:true});

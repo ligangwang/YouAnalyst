@@ -9,11 +9,12 @@ export {COMPANY_STEPS,ONBOARDING_STEPS} from './progress';
 export type OnboardingStep=typeof ONBOARDING_STEPS[number];
 export type OnboardingRequest={
   instrumentId:string;companyId:string;version:1;status:'QUEUED'|'PROCESSING'|'BLOCKED'|'SUPPORTED';
-  requestedAt:string;updatedAt:string;targetThrough:string;
+  requestedByUid:string;requestedAt:string;updatedAt:string;targetThrough:string;
   steps:Partial<Record<OnboardingStep,'COMPLETE'>>;attemptCount:number;nextAttemptAt:number;
   leaseOwner:string|null;leaseExpiresAt:number;lastError:string|null;
 };
 export class OnboardingBlocked extends Error {}
+export const validRequesterUid=(uid:unknown):uid is string=>typeof uid==='string'&&uid.length>0&&uid.length<=128;
 export const validDay=(day:string)=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day;
 
 export function onboardingIdentity(companyId:string,company:Record<string,unknown>){
@@ -38,16 +39,17 @@ export function instrumentOnboardingIdentity(instrument:Instrument,company:Recor
   return onboardingIdentity(listing,company);
 }
 
-export function createOnboardingRequest(instrumentId:string,record:Instrument,company:Record<string,unknown>,now=new Date()):OnboardingRequest{
+export function createOnboardingRequest(instrumentId:string,record:Instrument,company:Record<string,unknown>,requestedByUid:string,now=new Date()):OnboardingRequest{
   if(!validInstrumentId(instrumentId))throw new OnboardingBlocked('Invalid instrument identity');
+  if(!validRequesterUid(requestedByUid))throw new OnboardingBlocked('Requester UID is required');
   const {instrument}=instrumentOnboardingIdentity(record,company),at=now.toISOString();
-  return {instrumentId,companyId:record.companyId,version:1,status:'QUEUED',requestedAt:at,updatedAt:at,targetThrough:historyThrough(instrument.market,now),
+  return {instrumentId,companyId:record.companyId,version:1,status:'QUEUED',requestedByUid,requestedAt:at,updatedAt:at,targetThrough:historyThrough(instrument.market,now),
     steps:{},attemptCount:0,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:null};
 }
 
 export function parseOnboardingRequest(value:unknown):OnboardingRequest{
   const v=value as OnboardingRequest;
-  if(!v||v.version!==1||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
+  if(!v||v.version!==1||!validRequesterUid(v.requestedByUid)||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
     ||!validDay(v.targetThrough)||v.targetThrough<ONBOARDING_START||!Number.isFinite(Date.parse(v.requestedAt))||!Number.isFinite(Date.parse(v.updatedAt))
     ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>!ONBOARDING_STEPS.includes(k as OnboardingStep)||s!=='COMPLETE')
     ||!Number.isSafeInteger(v.attemptCount)||v.attemptCount<0||!Number.isFinite(v.nextAttemptAt)||v.nextAttemptAt<0||!Number.isFinite(v.leaseExpiresAt)||v.leaseExpiresAt<0

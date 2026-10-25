@@ -15,7 +15,7 @@ async function main(){
   const enqueue=args.includes('--enqueue'),processQueue=args.includes('--process');
   if(args.includes('--retry')){if(!instrumentId||enqueue||processQueue)throw Error('Retry requires only --instrument=<ID> and --retry');const request=parseOnboardingRequest((await db.collection(ONBOARDING_COLLECTION).doc(instrumentId).get()).data());const step=ONBOARDING_STEPS.find(key=>request.steps[key]!=='COMPLETE');if(!step)throw Error('No incomplete step');console.log(JSON.stringify(await retryInstrumentOnboarding(db,instrumentId,{step,updatedAt:request.updatedAt})));return;}
   if(enqueue&&processQueue)throw Error('Enqueue and processing are separate actions');
-  if(enqueue){if(!instrumentId)throw Error('--instrument=<ID> is required');console.log(JSON.stringify(await requestInstrumentOnboarding(db,instrumentId,listingId)));return;}
+  if(enqueue){const requester=args.find(arg=>arg.startsWith('--requester='))?.slice('--requester='.length);if(!instrumentId||!requester)throw Error('--instrument=<ID> and --requester=<Firebase UID> are required');console.log(JSON.stringify(await requestInstrumentOnboarding(db,instrumentId,requester,listingId)));return;}
   const limit=Number(args.find(arg=>arg.startsWith('--limit='))?.slice(8)??1);
   if(!Number.isInteger(limit)||limit<1||limit>5)throw Error('Limit must be between 1 and 5');
   const ids:string[]=[];

@@ -33,7 +33,7 @@ test('admin endpoints authorize reads and retries before accessing storage',asyn
 test('admin list pages are bounded and show separate readiness, current errors and safe retry availability',async()=>{
   const company={name:'Issuer',status:'DIRECTORY',cik:'123',onboarding:{status:'SUPPORTED'}};
   const record=instrumentFromCompany('US:ABC',company)!;
-  const request={...createOnboardingRequest(instrumentId('US:ABC'),record,company),status:'BLOCKED',lastError:'prices: Provider unavailable',leaseOwner:'private-owner'};
+  const request={...createOnboardingRequest(instrumentId('US:ABC'),record,company,'requester-one'),status:'BLOCKED',lastError:'prices: Provider unavailable',leaseOwner:'private-owner'};
   let size=0;const ids=Array.from({length:26},(_,i)=>instrumentId(`US:A${i}`)).sort();
   const db={collection:(name:string)=>({doc:(id:string)=>({id,name}),orderBy:()=>({limit:(limit:number)=>{size=limit;return {get:async()=>({docs:ids.map(id=>({id,data:()=>({...request,instrumentId:id})}))})};}})}),getAll:async(...refs:{name:string}[])=>refs.map(ref=>({data:()=>ref.name==='companies'?company:{...record,onboarding:{status:'BLOCKED'}}}))} as unknown as Firestore;
   const page=await listInstrumentOnboarding(db,undefined,Date.now());assert.equal(size,26);assert.equal(page.items.length,25);assert.equal(page.nextCursor,ids[24]);

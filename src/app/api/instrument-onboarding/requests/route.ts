@@ -18,7 +18,7 @@ export async function POST(request:NextRequest){
     let value:unknown;try{value=JSON.parse(body);}catch{return NextResponse.json({error:'Invalid request'},{status:400});}
     const {instrumentId,listingId}=(value as {instrumentId?:unknown;listingId?:unknown}|null)??{};
     if(typeof instrumentId!=='string'||(listingId!==undefined&&typeof listingId!=='string'))return NextResponse.json({error:'instrumentId is required'},{status:400});
-    return NextResponse.json({ok:true,...await requestInstrumentOnboarding(getAdminFirestore(),instrumentId,listingId)});
+    return NextResponse.json({ok:true,...await requestInstrumentOnboarding(getAdminFirestore(),instrumentId,identity.uid,listingId)});
   }catch(error){
     if(error instanceof OnboardingBlocked)return NextResponse.json({error:error.message},{status:400});
     return NextResponse.json({error:'Unable to record onboarding request'},{status:503});

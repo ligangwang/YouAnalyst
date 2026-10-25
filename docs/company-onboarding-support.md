@@ -46,7 +46,7 @@ The approved collection is **`instrument_onboarding_requests`**, keyed by stable
 was never created in production; there is no live collection to rename.
 
 Approved document fields: `instrumentId`, `companyId`, `version`, `status`,
-`requestedAt`, `updatedAt`, `targetThrough`, `steps`, `attemptCount`, `nextAttemptAt`,
+`requestedByUid`, `requestedAt`, `updatedAt`, `targetThrough`, `steps`, `attemptCount`, `nextAttemptAt`,
 `leaseOwner`, `leaseExpiresAt`, `lastError`. Request timestamps are ISO strings;
 retry/lease times are Unix milliseconds. `steps` maps fixed stage names to COMPLETE.
 
@@ -104,14 +104,19 @@ Eligible listings show **Request Full Support**, or a sign-in action for guests.
 Accepted states show **Onboarding Queued**, **Onboarding…**, or
 **Onboarding Needs Attention**. Missing US CIK shows **CIK not matched**.
 Requests deduplicate per instrument. They never execute providers or auto-resume a
-blocked request. No requester attribution or per-user quota fields are added.
+blocked request. `requestedByUid` is the verified Firebase UID from the bearer
+token, never a client-provided identity. `requestedAt` is the server-generated
+request time. Duplicate users/requests, checkpoints, and retries preserve the
+original UID and time. These details appear only in the admin API/page, not
+public company/instrument summaries or search responses. No per-user quota fields
+are added.
 
 ## Admin page and safe retries
 
 `/admin/instrument-onboarding` is protected by the existing admin layout and every
 API operation independently authenticates and checks the existing admin role.
 The page shows separate company/instrument states, completed and current steps,
-last error, attempts, requested/updated times, cutoff, retry eligibility, and lease
+last error, attempts, requester UID, request/updated times, cutoff, retry eligibility, and lease
 expiry. Pages are bounded to 25 requests with a continuation cursor.
 
 GET `/api/admin/instrument-onboarding` returns private, non-cacheable summaries.
@@ -128,7 +133,7 @@ default command. No job, schedule, topic, subscription, or IAM binding is create
 
 ```
 npx tsx scripts/onboard-instruments.ts                         # preview only
-npx tsx scripts/onboard-instruments.ts --instrument=INS_... --listing=US:EXAMPLE --enqueue
+npx tsx scripts/onboard-instruments.ts --instrument=INS_... --listing=US:EXAMPLE --requester=<Firebase-UID> --enqueue
 npx tsx scripts/onboard-instruments.ts --process --limit=1
 npx tsx scripts/onboard-instruments.ts --instrument=INS_... --retry
 ```

@@ -30,7 +30,7 @@ export function onboardingFixture(){
   const handlers=Object.fromEntries(ONBOARDING_STEPS.map(step=>[step,async()=>{calls.push(step);}])) as unknown as OnboardingHandlers;
   const id=instrumentId('US:NEW');
   const request=(key=id)=>rows.get(`${ONBOARDING_COLLECTION}/${key}`)!;
-  const enqueue=(listing='US:NEW')=>requestInstrumentOnboarding(db,instrumentId(listing),listing,clock());
+  const enqueue=(listing='US:NEW')=>requestInstrumentOnboarding(db,instrumentId(listing),'requester-one',listing,clock());
   const process=(custom=handlers,key=id)=>processInstrumentOnboarding(db,key,custom,clock);
   return {db,rows,calls,handlers,clock,id,request,enqueue,process,advance:(ms:number)=>{now+=ms;}};
 }
@@ -39,12 +39,15 @@ test('instrument requests validate listing/issuer linkage, deduplicate and make 
   const f=onboardingFixture();await Promise.all([f.enqueue(),f.enqueue()]);
   assert.equal(f.rows.size,4);assert.equal(f.request().status,'QUEUED');assert.deepEqual(f.calls,[]);
   const at=f.request().requestedAt;await f.enqueue();assert.equal(f.request().requestedAt,at);
+  assert.equal(at,new Date(f.clock()).toISOString());assert.equal(f.request().requestedByUid,'requester-one');
+  await requestInstrumentOnboarding(f.db,f.id,'another-user','US:NEW',f.clock()+5000);
+  assert.equal(f.request().requestedByUid,'requester-one');assert.equal(f.request().requestedAt,at);
   await f.enqueue('XSHE:000001');
   assert.throws(()=>onboardingIdentity('US:NO-CIK',{name:'No CIK',status:'DIRECTORY'}),/CIK not matched/);
   assert.throws(()=>onboardingIdentity('XBSE:830001',{name:'Unsupported',status:'DIRECTORY'}),/not supported/);
   const company=f.rows.get('companies/US:NEW')!;
-  assert.equal(createOnboardingRequest(f.id,instrumentFromCompany('US:NEW',company)!,company,new Date(f.clock())).targetThrough,'2026-10-24');
-  await assert.rejects(()=>requestInstrumentOnboarding(f.db,instrumentId('US:OTHER'),'US:NEW',f.clock()),/identity/);
+  assert.equal(createOnboardingRequest(f.id,instrumentFromCompany('US:NEW',company)!,company,'requester-one',new Date(f.clock())).targetThrough,'2026-10-24');
+  await assert.rejects(()=>requestInstrumentOnboarding(f.db,instrumentId('US:OTHER'),'requester-one','US:NEW',f.clock()),/identity/);
 });
 
 test('issuer readiness completes independently before instrument prices and actions',async()=>{
@@ -82,6 +85,7 @@ test('retry keeps completed checkpoints, blocks stale admin actions and redacts 
   assert.equal(f.request().status,'BLOCKED');assert.equal((await f.enqueue()).status,'BLOCKED');
   await retryInstrumentOnboarding(f.db,f.id,{step:'profile',updatedAt:String(f.request().updatedAt)},f.clock());
   assert.deepEqual(f.request().steps,{identity:'COMPLETE',themes:'COMPLETE'});
+  assert.equal(f.request().requestedByUid,'requester-one');assert.equal(f.request().requestedAt,new Date(f.clock()).toISOString());
 });
 
 test('an active worker cannot be retried or overwritten by another worker',async()=>{
