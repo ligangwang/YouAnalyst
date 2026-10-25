@@ -7,9 +7,10 @@ import {company,type Document,type Request} from './lib/firestore-rest';
 import {readThemeCatalog} from './lib/theme-catalog';
 import {catalogThemeIds} from '../src/lib/company-themes/catalog-model';
 import {planSupportedMigration} from '../src/lib/company-support/migration';
+import {onboardingMigrationGuard} from './lib/onboarding-migration-safety';
 
-export async function migrateCompanyOnboarding({project,request,write=false,backupDir='output/company-onboarding-backups',pause=async()=>new Promise<void>(resolve=>setTimeout(resolve,1000))}:{
-  project:string;request:Request;write?:boolean;backupDir?:string;pause?:()=>Promise<void>;
+export async function migrateCompanyOnboarding({project,request,write=false,backupDir='output/company-onboarding-backups',pause=async()=>new Promise<void>(resolve=>setTimeout(resolve,1000)),beforeBatch}:{
+  project:string;request:Request;write?:boolean;backupDir?:string;pause?:()=>Promise<void>;beforeBatch?:()=>Promise<void>;
 }) {
   assert(/^[a-z][a-z0-9-]+$/.test(project),'Explicit project required');
   const root=`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
@@ -36,6 +37,7 @@ export async function migrateCompanyOnboarding({project,request,write=false,back
   await writeFile(backup,JSON.stringify({project,at,mode:write?'write':'preview',selected,originals:docs,onboarding},null,2),{flag:'wx'});
   let written=0;
   if(write)for(let start=0;start<docs.length;start+=5){
+    await beforeBatch?.();
     const batch=docs.slice(start,start+5);
     // Whole-document updateTime fencing prevents changing a concurrently edited
     // classification or overwriting a newly requested onboarding workflow.
@@ -65,6 +67,7 @@ async function main(){
     assert(response.ok,`Firestore ${method} failed (${response.status})`);
     return response.json();
   };
-  console.log(JSON.stringify(await migrateCompanyOnboarding({project,request,write:process.argv.includes('--write')})));
+  const write=process.argv.includes('--write');
+  console.log(JSON.stringify(await migrateCompanyOnboarding({project,request,write,...(write?{beforeBatch:onboardingMigrationGuard(project)}:{})})));
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(error=>{console.error(error.message);process.exitCode=1;});

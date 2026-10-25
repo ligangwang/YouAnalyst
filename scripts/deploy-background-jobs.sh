@@ -15,6 +15,10 @@ case "${1:-}" in
   sec-fundamentals|cn-fundamentals|eod-maintenance|directory|company-graph|earnings|intelligence-news) targets=("$1") ;;
   *) echo 'Select all, sec-fundamentals, cn-fundamentals, eod-maintenance, company-graph, sec-filings, earnings, intelligence-news or directory' >&2; exit 1 ;;
 esac
+case "${INSTRUMENT_ONBOARDING_ENABLED:-0}" in 0|1) ;; *) echo 'INSTRUMENT_ONBOARDING_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+if [[ "${INSTRUMENT_ONBOARDING_ENABLED:-0}" == 1 && ( "$1" == all || "$1" == fundamentals ) ]]; then
+  targets+=(instrument-onboarding)
+fi
 # The filing/graph pipeline is an explicit production rollout. Disabled releases
 # keep every existing worker path and schedule unchanged.
 case "${ENABLE_SEC_FILING_PIPELINE:-0}" in 0|1) ;; *) echo 'ENABLE_SEC_FILING_PIPELINE must be 0 or 1' >&2; exit 1 ;; esac
@@ -50,6 +54,10 @@ if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
   [[ "${OPENAI_CALENDAR_MODEL:-}" == gpt-6-luna ]] || { echo 'OPENAI_CALENDAR_MODEL must be gpt-6-luna' >&2; exit 1; }
 fi
 for target in "${targets[@]}"; do
+  if [[ "$target" == instrument-onboarding ]]; then
+    bash scripts/deploy-instrument-onboarding.sh --check
+    continue
+  fi
   if [[ "$target" == earnings ]]; then
     bash scripts/deploy-earnings.sh --check
     continue

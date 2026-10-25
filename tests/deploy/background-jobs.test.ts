@@ -21,6 +21,7 @@ function run(target:string,extra:Record<string,string>={}) {
           done
         fi
         case "$*" in
+          "scheduler jobs describe onboard-instruments-production"*) if [[ "\${NEW_ONBOARDING:-0}" == 1 ]]; then return 1; fi ;;
           *"get-iam-policy"*)
             local arg
             for arg in "$@"; do
@@ -71,6 +72,21 @@ test('directory-only deploy avoids shared build and schedule changes',()=>{
   assert.match(r.calls,/run deploy cni-directory-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-cni-directory.cjs/);
   assert.match(r.calls,/DIRECTORY_REQUEST_TOPIC=cni-directory-requests/);
   assert.ok(r.calls.indexOf('subscriptions update cni-directory-worker') < r.calls.indexOf('run jobs update sync-cni-directory-production'));
+});
+
+test('onboarding rollout uses the pinned shared image, bounded worker and authenticated schedule',()=>{
+  const r=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'private-test-token',EODHD_BULK_EOD_BUCKET:'demo-eod',NEW_ONBOARDING:'1'});
+  assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/run jobs deploy onboard-instruments-production .*--image example\/image@sha256:abcdef/);
+  assert.match(r.calls,/--args dist\/onboard-instruments.cjs,--process,--limit=1/);
+  assert.match(r.calls,/--max-retries 0 --task-timeout 20m/);
+  assert.match(r.calls,/scheduler jobs create http onboard-instruments-production .*--schedule \*\/5 \* \* \* \*/);
+  assert.match(r.calls,/--oauth-service-account-email directory-sync-scheduler@demo.iam.gserviceaccount.com/);
+  assert.doesNotMatch(r.calls,/private-test-token|scheduler jobs (pause|resume)|run jobs execute/);
+  const invalid=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'',EODHD_BULK_EOD_BUCKET:'demo-eod'});
+  assert.notEqual(invalid.status,0);assert.doesNotMatch(invalid.calls,/builds submit|run jobs deploy/);
+  const unchanged=run('directory',{INSTRUMENT_ONBOARDING_ENABLED:'1'});
+  assert.equal(unchanged.status,0,unchanged.stderr);assert.doesNotMatch(unchanged.calls,/onboard-instruments-production/);
 });
 
 test('official news deploy is isolated, bounded and disabled by default',()=>{

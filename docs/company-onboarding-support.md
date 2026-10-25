@@ -1,7 +1,7 @@
 # Company and instrument readiness
 
-HOLD: staged only. Do not merge, deploy, run migrations, or execute provider work
-until the user authorizes the release. No production data was written.
+Release requires explicit user authorization, verified additive migrations and
+the normal protected deployment process. Never run migrations during app startup.
 
 ## Readiness contracts
 
@@ -147,7 +147,13 @@ messages are sanitized; credentials and provider URLs are not exposed publicly.
 ## Staged operator tools
 
 The maintenance image includes `dist/onboard-instruments.cjs` without changing its
-default command. No job, schedule, topic, subscription, or IAM binding is created.
+default command. The protected background rollout enables `INSTRUMENT_ONBOARDING_ENABLED=1`
+and deploys `onboard-instruments-production` with the reviewed pinned shared image,
+existing maintenance identities and private EODHD bucket/credential. An authenticated
+five-minute schedule runs one resumable checkpoint for one instrument per execution.
+No new Pub/Sub topic or subscription is required. A normal delivery check runs the
+worker in preview mode (no providers) before website promotion. Schedule updates
+preserve its current state; existing schedules are never paused.
 
 ```
 npx tsx scripts/onboard-instruments.ts                         # preview only

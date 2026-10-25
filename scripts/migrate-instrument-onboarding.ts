@@ -1,11 +1,10 @@
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
-import {initializeApp,applicationDefault} from 'firebase-admin/app';
-import {Timestamp,type DocumentSnapshot} from 'firebase-admin/firestore';
-import {getAdminFirestore} from '../src/lib/firebase/admin';
-import {closeLocalCaches} from '../src/lib/local-cache/watch';
+import {Firestore,Timestamp,type DocumentSnapshot} from 'firebase-admin/firestore';
+import {OAuth2Client} from 'google-auth-library';
 import {instrumentId,type Instrument} from '../src/lib/instruments/model';
 import {planInstrumentSupportMigration,instrumentMigrationScope} from '../src/lib/instruments/support-migration';
+import {onboardingMigrationGuard} from './lib/onboarding-migration-safety';
 
 /** Staged operator tool. Dry run is the default; never selects new coverage. */
 async function main(){
@@ -14,7 +13,10 @@ async function main(){
   const source=JSON.parse(await readFile(file,'utf8')) as {project:string;selected:string[]};
   if(source.project!==project||!Array.isArray(source.selected)||source.selected.length>10_000||source.selected.some(id=>typeof id!=='string'||! /^(US:[A-Z0-9.-]+|XSHG:\d{6}|XSHE:\d{6}|XBSE:\d{6}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id))||new Set(source.selected).size!==source.selected.length)throw Error('Invalid frozen legacy coverage backup');
   const selected=instrumentMigrationScope(source.selected),skippedCompanies=source.selected.filter(id=>!selected.includes(id));
-  initializeApp({credential:applicationDefault(),projectId:project});const db=getAdminFirestore();
+  // Standalone operator migration: no website cache/bootstrap or SQLite dependency.
+  const token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN,authClient=token?new OAuth2Client():undefined;
+  authClient?.setCredentials({access_token:token});
+  const db=new Firestore({projectId:project,preferRest:true,...(authClient?{authClient}:{})});
   const inputs:{id:string;company:Record<string,unknown>;instrument:Instrument|undefined;companyDoc:DocumentSnapshot;instrumentDoc:DocumentSnapshot}[]=[];
   for(let offset=0;offset<selected.length;offset+=100){
     const ids=selected.slice(offset,offset+100),docs=await db.getAll(...ids.flatMap(id=>[db.collection('companies').doc(id),db.collection('instruments').doc(instrumentId(id))]));
@@ -25,7 +27,9 @@ async function main(){
   const backup=`output/instrument-onboarding-backups/${randomUUID()}.json`;
   await writeFile(backup,JSON.stringify({project,sourceBackup:file,mode:write?'write':'preview',selected:plan.map(row=>row.id),skippedCompanies,originals:inputs.map(row=>({id:row.id,company:row.company,instrument:row.instrument}))},null,2),{flag:'wx'});
   let written=0;
+  const beforeBatch=write?onboardingMigrationGuard(project):async()=>{};
   for(let offset=0;write&&offset<plan.length;offset+=5){
+    await beforeBatch();
     const batch=plan.slice(offset,offset+5);
     await db.runTransaction(async tx=>{
       const docs=await tx.getAll(...batch.flatMap(row=>[db.collection('companies').doc(row.companyId),db.collection('instruments').doc(row.id)]));
@@ -46,4 +50,4 @@ async function main(){
   }
   console.log(JSON.stringify({mode:write?'written':'preview',selected:plan.length,skippedCompanies,written,backup}));
 }
-main().finally(closeLocalCaches).catch(()=>{console.error('Instrument migration stopped; inspect the saved backup and retry only after review');process.exitCode=1;});
+main().catch(()=>{console.error('Instrument migration stopped; inspect the saved backup and retry only after review');process.exitCode=1;});
