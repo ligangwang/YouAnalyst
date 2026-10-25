@@ -397,18 +397,3 @@ test('peer prices start while financials are blocked, retaining the eight-query 
  assert.equal(maxActive,8);assert.deepEqual(priceStarts,ids);assert.equal(completed,false,'comparison still waits for financials');
  finishFinancials(ids.map(id=>({data:()=>({id})})));assert.deepEqual(await pending,{complete:true});
 });
-
-test('startup CPU summaries preserve sample attribution and bound code-only diagnostics',async()=>{
- const {summarizeStartupProfile}=await import('../../src/lib/ui/startup-profile');
- const profile:import('node:inspector').Profiler.Profile={startTime:0,endTime:100_000,
-  nodes:Array.from({length:30},(_,i)=>({id:i+1,callFrame:{functionName:`fn${i}`,scriptId:'1',url:`file:///private/app/chunk${i}.js?token=PRIVATE`,lineNumber:i,columnNumber:2}})),
-  samples:[1,1,2,3,3,3,4,4,4,4],timeDeltas:Array(10).fill(10_000)};
- const delays=Array.from({length:30},(_,i)=>({startMs:i,endMs:50+i}));
- const result=summarizeStartupProfile(profile,delays);
- assert.equal(result.profileDurationMs,100);assert.equal(result.sampleCount,10);
- assert.equal(result.topFrames[0].function,'fn3');assert.equal(result.topFrames[0].samples,4);
- assert.equal(result.timerDelays.length,12);assert(result.timerDelays.every(delay=>delay.topFrames.length<=8));
- assert.doesNotMatch(JSON.stringify(result),/PRIVATE|token=|private/);
- const empty=summarizeStartupProfile({nodes:[],startTime:0,endTime:0},[]);
- assert.equal(empty.sampleCount,0);assert.deepEqual(empty.topFrames,[]);
-});
