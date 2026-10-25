@@ -346,24 +346,23 @@ test('tree layer changes preserve the manual camera and closed layers stay close
  const pose=()=>canvas.evaluate(el=>[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));
  const initial=await pose();
  const energy=tree.locator('[data-tree-kind="layer"][data-tree-node="energy"]');
- // Overview collision placement can already expose a company label. Match the
- // documented interaction: reveal only when every name is culled, otherwise
- // close on the first activation. Read and click atomically to avoid a frame
- // changing label visibility between separate browser evaluations.
- const namesAlreadyVisible=await tree.evaluate(el=>{
-  const visible=el.querySelectorAll('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').length>0;
-  el.querySelector<HTMLButtonElement>('[data-tree-kind="layer"][data-tree-node="energy"]')!.click();return visible;
- });
- if(!namesAlreadyVisible){
-  await expect(canvas).toHaveAttribute('data-tour-open-layers',/energy/);
-  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').count()).toBeGreaterThan(0);
-  expect(await pose()).toEqual(initial);
-  await energy.evaluate((el:HTMLButtonElement)=>el.click());
- }
+ // Begin closed so the next activation has a definite open transition.
+ // Native clicks wait for the animated Html button to be enabled; a DOM click
+ // can be silently ignored while a scene commit temporarily disables it.
+ await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(energy).toHaveAttribute('aria-expanded','false');
+ expect(await pose()).toEqual(initial);
+ await energy.click();
+ await expect(energy).toHaveAttribute('aria-expanded','true');
+ await expect(canvas).toHaveAttribute('data-tree-disclosed-layers',/energy/);
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').count()).toBeGreaterThan(0);
+ expect(await pose()).toEqual(initial);
+ await energy.click();
  await expect(canvas).not.toHaveAttribute('data-tour-open-layers',/energy/);
  expect(await pose()).toEqual(initial);
  await page.emulateMedia({reducedMotion:'no-preference'});await pastIdleResume(page);
  await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(initial);
+ await expect(canvas).not.toHaveAttribute('data-tour-open-layers',/energy/);
  await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour-open-layers','');
  await expect(canvas).toHaveAttribute('data-tour','stopped');
