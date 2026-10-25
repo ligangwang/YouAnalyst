@@ -51,7 +51,7 @@ for (const chinese of [false, true]) test(`new stock colors are editable before 
       if (route.request().method() === 'PATCH') saved = route.request().postDataJSON();
       return route.fulfill({ json: { appearance: saved ?? { template: 'classic', style: 'line', companyColors: {} } } });
     }
-    if (url.pathname === '/api/tickers/search') return route.fulfill({ json: { total: 178, items: url.searchParams.get('q') ? [{ id: 'US:MU', symbol: 'MU', name: 'Micron Technology' }] : [] } });
+    if (url.pathname === '/api/tickers/search') return route.fulfill({ json: { total: 178, items: url.searchParams.get('q') ? [{ supportState: 'SUPPORTED', id: 'US:MU', symbol: 'MU', name: 'Micron Technology' }] : [] } });
     if (url.pathname === '/api/compare') {
       const symbols = url.searchParams.get('symbols')!.split(','); comparisons.push(symbols);
       return route.fulfill({ json: { dates: ['2025-01-02', '2025-12-31'], series: symbols.map(symbol => ({ symbol, values: [0, 20] })), frequency: 'Daily', source: 'Fixture' } });
@@ -117,7 +117,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
     const url = new URL(route.request().url());
     if (url.pathname === '/api/tickers/search') {
       requests.push(url);
-      return route.fulfill({ json: { total: 178, items: url.searchParams.has('q') ? [{ id: 'XSHG:600519', symbol: '600519', name: '贵州茅台', market: 'CN_A' }] : [] } });
+      return route.fulfill({ json: { total: 178, items: url.searchParams.has('q') ? [{ supportState: 'SUPPORTED', id: 'XSHG:600519', symbol: '600519', name: '贵州茅台', market: 'CN_A' }] : [] } });
     }
     if (url.pathname === '/api/compare') return route.fulfill({ json: { dates: ['2025-01-02', '2025-12-31'], series: [{ symbol: 'AAPL', values: [0, 20] }], frequency: 'Daily', source: 'Fixture' } });
     return route.fulfill({ contentType: 'text/html', body: html });
@@ -142,7 +142,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   expect((await editor.boundingBox())!.height).toBeLessThan(140);
   await toggle.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  const hint = page.getByText(chinese ? '已覆盖 178 家公司，持续扩充中。' : '178 companies covered · More coming soon', { exact: true });
+  const hint = page.getByText(chinese ? '全部公司 · 可申请完整支持' : 'All companies · Request full support', { exact: true });
   await expect(hint).toBeVisible();
   const input = page.getByRole('combobox', { name: chinese ? '搜索公司' : 'Search company', exact: true });
   const inputBox = await input.boundingBox(), hintBox = await hint.boundingBox();
@@ -151,7 +151,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   await page.getByRole('option', { name: /贵州茅台/ }).click();
   await expect(page.getByRole('button', { name: chinese ? '移除 XSHG:600519' : 'Remove XSHG:600519', exact: true })).toBeVisible();
   await expect(input).toHaveValue('');
-  expect(requests.every(url => url.searchParams.get('scope') === 'covered')).toBe(true);
+  expect(requests.every(url => url.searchParams.get('scope') === 'directory')).toBe(true);
   await page.getByRole('button', { name: '5Y', exact: true }).click();
   const from = page.getByLabel(chinese ? '起始日期' : 'From', { exact: true });
   await expect(from).toHaveValue('2020-12-31');

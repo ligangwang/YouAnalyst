@@ -17,8 +17,8 @@ and its production execution is coordinated with the release.
 
 No map means directory-only. There is no second support boolean or new composite
 index. The separately approved `company_onboarding_requests` collection holds
-resumable requests. Search request UI remains a separate change; the queue-only
-POST endpoint and operator worker are included here.
+resumable requests. Search request UI, the registered-account queue-only POST
+endpoint, and the operator worker are included here.
 
 `loadSupportedCompanies` queries the existing single-field index on
 `onboarding.status == SUPPORTED`, excludes deleted/hidden/nameless records, and
@@ -146,3 +146,14 @@ modified, and historical downloads do not replay old news notifications.
 Before any eventual production run, use a new bounded availability/backlog monitor,
 stop further work on capacity errors, and begin with one company. This PR and its
 preview do not authorize deployment or bulk enrollment.
+
+
+## Registered-user search requests
+
+Universal company search now uses the bounded indexed directory search (`scope=directory`), including companies without theme membership. It does not load the entire directory or synthesize editorial companies. Results expose only a derived public support state, never private queue errors, leases or CIK values.
+
+Registered, non-anonymous Firebase users can choose **Request Full Support**. The server verifies the bearer token and rejects missing/invalid tokens and anonymous accounts before Firestore access. Signed-out users see **Sign in to request full support**, leading to authentication with the company profile as the return destination. No request is submitted merely by signing in.
+
+Confirmed queue states display **Onboarding Queued**, **Onboarding…**, or **Onboarding Needs Attention**. US candidates lacking CIK display **CIK not matched**. Supported rows retain existing chart/selection behavior; other rows and keyboard Enter lead to the company profile. Failed requests remain retryable and are never shown as queued without a successful response. The transaction deduplicates globally per canonical company; duplicate clicks cannot start provider work. No per-user quota or attribution schema is introduced.
+
+This flow records intent only: it does not automatically run the worker, call providers, or enroll a company. All changes remain unmerged and undeployed pending the user's further changes. The production migration has not been applied.

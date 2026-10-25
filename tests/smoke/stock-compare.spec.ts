@@ -71,7 +71,7 @@ test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({
   const symbols="AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,INTC";
   await page.goto("/en/compare?"+query.replace("AAPL,MSFT,NVDA,GOOGL,AMZN",symbols));
   await expect(page.locator("canvas")).toBeVisible();
-  await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "IBM", symbol: "IBM", name: "IBM", market: "US" }] } }));
+  await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ supportState: "SUPPORTED", id: "IBM", symbol: "IBM", name: "IBM", market: "US" }] } }));
   await expect(page.getByLabel("Selected stocks",{exact:true})).toHaveAttribute("aria-expanded","true");
   await page.locator('main').getByRole("combobox",{name:"Search company",exact:true}).fill("IBM");
   await page.getByRole("option",{name:/IBM/}).click();
@@ -129,15 +129,15 @@ test("a browser without WebGL still shows readable returns",async({page})=>{
 
 test("Chinese listings can be found and selected through the comparison picker", async ({ page }) => {
   await mockPrices(page);
-  await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "XSHG:600519", symbol: "600519", name: "贵州茅台", exchange: "SSE", micCode: "XSHG", type: "Common Stock", market: "CN_A" }] } }));
+  await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ supportState: "SUPPORTED", id: "XSHG:600519", symbol: "600519", name: "贵州茅台", exchange: "SSE", micCode: "XSHG", type: "Common Stock", market: "CN_A" }] } }));
   await page.goto("/en/compare?" + query);
   const search = page.waitForRequest(request => new URL(request.url()).pathname === "/api/tickers/search" && new URL(request.url()).searchParams.has("q"));
   await expect(page.getByLabel("Selected stocks",{exact:true})).toHaveAttribute("aria-expanded","true");
   await page.locator('main').getByRole("combobox", { name: "Search company", exact: true }).fill("茅台");
-  expect(new URL((await search).url()).searchParams.get("scope")).toBe("covered");
+  expect(new URL((await search).url()).searchParams.get("scope")).toBe("directory");
   await page.getByRole("option", { name: /贵州茅台/ }).click();
   await expect(page.getByRole("button", { name: "Remove XSHG:600519", exact: true })).toBeVisible();
-  await expect(page.locator('main').getByText("178 companies covered · More coming soon", {exact:true})).toBeVisible();
+  await expect(page.locator('main').getByText("All companies · Request full support", {exact:true})).toBeVisible();
 });
 
 test("copied widget works inside a foreign website with its theme, watermark and playback", async ({ page, context }) => {

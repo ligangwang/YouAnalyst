@@ -7,6 +7,8 @@ import type { KeyboardEvent } from "react";
 import { formatTickerSymbol } from "@/components/prediction-ui";
 
 export type TickerSuggestion = {
+  companyId?: string;
+  supportState?: import('@/lib/company-onboarding/search-state').CompanySupportState;
   slug?: string;
   id: string;
   kind?: "ticker";

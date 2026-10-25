@@ -15,6 +15,7 @@ export class OnboardingBlocked extends Error {}
 export const validDay=(day:string)=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day;
 
 export function onboardingIdentity(companyId:string,company:Record<string,unknown>){
+  if(company.supersededByCompanyId||company.listingStatus==='PRIVATE')throw new OnboardingBlocked('Company is not an eligible public listing');
   if(company.isDeleted===true||!['PUBLISHED','DIRECTORY'].includes(String(company.status))||typeof company.name!=='string'||!company.name.trim())throw new OnboardingBlocked('Company profile is not public');
   if(!/^(US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId))throw new OnboardingBlocked('Listing is not supported by the onboarding providers');
   const instrument=predictionInstrument(companyId.startsWith('US:')?companyId.slice(3):companyId);
