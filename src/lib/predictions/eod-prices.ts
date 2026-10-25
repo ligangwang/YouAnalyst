@@ -469,13 +469,14 @@ async function writeTextToGcs(bucketName: string, path: string, contents: string
 
 async function readEodhdBulkRows(
   requestedDate: string,
+  exchange = DEFAULT_MARKET,
 ): Promise<{ rows: EodhdBulkEodRow[]; rawGcsPath: string; rawCacheHit: boolean } | null> {
   const config = getEodhdConfig();
   if (!config) {
     return null;
   }
 
-  const rawGcsPath = eodhdBulkGcsPath(DEFAULT_MARKET, requestedDate);
+  const rawGcsPath = eodhdBulkGcsPath(exchange, requestedDate);
   const cachedJson = await readTextFromGcs(config.bucketName, rawGcsPath);
   if (cachedJson) {
     return {
@@ -485,7 +486,8 @@ async function readEodhdBulkRows(
     };
   }
 
-  const url = new URL(`${config.apiUrl}/api/eod-bulk-last-day/${DEFAULT_MARKET}`);
+  // No symbols filter: download the exchange once, then select locally.
+  const url = new URL(`${config.apiUrl}/api/eod-bulk-last-day/${exchange}`);
   url.searchParams.set("api_token", config.apiToken);
   url.searchParams.set("date", requestedDate);
   url.searchParams.set("fmt", "json");
@@ -493,7 +495,7 @@ async function readEodhdBulkRows(
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
   const rawJson = await response.text();
   if (!response.ok) {
-    throw new Error(`EODHD bulk EOD request failed with HTTP ${response.status}: ${rawJson.slice(0, 500)}`);
+    throw new Error(`EODHD bulk EOD request failed with HTTP ${response.status}`);
   }
 
   const rows = parseEodhdBulkRows(rawJson);
@@ -676,6 +678,7 @@ async function fetchEodhdBulkEodPrices(
   tickers: string[],
   requestedDate: string,
   loadedAt: string,
+  market: PredictionMarket = 'US',
 ): Promise<EodPriceFetchResult | null> {
   if (tickers.length === 0) {
     return {
@@ -687,38 +690,43 @@ async function fetchEodhdBulkEodPrices(
     };
   }
 
-  const bulk = await readEodhdBulkRows(requestedDate);
-  if (!bulk) {
-    return null;
-  }
-
-  const rowsByTicker = new Map<string, EodhdBulkEodRow>();
-  bulk.rows.forEach((row) => {
-    if (typeof row.code === "string") {
-      const ticker = normalizeTicker(row.code);
-      if (ticker) {
-        rowsByTicker.set(ticker, row);
-      }
-    }
-  });
-
   const prices: EodPrice[] = [];
   const failures: Array<{ ticker: string; reason: string }> = [];
-  tickers.forEach((ticker) => {
-    const parsed = parseEodhdBulkPrice(ticker, requestedDate, loadedAt, rowsByTicker.get(ticker));
-    if ("reason" in parsed) {
-      failures.push(parsed);
-    } else {
-      prices.push(parsed);
+  const paths: string[] = [];
+  let rawCacheHit = true;
+  const exchanges = market === 'US' ? ['US'] : ['SHG', 'SHE'];
+  for (const exchange of exchanges) {
+    const selected = tickers.filter(ticker => {
+      const instrument = predictionInstrument(ticker);
+      return instrument?.market === market && historyProviderSymbol(ticker).endsWith(`.${exchange}`);
+    });
+    if (!selected.length) continue;
+    const bulk = await readEodhdBulkRows(requestedDate, exchange);
+    if (!bulk) return null;
+    paths.push(bulk.rawGcsPath);
+    rawCacheHit &&= bulk.rawCacheHit;
+    const rowsByCode = new Map(bulk.rows.filter(row => row && typeof row.code === 'string')
+      .map(row => [row.code!.trim().toUpperCase(), row]));
+    for (const ticker of selected) {
+      const instrument = predictionInstrument(ticker)!;
+      const providerSymbol = historyProviderSymbol(ticker);
+      const row = rowsByCode.get(providerSymbol.slice(0, -(exchange.length + 1)));
+      const parsed = parseEodhdBulkPrice(ticker, requestedDate, loadedAt, row);
+      if ('reason' in parsed) failures.push(parsed);
+      else if (row?.exchange_short_name && row.exchange_short_name !== exchange) failures.push({ticker, reason:'eodhd_exchange_mismatch'});
+      else prices.push({...parsed, market, providerSymbol, exchange:instrument.exchange,
+        micCode:instrument.exchange, exchangeTimezone:instrument.timeZone});
     }
-  });
+  }
+  for (const ticker of tickers) if (predictionInstrument(ticker)?.market !== market)
+    failures.push({ticker, reason:'invalid_market_symbol'});
 
   return {
     provider: EODHD_BULK_EOD_PRICE_SOURCE,
     prices,
     failures,
-    rawGcsPath: bulk.rawGcsPath,
-    rawCacheHit: bulk.rawCacheHit,
+    rawGcsPath: paths.join(',') || null,
+    rawCacheHit,
   };
 }
 
@@ -756,7 +764,16 @@ export async function fetchEodhdDailyPrices(tickers: string[], requestedDate: st
 }
 
 export async function fetchChinaEodPrices(tickers: string[], requestedDate: string, loadedAt: string): Promise<EodPriceFetchResult> {
-  return fetchEodhdDailyPrices(tickers, requestedDate, loadedAt, "CN_A");
+  return fetchEodhdMarketPrices(tickers, requestedDate, loadedAt, 'CN_A');
+}
+
+/** Persist only requested companies; repair gaps in an early/cached bulk file individually. */
+export async function fetchEodhdMarketPrices(tickers: string[], requestedDate: string, loadedAt: string, market: PredictionMarket): Promise<EodPriceFetchResult> {
+  const bulk = await fetchEodhdBulkEodPrices(tickers, requestedDate, loadedAt, market);
+  if (!bulk) return fetchEodhdDailyPrices(tickers, requestedDate, loadedAt, market);
+  if (!bulk.failures.length) return bulk;
+  const gaps = await fetchEodhdDailyPrices(bulk.failures.map(item => item.ticker), requestedDate, loadedAt, market);
+  return {...bulk, prices:[...bulk.prices, ...gaps.prices], failures:gaps.failures};
 }
 
 async function fetchEodPrices(
@@ -765,7 +782,7 @@ async function fetchEodPrices(
   loadedAt: string,
 ): Promise<EodPriceFetchResult> {
   try {
-    const eodhd = await fetchEodhdBulkEodPrices(tickers, requestedDate, loadedAt);
+    const eodhd = process.env.EODHD_API_TOKEN ? await fetchEodhdMarketPrices(tickers, requestedDate, loadedAt, 'US') : null;
     if (eodhd) {
       return eodhd;
     }
@@ -1525,10 +1542,11 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       priceLoad.cacheHits = cachedPrices.size;
 
       const tickersToFetch = requestedTickers.filter((ticker) => !cachedPrices.has(ticker));
-      // Both US schedules fetch only gaps, directly from the provider. An earlier
-      // incomplete exchange-wide GCS snapshot cannot hide newly available prices.
-      const fetched = await (input.scheduledBatch
+      // Bulk files stay in GCS. Only this run's requested symbols reach Firestore;
+      // missing dated bars are repaired individually, including the later US run.
+      const fetched = await (manualTickers.length && (input.scheduledBatch || market === 'CN_A')
         ? fetchEodhdDailyPrices(tickersToFetch, runDate, nowIso, market)
+        : input.scheduledBatch ? fetchEodhdMarketPrices(tickersToFetch, runDate, nowIso, market)
         : market === "CN_A" ? fetchChinaEodPrices(tickersToFetch, runDate, nowIso) : fetchEodPrices(tickersToFetch, runDate, nowIso));
       const loadedPrices = await withTickerDailyReturns(db, [...cachedPrices.values(), ...fetched.prices]);
       priceLoad.provider = fetched.provider;
