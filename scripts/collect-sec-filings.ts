@@ -1,4 +1,5 @@
-import {collectionUniverse, type ThemedCompany} from '../src/lib/company-themes/model';
+import type {ThemedCompany} from '../src/lib/company-themes/model';
+import {supportedCompanyUniverse} from '../src/lib/company-support/model';
 import {createSecCompanySync} from '../src/lib/industry-classification/sec-sync';
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { applicationDefault, initializeApp } from "firebase-admin/app";
@@ -52,7 +53,7 @@ async function main() {
     return;
   }
   const companyDocs = await loadCollectionCompanies(db, 'US');
-  const companies = collectionUniverse({nodes: [], relationships: [], sources: [], asOf: ''},
+  const companies = supportedCompanyUniverse(
     companyDocs.map(doc => ({...doc.data(), id: doc.id} as ThemedCompany)));
   const companySync = createSecCompanySync(db, new Map(companyDocs.map(doc => [doc.id, doc.data() ?? {}])));
   const companyIds = companies.nodes.map(company => {

@@ -36,7 +36,7 @@ export function isCollectionCompany(company: ThemedCompany, allowedThemes?:reado
   return (!allowedThemes || allowedThemes.includes('ai')) && !company.themeMemberships?.ai && legacy?.status === 'PUBLISHED';
 }
 
-/** Job scope is the unique union, not a graph layout or a second company store. */
+/** Theme presentation compatibility only. Regular jobs use company-support/service. */
 export function collectionUniverse(legacy: KnowledgeGraph, records: ThemedCompany[], allowedThemes?:readonly string[]): KnowledgeGraph {
   const byId = new Map(records.map(company => [company.id, company]));
   const companies = new Map(legacy.nodes.filter(node => {

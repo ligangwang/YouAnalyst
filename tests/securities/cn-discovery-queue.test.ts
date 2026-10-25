@@ -45,9 +45,11 @@ test('dispatch bounds publication concurrency and defers when its deadline is ex
 
 test('worker rechecks canonical enrollment and completed deliveries before any provider work',async()=>{
   const fx=earningsFirestore(),none={...graph,nodes:[]};
-  fx.rows.set(`companies/${id}`,{name:'Longsys',status:'PUBLISHED',themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
+  fx.rows.set(`companies/${id}`,{name:'Longsys',status:'PUBLISHED',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
   assert.deepEqual((await loadCnDiscoveryCompany(fx.db,id)).nodes.map(n=>n.id),[id]);
-  fx.rows.get(`companies/${id}`)!.themeMemberships={ai:{status:'WITHDRAWN'}};
+  fx.rows.get(`companies/${id}`)!.themeMemberships={};
+  assert.deepEqual((await loadCnDiscoveryCompany(fx.db,id)).nodes.map(n=>n.id),[id]);
+  fx.rows.get(`companies/${id}`)!.onboarding={status:'BLOCKED'};
   assert.equal((await loadCnDiscoveryCompany(fx.db,id)).nodes.length,0);
   const options={enabled:true,earningsEnabled:true,now:fx.now,loadCompany:async()=>none,announcements:async()=>assert.fail(),fallback:async()=>assert.fail()};
   assert.equal((await processCnDiscoveryTask(task(),fx.db,log,options)).status,'ineligible');
