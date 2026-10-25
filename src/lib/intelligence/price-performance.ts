@@ -10,8 +10,11 @@ const validDate=(date:string)=>/^\d{4}-\d{2}-\d{2}$/.test(date)&&Number.isFinite
 // https://www.nyse.com/trade/hours-calendars
 const earlyCloses=new Set(['2026-11-27','2026-12-24','2027-11-26','2028-07-03','2028-11-24']);
 function closingHour(market:PredictionMarket,day:string){return market==='US'?(earlyCloses.has(day)?13:16):15;}
+const timeFormatters:Partial<Record<PredictionMarket,Intl.DateTimeFormat>>={};
 function localSeconds(market:PredictionMarket,date:Date){
-  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:market==='US'?'America/New_York':'Asia/Shanghai',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date);
+  const key=market==='US'?'US':'CN_A';
+  const formatter=timeFormatters[key]??=new Intl.DateTimeFormat('en-GB',{timeZone:key==='US'?'America/New_York':'Asia/Shanghai',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+  const parts=formatter.formatToParts(date);
   return Number(parts.find(part=>part.type==='hour')?.value)*3600+Number(parts.find(part=>part.type==='minute')?.value)*60+Number(parts.find(part=>part.type==='second')?.value);
 }
 export function completedCloseDate(market:PredictionMarket,now:Date){
