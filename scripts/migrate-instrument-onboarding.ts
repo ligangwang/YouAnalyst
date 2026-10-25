@@ -1,10 +1,13 @@
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+import {resolve} from 'node:path';
 import {Firestore,Timestamp,type DocumentSnapshot} from 'firebase-admin/firestore';
-import {OAuth2Client} from 'google-auth-library';
 import {instrumentId,type Instrument} from '../src/lib/instruments/model';
 import {planInstrumentSupportMigration,instrumentMigrationScope} from '../src/lib/instruments/support-migration';
 import {onboardingMigrationGuard} from './lib/onboarding-migration-safety';
+
+let migrationDb:Firestore|undefined;
 
 /** Staged operator tool. Dry run is the default; never selects new coverage. */
 async function main(){
@@ -14,9 +17,14 @@ async function main(){
   if(source.project!==project||!Array.isArray(source.selected)||source.selected.length>10_000||source.selected.some(id=>typeof id!=='string'||! /^(US:[A-Z0-9.-]+|XSHG:\d{6}|XSHE:\d{6}|XBSE:\d{6}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id))||new Set(source.selected).size!==source.selected.length)throw Error('Invalid frozen legacy coverage backup');
   const selected=instrumentMigrationScope(source.selected),skippedCompanies=source.selected.filter(id=>!selected.includes(id));
   // Standalone operator migration: no website cache/bootstrap or SQLite dependency.
+  // The REST transport needs its own auth-library header type, which can differ
+  // from the app's root version. Reuse the installed SDK dependency unchanged.
+  const sdkRequire=createRequire(createRequire(resolve('package.json')).resolve('@google-cloud/firestore'));
+  const gaxRequire=createRequire(sdkRequire.resolve('google-gax'));
+  const {OAuth2Client}=gaxRequire('google-auth-library') as typeof import('google-auth-library');
   const token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN,authClient=token?new OAuth2Client():undefined;
   authClient?.setCredentials({access_token:token});
-  const db=new Firestore({projectId:project,preferRest:true,...(authClient?{authClient}:{})});
+  const db=migrationDb=new Firestore({projectId:project,preferRest:true,...(authClient?{authClient}:{})});
   const inputs:{id:string;company:Record<string,unknown>;instrument:Instrument|undefined;companyDoc:DocumentSnapshot;instrumentDoc:DocumentSnapshot}[]=[];
   for(let offset=0;offset<selected.length;offset+=100){
     const ids=selected.slice(offset,offset+100),docs=await db.getAll(...ids.flatMap(id=>[db.collection('companies').doc(id),db.collection('instruments').doc(instrumentId(id))]));
@@ -50,4 +58,4 @@ async function main(){
   }
   console.log(JSON.stringify({mode:write?'written':'preview',selected:plan.length,skippedCompanies,written,backup}));
 }
-main().catch(()=>{console.error('Instrument migration stopped; inspect the saved backup and retry only after review');process.exitCode=1;});
+main().finally(()=>migrationDb?.terminate()).catch(()=>{console.error('Instrument migration stopped; inspect the saved backup and retry only after review');process.exitCode=1;});
