@@ -77,6 +77,8 @@ export async function prepareSecBulkFinancials(options:{bucket:Bucket;companyIds
     const meta=archives[kind]!,file=options.bucket.file(`${secBulkSnapshotPrefix(id)}${kind}.zip`,{generation:meta.generation});
     await file.setMetadata({temporaryHold:true});
     coverage[kind]=await (dependencies.extract??extractSelectedSecZip)({file,size:Number(meta.size),ciks:new Set(ciks),signal,save:(cik,bytes)=>saveSecBulkCompany(options.bucket,snapshot,kind,cik,bytes)});
+    const result=coverage[kind];
+    if(result.missing.length||result.selected.length!==ciks.length||ciks.some(cik=>!result.selected.includes(cik)))throw Error(`SEC bulk ${kind} issuer coverage incomplete; previous snapshot retained`);
   }
   // Immutable manifests are visible only after all selected JSON writes succeed.
   await publishSecBulkSnapshot(options.bucket,snapshot,generation);

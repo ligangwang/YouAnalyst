@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {bulkStorage} from '../helpers/bulk-storage';
 import {prepareSecBulkFinancials} from '../../src/lib/fundamentals/sec-bulk-producer';
-import {createSecBulkReader} from '../../src/lib/fundamentals/sec-bulk-storage';
+import {createSecBulkReader,publishSecBulkSnapshot} from '../../src/lib/fundamentals/sec-bulk-storage';
 
 test('bulk producer publishes only after both archives and every selected JSON write succeed; retries reuse scope',async()=>{
   const f=bulkStorage(),downloaded:string[]=[],extracted:string[]=[];
@@ -28,4 +28,28 @@ test('bulk producer publishes only after both archives and every selected JSON w
   assert.ok(![...f.rows.keys()].some(name=>name.includes('CIK0000789019')));
   const count=downloaded.length;assert.equal((await prepareSecBulkFinancials(options,deps)).reused,true);assert.equal(downloaded.length,count);
   assert.equal(extracted.length,4);
+});
+
+test('either archive missing an interested issuer preserves the previous published snapshot',async()=>{
+  for(const incomplete of ['companyfacts','submissions'] as const){
+    const f=bulkStorage();
+    const previous={version:1 as const,id:'2026-10-24-1234567890abcdef',capturedAt:'2026-10-24T10:00:00Z',companyIds:['US:AMD','US:MSFT'],ciks:['0000002488','0000789019']};
+    await publishSecBulkSnapshot(f.value,previous,0);
+    await assert.rejects(prepareSecBulkFinancials({bucket:f.value,companyIds:previous.companyIds,userAgent:'test',now:Date.parse('2026-10-25T10:00:00Z')},{
+      identify:async()=>new Map([['AMD','0000002488'],['MSFT','0000789019']]),
+      download:async(bucket,path)=>{
+        await bucket.file(path).save(Buffer.alloc(22),{metadata:{temporaryHold:true,metadata:{downloadedAt:'2026-10-25T10:00:00Z'}}});
+        return (await bucket.file(path).getMetadata())[0];
+      },
+      extract:async options=>{
+        const missing=options.file.name.endsWith(`${incomplete}.zip`)?['0000789019']:[];
+        const selected=[...options.ciks].filter(cik=>!missing.includes(cik));
+        for(const cik of selected)await options.save(cik,Buffer.from(JSON.stringify({cik:Number(cik)})));
+        return {entries:10_000,selected,missing};
+      },
+    }),new RegExp(`SEC bulk ${incomplete} issuer coverage incomplete`));
+    assert.deepEqual(await createSecBulkReader(f.value).latest(),previous);
+    assert.ok([...f.rows.values()].every(row=>!row.metadata.temporaryHold),'failed preparation releases both archive holds');
+    assert.equal([...f.rows.keys()].filter(name=>name.endsWith('/manifest.json')).length,1,'incomplete staging never gains a manifest');
+  }
 });
