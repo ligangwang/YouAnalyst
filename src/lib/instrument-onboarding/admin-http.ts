@@ -7,6 +7,7 @@ import {listInstrumentOnboarding} from './admin';
 import {retryInstrumentOnboarding} from './queue';
 import {validInstrumentId} from '../instruments/model';
 import {listInstrumentRequesters,validRequesterCursor} from './requesters';
+import {hasTrustedRequestOrigin} from '../request-origin';
 
 const dependencies={getUser:getDecodedUserFromRequest,isAdmin:isAdminUser,db:getAdminFirestore,list:listInstrumentOnboarding,requesters:listInstrumentRequesters,retry:retryInstrumentOnboarding};
 const headers={'Cache-Control':'private, no-store'};
@@ -27,7 +28,7 @@ export async function adminOnboardingResponse(request:NextRequest,deps=dependenc
     try{return json(await deps.list(deps.db(),cursor));}catch{return json({error:'Unable to load onboarding requests'},503);}
   }
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
-  const origin=request.headers.get('origin');if(origin&&origin!==request.nextUrl.origin)return json({error:'Invalid request origin'},403);
+  if(!hasTrustedRequestOrigin(request))return json({error:'Invalid request origin'},403);
   if(Number(request.headers.get('content-length'))>4096)return json({error:'Request too large'},413);
   let value:Record<string,unknown>;
   try{const body=await request.text();if(body.length>4096)return json({error:'Request too large'},413);value=JSON.parse(body);}catch{return json({error:'Invalid request'},400);}

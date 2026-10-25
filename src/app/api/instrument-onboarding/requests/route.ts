@@ -2,12 +2,12 @@ import {NextRequest,NextResponse} from 'next/server';
 import {getAdminFirestore,verifyIdToken} from '@/lib/firebase/admin';
 import {requestInstrumentOnboarding} from '@/lib/instrument-onboarding/queue';
 import {OnboardingBlocked} from '@/lib/instrument-onboarding/model';
+import {hasTrustedRequestOrigin} from '@/lib/request-origin';
 
 /** Record interest only. This route never dispatches or runs paid provider work. */
 export async function POST(request:NextRequest){
   try{
-    const origin=request.headers.get('origin');
-    if(origin&&origin!==request.nextUrl.origin)return NextResponse.json({error:'Invalid request origin'},{status:403});
+    if(!hasTrustedRequestOrigin(request))return NextResponse.json({error:'Invalid request origin'},{status:403});
     const token=request.headers.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
     if(!token)return NextResponse.json({error:'Sign in to request full support'},{status:401});
     let identity;
