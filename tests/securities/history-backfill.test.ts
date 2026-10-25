@@ -48,3 +48,18 @@ test('a failed write resumes from raw cache without another provider call',async
   clock+=86400001;f.setFail(false);
   assert.equal((await backfillPriceHistory(input)).completed,1);assert.equal(calls,1);
 });
+
+test('onboarding history has its own 2020 range receipt and bounded write batches',async()=>{
+  const f=fixture();let calls=0,batches=0;
+  f.docs.set('collectors/eod-history_US_MU',{from:'2025-12-31',status:'completed'});
+  const input={...f,tickers:['MU'],from:'2020-12-30',through:'2026-10-05',token:'test',writeBatchSize:1,
+    afterBatch:async()=>{batches++;},fetcher:async(url:string|URL|Request)=>{
+      calls++;assert.equal(new URL(String(url)).searchParams.get('from'),'2020-12-30');
+      return new Response(JSON.stringify([bar('2020-12-30'),bar('2020-12-31')]));
+    }};
+  const result=await backfillPriceHistory(input);
+  assert.equal(result.completed,1);assert.equal(result.created,2);assert.equal(batches,2);
+  assert.equal(f.docs.get('collectors/eod-history_US_MU_2020-12-30')?.from,'2020-12-30');
+  assert.equal(f.docs.get('collectors/eod-history_US_MU')?.from,'2025-12-31');
+  assert.equal((await backfillPriceHistory(input)).skipped,1);assert.equal(calls,1);
+});

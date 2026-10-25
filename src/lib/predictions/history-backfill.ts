@@ -35,11 +35,14 @@ export function historyBars(value: unknown, from: string, through: string): Bar[
 
 /** No prediction scoring or latest-price mutation: only fill missing historical documents. */
 export async function backfillPriceHistory(input: {
-  db: Firestore; bucket: Bucket; tickers: string[]; through: string; limit?: number;
+  db: Firestore; bucket: Bucket; tickers: string[]; through: string; from?: string; limit?: number;
+  writeBatchSize?: number; afterBatch?: () => Promise<void>;
   token: string; apiUrl?: string; fetcher?: typeof fetch; now?: () => number;
 }) {
   const { db, bucket, token, through } = input;
-  if (!validDate(through) || through < HISTORY_START) throw Error('Invalid backfill end date');
+  const from=input.from??HISTORY_START,batchSize=input.writeBatchSize??100;
+  if(!validDate(from)||!Number.isInteger(batchSize)||batchSize<1||batchSize>100)throw Error('Invalid backfill range or batch size');
+  if (!validDate(through) || through < from) throw Error('Invalid backfill end date');
   if (!Number.isInteger(input.limit ?? 5) || (input.limit ?? 5) < 1 || (input.limit ?? 5) > 1000) throw Error('Invalid backfill limit');
   const tickers = [...new Set(input.tickers)].sort();
   const now = input.now ?? Date.now;
@@ -49,40 +52,40 @@ export async function backfillPriceHistory(input: {
     const instrument = predictionInstrument(ticker);
     if (!instrument) { result.failures.push({ticker,reason:'unsupported_symbol'}); continue; }
     const providerSymbol=historyProviderSymbol(ticker);
-    const ref = db.collection('collectors').doc(`eod-history_${instrument.market}_${ticker}`);
+    const ref = db.collection('collectors').doc(`eod-history_${instrument.market}_${ticker}${from===HISTORY_START?'':`_${from}`}`);
     const claim = await db.runTransaction(async tx => {
       const doc = await tx.get(ref); const state = doc.data();
-      if (state?.status === 'completed' && state.from === HISTORY_START) return null;
+      if (state?.status === 'completed' && state.from === from) return null;
       if (Number(state?.leaseUntil) > now() || Number(state?.retryAfter) > now()) return null;
       if (result.completed + result.failures.length >= (input.limit ?? 5)) return null;
-      const end = state?.from === HISTORY_START && validDate(state.through) ? state.through : through;
+      const end = state?.from === from && validDate(state.through) ? state.through : through;
       const lease = now() + 20 * 60_000;
-      tx.set(ref, {from:HISTORY_START,through:end,status:'running',leaseUntil:lease,updatedAt:new Date(now()).toISOString()}, {merge:true});
+      tx.set(ref, {from:from,through:end,status:'running',leaseUntil:lease,updatedAt:new Date(now()).toISOString()}, {merge:true});
       return { end, lease };
     });
     if (!claim) { result.skipped++; continue; }
     try {
-      const file = bucket.file(`eod-history/${instrument.market}/${encodeURIComponent(ticker)}/${HISTORY_START}_${claim.end}.json`);
+      const file = bucket.file(`eod-history/${instrument.market}/${encodeURIComponent(ticker)}/${from}_${claim.end}.json`);
       let raw: unknown;
       try { raw = JSON.parse((await file.download())[0].toString('utf8')); }
       catch (error) {
         if (Number((error as {code?:number}).code) !== 404) throw Error('History cache read failed');
         if (!token) throw Error('EODHD credential unavailable');
         const url = new URL(`/api/eod/${providerSymbol}`, (input.apiUrl ?? process.env.EODHD_API_URL?.trim()) || 'https://eodhd.com');
-        url.search = new URLSearchParams({api_token:token,fmt:'json',period:'d',order:'a',from:HISTORY_START,to:claim.end}).toString();
+        url.search = new URLSearchParams({api_token:token,fmt:'json',period:'d',order:'a',from:from,to:claim.end}).toString();
         result.requested++;
         let response: Response;
         try { response = await fetcher(url, {signal:AbortSignal.timeout(30000),redirect:'error'}); }
         catch { throw Error('Historical provider request failed'); }
         if (!response.ok) throw Error(`Historical provider HTTP ${response.status}`);
         raw = await response.json();
-        historyBars(raw,HISTORY_START,claim.end);
+        historyBars(raw,from,claim.end);
         await file.save(JSON.stringify(raw), {resumable:false,contentType:'application/json',preconditionOpts:{ifGenerationMatch:0}});
       }
-      const bars = historyBars(raw,HISTORY_START,claim.end);
+      const bars = historyBars(raw,from,claim.end);
       const loadedAt = new Date(now()).toISOString();
-      for (let offset=0;offset<bars.length;offset+=100) {
-        const slice=bars.slice(offset,offset+100);
+      for (let offset=0;offset<bars.length;offset+=batchSize) {
+        const slice=bars.slice(offset,offset+batchSize);
         const refs=slice.map(row=>db.collection('eod_prices').doc(`${instrument.market}_${ticker}_${row.date}`));
         const stored=await db.getAll(...refs);
         await Promise.all(slice.map(async (row,i) => {
@@ -98,6 +101,7 @@ export async function backfillPriceHistory(input: {
             result.created++;
           } catch(error) { if (Number((error as {code?:number}).code) === 6) result.existing++; else throw Error('History document write failed'); }
         }));
+        await input.afterBatch?.();
       }
       await db.runTransaction(async tx => {
         const current=await tx.get(ref);
