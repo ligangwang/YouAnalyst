@@ -13,6 +13,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
+  const [featuredCount,setFeaturedCount]=useState<number|null>(null);
   const auth=useOptionalAuth();
   const [requests,setRequests]=useState<Record<string,NonNullable<SearchSuggestion['supportState']>>>({});
   const [pending,setPending]=useState<string|null>(null),[requestError,setRequestError]=useState<string|null>(null);
@@ -23,6 +24,14 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const listId = useId(), composing = useRef(false);
   const queuedQuery = useRef<string | null>(null), destination = useRef({onSelect, locale});
   useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
+  useEffect(()=>{
+    if(!enabled||(!inline&&!open)||featuredCount!==null)return;
+    const controller=new AbortController();
+    void fetch('/api/tickers/search?scope=covered&limit=1',{signal:controller.signal,cache:'no-store'})
+      .then(async response=>{if(!response.ok)return;const data=await response.json();if(!controller.signal.aborted&&Number.isSafeInteger(data.total)&&data.total>=0)setFeaturedCount(data.total);})
+      .catch(()=>{});
+    return()=>controller.abort();
+  },[enabled,inline,open,featuredCount]);
   const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
@@ -116,7 +125,8 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     {requestError&&<p role="alert">{requestError}</p>}
     {error ? <p role="alert">{text('Search unavailable. Try again.', '搜索暂时不可用，请重试。')}</p> : busy && searched ? <p role="status">{text('Searching…', '搜索中…')}</p> : searched && results?.query === searched && !items.length ? <p role="status">{text('No companies match your search.', '未找到匹配的公司。')}</p> : null}
   </>;
-  const coverageHint = <p className={styles.coverageHint}>{text('All companies · Request full support', '全部公司 · 可申请完整支持')}</p>;
+  const formattedCount=featuredCount===null?null:new Intl.NumberFormat(locale).format(featuredCount);
+  const coverageHint = <p className={styles.coverageHint}>{formattedCount===null?text('Stocks featured','精选股票'):text(`${formattedCount} ${featuredCount===1?'stock':'stocks'} featured`,`已精选 ${formattedCount} 只股票`)}</p>;
   if (inline) return <div className={styles.embedded} data-company-search-owner={owner}>
     <div ref={panel} className={`${styles.panel} ${styles.inline}`} data-company-search={open || undefined} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) close(); }}>
       <div className={styles.searchField}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>{field}</div>

@@ -137,7 +137,7 @@ test("Chinese listings can be found and selected through the comparison picker",
   expect(new URL((await search).url()).searchParams.get("scope")).toBe("directory");
   await page.getByRole("option", { name: /贵州茅台/ }).click();
   await expect(page.getByRole("button", { name: "Remove XSHG:600519", exact: true })).toBeVisible();
-  await expect(page.locator('main').getByText("All companies · Request full support", {exact:true})).toBeVisible();
+  await expect(page.locator('main').getByText("178 stocks featured", {exact:true})).toBeVisible();
 });
 
 test("copied widget works inside a foreign website with its theme, watermark and playback", async ({ page, context }) => {

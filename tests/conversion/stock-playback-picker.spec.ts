@@ -142,7 +142,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   expect((await editor.boundingBox())!.height).toBeLessThan(140);
   await toggle.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  const hint = page.getByText(chinese ? '全部公司 · 可申请完整支持' : 'All companies · Request full support', { exact: true });
+  const hint = page.getByText(chinese ? '已精选 178 只股票' : '178 stocks featured', { exact: true });
   await expect(hint).toBeVisible();
   const input = page.getByRole('combobox', { name: chinese ? '搜索公司' : 'Search company', exact: true });
   const inputBox = await input.boundingBox(), hintBox = await hint.boundingBox();
@@ -151,7 +151,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   await page.getByRole('option', { name: /贵州茅台/ }).click();
   await expect(page.getByRole('button', { name: chinese ? '移除 XSHG:600519' : 'Remove XSHG:600519', exact: true })).toBeVisible();
   await expect(input).toHaveValue('');
-  expect(requests.every(url => url.searchParams.get('scope') === 'directory')).toBe(true);
+  expect(requests.every(url => url.searchParams.get('scope') === (url.searchParams.has('q')?'directory':'covered'))).toBe(true);
   await page.getByRole('button', { name: '5Y', exact: true }).click();
   const from = page.getByLabel(chinese ? '起始日期' : 'From', { exact: true });
   await expect(from).toHaveValue('2020-12-31');

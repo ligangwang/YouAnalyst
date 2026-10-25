@@ -96,6 +96,8 @@ set it only after normal issuer and instrument maintenance is verified.
 Universal search uses bounded indexed `scope=directory` queries, not a full scan or
 synthetic editorial companies. It reads instrument summaries and canonical issuer
 links in bounded batches. Public results expose no private queue errors or leases.
+Its hint reads "{count} stocks featured" using the existing supported-company
+count endpoint; the count does not restrict directory search results.
 
 `POST /api/instrument-onboarding/requests` accepts `{instrumentId, listingId?}`.
 A registered non-anonymous Firebase bearer token is verified before Firestore

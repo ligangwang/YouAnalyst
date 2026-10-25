@@ -47,8 +47,8 @@ async function open(page: Page, query = "", delayMs = 0) {
     const url = new URL(request.url());
     if (url.origin !== origin || request.method() !== "GET") return route.abort();
     if (url.pathname === "/api/tickers/search") {
+      if (!url.searchParams.get('q')) {expect(url.searchParams.get('scope')).toBe('covered');return route.fulfill({ json: { items: [], total: 123 } });}
       expect(url.searchParams.get('scope')).toBe('directory');
-      if (!url.searchParams.get('q')) return route.fulfill({ json: { items: [], total: 123 } });
       searches.push(url.search);
       if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
       const q = url.searchParams.get("q")?.toUpperCase() ?? "";
@@ -132,8 +132,8 @@ test('page search is directly visible, header focuses it and suggestions stay be
  page.on('request', request => { const url = new URL(request.url()); if (url.pathname === '/api/tickers/search' && !url.searchParams.get('q')) countRequests++; });
  await open(page);
  await expect(input(page)).toBeVisible();await expect(input(page)).not.toBeFocused();
- await expect(page.getByText('All companies · Request full support', {exact:true})).toBeVisible();
- expect(countRequests).toBe(0);
+ await expect(page.getByText('123 stocks featured', {exact:true})).toBeVisible();
+ expect(countRequests).toBe(1);
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  await expect(input(page)).toBeFocused();await expect(page.getByRole('dialog')).toHaveCount(0);
  await input(page).fill('nvidia');await expect(page.getByRole('option')).toHaveCount(2);
