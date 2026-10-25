@@ -25,6 +25,9 @@ test('supported membership is explicit and excludes queued, deleted and hidden c
   assert.deepEqual(graph.nodes.map(node=>node.id),['US:A','XSHE:000001']);
   assert.equal(graph.nodes[1].market,'CN_A');
   assert.deepEqual(graph.relationships,[]);
+  const legacy={...supported,themeMemberships:undefined,inGraph:{status:'PUBLISHED',stageIds:['compute']}};
+  assert.deepEqual(supportedCompanyUniverse([legacy]).nodes[0].stageIds,['compute']);
+  assert.deepEqual(supportedCompanyUniverse([{...legacy,themeMemberships:{ai:{...member,status:'WITHDRAWN'}}}]).nodes[0].stageIds,[]);
 });
 
 test('migration grandfathers published coverage including legacy AI, but never overrides an active request',()=>{

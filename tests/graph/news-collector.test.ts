@@ -23,7 +23,7 @@ const entry=(id:string)=>`<item><title>Announcement ${id}</title><link>https://n
 
 test('database-only company feeds reach collection, public news and calendar validation without a static adapter',async()=>{
   const feed={id:'new-company-ir',companyId:'US:NEW',name:'New company IR',url:'https://ir.newcompany.com/rss.xml',allowedHosts:['ir.newcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
-  const docs=[{id:'US:NEW',data:()=>({name:'New company',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[feed]})}];
+  const docs=[{id:'US:NEW',data:()=>({name:'New company',status:'DIRECTORY',onboarding:onboarding(),themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[feed]})}];
   const query={where:()=>query,get:async()=>({docs}),doc:()=>({get:async()=>({data:()=>({enabled:false})})})};
   const configs=await loadNewsSources(withThemeCatalog({collection:()=>query} as unknown as Firestore));
   assert.equal(configs.length,1);assert.equal(configs[0].id,feed.id);

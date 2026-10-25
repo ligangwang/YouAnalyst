@@ -28,11 +28,18 @@ export function supportedCompanyUniverse(records: ThemedCompany[]): KnowledgeGra
     symbol: String(company.symbol ?? (company.id.startsWith('ORG:') ? '' : company.id.split(':')[1])),
     market: company.id.startsWith('US:') ? 'US' : /^(XSHG|XSHE):/.test(company.id) ? 'CN_A' : 'GLOBAL',
     ...companyGeography(company), order: 1000,
-    stageIds: [...new Set(Object.values(company.themeMemberships ?? {})
-      .filter(member => member.status === 'PUBLISHED').map(member => member.primarySector))],
+    stageIds: supportedCompanyStages(company),
     names: company.names as GraphNode['names'],
     ...(typeof company.slug === 'string' ? {slug: company.slug} : {}),
     aliases: Array.isArray(company.aliases) ? company.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
   }));
   return {nodes, relationships: [], sources: [], asOf: ''};
+}
+
+function supportedCompanyStages(company: ThemedCompany) {
+  const legacy=company.inGraph as {status?:string;stageIds?:unknown} | undefined;
+  const stages=legacy?.status==='PUBLISHED' && !company.themeMemberships?.ai && Array.isArray(legacy.stageIds)
+    ? legacy.stageIds.filter((stage):stage is string=>typeof stage==='string') : [];
+  return [...new Set([...stages,...Object.values(company.themeMemberships ?? {})
+    .filter(member=>member.status==='PUBLISHED').map(member=>member.primarySector)])];
 }

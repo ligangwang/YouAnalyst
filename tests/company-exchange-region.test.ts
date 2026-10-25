@@ -13,15 +13,14 @@ test('listing region follows canonical identity, including US ADRs', () => {
   assert.equal(exchangeRegion('UNKNOWN:ABC'), null);
 });
 
-test('SEC company scope sends both predicates to Firestore before reading documents', async () => {
+test('SEC company scope uses the single supported index without requiring a composite region index', async () => {
   const predicates: unknown[][] = [];
   let reads = 0;
   const query = {
     where(...args: unknown[]) { predicates.push(args); return query; },
     async get() {
       assert.deepEqual(predicates, [
-        ['themeIds', 'array-contains-any', ['ai', 'robotics', 'space']],
-        ['exchange_region', '==', 'US'],
+        ['onboarding.status', '==', 'SUPPORTED'],
       ]);
       reads++;
       return { docs: [] };
