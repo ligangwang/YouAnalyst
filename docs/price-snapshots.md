@@ -10,6 +10,8 @@ New daily requests and historical roll-forward use [per-company queued processin
 
 ## Website snapshots
 
+Raw EODHD exchange JSON has [seven-day retention](sec-bulk-financials.md#retention), with active company runs and legacy readers excluded from cleanup. Persisted price history and website snapshots are outside that cleanup prefix.
+
 Each price SQLite file contains one market/ticker/year, for example `price-snapshots/US/NVDA/2026.sqlite`. The website never opens a whole-price directory. Recognized single-ticker document-ID queries and exact document reads load only matching years, newest first for descending queries, stopping once the requested limit is satisfied. Broad maintenance queries remain authoritative Firestore reads.
 
 An instance shares concurrent partition downloads and keeps up to 128 partitions with live subscriptions. Each subscription is restricted to that ticker/year and indexed `updatedAt`, catching up from the file watermark and reconnecting inclusively. Missing files fall back only to that ticker/year. A bounded in-memory ticker listing identifies existing historical years; it is refreshed daily, and the requested end year is always considered. Transaction reads bypass snapshots.

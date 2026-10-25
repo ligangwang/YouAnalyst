@@ -10,6 +10,8 @@ import { backfillLatestEod } from "../src/lib/predictions/backfill-latest-eod";
 import { verifyFundamentalsDelivery } from "../src/lib/fundamentals/pubsub-batch";
 import { publishFundamentalsMessage } from "../src/lib/fundamentals/pubsub";
 import {queueFundamentalsSeeding} from '../src/lib/fundamentals/seed-queue';
+import {prepareSecBulkFinancials} from '../src/lib/fundamentals/sec-bulk-producer';
+import {getAdminStorageBucket} from '../src/lib/firebase/admin';
 
 const log = createMaintenanceLog("refresh-sec-fundamentals");
 async function main() {
@@ -24,6 +26,16 @@ async function main() {
     return;
   }
   const lease = db.collection(FUNDAMENTALS_COLLECTION).doc("_worker");
+  if(process.env.SEC_BULK_FINANCIALS_ENABLED==='1'&&!process.argv.includes('--seed-only')&&!process.argv.includes('--backfill-latest-only')){
+    const companyIds=await loadFundamentalsCompanyIds(db,'US'),bulkLease=db.collection(FUNDAMENTALS_COLLECTION).doc('_seed_pipeline');
+    if(!await acquireMaintenanceLease(bulkLease,log.runId))throw Error('SEC bulk preparation is active');
+    try{
+      if((await bulkLease.get()).get('activeRequest'))throw Error('Previous seed pipeline is unfinished');
+      log.stage('prepare_sec_bulk');
+      const result=await prepareSecBulkFinancials({bucket:getAdminStorageBucket(process.env.ENTITY_SNAPSHOT_BUCKET),companyIds,userAgent:process.env.SEC_USER_AGENT});
+      log.emit('INFO','sec_bulk_ready',{snapshot:result.snapshot.id,companies:result.snapshot.companyIds.length,issuers:result.snapshot.ciks.length,reused:result.reused,coverage:result.coverage});
+    }finally{await releaseMaintenanceLease(bulkLease,log.runId);}
+  }
   if (!await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) throw new Error("Another fundamentals worker holds the lease");
   try {
     if (process.argv.includes("--backfill-latest-only")) {

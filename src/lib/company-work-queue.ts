@@ -39,7 +39,8 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
     if(!run?.request||digest(run.request)!==digest(request))throw Error('Unknown company run');
     if(run.completed)return {duplicate:true,batchId:request.batchId};
     await db.runTransaction(async tx=>{
-      const active=(await tx.get(state)).get('activeRequest');
+      const pipeline=await tx.get(state),active=pipeline.get('activeRequest');
+      if(Number(pipeline.get('leaseExpiresAtMs'))>Date.now())throw Error('Company pipeline maintenance is active');
       if(active&&active.batchId!==request.batchId)throw Error('Previous company run is unfinished');
       tx.set(state,{activeRequest:request},{merge:true});
     });

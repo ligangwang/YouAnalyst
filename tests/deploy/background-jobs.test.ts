@@ -171,6 +171,14 @@ test('web publisher bootstrap needs no beta component or worker image',()=>{
   assert.doesNotMatch(r.calls,/beta |run deploy|builds submit/);
 });
 
+test('SEC financial bulk uses the existing private snapshot bucket and normal nightly publisher',()=>{
+  const r=run('sec-fundamentals');assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/demo-snapshots.*roles\/storage.objectUser/);
+  assert.match(r.calls,/run jobs deploy refresh-sec-fundamentals-production.*SEC_BULK_FINANCIALS_ENABLED=1/);
+  assert.match(r.calls,/run deploy sec-fundamentals-subscriber.*SEC_BULK_FINANCIALS_ENABLED=1/);
+  assert.doesNotMatch(r.calls,/run jobs execute|storage buckets create|scheduler jobs (pause|resume)/);
+});
+
 test('enabled news requires its key before building even without calendar extraction',()=>{
   const missing=run('intelligence-news',{INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',CALENDAR_EXTRACTION_ENABLED:'0',OPENAI_API_KEY:''});
   assert.notEqual(missing.status,0);

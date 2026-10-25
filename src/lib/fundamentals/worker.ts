@@ -8,16 +8,17 @@ import { secRequest } from "../sec-request";
 import { assessShares } from "./market-cap";
 import type { SecFilingDiscovered } from "../sec-filings/event";
 import { changeCached } from '../change-cache';
+import {scopedSecFinancialJson} from './sec-bulk-scope';
 
 const DAY = 86_400_000;
 class SecFilingPendingError extends Error {
   constructor(message: string, readonly code = "SEC_FILING_SUBMISSIONS_UNRESOLVED") { super(message); }
 }
 async function secJson<T>(url: string): Promise<T> {
-  return secRequest(url, {
+  return scopedSecFinancialJson(url,()=>secRequest(url, {
     headers: { "user-agent": process.env.SEC_USER_AGENT?.trim() || "YouAnalyst/1.0 (https://youanalyst.com)", accept: "application/json" },
     cache: "no-store", signal: AbortSignal.timeout(12_000),
-  }, response => response.json() as Promise<T>, { operation: "fundamentals_json" });
+  }, response => response.json() as Promise<T>, { operation: "fundamentals_json" }));
 }
 
 async function resolveCik(ticker: string): Promise<string | null> {

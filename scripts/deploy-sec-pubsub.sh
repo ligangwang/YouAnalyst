@@ -53,7 +53,7 @@ gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-sec-fundamentals.cjs --min-instances 0 --max-instances 1 \
   --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_RESULT_TOPIC=$result|FUNDAMENTALS_SUBSCRIPTION=$subscription$filing_env|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}$sec_download_env" --quiet
+  --set-env-vars "^|^ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_RESULT_TOPIC=$result|FUNDAMENTALS_SUBSCRIPTION=$subscription|SEC_BULK_FINANCIALS_ENABLED=1$filing_env|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}$sec_download_env" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
