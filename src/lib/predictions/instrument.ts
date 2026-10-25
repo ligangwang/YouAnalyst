@@ -11,8 +11,11 @@ export function predictionInstrument(raw: string) {
   return { ticker, companyId: `US:${ticker}`, market: "US" as const, currency: "USD", timeZone: "America/New_York", providerSymbol: `${ticker}.US`, exchange: "US" };
 }
 
+const dateFormatters:Partial<Record<PredictionMarket,Intl.DateTimeFormat>>={};
 export function marketDate(market: PredictionMarket, now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: market === "CN_A" ? "Asia/Shanghai" : "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const key=market==='CN_A'?'CN_A':'US';
+  const formatter=dateFormatters[key]??=new Intl.DateTimeFormat("en-CA", { timeZone: key === "CN_A" ? "Asia/Shanghai" : "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+  return formatter.format(now);
 }
 
 // Never assign today's already-known Chinese close to a new call or close request.

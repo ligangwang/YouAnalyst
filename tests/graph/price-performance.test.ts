@@ -2,10 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {completedCloseDate,dailyPrice,eventPriceReturn,priceBars,signedPercent} from '../../src/lib/intelligence/price-performance';
 import type {IntelligenceEvent} from '../../src/lib/intelligence/model';
+import {marketDate} from '../../src/lib/predictions/instrument';
 
 const event=(at:string|null,day='2026-10-02'):IntelligenceEvent=>({id:'e',origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:'News',summary:'',published_at:at,publication_date:day,eventDate:null,planned:false,evidence:[]});
 const bars=priceBars([{date:'2026-10-01',close:100},{date:'2026-10-02',close:110},{date:'2026-10-05',close:121}],'2026-10-05');
 const now=new Date('2026-10-06T16:00:00Z');
+
+test('reused market clocks preserve alternating dates, DST offsets and the exact closing instant',()=>{
+  for(let pass=0;pass<2;pass++){
+    assert.equal(marketDate('US',new Date('2026-03-08T04:30:00Z')),'2026-03-07');
+    assert.equal(marketDate('CN_A',new Date('2026-03-08T04:30:00Z')),'2026-03-08');
+    assert.equal(marketDate('US',new Date('2026-03-09T04:30:00Z')),'2026-03-09');
+    assert.equal(completedCloseDate('US',new Date('2026-01-06T21:00:00Z')),'2026-01-05');
+    assert.equal(completedCloseDate('CN_A',new Date('2026-01-06T07:00:01Z')),'2026-01-06');
+    assert.equal(completedCloseDate('US',new Date('2026-07-06T20:00:01Z')),'2026-07-06');
+    assert.equal(completedCloseDate('US',new Date('2026-01-06T21:00:01Z')),'2026-01-06');
+  }
+});
 
 test('daily change uses consecutive available sessions, validates prices and excludes future bars',()=>{
   assert.equal(completedCloseDate('US',new Date('2026-10-06T19:59:59Z')),'2026-10-05');

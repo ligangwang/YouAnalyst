@@ -7,6 +7,8 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { renderToPipeableStream } from 'react-dom/server';
 import { initialSnapshotWithinBudget } from '../../src/lib/intelligence/initial-snapshot';
+import {enableCompanyDirectory,companyDirectoryEnabled} from '../../src/lib/local-cache/company-directory';
+import type {Firestore} from 'firebase-admin/firestore';
 
 async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100,loadCatalog=async()=>legacyCatalog){
   const external=['@/lib/company-themes/catalog','@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
@@ -54,6 +56,25 @@ test('a stalled snapshot finishes HTML with the existing API loader instead of h
   const rendered=streamPage(await pageWithSnapshot(()=>new Promise(()=>{}),25));
   await rendered.shell;await rendered.done;
   assert.match(rendered.html(),/Client API loader/);
+});
+
+test('homepage snapshot keeps targeted reads after the HTML budget expires without leaking scope',async()=>{
+  const db={} as Firestore;enableCompanyDirectory(db,db,{sync:false});
+  let release!:()=>void,finished!:()=>void;
+  const blocked=new Promise<void>(resolve=>{release=resolve;});
+  const done=new Promise<void>(resolve=>{finished=resolve;});
+  const policies:boolean[]=[];
+  const rendered=streamPage(await pageWithSnapshot(async()=>{
+    policies.push(companyDirectoryEnabled(db));
+    await blocked;
+    policies.push(companyDirectoryEnabled(db,'company_fundamentals'));
+    finished();return {graphVersion:'complete'};
+  },5));
+  await rendered.done;assert.match(rendered.html(),/Client API loader/);
+  assert.equal(companyDirectoryEnabled(db),true,'render completion restores the caller bulk policy');
+  release();await done;
+  assert.deepEqual(policies,[false,false],'continued snapshot work cannot start cold whole-market file reads');
+  assert.equal(companyDirectoryEnabled(db),true);
 });
 
 test('a stalled catalog also releases the page to the client loader within the render budget',async()=>{
