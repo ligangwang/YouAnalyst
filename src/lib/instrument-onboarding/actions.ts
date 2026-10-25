@@ -3,6 +3,27 @@ import type {Bucket} from '@google-cloud/storage';
 import {ONBOARDING_START,validDay,OnboardingBlocked} from './model';
 
 type Action={date:string;split?:string;value?:number;currency?:string;[key:string]:unknown};
+
+/** Read back the frozen backfill and stored events before instrument admission. */
+export async function verifyOnboardingActions(input:{db:Firestore;bucket:Bucket;ticker:string;market:string;providerSymbol:string;through:string;guard:()=>Promise<void>}){
+  for(const type of ['split','dividend'] as const){
+    await input.guard();
+    const path=`eod-history/actions/${input.market}/${encodeURIComponent(input.ticker)}/${ONBOARDING_START}_${input.through}/${type}.json`;
+    const events=onboardingActions(JSON.parse((await input.bucket.file(path).download())[0].toString('utf8')),type,input.through);
+    for(let i=0;i<events.length;i+=100){
+      await input.guard();const page=events.slice(i,i+100);
+      const docs=await input.db.getAll(...page.map(event=>input.db.collection('corporate_actions').doc(`${input.market}_${input.ticker}_${type}_${event.date}`)));
+      for(let n=0;n<page.length;n++){
+        const stored=docs[n].data(),event=page[n];
+        if(!stored||stored.status!=='completed'||stored.market!==input.market||stored.ticker!==input.ticker||stored.providerSymbol!==input.providerSymbol||stored.type!==type||stored.effectiveDate!==event.date||stored.source!==(type==='split'?'eodhd-splits':'eodhd-dividends'))throw new OnboardingBlocked('Stored corporate actions require repair');
+        if(type==='split'){
+          const [a,b]=event.split!.split('/').map(Number);
+          if(stored.splitNumerator!==a||stored.splitDenominator!==b||stored.splitFactor!==a/b)throw new OnboardingBlocked('Stored split ratio requires repair');
+        }else if(stored.sourcePayload?.value!==event.value||stored.sourcePayload?.currency!==event.currency)throw new OnboardingBlocked('Stored dividend requires repair');
+      }
+    }
+  }
+}
 async function actionBody(response:Response){
   const reader=response.body?.getReader();if(!reader)throw Error('Empty corporate action response');
   const chunks:Buffer[]=[];let size=0;

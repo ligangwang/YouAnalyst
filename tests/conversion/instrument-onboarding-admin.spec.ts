@@ -48,9 +48,9 @@ test('admin sees separated readiness and can retry just the failed step',async({
   await expect(page.getByRole('button',{name:'Queuing…',exact:true})).toBeDisabled();
   await expect(page.getByText('Failed step queued for retry. Completed steps were preserved.',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Retry failed step',exact:true})).toBeDisabled();
-  expect(writes).toBe(1);await expect(page.locator('li[data-complete=true]')).toHaveCount(6);
-  await expect(page.locator('ol li')).toHaveCount(9);
-  await expect(page.locator('ol li').filter({hasText:/\bgraph\b/})).toHaveCount(0);
+  expect(writes).toBe(1);await expect(page.locator('li[data-complete=true]')).toHaveCount(5);
+  await expect(page.locator('ol li')).toHaveCount(7);
+  await expect(page.locator('ol li').filter({hasText:/\b(graph|fundamentals|metrics)\b/})).toHaveCount(0);
 });
 
 test('non-admin cannot view onboarding requests or retry controls',async({page})=>{

@@ -14,8 +14,6 @@ export type OnboardingRequest={
   leaseOwner:string|null;leaseExpiresAt:number;lastError:string|null;
 };
 export class OnboardingBlocked extends Error {}
-/** A scheduled dependency is pending, rather than a failed onboarding attempt. */
-export class OnboardingWaiting extends Error {}
 export const validRequesterUid=(uid:unknown):uid is string=>typeof uid==='string'&&uid.length>0&&uid.length<=128;
 export const validDay=(day:string)=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day;
 
@@ -53,8 +51,8 @@ export function parseOnboardingRequest(value:unknown):OnboardingRequest{
   const v=value as OnboardingRequest;
   if(!v||v.version!==1||!validRequesterUid(v.requestedByUid)||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
     ||!validDay(v.targetThrough)||v.targetThrough<ONBOARDING_START||!Number.isFinite(Date.parse(v.requestedAt))||!Number.isFinite(Date.parse(v.updatedAt))
-    // Retain readability of staged checkpoints from before graph was removed.
-    ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>(k!=='graph'&&!ONBOARDING_STEPS.includes(k as OnboardingStep))||s!=='COMPLETE')
+    // Retain readability of staged checkpoints from before optional maintenance gates were removed.
+    ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>(!['graph','fundamentals','metrics'].includes(k)&&!ONBOARDING_STEPS.includes(k as OnboardingStep))||s!=='COMPLETE')
     ||!Number.isSafeInteger(v.attemptCount)||v.attemptCount<0||!Number.isFinite(v.nextAttemptAt)||v.nextAttemptAt<0||!Number.isFinite(v.leaseExpiresAt)||v.leaseExpiresAt<0
     ||(v.leaseOwner!==null&&typeof v.leaseOwner!=='string'))throw Error('Invalid onboarding request');
   return v;

@@ -9,23 +9,14 @@ import {isSupportedCompany} from '../company-support/model';
 import type {Instrument} from '../instruments/model';
 import {backfillPriceHistory,historyBars,historyProviderSymbol} from '../predictions/history-backfill';
 import {saveLatestEodPrice} from '../predictions/latest-eod';
-import {refreshCompanyMarketCaps} from '../fundamentals/market-cap';
-import {refreshCnFundamentals} from '../fundamentals/cn-refresh';
-import {createCnRequester,createCnSources} from '../fundamentals/cn-sources';
 import type {MaintenanceLog} from '../maintenance-log';
-import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
-import {ONBOARDING_START,OnboardingBlocked,OnboardingWaiting,instrumentOnboardingIdentity,validDay,type OnboardingRequest} from './model';
+import {ONBOARDING_START,OnboardingBlocked,instrumentOnboardingIdentity,validDay,type OnboardingRequest} from './model';
 import type {OnboardingHandlers} from './queue';
-import {backfillOnboardingActions} from './actions';
+import {backfillOnboardingActions,verifyOnboardingActions} from './actions';
 
 /** Adapters use existing provider workers and existing feature storage only. */
 export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
   const {db,bucket,log}=options;
-  const withFinancialLease=async(market:string,work:()=>Promise<void>)=>{
-    const lease=db.collection('company_fundamentals').doc(market==='US'?'_worker':'_cn_worker');
-    if(!await acquireMaintenanceLease(lease,log.runId))throw Error('Financial maintenance is active');
-    try{await work();}finally{await releaseMaintenanceLease(lease,log.runId);}
-  };
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
     const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
@@ -39,19 +30,6 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     }
     return ids;
   };
-  const financials=async(request:OnboardingRequest,record:Instrument)=>{
-    const company=await current(request.companyId),{instrument,cik}=instrumentOnboardingIdentity(record,company);
-    const data=(await db.collection('company_fundamentals').doc(request.companyId).get()).data();
-    const annual=instrument.market==='US'?data?.value:data?.cnAnnual;
-    if(!annual||!Array.isArray(annual.metrics)||!annual.metrics.some((metric:{value:unknown})=>typeof metric.value==='number'&&Number.isFinite(metric.value))){
-      if(instrument.market==='US'&&['error','retry'].includes(data?.outcome))throw new OnboardingBlocked('SEC financial refresh requires an administrator retry');
-      if(data?.outcome==='unavailable')throw new OnboardingBlocked('Required financial metrics are unavailable');
-      throw new OnboardingWaiting('Waiting for scheduled company fundamentals');
-    }
-    if(cik&&String(annual.report?.cik).padStart(10,'0')!==cik)throw new OnboardingBlocked('Financial report issuer does not match the company');
-    if(instrument.market==='CN_A'&&annual.companyId!==request.companyId)throw new OnboardingBlocked('Financial report issuer does not match the company');
-    return data!;
-  };
   const priceHistory=async(request:OnboardingRequest,record:Instrument)=>{
     const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
     const receipt=(await db.collection('collectors').doc(`eod-history_${instrument.market}_${instrument.ticker}_${ONBOARDING_START}_${request.targetThrough}`).get()).data();
@@ -63,11 +41,9 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   };
   const ready=async(request:OnboardingRequest,record:Instrument,guard:()=>Promise<void>)=>{
     if(!isSupportedCompany(await current(request.companyId)))throw Error('Company is not ready');
-    await financials(request,record);
-    const financial=(await db.collection('company_fundamentals').doc(record.providerSymbols.youanalyst).get()).data();
-    if(!financial?.marketCap||!['estimated','unavailable'].includes(financial.marketCap.status))throw Error('Derived metrics are not ready');
     if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
     const {instrument,bars}=await priceHistory(request,record);
+    await verifyOnboardingActions({db,bucket,ticker:instrument.ticker,market:instrument.market,providerSymbol:historyProviderSymbol(instrument.ticker),through:request.targetThrough,guard});
     for(let i=0;i<bars.length;i+=100){
       await guard();const page=bars.slice(i,i+100),docs=await db.getAll(...page.map(bar=>db.collection('eod_prices').doc(`${instrument.market}_${instrument.ticker}_${bar.date}`)));
       for(let n=0;n<page.length;n++){
@@ -110,25 +86,6 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       if(result.failures.length)throw Error('Historical price backfill incomplete');
       const {bars}=await priceHistory(request,record),last=bars.at(-1)!;
       await guard();await saveLatestEodPrice(db,{ticker:instrument.ticker,market:instrument.market,tradingDate:last.date,close:last.close,currency:instrument.currency,source:'eodhd-eod',loadedAt:new Date().toISOString()});
-    },
-    fundamentals:async({request,instrument:record,guard})=>{
-      await guard();
-      // Company admission already enrolled the issuer in normal maintenance.
-      // Read its result here; onboarding never starts another financial collector.
-      await financials(request,record);
-    },
-    metrics:async({request,instrument:record,guard})=>{
-      await guard();const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
-      await financials(request,record);
-      await withFinancialLease(instrument.market,async()=>{if(instrument.market==='US'){
-        const result=await refreshCompanyMarketCaps(db,log,[instrument.ticker]);if(result.failed)throw Error('Market cap calculation failed');
-      }else{
-        const sources=createCnSources(createCnRequester({context:{runId:log.runId,job:'onboarding',company:request.companyId}}));
-        const result=await refreshCnFundamentals({db,companies:[request.companyId],sources,log,deadline:Date.now()+180_000});
-        const stored=(await db.collection('company_fundamentals').doc(request.companyId).get()).data();
-        if(result.failed||result.sourcesIncomplete||result.actions.failed||result.actions.skipped||result.shares.failed||result.shares.skipped||result.marketCaps.failed||(result.shares.deferred&&stored?.cnShareStatus?.outcome!=='unavailable'))throw Error('A-share metrics incomplete');
-      }});
-      await financials(request,record);
     },
     events:async({request})=>{
       if(isSupportedCompany(await current(request.companyId)))return;

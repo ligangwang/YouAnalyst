@@ -5,7 +5,7 @@ import {isSupportedCompany} from '../company-support/model';
 import {instrumentId,validInstrumentId,instrumentFromCompany,validateInstrument,type Instrument} from '../instruments/model';
 import {maintenanceError} from '../maintenance-log';
 import {REQUESTERS_COLLECTION,requesterId} from './requesters';
-import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,OnboardingWaiting,type OnboardingRequest,type OnboardingStep} from './model';
+import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
 
 const LEASE_MS=20*60_000;
 const companyStep=(step:OnboardingStep)=>COMPANY_STEPS.includes(step as typeof COMPANY_STEPS[number]);
@@ -81,7 +81,7 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     }
     const current={...request,steps:{...request.steps},status:'PROCESSING' as const,leaseOwner:owner,leaseExpiresAt:clock()+LEASE_MS,updatedAt:new Date(clock()).toISOString()};
     const through=createOnboardingRequest(id,context.instrument,context.company,request.requestedByUid,new Date(clock())).targetThrough;
-    if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','metrics','verify'] as const)delete current.steps[key];}
+    if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','verify'] as const)delete current.steps[key];}
     const step=ONBOARDING_STEPS.find(key=>current.steps[key]!=='COMPLETE')??'verify';
     if(companyStep(step)){
       const siblings=await tx.get(db.collection(ONBOARDING_COLLECTION).where('companyId','==',request.companyId));
@@ -123,12 +123,12 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     await db.runTransaction(async tx=>{
       const current=parseOnboardingRequest((await tx.get(ref)).data());if(current.leaseOwner!==owner||current.leaseExpiresAt<=clock())return;
       const [inst,company]=await tx.getAll(db.collection('instruments').doc(id),db.collection('companies').doc(current.companyId));
-      const waiting=error instanceof OnboardingWaiting,attemptCount=waiting?current.attemptCount:current.attemptCount+1,blocked=!waiting&&(error instanceof OnboardingBlocked||attemptCount>=8);
-      tx.set(ref,{...current,status:blocked?'BLOCKED':'QUEUED',attemptCount,nextAttemptAt:blocked?0:clock()+(waiting?15*60_000:Math.min(6*3600_000,60_000*2**(attemptCount-1))),leaseOwner:null,leaseExpiresAt:0,lastError:`${step}: ${privateReason}`,updatedAt:new Date(clock()).toISOString()});
+      const attemptCount=current.attemptCount+1,blocked=error instanceof OnboardingBlocked||attemptCount>=8;
+      tx.set(ref,{...current,status:blocked?'BLOCKED':'QUEUED',attemptCount,nextAttemptAt:blocked?0:clock()+Math.min(6*3600_000,60_000*2**(attemptCount-1)),leaseOwner:null,leaseExpiresAt:0,lastError:`${step}: ${privateReason}`,updatedAt:new Date(clock()).toISOString()});
       if(inst.exists)tx.update(inst.ref,{onboarding:onboardingSummary(blocked?'BLOCKED':'PROCESSING',clock(),current.requestedAt,inst.get('onboarding'),blocked?publicReason:null),updatedAt:Timestamp.fromMillis(clock())});
       if(company.exists&&companyStep(step)&&!isSupportedCompany(company.data()!))tx.update(company.ref,{onboarding:onboardingSummary(blocked?'BLOCKED':'PROCESSING',clock(),current.requestedAt,company.get('onboarding'),blocked?publicReason:null),updatedAt:Timestamp.fromMillis(clock())});
     });
-    return {status:error instanceof OnboardingWaiting?'WAITING' as const:'INCOMPLETE' as const,step};
+    return {status:'INCOMPLETE' as const,step};
   }
 }
 
@@ -141,11 +141,6 @@ export async function retryInstrumentOnboarding(db:Firestore,id:string,expected:
     const request=parseOnboardingRequest(doc.data());const step=ONBOARDING_STEPS.find(key=>request.steps[key]!=='COMPLETE');
     if(request.instrumentId!==id||request.status==='SUPPORTED'||request.leaseExpiresAt>now||!request.lastError||request.updatedAt!==expected.updatedAt||step!==expected.step)throw Error('Request changed or is active; refresh before retrying');
     const fresh=await readiness(tx,db,request);
-    // The SEC worker deliberately holds saved failures until an administrator
-    // retries them. Release only this issuer's failed cache with the same action.
-    const financialRef=step==='fundamentals'&&request.companyId.startsWith('US:')?db.collection('company_fundamentals').doc(request.companyId):null;
-    const financial=financialRef?await tx.get(financialRef):null;
-    if(financialRef&&['error','retry'].includes(financial?.get('outcome')))tx.set(financialRef,{outcome:'pending',pending:true,refreshAfter:0},{merge:true});
     tx.set(ref,{...request,status:'QUEUED',attemptCount:0,nextAttemptAt:0,lastError:null,leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(now).toISOString()});
     tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary('PROCESSING',now,request.requestedAt,fresh.instrument.onboarding),updatedAt:Timestamp.fromMillis(now)});
     if(companyStep(step)&&!isSupportedCompany(fresh.company))tx.update(db.collection('companies').doc(request.companyId),{onboarding:onboardingSummary('PROCESSING',now,request.requestedAt,fresh.company.onboarding),updatedAt:Timestamp.fromMillis(now)});

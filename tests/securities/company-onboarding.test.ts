@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {Bucket} from '@google-cloud/storage';
-import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,ONBOARDING_START,OnboardingBlocked,OnboardingWaiting,createOnboardingRequest,onboardingIdentity} from '../../src/lib/instrument-onboarding/model';
+import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,ONBOARDING_START,OnboardingBlocked,createOnboardingRequest,onboardingIdentity} from '../../src/lib/instrument-onboarding/model';
 import {requestInstrumentOnboarding,processInstrumentOnboarding,retryInstrumentOnboarding,type OnboardingHandlers} from '../../src/lib/instrument-onboarding/queue';
 import {onboardingActions,backfillOnboardingActions} from '../../src/lib/instrument-onboarding/actions';
 import {instrumentId,instrumentFromCompany} from '../../src/lib/instruments/model';
@@ -56,7 +56,7 @@ test('issuer readiness completes independently before instrument prices and acti
   for(const step of ONBOARDING_STEPS){
     assert.equal((await f.process()).step,step);
     const company=f.rows.get('companies/US:NEW')!,stock=f.rows.get(`instruments/${f.id}`)!;
-    if(['events','corporateActions','prices','fundamentals','metrics','verify'].includes(step))assert.equal((company.onboarding as {status:string}).status,'SUPPORTED');
+    if(['events','corporateActions','prices','verify'].includes(step))assert.equal((company.onboarding as {status:string}).status,'SUPPORTED');
     if(step==='events')assert.equal(f.calls.includes('fundamentals'),false);
     assert.equal((stock.onboarding as {status:string}).status,step==='verify'?'SUPPORTED':'PROCESSING');
   }
@@ -103,7 +103,7 @@ test('another share class reuses issuer work but must finish its own price and a
     await f.process(f.handlers,second);
     if(step==='corporateActions')assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'SUPPORTED');
   }
-  assert.deepEqual(f.calls,['identity','corporateActions','prices','fundamentals','metrics','verify']);
+  assert.deepEqual(f.calls,['identity','corporateActions','prices','verify']);
   assert.equal(f.request(second).companyId,'US:NEW');assert.equal(f.request(second).status,'SUPPORTED');
 });
 
@@ -161,34 +161,13 @@ test('a cutoff change between actions and prices restarts both for one consisten
   f.advance(86400_000);assert.equal((await f.process()).step,'corporateActions');assert.equal(f.request().targetThrough,'2026-10-25');
 });
 
-test('an explicit admin fundamentals retry releases only the selected issuer saved failure',async()=>{
-  const f=onboardingFixture();await f.enqueue();for(let n=0;n<ONBOARDING_STEPS.indexOf('fundamentals');n++)await f.process();
-  const completed=structuredClone(f.request().steps);
-  const saved={outcome:'error',pending:false,value:{keep:'last-good'},lastError:{message:'SEC unavailable'}};
-  f.rows.set('company_fundamentals/US:NEW',saved);f.rows.set('company_fundamentals/US:OTHER',{outcome:'error'});
-  await f.process({...f.handlers,fundamentals:async()=>{throw new OnboardingBlocked('SEC financial refresh requires an administrator retry');}});
-  assert.deepEqual(f.rows.get('company_fundamentals/US:NEW'),saved);
-  await retryInstrumentOnboarding(f.db,f.id,{step:'fundamentals',updatedAt:String(f.request().updatedAt)},f.clock());
-  assert.deepEqual(f.rows.get('company_fundamentals/US:NEW'),{...saved,outcome:'pending',pending:true,refreshAfter:0});
-  assert.deepEqual(f.rows.get('company_fundamentals/US:OTHER'),{outcome:'error'});
-  assert.deepEqual(f.request().steps,completed);
-});
-
-test('scheduled fundamentals can remain pending without blocking company support or exhausting instrument retries',async()=>{
+test('instrument onboarding completes with no fundamentals or market-cap work and ignores old maintenance checkpoints',async()=>{
   const f=onboardingFixture();await f.enqueue();
-  for(let n=0;n<ONBOARDING_STEPS.indexOf('fundamentals');n++)await f.process();
-  const completed=structuredClone(f.request().steps);
-  const waiting={...f.handlers,fundamentals:async()=>{throw new OnboardingWaiting('Waiting for scheduled company fundamentals');}};
-  for(let n=0;n<12;n++){
-    assert.equal((await f.process(waiting)).status,'WAITING');
-    assert.equal(f.request().status,'QUEUED');assert.equal(f.request().attemptCount,0);
-    assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'SUPPORTED');
-    assert.equal((f.rows.get(`instruments/${f.id}`)!.onboarding as {status:string}).status,'PROCESSING');
-    assert.deepEqual(f.request().steps,completed);assert(!f.calls.includes('metrics'));
-    assert.equal((await f.process(waiting)).status,'SKIPPED');f.advance(15*60_000);
-  }
-  assert.equal((await f.process()).step,'fundamentals');
-  assert.equal((await f.process()).step,'metrics');assert.equal((await f.process()).status,'SUPPORTED');
+  const saved={outcome:'error',pending:false};f.rows.set('company_fundamentals/US:NEW',saved);
+  f.request().steps={graph:'COMPLETE',fundamentals:'COMPLETE',metrics:'COMPLETE'};
+  for(const step of ONBOARDING_STEPS)assert.equal((await f.process()).step,step);
+  assert.equal(f.request().status,'SUPPORTED');assert.deepEqual(f.rows.get('company_fundamentals/US:NEW'),saved);
+  assert.deepEqual(f.calls,['identity','themes','profile','events','corporateActions','prices','verify']);
 });
 
 test('concurrent theme edits or instrument reparenting cannot publish stale instrument readiness',async()=>{

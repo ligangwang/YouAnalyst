@@ -9,7 +9,8 @@ until the user authorizes the release. No production data was written.
 reviewed profile, evidenced themes, and event routing. SUPPORTED
 enrolls the company in scheduled maintenance; fundamentals may still be pending.
 `instruments.onboarding` certifies listing readiness: linked issuer, corporate
-actions, price history, listing-specific metrics, and final validation. A company
+actions, price history, and final validation. Financial/market-cap data may still
+be pending and is maintained by independent regular jobs. A company
 can be SUPPORTED while one of its instruments is still onboarding or blocked.
 
 Both explicitly approved maps contain:
@@ -59,21 +60,15 @@ Stages run in order:
 4. events (company readiness verification and admission)
 5. corporateActions (instrument splits and dividends)
 6. prices (instrument historical prices)
-7. fundamentals (read-only dependency check for instrument metrics)
-8. metrics (instrument-specific valuation/share data)
-9. verify (company and instrument readiness, then instrument admission)
+7. verify (identity, company eligibility and persisted backfills, then instrument admission)
 
-A supported issuer reuses its theme/profile/event checkpoints. There is no graph
-checkpoint or graph construction/verification prerequisite. Theme assignments
-remain required; older staged COMPLETE graph checkpoints are accepted but ignored.
-Normal
-scheduled financial jobs collect missing issuer fundamentals after admission.
-Onboarding never starts a financial collector: its fundamentals checkpoint reads
-and validates issuer identity and usable metrics. Pending data leaves the instrument
-queued for another check in 15 minutes without consuming failure attempts. Metrics
-also rechecks this dependency before doing any derived work, and final instrument
-admission still requires valid fundamentals. Terminal errors and identity mismatches
-remain visible for admin attention; company support is preserved.
+A supported issuer reuses its theme/profile/event checkpoints. There is no graph,
+fundamentals, earnings, or market-cap checkpoint or prerequisite. Theme assignments
+remain required. Older staged COMPLETE graph/fundamentals/metrics checkpoints are
+accepted but ignored. Regular jobs collect financials and earnings and calculate
+market caps after admission. Onboarding does not access financial storage or start
+financial collectors. Final validation reads the frozen price/action backfills and
+verifies their persisted records before instrument admission.
 Company work is serialized across requests for that issuer through transactional
 checks of existing request leases. Another listing cannot overwrite a supported
 company's status with QUEUED or BLOCKED. No extra coordination fields are added.
@@ -90,9 +85,9 @@ market cap, share assessment, or corporate actions.
 One invocation checkpoints one step per instrument, maximum five sequential
 instruments. A 20-minute fenced lease prevents stale completion. Retryable failures
 back off from one minute to six hours and block after eight failed attempts.
-Date rollover clears only instrument history/metrics/final validation checkpoints
+Date rollover clears only instrument history/final validation checkpoints
 for catchup; company readiness remains intact. Final admission checks stored bars,
-issuer identity, metrics outcome, identity stability, and the current cutoff.
+issuer identity, persisted corporate actions, identity stability, and the current cutoff.
 `INSTRUMENT_ONBOARDING_MAINTENANCE_READY=1` is an operator release attestation;
 set it only after normal issuer and instrument maintenance is verified.
 
@@ -142,10 +137,9 @@ search results.
 GET `/api/admin/instrument-onboarding` returns private, non-cacheable summaries.
 POST accepts `{instrumentId, step, updatedAt}`. Retry checks the current first
 unfinished step and optimistic timestamp, refuses active leases/completed/changed
-requests, clears the failure/backoff, and queues that checkpoint. An explicit US
-fundamentals retry also releases that issuer's saved SEC error/retry hold; automatic
-retries do not clear it. Completed work
-is preserved. The page never calls providers or dispatches an execution. Error
+requests, clears the failure/backoff, and queues that checkpoint. Completed work
+is preserved. It does not reset financial collector failures. The page never calls
+providers or dispatches an execution. Error
 messages are sanitized; credentials and provider URLs are not exposed publicly.
 
 ## Staged operator tools
