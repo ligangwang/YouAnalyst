@@ -1,7 +1,8 @@
 import {writeCachedPrice} from '../intelligence/price-cache';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
-import { marketDate, predictionInstrument, type PredictionMarket } from './instrument';
+import { predictionInstrument } from './instrument';
+export {historyThrough} from './history-range';
 
 export const HISTORY_START = '2025-12-31';
 export function historyProviderSymbol(ticker: string) {
@@ -11,13 +12,6 @@ export function historyProviderSymbol(ticker: string) {
 }
 type Bar = { date: string; open: number; high: number; low: number; close: number; adjusted_close: number; volume: number };
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
-
-export function historyThrough(market: PredictionMarket, now = new Date()) {
-  const today = marketDate(market,now);
-  const hour = Number(new Intl.DateTimeFormat('en-GB',{timeZone:market==='US'?'America/New_York':'Asia/Shanghai',hour:'2-digit',hourCycle:'h23'}).format(now));
-  // Leave time for the provider to publish a final bar; closed days have no rows.
-  return hour >= 18 ? today : new Date(Date.parse(today)-86400000).toISOString().slice(0,10);
-}
 
 export function historyBars(value: unknown, from: string, through: string): Bar[] {
   if (!validDate(from) || !validDate(through) || through < from) throw Error('Invalid history range');
@@ -36,7 +30,7 @@ export function historyBars(value: unknown, from: string, through: string): Bar[
 /** No prediction scoring or latest-price mutation: only fill missing historical documents. */
 export async function backfillPriceHistory(input: {
   db: Firestore; bucket: Bucket; tickers: string[]; through: string; from?: string; limit?: number;
-  writeBatchSize?: number; afterBatch?: () => Promise<void>;
+  writeBatchSize?: number; beforeBatch?: () => Promise<void>; afterBatch?: () => Promise<void>;
   token: string; apiUrl?: string; fetcher?: typeof fetch; now?: () => number;
 }) {
   const { db, bucket, token, through } = input;
@@ -52,7 +46,7 @@ export async function backfillPriceHistory(input: {
     const instrument = predictionInstrument(ticker);
     if (!instrument) { result.failures.push({ticker,reason:'unsupported_symbol'}); continue; }
     const providerSymbol=historyProviderSymbol(ticker);
-    const ref = db.collection('collectors').doc(`eod-history_${instrument.market}_${ticker}${from===HISTORY_START?'':`_${from}`}`);
+    const ref = db.collection('collectors').doc(`eod-history_${instrument.market}_${ticker}${from===HISTORY_START?'':`_${from}_${through}`}`);
     const claim = await db.runTransaction(async tx => {
       const doc = await tx.get(ref); const state = doc.data();
       if (state?.status === 'completed' && state.from === from) return null;
@@ -85,6 +79,7 @@ export async function backfillPriceHistory(input: {
       const bars = historyBars(raw,from,claim.end);
       const loadedAt = new Date(now()).toISOString();
       for (let offset=0;offset<bars.length;offset+=batchSize) {
+        await input.beforeBatch?.();
         const slice=bars.slice(offset,offset+batchSize);
         const refs=slice.map(row=>db.collection('eod_prices').doc(`${instrument.market}_${ticker}_${row.date}`));
         const stored=await db.getAll(...refs);
@@ -103,6 +98,7 @@ export async function backfillPriceHistory(input: {
         }));
         await input.afterBatch?.();
       }
+      await input.beforeBatch?.();
       await db.runTransaction(async tx => {
         const current=await tx.get(ref);
         if (current.data()?.leaseUntil !== claim.lease) throw Error('History lease lost');

@@ -59,7 +59,7 @@ test('onboarding history has its own 2020 range receipt and bounded write batche
     }};
   const result=await backfillPriceHistory(input);
   assert.equal(result.completed,1);assert.equal(result.created,2);assert.equal(batches,2);
-  assert.equal(f.docs.get('collectors/eod-history_US_MU_2020-12-30')?.from,'2020-12-30');
+  assert.equal(f.docs.get('collectors/eod-history_US_MU_2020-12-30_2026-10-05')?.from,'2020-12-30');
   assert.equal(f.docs.get('collectors/eod-history_US_MU')?.from,'2025-12-31');
   assert.equal((await backfillPriceHistory(input)).skipped,1);assert.equal(calls,1);
 });
