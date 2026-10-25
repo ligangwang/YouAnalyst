@@ -28,23 +28,23 @@ test('separately evaluated server bundles share one relationship listener and cl
   let opens=0,closes=0,next!:(snapshot:unknown)=>void;
   const raw={collection:(name:string)=>{
     assert.equal(name,'company_relationships');
-    return {path:name,onSnapshot:(callback:(snapshot:unknown)=>void)=>{
+    const query={path:name,where:(field:string,op:string,value:string)=>{assert.deepEqual([field,op,value],['status','==','PUBLISHED']);return query;},onSnapshot:(callback:(snapshot:unknown)=>void)=>{
       opens++;next=callback;return ()=>{closes++;};
-    }};
+    }};return query;
   }} as unknown as Firestore;
   const dbA=a.observeFirestore(raw,()=>{}),dbB=b.observeFirestore(raw,()=>{});
   assert.equal(dbA,dbB,'instrumentation must not create per-bundle cache identities');
   try {
-    const reads=[a.loadAllRelationships(dbA),b.loadPublishedRelationships(dbB)];
+    const reads=[a.loadPublishedRelationships(dbA),b.loadPublishedRelationships(dbB)];
     assert.equal(opens,1);
     const doc={id:'edge',data:()=>({status:'PUBLISHED'})};
     next({docs:[doc],docChanges:()=>[{type:'added',doc}]});
     assert.deepEqual((await Promise.all(reads)).map(r=>r.docs.length),[1,1]);
     next({docs:[],docChanges:()=>[{type:'removed',doc}]});
-    assert.equal((await b.loadAllRelationships(dbB)).docs.length,0);
+    assert.equal((await b.loadPublishedRelationships(dbB)).docs.length,0);
     assert.equal(opens,1);
     b.closeLocalCaches();assert.equal(closes,1);
-    const reopened=a.loadAllRelationships(dbA);assert.equal(opens,2);
+    const reopened=a.loadPublishedRelationships(dbA);assert.equal(opens,2);
     next({docs:[],docChanges:()=>[]});await reopened;
   } finally { a.closeLocalCaches(); }
 });

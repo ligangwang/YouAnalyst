@@ -22,6 +22,12 @@ export function peerGroup(companyId:string,nodes:GraphNode[]) {
  const companies=[...new Map(nodes.filter(n=>n.kind==='COMPANY'&&n.listingStatus!=='PRIVATE'&&(market==='US'?n.id.startsWith('US:'):/^(XSHG|XSHE):/.test(n.id))&&companySector(n).id===sector.id).map(n=>[n.id,n])).values()];
  return {sector:{en:sector.en,zh:sector.zh},market,companies};
 }
+/** Shared validity rules for the bounded loader and comparison calculation. */
+export function peerPriceBar(row:Record<string,unknown>,ticker:string,market:'US'|'CN_A',today:string){
+ const p=mapTimelinePrice(row,ticker,market);if(!p||p.date>today||days(p.date,today)>45)return null;
+ if(row.adjustedClose!==undefined||row.source==='eodhd-eod')return finite(row.adjustedClose)&&row.adjustedClose>0?{...p,close:row.adjustedClose}:null;
+ return p;
+}
 export function buildPeerComparison(companyId:string,nodes:GraphNode[],financials:Map<string,unknown>,prices:Map<string,Record<string,unknown>[]>,today:string):PeerComparison|null {
  const group=peerGroup(companyId,nodes);if(!group)return null;
  const currency=group.market==='US'?'USD':'CNY';
@@ -29,11 +35,7 @@ export function buildPeerComparison(companyId:string,nodes:GraphNode[],financial
  const priceRows=new Map(group.companies.map(company=>{
   const ticker=group.market==='US'?company.id.slice(3):company.id;
   const bars=(prices.get(company.id)??[]).flatMap(row=>{
-   const p=mapTimelinePrice(row,ticker,group.market);if(!p||p.date>today||days(p.date,today)>45)return [];
-   // Historical backfills retain raw close separately from the provider-adjusted close.
-   // Never interpret an unverified historical split as a five-session loss.
-   if(row.adjustedClose!==undefined||row.source==='eodhd-eod')return finite(row.adjustedClose)&&row.adjustedClose>0?[{...p,close:row.adjustedClose}]:[];
-   return [p];
+   const p=peerPriceBar(row,ticker,group.market,today);return p?[p]:[];
   });
   return [company.id,new Map(bars.map(p=>[p.date,p.close]))] as const;
  }));

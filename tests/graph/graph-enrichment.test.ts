@@ -10,7 +10,7 @@ test('company identity/relationships finish before valuations; US and CN enrichm
  const reads:string[][]=[];
  const cap=(id:string)=>id.startsWith('US:')?{status:'estimated',currency:'USD',value:100,priceDate:'2026-10-23'}:
   {status:'estimated',currency:'CNY',value:700,priceDate:'2026-10-23',usd:{value:100,rateDate:'2026-10-23'}};
- const db={collection:(name:string)=>({doc:(id:string)=>({id}),get:async()=>{assert.equal(name,'company_relationships');return {docs:[]};}}),
+ const db={collection:(name:string)=>({doc:(id:string)=>({id}),where:(field:string,op:string,value:string)=>{assert.deepEqual([field,op,value],['status','==','PUBLISHED']);return {get:async()=>{assert.equal(name,'company_relationships');return {docs:[]};}};}}),
   getAll:async(...refs:{id:string}[])=>{reads.push(refs.map(ref=>ref.id));if(reads.length===2)started();await gate;return refs.map(ref=>({id:ref.id,exists:true,data:()=>({marketCap:cap(ref.id)})}));},
  } as unknown as Firestore;
  const companies=['US:A','XSHE:000001'].map(id=>({id,data:()=>({name:id,status:'PUBLISHED',symbol:id.split(':')[1],inGraph:{status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:'2026-10-23'}})}));
