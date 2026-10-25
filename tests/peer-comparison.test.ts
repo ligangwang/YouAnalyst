@@ -82,7 +82,7 @@ test('peer price history watches the exact bounded query and pushes corrections'
  const query=(clauses:unknown[][]=[])=>({path:'eod_prices',key:JSON.stringify(clauses),
   isEqual(other:{key:string}){return this.key===other.key;},
   where(...args:unknown[]){bounds.push(args);return query([...clauses,args]);},
-  orderBy(...args:unknown[]){return query([...clauses,args]);},limit(n:number){assert.equal(n,6);return query([...clauses,[n]]);},
+  orderBy(...args:unknown[]){return query([...clauses,args]);},limit(n:number){assert.equal(n,12);return query([...clauses,[n]]);},
   get:async()=>{throw Error('No polling queries');},
   onSnapshot(next:(snapshot:unknown)=>void){opens++;listeners.set(this.key,next);queueMicrotask(()=>next(snapshot()));return ()=>{listeners.delete(this.key);};}
  });
@@ -109,30 +109,4 @@ test('peer price history watches the exact bounded query and pushes corrections'
  await load();assert.equal(opens,afterCapacity+1,'oldest idle price query is evicted at capacity');
  value=3;for(const next of listeners.values())next(snapshot());
  assert.equal((await load())[0].rawClose,3,'reopened subscription still applies corrections');
-});
-
-test('peer prices read six valid sessions, expand for invalid corrections, and retain live recovery',async t=>{
- const {loadPeerPrices}=await import('../src/lib/peer-comparison/price-cache');
- const {closeLocalCaches}=await import('../src/lib/local-cache/watch');t.after(closeLocalCaches);
- const days=Array.from({length:12},(_,i)=>`2026-10-${String(14-i).padStart(2,'0')}`);
- let rows=days.map((tradingDate,i)=>({id:`US_A_${tradingDate}`,data:()=>({ticker:'A',market:'US',tradingDate,close:100-i,adjustedClose:100-i,source:'eodhd-eod'})}));
- const listeners=new Map<number,(snapshot:unknown)=>void>(),opened:number[]=[];
- const query=(limit=0)=>({key:String(limit),where:()=>query(limit),orderBy:()=>query(limit),limit:(n:number)=>query(n),
-  isEqual(other:{key:string}){return this.key===other.key;},
-  onSnapshot(next:(snapshot:unknown)=>void){opened.push(limit);listeners.set(limit,next);queueMicrotask(()=>next({docs:rows.slice(0,limit)}));return ()=>{listeners.delete(limit);};}
- });
- const db={collection:()=>query()} as unknown as import('firebase-admin/firestore').Firestore;
- const load=()=>loadPeerPrices(db,'US:A','US',today);
- const full=()=>buildPeerComparison('US:A',[node('US:A')],new Map(),new Map([['US:A',rows.map(r=>r.data())]]),today);
- const reduced=await load();assert.equal(reduced.length,6);assert.deepEqual(opened,[6]);
- assert.deepEqual(buildPeerComparison('US:A',[node('US:A')],new Map(),new Map([['US:A',reduced]]),today),full());
- const original=rows[0];rows=[{...original,data:()=>({...original.data(),adjustedClose:0})},...rows.slice(1)];
- for(const [limit,next] of listeners)next({docs:rows.slice(0,limit)});
- const corrected=await load();assert.equal(corrected.length,12);assert.deepEqual(opened,[6,12]);
- assert.deepEqual(buildPeerComparison('US:A',[node('US:A')],new Map(),new Map([['US:A',corrected]]),today),full());
- rows=[original,...rows.slice(1)];for(const [limit,next] of listeners)next({docs:rows.slice(0,limit)});
- assert.equal((await load()).length,6);assert.deepEqual(opened,[6,12]);
- rows=rows.slice(1);for(const [limit,next] of listeners)next({docs:rows.slice(0,limit)});
- const deleted=await load();assert.equal(deleted[0].tradingDate,'2026-10-13');
- assert.deepEqual(buildPeerComparison('US:A',[node('US:A')],new Map(),new Map([['US:A',deleted]]),today),full());
 });

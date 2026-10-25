@@ -77,13 +77,13 @@ test('cold company routes and financial documents never download whole snapshots
 test('cold peer prices share a bounded live query without downloading yearly files',async t=>{
  t.after(closeLocalCaches);const f=fixture(),previous=process.env.PRICE_SNAPSHOT_READY;
  process.env.PRICE_SNAPSHOT_READY='1';t.after(()=>{if(previous===undefined)delete process.env.PRICE_SNAPSHOT_READY;else process.env.PRICE_SNAPSHOT_READY=previous;});
- for(let day=1;day<=20;day++)f.rows.set(`eod_prices/US_SMALL_2026-10-${String(day).padStart(2,'0')}`,{close:day,ticker:'SMALL',market:'US',tradingDate:`2026-10-${String(day).padStart(2,'0')}`});
+ for(let day=1;day<=20;day++)f.rows.set(`eod_prices/US_SMALL_2026-10-${String(day).padStart(2,'0')}`,{close:day});
  f.rows.set('eod_prices/US_OTHER_2026-10-20',{close:999});
  const read=()=>withCompanyPageReads(()=>loadPeerPrices(f.db,'US:SMALL','US','2026-10-19'));
  const results=await Promise.all(Array.from({length:20},read));
- assert.deepEqual(results[0].map(row=>row.close),[19,18,17,16,15,14]);
+ assert.deepEqual(results[0].map(row=>row.close),[19,18,17,16,15,14,13,12,11,10,9,8]);
  assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
- f.rows.set('eod_prices/US_SMALL_2026-10-19',{close:123,ticker:'SMALL',market:'US',tradingDate:'2026-10-19'});f.push();
+ f.rows.set('eod_prices/US_SMALL_2026-10-19',{close:123});f.push();
  assert.equal((await read())[0].close,123);assert.equal(f.counts().opens,1);
  await assert.rejects(loadPeerPrices(f.db,'US:SMALL','US','2026-10-19'),/price partition requested/);
  assert.equal(f.counts().files,1,'bulk readers retain their yearly partition policy');
