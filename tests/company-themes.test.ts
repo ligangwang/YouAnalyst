@@ -1,3 +1,4 @@
+import {onboarding} from './helpers/company-onboarding';
 import {withThemeCatalog} from './helpers/theme-catalog';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -12,64 +13,30 @@ import spaceBatch from '../data/space/company-memberships.json';
 import {planThemeEnrollment,validateThemeBatch} from '../src/lib/company-themes/migration';
 import {themedGraph} from '../src/lib/company-themes/presentation';
 import {themeMetadata} from '../src/lib/company-themes/metadata';
-import {loadKnowledgeGraph} from '../src/lib/knowledge-graph/service';
 
-test('collector company scope keeps names and theme enrollment without reading graph data',async()=>{
- const records=[
-  {id:'US:AAA',name:'Company A',aliases:['Alias A'],names:{en:'Company A'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'compute'}}},
-  {id:'XSHE:000063',name:'Company B',themeMemberships:{robotics:{status:'PUBLISHED',primarySector:'sensors'}}},
-  {id:'ORG:PRIVATE',name:'Company C',themeMemberships:{space:{status:'PUBLISHED',primarySector:'launch'}}},
-  {id:'US:WITHDRAWN',name:'Withdrawn',themeMemberships:{ai:{status:'WITHDRAWN'}}},
+test('job scope is supported-only metadata and ignores relationship neighbors',async()=>{
+ const rows=[
+  {id:'US:AAA',name:'Company A',status:'DIRECTORY',onboarding:onboarding(),aliases:['Alias A']},
+  {id:'XSHE:000063',name:'Company B',status:'DIRECTORY',onboarding:onboarding()},
+  {id:'US:QUEUED',name:'Queued',status:'DIRECTORY',onboarding:onboarding('QUEUED'),themeIds:['ai']},
+  {id:'US:THEMED',name:'Theme only',status:'DIRECTORY',themeIds:['ai']},
  ];
  let reads=0;
- const db=withThemeCatalog({collection:(name:string)=>{
-  assert.equal(name,'companies','collector scope must not read relationships or fundamentals');
-  return {where:(field:string,op:string,values:string[])=>{
-   assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');
-   assert.deepEqual(values,['ai','robotics','space']);
-   return {get:async()=>{reads++;return {docs:records.map(row=>({id:row.id,data:()=>({...row,status:'DIRECTORY'})}))};}};
+ const db={collection:(name:string)=>{
+  assert.equal(name,'companies');
+  return {where:(field:string,op:string,value:string)=>{
+   assert.equal(field,'onboarding.status');assert.equal(op,'==');assert.equal(value,'SUPPORTED');
+   return {get:async()=>{reads++;return {docs:rows.map(row=>({id:row.id,data:()=>row}))};}};
   }};
- }} as unknown as Firestore);
+ }} as unknown as Firestore;
  const scope=await loadCollectionCompanyScope(db);
  assert.equal(reads,1);
- assert.deepEqual(scope.nodes.map(n=>n.id),['US:AAA','XSHE:000063','ORG:PRIVATE']);
+ assert.deepEqual(scope.nodes.map(n=>n.id),['US:AAA','XSHE:000063']);
  assert.deepEqual(scope.nodes[0].aliases,['Alias A']);
  assert.equal(scope.nodes[1].market,'CN_A');
  assert.deepEqual(scope.relationships,[]);
-});
-
-test('collection scope reuses one theme query without dropping graph neighbors or theme-only companies', async () => {
-  const membership = {status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:'2026-10-17'};
-  const enrolled = [
-    {id:'US:AAA',name:'Graph company',status:'PUBLISHED',inGraph:membership},
-    {id:'US:CCC',name:'Theme-only company',status:'DIRECTORY',themeMemberships:{space:{status:'PUBLISHED',primarySector:'launch'}}},
-    {id:'US:DDD',name:'Withdrawn company',status:'DIRECTORY',themeMemberships:{ai:{status:'WITHDRAWN'}}},
-  ];
-  const neighbor = {id:'US:BBB',name:'Related company',status:'DIRECTORY'};
-  const edge = {id:'edge',source:'US:AAA',target:'US:BBB',type:'SUPPLIER_OF',status:'PUBLISHED',evidence:[{url:'https://example.com/report',title:'Report'}]};
-  const snapshot = (row: Record<string, unknown>) => ({id:row.id,exists:true,data:()=>row});
-  let themeReads=0;
-  const db = withThemeCatalog({
-    collection: (name:string) => ({
-      get:async()=>{assert.equal(name,'company_relationships');return {docs:[snapshot(edge)]};},
-      doc: (id:string) => ({name,id,get:async()=>snapshot({enabled:false})}),
-      where: (field:string,operator:string,value:unknown) => ({get:async()=>{
-        if(name==='companies') {
-          assert.equal(field,'themeIds');assert.equal(operator,'array-contains-any');assert.deepEqual(value,['ai','robotics','space']);
-          themeReads++;return {docs:enrolled.map(snapshot)};
-        }
-        assert.equal(name,'company_relationships');return {docs:[snapshot(edge)]};
-      }}),
-    }),
-    getAll: async (...refs:Array<{name?:string;id?:string}>) => refs.filter(ref=>ref.id).map(ref=>snapshot(ref.name==='companies'?neighbor:{id:ref.id})),
-  } as unknown as Firestore);
-  const scope=await loadCollectionUniverse(db);
-  assert.equal(themeReads,1);
-  assert.deepEqual(usMapTickers(scope),['AAA','BBB','CCC']);
-  assert.equal(scope.relationships.length,1);
-  // Standalone graph callers still perform their own enrollment query.
-  await loadKnowledgeGraph({db});
-  assert.equal(themeReads,2);
+ const old={nodes:[{id:'US:NEIGHBOR',kind:'COMPANY' as const,order:1}],relationships:[],sources:[],asOf:''};
+ assert.deepEqual((await loadCollectionUniverse(db,old)).nodes.map(n=>n.id),['US:AAA','XSHE:000063']);
 });
 
 test('Space enrollment preserves overlapping themes, drives job scopes and projects reviewed roles',()=>{
@@ -115,11 +82,12 @@ test('authoritative membership status controls job eligibility and future enroll
 test('indexed theme reads reject stale array entries and combined enrollment deduplicates legacy records', async () => {
   const membership = { status: 'PUBLISHED', primarySector: 'compute-control', reviewedAt: '2026-10-04' };
   const rows = [
-    { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: ['ai', 'robotics'], themeMemberships: { ai: membership, robotics: membership }, inGraph: { status: 'PUBLISHED' } },
+    { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', onboarding:onboarding(), themeIds: ['ai', 'robotics'], themeMemberships: { ai: membership, robotics: membership }, inGraph: { status: 'PUBLISHED' } },
     { id: 'US:OLD', name: 'Withdrawn company', status: 'DIRECTORY', themeIds: ['robotics'], themeMemberships: { robotics: { ...membership, status: 'WITHDRAWN' } } },
     { id: 'US:HIDDEN', name: 'Hidden company', status: 'DRAFT', themeIds: ['robotics'], themeMemberships: { robotics: membership } },
   ];
-  const db = withThemeCatalog({ collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert.equal(field, 'themeIds'); return ({ get: async () => ({ docs: rows.filter(row => {
+  const db = withThemeCatalog({ collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert(['themeIds','onboarding.status'].includes(field)); return ({ get: async () => ({ docs: rows.filter(row => {
+    if(field==='onboarding.status')return row.id==='US:NVDA';
     if (field === 'themeIds') return operator === 'array-contains' ? row.themeIds.includes(String(value)) : row.themeIds.some(theme => value.includes(theme));
     return field === 'inGraph.status' && row.inGraph?.status === value;
   }).map(row => ({ id: row.id, data: () => row })) }) }); } }; } } as unknown as Firestore);
@@ -127,16 +95,12 @@ test('indexed theme reads reject stale array entries and combined enrollment ded
   assert.deepEqual((await loadCollectionCompanies(db)).map(row => row.id), ['US:NVDA']);
 });
 
-test('withdrawn AI enrollment overrides legacy graph flags while neighbors and another published theme remain eligible', async () => {
-  const record: ThemedCompany = { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: [], inGraph: { status: 'PUBLISHED' }, themeMemberships: { ai: { status: 'WITHDRAWN', primarySector: 'compute', reviewedAt: '2026-10-04' } } };
-  const db = withThemeCatalog({ collection: () => ({ where: (field: string) => ({ get: async () => ({ docs: field === 'themeIds' ? [{ id: record.id, data: () => record }] : [] }) }) }) } as unknown as Firestore);
-  const excluded = await loadCollectionUniverse(db, ai);
-  assert(!usMapTickers(excluded).includes('NVDA'));
-  assert.equal(excluded.nodes.filter(node => node.kind === 'COMPANY').length, 133);
-  assert(excluded.nodes.some(node => node.id === 'US:AI1'), 'Relationship-only neighbor must survive');
-  record.themeMemberships!.robotics = { status: 'PUBLISHED', primarySector: 'compute-control', reviewedAt: '2026-10-04' };
-  record.themeIds = ['robotics'];
-  assert(usMapTickers(await loadCollectionUniverse(db, ai)).includes('NVDA'));
+test('new theme publication does not enroll a regular job until onboarding completes', async () => {
+ const record:ThemedCompany={id:'US:NEW',name:'New company',status:'DIRECTORY',themeIds:['robotics']};
+ const db={collection:()=>({where:()=>({get:async()=>({docs:[{id:record.id,data:()=>record}]})})})} as unknown as Firestore;
+ assert.deepEqual((await loadCollectionUniverse(db)).nodes,[]);
+ record.onboarding=onboarding();
+ assert.deepEqual(usMapTickers(await loadCollectionUniverse(db)),['NEW']);
 });
 
 test('theme presentation retains canonical identities and secondary roles without copying AI edges or publication dates',async()=>{
@@ -208,7 +172,7 @@ test('enrollment uses local push updates including an empty result',async()=>{
  const query={where:()=>query,onSnapshot:(next:(value:unknown)=>void)=>{calls++;push=next;next({docs:[]});return ()=>{};}};
  const db=withThemeCatalog({collection:()=>query} as unknown as Firestore);
  assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);
- push({docs:[{id:'US:A',get:(field:string)=>field==='exchange_region'?'US':undefined,data:()=>({name:'A',status:'DIRECTORY',symbol:'A',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},kind:'COMPANY'})}]});
+ push({docs:[{id:'US:A',get:(field:string)=>field==='exchange_region'?'US':undefined,data:()=>({name:'A',status:'DIRECTORY',onboarding:onboarding(),symbol:'A',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},kind:'COMPANY'})}]});
  assert.equal((await loadCollectionCompanies(db,'US')).length,1);
  assert.deepEqual(await loadCollectionCompanies(db,'CN'),[]);assert.equal(calls,1);
 });

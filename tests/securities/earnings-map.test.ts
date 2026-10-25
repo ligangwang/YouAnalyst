@@ -70,16 +70,16 @@ test('SEC and earnings discovery reuse one theme scope without reading relations
   fx.rows.set('collectors/sec-identity-US:MU',{companyId:'US:MU',cik:'0000723125'});
   const published={status:'PUBLISHED',primarySector:'compute',reviewedAt:'2026-10-17'};
   const rows=[
-    {id:'US:MU',name:'Micron Technology',names:{en:'Micron Technology'},aliases:['Micron'],status:'DIRECTORY',themeMemberships:{ai:published,robotics:published}},
-    {id:'US:AMAT',name:'Applied Materials',status:'DIRECTORY',themeMemberships:{space:published}},
-    {id:'XSHE:000063',name:'ZTE',status:'DIRECTORY',themeMemberships:{robotics:published}},
-    {id:'ORG:OPENAI',name:'OpenAI',status:'DIRECTORY',themeMemberships:{ai:published}},
+    {id:'US:MU',name:'Micron Technology',names:{en:'Micron Technology'},aliases:['Micron'],status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:published,robotics:published}},
+    {id:'US:AMAT',name:'Applied Materials',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{space:published}},
+    {id:'XSHE:000063',name:'ZTE',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{robotics:published}},
+    {id:'ORG:OPENAI',name:'OpenAI',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:published}},
     {id:'US:WITHDRAWN',name:'Withdrawn',status:'DIRECTORY',inGraph:{status:'PUBLISHED'},themeMemberships:{ai:{...published,status:'WITHDRAWN'}}},
   ];
   let companyQueries=0;
   const db=withThemeCatalog({runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
     if(name==='companies')return {where:(field:string,op:string,values:string[])=>{
-      assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');assert.deepEqual(values,['ai','robotics','space']);
+      assert.equal(field,'onboarding.status');assert.equal(op,'==');assert.equal(values,'SUPPORTED');
       return {get:async()=>{companyQueries++;return {docs:rows.map(row=>({id:row.id,data:()=>row}))};}};
     }};
     assert.equal(name,'collectors','Company scope must not load relationships or fundamentals');

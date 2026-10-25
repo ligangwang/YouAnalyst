@@ -19,6 +19,7 @@ export type ThemeMembership = {
 };
 export type ThemedCompany = Record<string, unknown> & {
   id: string; themeIds?: string[]; themeMemberships?: Record<string, ThemeMembership>;
+  onboarding?: import('../company-support/model').CompanyOnboarding;
 };
 
 /** The array is a query index; membership status remains authoritative. */
