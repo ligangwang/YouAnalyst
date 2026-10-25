@@ -125,6 +125,49 @@ test('public graph HTTP reads retain the targeted cache boundary for cold compan
  assert.equal(f.counts().files,1,'the scope restores the existing bulk policy after responses and errors');
 });
 
+test('intelligence and covered search HTTP reads share targeted data without cold market files',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const root=globalThis as typeof globalThis&{__httpScopeRead?:()=>Promise<unknown>};
+ const previous=root.__httpScopeRead;t.after(()=>{if(previous)root.__httpScopeRead=previous;else delete root.__httpScopeRead;});
+ root.__httpScopeRead=async()=>{
+  const company=await readCompanyLookup(f.db,f.db.collection('companies').doc('US:SMALL'));
+  const [financials]=await loadCompanyDocuments(f.db,'company_fundamentals',['US:SMALL']);
+  return {nodes:[{id:'US:SMALL',kind:'COMPANY',name:company.get('name'),symbol:'SMALL',market:'US',marketCap:financials.get('value')},
+   {id:'US:NEIGHBOR',kind:'COMPANY',name:'Relationship-only neighbor',symbol:'NEIGHBOR',market:'US'}],edges:[{source:'US:NEIGHBOR',target:'US:SMALL'}]};
+ };
+ const routes=[] as ((request:Request&{nextUrl:URL})=>Promise<Response>)[];
+ for(const entry of ['src/app/api/intelligence/route.ts','src/app/api/tickers/search/route.ts']){
+  const result=await build({entryPoints:[entry],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{
+   name:'http-scope-fixture',setup(plugin){
+    plugin.onLoad({filter:/intelligence[\\/]service\.ts$/},()=>({contents:'export const loadIntelligenceUniverse=()=>globalThis.__httpScopeRead();export const loadCompanyIntelligenceSnapshot=()=>globalThis.__httpScopeRead();',loader:'js'}));
+    plugin.onLoad({filter:/company-themes[\\/]service\.ts$/},()=>({contents:'export const loadCollectionUniverse=()=>globalThis.__httpScopeRead();',loader:'js'}));
+    plugin.onLoad({filter:/company-themes[\\/]catalog\.ts$/},()=>({contents:`export const loadThemeCatalog=async()=>${JSON.stringify(legacyCatalog)};`,loader:'js'}));
+    plugin.onLoad({filter:/firebase[\\/]admin\.ts$/},()=>({contents:'export const getAdminFirestore=()=>({});',loader:'js'}));
+    // Exercise the real HTTP boundary and real entity cache scope; the change
+    // cache's data source is deliberately cold for every concurrent request.
+    plugin.onLoad({filter:/lib[\\/]change-cache\.ts$/},()=>({contents:'export const changeCached=(_db,_key,_collections,read)=>read();',loader:'js'}));
+   }
+  }]});
+  const evaluated={exports:{}};new Function('require','module','exports',result.outputFiles[0].text)(createRequire(import.meta.url),evaluated,evaluated.exports);
+  routes.push((evaluated.exports as {GET:typeof routes[number]}).GET);
+ }
+ const request=(path:string)=>Object.assign(new Request('https://example.test'+path),{nextUrl:new URL('https://example.test'+path)});
+ const paths=['/api/intelligence?theme=ai&section=universe','/api/intelligence?theme=ai','/api/tickers/search?scope=covered&q=neighbor'];
+ const responses=await Promise.all(Array.from({length:20},()=>Promise.all(paths.map((path,i)=>routes[i===2?1:0](request(path))))));
+ assert(responses.flat().every(response=>response.status===200));
+ for(const response of responses[0].slice(0,2)){
+  const graph=await response.json();assert.equal(graph.nodes.length,2);assert.equal(graph.edges.length,1);assert.equal(graph.nodes[0].marketCap.revenue,17);
+ }
+ const search=await responses[0][2].json();assert.equal(search.total,2);assert.equal(search.items[0].id,'US:NEIGHBOR');
+ assert.deepEqual(f.counts(),{files:0,opens:2,gets:0});
+ assert.equal((await routes[0](request('/api/intelligence?theme=missing'))).status,404);
+ assert.equal((await routes[0](request('/api/intelligence?before=bad'))).status,400);
+ root.__httpScopeRead=async()=>{throw Error('unavailable');};
+ assert.equal((await routes[0](request(paths[0]))).status,503);
+ await readCompanyLookup(f.db,f.db.collection('companies').doc('US:SMALL'));
+ assert.equal(f.counts().files,1,'HTTP scopes restore bulk policy after success and failure');
+});
+
 test('page cache scope does not change bulk readers, leak after rejection or cache authoritative reads',async t=>{
  t.after(closeLocalCaches);const f=fixture(),ref=f.db.collection('companies').doc('US:SMALL');
  await assert.rejects(withCompanyPageReads(async()=>{assert.equal(companyDirectoryEnabled(f.db),false);assert.equal(companyDirectoryEnabled(f.db,'eod_prices'),true);assert.equal(companyDirectoryEnabled(f.db,'instruments'),true);throw Error('render failure');}),/render failure/);
@@ -353,4 +396,19 @@ test('peer prices start while financials are blocked, retaining the eight-query 
  priceFinishes.splice(0).forEach(finish=>finish());await tick();
  assert.equal(maxActive,8);assert.deepEqual(priceStarts,ids);assert.equal(completed,false,'comparison still waits for financials');
  finishFinancials(ids.map(id=>({data:()=>({id})})));assert.deepEqual(await pending,{complete:true});
+});
+
+test('startup CPU summaries preserve sample attribution and bound code-only diagnostics',async()=>{
+ const {summarizeStartupProfile}=await import('../../src/lib/ui/startup-profile');
+ const profile:import('node:inspector').Profiler.Profile={startTime:0,endTime:100_000,
+  nodes:Array.from({length:30},(_,i)=>({id:i+1,callFrame:{functionName:`fn${i}`,scriptId:'1',url:`file:///private/app/chunk${i}.js?token=PRIVATE`,lineNumber:i,columnNumber:2}})),
+  samples:[1,1,2,3,3,3,4,4,4,4],timeDeltas:Array(10).fill(10_000)};
+ const delays=Array.from({length:30},(_,i)=>({startMs:i,endMs:50+i}));
+ const result=summarizeStartupProfile(profile,delays);
+ assert.equal(result.profileDurationMs,100);assert.equal(result.sampleCount,10);
+ assert.equal(result.topFrames[0].function,'fn3');assert.equal(result.topFrames[0].samples,4);
+ assert.equal(result.timerDelays.length,12);assert(result.timerDelays.every(delay=>delay.topFrames.length<=8));
+ assert.doesNotMatch(JSON.stringify(result),/PRIVATE|token=|private/);
+ const empty=summarizeStartupProfile({nodes:[],startTime:0,endTime:0},[]);
+ assert.equal(empty.sampleCount,0);assert.deepEqual(empty.topFrames,[]);
 });

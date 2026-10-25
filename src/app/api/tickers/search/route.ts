@@ -8,6 +8,7 @@ import { predictionInstrument } from "@/lib/predictions/instrument";
 import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
+import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
 
 type TickerSearchItem = {
   instrumentId?: string; companyId?: string; instrumentType?: InstrumentType;
@@ -128,10 +129,10 @@ export async function GET(request: NextRequest) {
   try {
     if (coveredOnly) {
       const db = getAdminFirestore();
-      const companies = await changeCached(db, 'covered-company-search', ['companies', 'company_relationships', 'directory_syncs'], async () => {
+      const companies = await withCompanyPageReads(()=>changeCached(db, 'covered-company-search', ['companies', 'company_relationships', 'directory_syncs'], async () => {
         const graph = await loadCollectionUniverse(db);
         return graph.nodes.filter(node => node.kind === 'COMPANY');
-      });
+      }));
       const compact = query.replace(/\s+/g, '');
       const items = !query ? [] : companies
         .map(company => toSearchItem(company.id, { ...company, searchTerms: companyPinyinTerms(company) }))
