@@ -163,3 +163,47 @@ No migration is executed by the UI or application startup. Before release,
 coordinate additive migrations, cache convergence, required indexes, and an
 availability monitor; stop new batches on capacity errors. Production remains
 unchanged until explicit release authorization.
+
+
+## Admin batch requests (staged)
+
+`POST /api/admin/instrument-onboarding/requests` accepts an authenticated,
+non-anonymous Firebase admin ID token. Admin status uses the existing verified
+claims/account role check; an email address, payload UID, or system flag never
+grants access. The server always passes the verified admin UID to the same
+requester-recording and instrument-job transaction as individual requests.
+No new account, role, collection, or persisted field is introduced by this API.
+
+Request example (IDs come from directory search):
+
+```json
+{
+  "items": [
+    {"instrumentId": "INS_<32 lowercase hex digits>", "listingId": "US:EXAMPLE"},
+    {"instrumentId": "INS_<another 32 lowercase hex digits>"}
+  ]
+}
+```
+
+Send `Authorization: Bearer <Firebase-ID-token>`. `listingId` is optional for
+existing instrument records; a missing record requires the verified matching
+legacy directory listing. Batches contain 1–25 items, at most 16 KiB. Requests are
+processed sequentially with a 200 ms pause between storage submissions, and
+repeated instrument IDs in one batch share the accepted result. Across concurrent
+batches and ordinary users, the existing transaction still creates only one job
+per instrument and one first-request record per user. Nothing executes providers,
+dispatches workers, resets blocked requests, or changes existing checkpoints.
+
+The response preserves input order and includes per-item `index`, `instrumentId`,
+`companyId` when known, current `status`, and `outcome`: QUEUED, ALREADY_REQUESTED,
+ALREADY_SUPPORTED, REJECTED, ERROR, or DEFERRED. BLOCKED/PROCESSING/QUEUED jobs
+return ALREADY_REQUESTED and retain their actual status. Invalid items are rejected
+individually; malformed/empty/oversized/over-limit batches are rejected before any
+submission. HTTP 200 can include per-item rejections (`ok: false`).
+
+An operational storage error returns HTTP 503 with partial results and stops new
+submissions; remaining unattempted instruments are DEFERRED. Previously accepted
+duplicates can still return their known result. Retry the same batch safely;
+existing jobs, request times, requester records and leases are preserved. Raw
+storage diagnostics are not exposed. The endpoint is private and non-cacheable.
+It has not been deployed or called against production.

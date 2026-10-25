@@ -44,14 +44,14 @@ export async function requestInstrumentOnboarding(db:Firestore,id:string,request
       const original=current.requestedByUid===requestedByUid?requester:await tx.get(originalRef);
       if(!original.exists)tx.create(originalRef,{requestedByUid:current.requestedByUid,requestedAt:current.requestedAt});
       if(current.requestedByUid!==requestedByUid&&!requester.exists)tx.create(requesterRef,{requestedByUid,requestedAt:new Date(now).toISOString()});
-      return {instrumentId:id,companyId,status:current.status};
+      return {instrumentId:id,companyId,status:current.status,created:false};
     }
-    if(isSupportedCompany(company)&&record.onboarding?.status==='SUPPORTED')return {instrumentId:id,companyId,status:'SUPPORTED' as const};
+    if(isSupportedCompany(company)&&record.onboarding?.status==='SUPPORTED')return {instrumentId:id,companyId,status:'SUPPORTED' as const,created:false};
     const request=createOnboardingRequest(id,record,company,requestedByUid,new Date(now));tx.create(ref,request);
     if(!requester.exists)tx.create(requesterRef,{requestedByUid,requestedAt:request.requestedAt});
     tx.set(instRef,{...(!inst.exists?{...record,createdAt:Timestamp.fromMillis(now)}:{}),onboarding:onboardingSummary('QUEUED',now,request.requestedAt),updatedAt:Timestamp.fromMillis(now)},{merge:true});
     if(!isSupportedCompany(company)&&!company.onboarding)tx.update(companyRef,{onboarding:onboardingSummary('QUEUED',now,request.requestedAt),updatedAt:Timestamp.fromMillis(now)});
-    return {instrumentId:id,companyId,status:'QUEUED' as const};
+    return {instrumentId:id,companyId,status:'QUEUED' as const,created:true};
   });
 }
 
