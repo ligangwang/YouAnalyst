@@ -46,7 +46,7 @@ test('publisher deadlines retain overdue sources for the next sweep',async()=>{
 test('worker rereads current approval from the single owning company',async()=>{
   let status='PUBLISHED';
   const fake={collection:(name:string)=>{assert.equal(name,'companies');return {doc:(id:string)=>{
-    assert.equal(id,source.companyId);return {get:async()=>({exists:true,id,data:()=>({name:'New',status:'DIRECTORY',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[{...source,status,reviewedAt:'2026-10-22'}]})})};
+    assert.equal(id,source.companyId);return {get:async()=>({exists:true,id,data:()=>({name:'New',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[{...source,status,reviewedAt:'2026-10-22'}]})})};
   }}}} as unknown as Firestore;
   assert.equal((await loadRequestedNewsSource(fake,message()))?.id,source.id);
   status='WITHDRAWN';assert.equal(await loadRequestedNewsSource(fake,message()),undefined);

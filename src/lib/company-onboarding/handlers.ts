@@ -2,6 +2,7 @@ import {Timestamp,type Firestore} from 'firebase-admin/firestore';
 import type {Bucket} from '@google-cloud/storage';
 import {loadThemeCatalog} from '../company-themes/catalog';
 import {catalogThemeIds} from '../company-themes/catalog-model';
+import {catalogGraphSectors} from '../company-themes/catalog-graph';
 import {activeThemeIds,type ThemedCompany} from '../company-themes/model';
 import {planEnrollment,type EnrollmentBatch} from '../company-themes/enrollment';
 import {syncCompanyInstrument} from '../instruments/service';
@@ -14,21 +15,28 @@ import {refreshCnFundamentals} from '../fundamentals/cn-refresh';
 import {createCnRequester,createCnSources} from '../fundamentals/cn-sources';
 import type {MaintenanceLog} from '../maintenance-log';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
-import {ONBOARDING_START,OnboardingBlocked,onboardingIdentity,type OnboardingRequest} from './model';
+import {ONBOARDING_START,OnboardingBlocked,onboardingIdentity,validDay,type OnboardingRequest} from './model';
 import type {OnboardingHandlers} from './queue';
 import {backfillOnboardingActions} from './actions';
 
 /** Adapters use existing provider workers and existing feature storage only. */
 export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
   const {db,bucket,log}=options;
+  const withFinancialLease=async(market:string,work:()=>Promise<void>)=>{
+    const lease=db.collection('company_fundamentals').doc(market==='US'?'_worker':'_cn_worker');
+    if(!await acquireMaintenanceLease(lease,log.runId))throw Error('Financial maintenance is active');
+    try{await work();}finally{await releaseMaintenanceLease(lease,log.runId);}
+  };
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
-    const company=await current(id),allowed=catalogThemeIds(await loadThemeCatalog(db));
+    const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
     const ids=activeThemeIds(company).filter(id=>allowed.includes(id));
     if(!ids.length)throw new OnboardingBlocked('Reviewed theme assignment is required');
     for(const id of ids){
       const membership=company.themeMemberships[id];
-      if(!membership.primarySector||!membership.reviewedAt||!membership.sources?.length||membership.sources.some((source:{url:string})=>!/^https:\/\//.test(source.url)))throw new OnboardingBlocked('Published themes need reviewed classification evidence');
+      if(typeof membership.primarySector!=='string'||!validDay(membership.reviewedAt)||membership.reviewedAt>new Date().toISOString().slice(0,10)||!membership.sources?.length||membership.sources.some((source:{url:string;title:string;summary:string})=>!/^https:\/\//.test(source.url)||!source.title?.trim()||!source.summary?.trim()))throw new OnboardingBlocked('Published themes need reviewed classification evidence');
+      const role=membership.primarySector.replace(new RegExp(`^${id}[.:]`),'');
+      if(!catalogGraphSectors(catalog,id).some(sector=>sector.id===role||sector.stages.includes(role)||sector.stages.includes(membership.primarySector)))throw new OnboardingBlocked('Theme classification is not in the active catalog');
     }
     return ids;
   };
@@ -54,7 +62,8 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     return {instrument,bars};
   };
   const ready=async(request:OnboardingRequest,guard:()=>Promise<void>)=>{
-    await themes(request.companyId);await financials(request);
+    await themes(request.companyId);const financial=await financials(request);
+    if(!financial.marketCap||!['estimated','unavailable'].includes(financial.marketCap.status))throw Error('Derived metrics are not ready');
     if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
     const {instrument,bars}=await priceHistory(request);
     for(let i=0;i<bars.length;i+=100){
@@ -101,25 +110,22 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     },
     fundamentals:async({request,guard})=>{
       await guard();const {instrument,cik}=onboardingIdentity(request.companyId,await current(request.companyId));
-      if(instrument.market==='US'){
-        const lease=db.collection('company_fundamentals').doc('_worker');
-        if(!await acquireMaintenanceLease(lease,log.runId))throw Error('SEC fundamentals maintenance is active');
-        try{await refreshCompanyFundamentals(instrument.ticker,{db,identify:async()=>cik,log});}finally{await releaseMaintenanceLease(lease,log.runId);}
-      }else{
-        const result=await refreshCnAnnual({db,companies:[request.companyId],deadline:Date.now()+120_000,log});
-        if(result.failed||result.deferred)throw Error('A-share annual refresh incomplete');
-      }
+      await withFinancialLease(instrument.market,async()=>{
+        if(instrument.market==='US')await refreshCompanyFundamentals(instrument.ticker,{db,identify:async()=>cik,log});
+        else{const result=await refreshCnAnnual({db,companies:[request.companyId],deadline:Date.now()+120_000,log});if(result.failed||result.deferred)throw Error('A-share annual refresh incomplete');}
+      });
       await financials(request);
     },
     metrics:async({request,guard})=>{
       await guard();const {instrument}=onboardingIdentity(request.companyId,await current(request.companyId));
-      if(instrument.market==='US'){
+      await withFinancialLease(instrument.market,async()=>{if(instrument.market==='US'){
         const result=await refreshCompanyMarketCaps(db,log,[instrument.ticker]);if(result.failed)throw Error('Market cap calculation failed');
       }else{
         const sources=createCnSources(createCnRequester({context:{runId:log.runId,job:'onboarding',company:request.companyId}}));
         const result=await refreshCnFundamentals({db,companies:[request.companyId],sources,log,deadline:Date.now()+180_000});
-        if(result.failed||result.sourcesIncomplete)throw Error('A-share metrics incomplete');
-      }
+        const stored=(await db.collection('company_fundamentals').doc(request.companyId).get()).data();
+        if(result.failed||result.sourcesIncomplete||result.actions.failed||result.actions.skipped||result.shares.failed||result.shares.skipped||result.marketCaps.failed||(result.shares.deferred&&stored?.cnShareStatus?.outcome!=='unavailable'))throw Error('A-share metrics incomplete');
+      }});
       await financials(request);
     },
     // Published, evidenced theme memberships supply graph entry points. Zero
