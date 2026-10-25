@@ -219,7 +219,10 @@ function getEodhdConfig(): { apiToken: string; apiUrl: string; bucketName: strin
 
   const bucketName = process.env.EODHD_BULK_EOD_BUCKET?.trim() || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || "";
   if (!bucketName) {
-    throw new Error("EODHD_BULK_EOD_BUCKET or NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET must be configured to cache EODHD bulk files.");
+    // Bulk storage is optional in existing worker configurations. Company tasks
+    // without it retain the dated single-symbol path; configured bulk failures
+    // still propagate instead of silently multiplying provider requests.
+    return null;
   }
 
   return {
