@@ -1,5 +1,4 @@
 import { FieldPath, type Firestore, type QuerySnapshot } from 'firebase-admin/firestore';
-import {peerPriceBar} from './model';
 import { changeCached } from '../change-cache';
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
 
@@ -10,20 +9,8 @@ export function loadPeerPrices(db:Firestore, companyId:string, market:'US'|'CN_A
  const prefix=`${market}_${ticker}_`;
  return changeCached(db,`peer-prices:${companyId}:${market}:${through}`,['eod_prices'],async()=>{
   const query=db.collection('eod_prices').where(FieldPath.documentId(),'>=',prefix)
-   .where(FieldPath.documentId(),'<=',prefix+through).orderBy(FieldPath.documentId(),'desc');
-  const read=async(limit:number):Promise<QuerySnapshot>=>{
-   const bounded=query.limit(limit);
-   return await (collectionSourceSnapshot(db,bounded,'eod_prices') ?? bounded.get());
-  };
-  const first=await read(6);
-  // Six valid, canonically ordered sessions cover the global latest-six union.
-  // Older rows cannot affect it. Preserve the old twelve-row behavior when a
-  // correction, missing adjusted close, or malformed identity breaks that proof.
-  const complete=first.docs.every(doc=>{
-   const bar=peerPriceBar(doc.data(),ticker,market,through);
-   return bar!==null&&doc.id===prefix+bar.date;
-  });
-  const snapshot=first.docs.length<6||complete?first:await read(12);
+   .where(FieldPath.documentId(),'<=',prefix+through).orderBy(FieldPath.documentId(),'desc').limit(12);
+  const snapshot: QuerySnapshot = await (collectionSourceSnapshot(db,query,'eod_prices') ?? query.get());
   return snapshot.docs.map(doc=>doc.data());
  });
 }
