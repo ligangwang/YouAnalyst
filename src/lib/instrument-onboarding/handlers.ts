@@ -9,14 +9,12 @@ import {isSupportedCompany} from '../company-support/model';
 import type {Instrument} from '../instruments/model';
 import {backfillPriceHistory,historyBars,historyProviderSymbol} from '../predictions/history-backfill';
 import {saveLatestEodPrice} from '../predictions/latest-eod';
-import {refreshCompanyFundamentals} from '../fundamentals/worker';
-import {refreshCnAnnual} from '../fundamentals/cn-annual-worker';
 import {refreshCompanyMarketCaps} from '../fundamentals/market-cap';
 import {refreshCnFundamentals} from '../fundamentals/cn-refresh';
 import {createCnRequester,createCnSources} from '../fundamentals/cn-sources';
 import type {MaintenanceLog} from '../maintenance-log';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
-import {ONBOARDING_START,OnboardingBlocked,instrumentOnboardingIdentity,validDay,type OnboardingRequest} from './model';
+import {ONBOARDING_START,OnboardingBlocked,OnboardingWaiting,instrumentOnboardingIdentity,validDay,type OnboardingRequest} from './model';
 import type {OnboardingHandlers} from './queue';
 import {backfillOnboardingActions} from './actions';
 
@@ -48,7 +46,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     if(!annual||!Array.isArray(annual.metrics)||!annual.metrics.some((metric:{value:unknown})=>typeof metric.value==='number'&&Number.isFinite(metric.value))){
       if(instrument.market==='US'&&['error','retry'].includes(data?.outcome))throw new OnboardingBlocked('SEC financial refresh requires an administrator retry');
       if(data?.outcome==='unavailable')throw new OnboardingBlocked('Required financial metrics are unavailable');
-      throw Error('Required financial metrics are not ready');
+      throw new OnboardingWaiting('Waiting for scheduled company fundamentals');
     }
     if(cik&&String(annual.report?.cik).padStart(10,'0')!==cik)throw new OnboardingBlocked('Financial report issuer does not match the company');
     if(instrument.market==='CN_A'&&annual.companyId!==request.companyId)throw new OnboardingBlocked('Financial report issuer does not match the company');
@@ -115,18 +113,13 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     },
     fundamentals:async({request,instrument:record,guard})=>{
       await guard();
-      try{await financials(request,record);return;}catch(error){if(error instanceof OnboardingBlocked)throw error;}
-      const {instrument,cik}=instrumentOnboardingIdentity(record,await current(request.companyId));
-      if(instrument.market==='US'&&!request.companyId.startsWith('US:'))throw new OnboardingBlocked('Canonical issuer financial provider identity requires review');
-      if(instrument.market==='CN_A'&&record.providerSymbols.youanalyst!==request.companyId)throw new OnboardingBlocked('A-share issuer financial provider identity requires review');
-      await withFinancialLease(instrument.market,async()=>{
-        if(instrument.market==='US')await refreshCompanyFundamentals(request.companyId.slice(3),{db,identify:async()=>cik,log});
-        else{const result=await refreshCnAnnual({db,companies:[request.companyId],deadline:Date.now()+120_000,log});if(result.failed||result.deferred)throw Error('A-share annual refresh incomplete');}
-      });
+      // Company admission already enrolled the issuer in normal maintenance.
+      // Read its result here; onboarding never starts another financial collector.
       await financials(request,record);
     },
     metrics:async({request,instrument:record,guard})=>{
       await guard();const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
+      await financials(request,record);
       await withFinancialLease(instrument.market,async()=>{if(instrument.market==='US'){
         const result=await refreshCompanyMarketCaps(db,log,[instrument.ticker]);if(result.failed)throw Error('Market cap calculation failed');
       }else{
@@ -140,9 +133,9 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     // Published, evidenced theme memberships supply graph entry points. Zero
     // commercial edges is valid; the worker never invents relationships.
     graph:async({request})=>{if(!isSupportedCompany(await current(request.companyId)))await themes(request.companyId);},
-    events:async({request,instrument:record})=>{
+    events:async({request})=>{
       if(isSupportedCompany(await current(request.companyId)))return;
-      await themes(request.companyId);await financials(request,record);
+      await themes(request.companyId);
       const company=await current(request.companyId);if(typeof company.description!=='string'||!company.description.trim())throw new OnboardingBlocked('Reviewed company description is required');
       if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
     },

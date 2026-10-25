@@ -6,7 +6,8 @@ until the user authorizes the release. No production data was written.
 ## Readiness contracts
 
 `companies.onboarding` certifies shared issuer readiness: canonical identity/CIK,
-reviewed profile, evidenced themes, fundamentals, graph entry, and event routing.
+reviewed profile, evidenced themes, graph entry, and event routing. SUPPORTED
+enrolls the company in scheduled maintenance; fundamentals may still be pending.
 `instruments.onboarding` certifies listing readiness: linked issuer, corporate
 actions, price history, listing-specific metrics, and final validation. A company
 can be SUPPORTED while one of its instruments is still onboarding or blocked.
@@ -55,16 +56,22 @@ Stages run in order:
 1. identity (instrument-to-issuer linkage)
 2. themes (company)
 3. profile (company)
-4. fundamentals (company; reuse valid reports or repair missing data)
-5. graph (company)
-6. events (company readiness verification and admission)
-7. corporateActions (instrument splits and dividends)
-8. prices (instrument historical prices)
+4. graph (company)
+5. events (company readiness verification and admission)
+6. corporateActions (instrument splits and dividends)
+7. prices (instrument historical prices)
+8. fundamentals (read-only dependency check for instrument metrics)
 9. metrics (instrument-specific valuation/share data)
 10. verify (company and instrument readiness, then instrument admission)
 
-A supported issuer reuses its theme/profile/graph/event checkpoints. Fundamentals
-still validates the canonical issuer's stored report and refreshes missing data.
+A supported issuer reuses its theme/profile/graph/event checkpoints. Normal
+scheduled financial jobs collect missing issuer fundamentals after admission.
+Onboarding never starts a financial collector: its fundamentals checkpoint reads
+and validates issuer identity and usable metrics. Pending data leaves the instrument
+queued for another check in 15 minutes without consuming failure attempts. Metrics
+also rechecks this dependency before doing any derived work, and final instrument
+admission still requires valid fundamentals. Terminal errors and identity mismatches
+remain visible for admin attention; company support is preserved.
 Company work is serialized across requests for that issuer through transactional
 checks of existing request leases. Another listing cannot overwrite a supported
 company's status with QUEUED or BLOCKED. No extra coordination fields are added.

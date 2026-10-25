@@ -14,6 +14,8 @@ export type OnboardingRequest={
   leaseOwner:string|null;leaseExpiresAt:number;lastError:string|null;
 };
 export class OnboardingBlocked extends Error {}
+/** A scheduled dependency is pending, rather than a failed onboarding attempt. */
+export class OnboardingWaiting extends Error {}
 export const validRequesterUid=(uid:unknown):uid is string=>typeof uid==='string'&&uid.length>0&&uid.length<=128;
 export const validDay=(day:string)=>/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day;
 

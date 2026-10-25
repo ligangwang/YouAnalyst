@@ -5,7 +5,7 @@ import {isSupportedCompany} from '../company-support/model';
 import {instrumentId,validInstrumentId,instrumentFromCompany,validateInstrument,type Instrument} from '../instruments/model';
 import {maintenanceError} from '../maintenance-log';
 import {REQUESTERS_COLLECTION,requesterId} from './requesters';
-import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
+import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,OnboardingWaiting,type OnboardingRequest,type OnboardingStep} from './model';
 
 const LEASE_MS=20*60_000;
 const companyStep=(step:OnboardingStep)=>COMPANY_STEPS.includes(step as typeof COMPANY_STEPS[number]);
@@ -102,9 +102,8 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
   });
   try{
     await guard();
-    // Admission already certifies these shared issuer steps. Fundamentals still
-    // validates the stored report and repairs it if it is missing.
-    if(!(isSupportedCompany(claimed.company)&&companyStep(step)&&step!=='fundamentals'))await handlers[step]({...claimed,guard});
+    // Admission certifies enrollment and the shared presentation/routing steps.
+    if(!(isSupportedCompany(claimed.company)&&companyStep(step)))await handlers[step]({...claimed,guard});
     await db.runTransaction(async tx=>{
       const current=parseOnboardingRequest((await tx.get(ref)).data());
       if(current.leaseOwner!==owner||current.leaseExpiresAt<=clock()||current.status!=='PROCESSING')throw Error('Onboarding lease lost');
@@ -124,12 +123,12 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     await db.runTransaction(async tx=>{
       const current=parseOnboardingRequest((await tx.get(ref)).data());if(current.leaseOwner!==owner||current.leaseExpiresAt<=clock())return;
       const [inst,company]=await tx.getAll(db.collection('instruments').doc(id),db.collection('companies').doc(current.companyId));
-      const attemptCount=current.attemptCount+1,blocked=error instanceof OnboardingBlocked||attemptCount>=8;
-      tx.set(ref,{...current,status:blocked?'BLOCKED':'QUEUED',attemptCount,nextAttemptAt:blocked?0:clock()+Math.min(6*3600_000,60_000*2**(attemptCount-1)),leaseOwner:null,leaseExpiresAt:0,lastError:`${step}: ${privateReason}`,updatedAt:new Date(clock()).toISOString()});
+      const waiting=error instanceof OnboardingWaiting,attemptCount=waiting?current.attemptCount:current.attemptCount+1,blocked=!waiting&&(error instanceof OnboardingBlocked||attemptCount>=8);
+      tx.set(ref,{...current,status:blocked?'BLOCKED':'QUEUED',attemptCount,nextAttemptAt:blocked?0:clock()+(waiting?15*60_000:Math.min(6*3600_000,60_000*2**(attemptCount-1))),leaseOwner:null,leaseExpiresAt:0,lastError:`${step}: ${privateReason}`,updatedAt:new Date(clock()).toISOString()});
       if(inst.exists)tx.update(inst.ref,{onboarding:onboardingSummary(blocked?'BLOCKED':'PROCESSING',clock(),current.requestedAt,inst.get('onboarding'),blocked?publicReason:null),updatedAt:Timestamp.fromMillis(clock())});
       if(company.exists&&companyStep(step)&&!isSupportedCompany(company.data()!))tx.update(company.ref,{onboarding:onboardingSummary(blocked?'BLOCKED':'PROCESSING',clock(),current.requestedAt,company.get('onboarding'),blocked?publicReason:null),updatedAt:Timestamp.fromMillis(clock())});
     });
-    return {status:'INCOMPLETE' as const,step};
+    return {status:error instanceof OnboardingWaiting?'WAITING' as const:'INCOMPLETE' as const,step};
   }
 }
 
