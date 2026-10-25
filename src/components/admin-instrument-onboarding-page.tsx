@@ -7,6 +7,7 @@ import {ONBOARDING_STEPS,COMPANY_STEPS} from '@/lib/instrument-onboarding/progre
 import type {AdminOnboardingItem,AdminOnboardingPage} from '@/lib/instrument-onboarding/admin';
 import type {InstrumentRequestersPage,InstrumentRequester} from '@/lib/instrument-onboarding/requesters';
 import styles from './admin-instrument-onboarding.module.css';
+import {AdminOnboardingBatchRequest} from './admin-onboarding-batch-request';
 
 const time=(value:string|number|null)=>value?new Date(value).toLocaleString():'—';
 function AdminRequesters({instrumentId}:{instrumentId:string}){
@@ -68,6 +69,7 @@ export function AdminInstrumentOnboardingPage(){
     <Link href="/admin">← {text('Admin dashboard','管理面板')}</Link>
     <header><div><p className={styles.eyebrow}>{text('SUPPORT OPERATIONS','支持管理')}</p><h1>{text('Instrument Onboarding','证券入驻')}</h1><p>{text('Company readiness is shared. Prices and corporate actions belong to each instrument.','公司就绪状态共享，价格和公司行动按证券分别处理。')}</p></div><button disabled={busy||pending!==null} onClick={()=>void load()}>{text('Refresh','刷新')}</button></header>
     <p>{text('Retry queues only the failed step for the worker. It does not run provider work in this page.','重试仅将失败步骤重新排队，本页面不会执行数据供应商任务。')}</p>
+    <AdminOnboardingBatchRequest onAccepted={()=>void load()}/>
     {error&&<p role="alert" className={styles.error}>{error}</p>}{message&&<p role="status">{message}</p>}
     {busy&&<p role="status">{text('Loading requests…','加载请求中…')}</p>}
     {!busy&&!error&&!items.length&&<p>{text('No onboarding requests yet.','暂无入驻请求。')}</p>}
