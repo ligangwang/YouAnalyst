@@ -82,9 +82,9 @@ dividend values in sourcePayload. Price history preserves existing historical ke
 Issuer reports are shared, but one share class never inherits another class's
 market cap, share assessment, or corporate actions.
 
-One invocation checkpoints one step per instrument, maximum five sequential
-instruments. A 20-minute fenced lease prevents stale completion. Retryable failures
-back off from one minute to six hours and block after eight failed attempts.
+One message advances consecutive steps, checkpointing every success. A 20-minute
+fenced lease prevents stale completion. All failures block immediately with no
+automatic step retry; explicit admin retry preserves the completed checkpoints.
 Date rollover clears only instrument history/final validation checkpoints
 for catchup; company readiness remains intact. Final admission checks stored bars,
 issuer identity, persisted corporate actions, identity stability, and the current cutoff.
@@ -149,17 +149,40 @@ messages are sanitized; credentials and provider URLs are not exposed publicly.
 The maintenance image includes `dist/onboard-instruments.cjs` without changing its
 default command. The protected background rollout enables `INSTRUMENT_ONBOARDING_ENABLED=1`
 and deploys `onboard-instruments-production` with the reviewed pinned shared image,
-existing maintenance identities and private EODHD bucket/credential. An authenticated
-five-minute schedule runs one resumable checkpoint for one instrument per execution.
-No new Pub/Sub topic or subscription is required. A normal delivery check runs the
-worker in preview mode (no providers) before website promotion. Schedule updates
-preserve its current state; existing schedules are never paused.
+existing maintenance identities and private EODHD bucket/credential. A private Cloud Run subscriber receives Eventarc messages on writes to
+`instrument_onboarding_requests/{instrumentId}`. New requests and explicit admin
+retries start immediately. No polling schedule or recovery schedule is used.
+The old onboarding schedule is removed only after the subscriber and trigger are
+ready and an authenticated, provider-free message delivery check passes against
+the exact reviewed revision. The manual Cloud Run job remains available for operator preview/inspection.
+
+A message processes consecutive checkpoints within a bounded run. Each completed
+step is committed before the next starts; messages read current state rather than
+stale payloads. Checkpoint writes also emit durable continuation messages. Duplicate
+messages and issuer contention respect the existing fenced leases. Transport
+redelivery may continue **unfinished ready work**, but never a failed provider step.
+All step errors become BLOCKED with `nextAttemptAt=0`; only explicit admin retry
+clears them. Expired PROCESSING leases are blocked for inspection because the last
+provider operation may have had an unknown outcome. Old queued failures and legacy
+theme blockers are never automatically resumed.
+
+One-time operator setup runs `scripts/setup-instrument-onboarding.sh` before the
+protected rollout. It grants the deployment account only Eventarc trigger create
+and update permissions (existing viewer access is reused), and grants the existing
+delivery account Eventarc receiver access. Routine CI never modifies project IAM.
+
+No Firestore schema changes are required. Eventarc uses the existing request
+collection as the durable message source (including admin and batch request flows).
+It ignores requester subcollections. Existing untouched QUEUED documents predate
+this trigger: use the explicit operator wake command during migration to emit a
+message for ready requests; never wake BLOCKED/failed requests automatically.
 
 ```
 npx tsx scripts/onboard-instruments.ts                         # preview only
 npx tsx scripts/onboard-instruments.ts --instrument=INS_... --listing=US:EXAMPLE --requester=<Firebase-UID> --enqueue
 npx tsx scripts/onboard-instruments.ts --process --limit=1
 npx tsx scripts/onboard-instruments.ts --instrument=INS_... --retry
+npx tsx scripts/onboard-instruments.ts --instrument=INS_... --wake # ready pre-trigger request only
 ```
 
 The approved company migration remains dry-run by default:

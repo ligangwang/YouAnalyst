@@ -955,7 +955,7 @@ jobs:
         run: >-
           gcloud run jobs execute onboard-instruments-production
           --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/onboard-instruments.cjs,--limit=1 --wait --quiet
+          --args dist/onboard-instruments.cjs,--verify-delivery --wait --quiet
       - name: Verify graph Pub/Sub delivery without SEC or OpenAI calls
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'company-graph' || env.TARGET_JOB == 'sec-filings') }}
         run: >-

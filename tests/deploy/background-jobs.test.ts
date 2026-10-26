@@ -21,6 +21,11 @@ function run(target:string,extra:Record<string,string>={}) {
           done
         fi
         case "$*" in
+          "firestore databases describe"*) echo nam5 ;;
+          "eventarc triggers describe"*) if [[ "\${ONBOARDING_TRIGGER_NOT_READY:-0}" == 1 && "$*" == *"--format=json"* ]]; then echo '{"conditions":{"transport":{"code":"NOT_READY"}}}'; else echo '{"transport":{"pubsub":{"subscription":"projects/demo/subscriptions/onboarding-events"}}}'; fi ;;
+          "run services describe instrument-onboarding-subscriber"*"value(status.url)"*) echo https://onboarding.example.run.app ;;
+          "run jobs execute onboard-instruments-production"*) if [[ "\${ONBOARDING_DELIVERY_FAIL:-0}" == 1 ]]; then return 1; fi ;;
+          "run services describe instrument-onboarding-subscriber"*) echo '{"status":{"conditions":[{"type":"Ready","status":"True"}]}}' ;;
           "scheduler jobs describe onboard-instruments-production"*) if [[ "\${NEW_ONBOARDING:-0}" == 1 ]]; then return 1; fi ;;
           *"get-iam-policy"*)
             local arg
@@ -74,15 +79,28 @@ test('directory-only deploy avoids shared build and schedule changes',()=>{
   assert.ok(r.calls.indexOf('subscriptions update cni-directory-worker') < r.calls.indexOf('run jobs update sync-cni-directory-production'));
 });
 
-test('onboarding rollout uses the pinned shared image, bounded worker and authenticated schedule',()=>{
+test('onboarding rollout uses private on-demand events and retires only its own schedule after readiness',()=>{
   const r=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'private-test-token',OPENAI_API_KEY:'private-onboarding-ai-key',EODHD_BULK_EOD_BUCKET:'demo-eod',NEW_ONBOARDING:'1'});
   assert.equal(r.status,0,r.stderr);
   assert.match(r.calls,/run jobs deploy onboard-instruments-production .*--image example\/image@sha256:abcdef/);
   assert.match(r.calls,/--args dist\/onboard-instruments.cjs,--process,--limit=1/);
   assert.match(r.calls,/--max-retries 0 --task-timeout 20m/);
-  assert.match(r.calls,/scheduler jobs create http onboard-instruments-production .*--schedule \*\/5 \* \* \* \*/);
-  assert.match(r.calls,/--oauth-service-account-email directory-sync-scheduler@demo.iam.gserviceaccount.com/);
-  assert.doesNotMatch(r.calls,/private-test-token|private-onboarding-ai-key|scheduler jobs (pause|resume)|run jobs execute/);
+  assert.match(r.calls,/run deploy instrument-onboarding-subscriber .*--no-allow-unauthenticated/);
+  assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--max-instances 2 --concurrency 1/);
+  assert.match(r.calls,/eventarc triggers (create|update) instrument-onboarding-requests/);
+  assert.doesNotMatch(r.calls,/scheduler jobs (create|update) http onboard-instruments-production/);
+  assert.doesNotMatch(r.calls,/projects add-iam-policy-binding .*--role roles\/eventarc.eventReceiver/);
+  const existing=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod'});
+  assert.equal(existing.status,0,existing.stderr);
+  assert.match(existing.calls,/scheduler jobs delete onboard-instruments-production/);
+  assert(existing.calls.lastIndexOf('eventarc triggers describe')<existing.calls.indexOf('scheduler jobs delete onboard-instruments-production'));
+  const unready=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_TRIGGER_NOT_READY:'1'});
+  assert.notEqual(unready.status,0);assert.doesNotMatch(unready.calls,/scheduler jobs delete onboard-instruments-production/);
+  assert.doesNotMatch(r.calls,/private-test-token|private-onboarding-ai-key|scheduler jobs (pause|resume)/);
+  assert.match(r.calls,/run jobs execute onboard-instruments-production .*--args dist\/onboard-instruments.cjs,--verify-delivery/);
+  assert(existing.calls.indexOf('run jobs execute onboard-instruments-production')<existing.calls.indexOf('scheduler jobs delete onboard-instruments-production'));
+  const failedDelivery=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_DELIVERY_FAIL:'1'});
+  assert.notEqual(failedDelivery.status,0);assert.doesNotMatch(failedDelivery.calls,/scheduler jobs delete onboard-instruments-production/);
   const missingAi=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',OPENAI_API_KEY:'',EODHD_API_TOKEN:'private-test-token',EODHD_BULK_EOD_BUCKET:'demo-eod'});
   assert.notEqual(missingAi.status,0);assert.match(missingAi.stderr,/OPENAI_API_KEY/);assert.doesNotMatch(missingAi.calls,/builds submit|run jobs deploy/);
   const invalid=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'',EODHD_BULK_EOD_BUCKET:'demo-eod'});

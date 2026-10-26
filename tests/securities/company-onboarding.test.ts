@@ -86,7 +86,7 @@ test('another share class reuses issuer work but must finish its own price and a
 test('retry keeps completed checkpoints, blocks stale admin actions and redacts provider errors',async()=>{
   const f=onboardingFixture();await f.enqueue();await f.process();
   await f.process({...f.handlers,themes:async()=>{throw Error('Provider unavailable https://provider.test?api_token=secret');}});
-  assert.equal(f.request().status,'QUEUED');assert.equal(f.request().attemptCount,1);assert(!String(f.request().lastError).includes('secret'));
+  assert.equal(f.request().status,'BLOCKED');assert.equal(f.request().nextAttemptAt,0);assert.equal(f.request().attemptCount,1);assert(!String(f.request().lastError).includes('secret'));
   assert.equal((await f.process()).status,'SKIPPED');
   await assert.rejects(()=>retryInstrumentOnboarding(f.db,f.id,{step:'themes',updatedAt:'old'},f.clock()),/changed/);
   await retryInstrumentOnboarding(f.db,f.id,{step:'themes',updatedAt:String(f.request().updatedAt)},f.clock());
@@ -149,7 +149,7 @@ test('instrument onboarding completes with no fundamentals or market-cap work an
 test('concurrent theme edits or instrument reparenting cannot publish stale instrument readiness',async()=>{
   const f=onboardingFixture();await f.enqueue();for(let i=0;i<ONBOARDING_STEPS.indexOf('verify');i++)await f.process();
   await f.process({...f.handlers,verify:async()=>{f.rows.set('companies/US:NEW',{...f.rows.get('companies/US:NEW'),themeMemberships:{}});}});
-  assert.equal(f.request().status,'QUEUED');assert.equal((f.request().steps as Record<string,unknown>).verify,undefined);
+  assert.equal(f.request().status,'BLOCKED');assert.equal((f.request().steps as Record<string,unknown>).verify,undefined);
 });
 
 test('supported issuer alone does not make a new instrument supported',()=>{

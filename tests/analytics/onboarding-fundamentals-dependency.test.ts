@@ -54,7 +54,7 @@ test('no new match does not withdraw an existing evidenced theme while filling a
  assert.equal(result.status,'CHECKPOINTED');assert.equal(f.request().status,'QUEUED');assert.equal(calls,1);assert.deepEqual(f.rows.get('companies/US:NEW')!.themeMemberships,{robotics:membership});assert.equal(f.rows.get('companies/US:NEW')!.description,'Official company description.');
 });
 
-test('valid no-match blocks on the first call; legacy no-match makes no new call; provider errors still retry',async()=>{
+test('no-match and provider errors block once; legacy queued failures never make another call',async()=>{
  const api=await handlersFixture(true);
  for(const mode of ['no-match','legacy','provider-error']){
   const f=onboardingFixture(Date.now());await f.enqueue();await f.process();
@@ -64,15 +64,14 @@ test('valid no-match blocks on the first call; legacy no-match makes no new call
    calls++;if(mode==='provider-error')throw Error('Provider returned 503');return {companyId:'US:NEW',description:'Official business description.',assignments:[]};
   }});
   const process=()=>api.processInstrumentOnboarding(f.db,f.id,{...f.handlers,themes:handlers.themes},f.clock);
-  assert.equal((await process()).status,'INCOMPLETE');
-  if(mode==='provider-error'){
-   assert.equal(f.request().status,'QUEUED');assert(Number(f.request().nextAttemptAt)>f.clock());assert.equal((await process()).status,'SKIPPED');f.advance(60001);await process();assert.equal(calls,2);
-  }else{
-   assert.equal(f.request().status,'BLOCKED');assert.equal(f.request().nextAttemptAt,0);assert.equal(f.request().lastError,`themes: ${NO_THEME_MATCH_REASON}`);
-   assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'BLOCKED');
-   assert.equal((f.rows.get(`instruments/${f.id}`)!.onboarding as {status:string}).status,'BLOCKED');
-   f.advance(86400_000);assert.equal((await process()).status,'SKIPPED');assert.equal(calls,mode==='legacy'?0:1);assert.deepEqual(f.request().steps,{identity:'COMPLETE'});
-  }
+  assert.equal((await process()).status,mode==='legacy'?'SKIPPED':'INCOMPLETE');
+  assert.equal(f.request().status,'BLOCKED');assert.equal(f.request().nextAttemptAt,0);
+  if(mode==='no-match')assert.equal(f.request().lastError,`themes: ${NO_THEME_MATCH_REASON}`);
+  if(mode==='legacy')assert.equal(f.request().lastError,LEGACY_NO_THEME_MATCH);
+  if(mode==='provider-error')assert.match(String(f.request().lastError),/Provider returned 503/);
+  assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'BLOCKED');
+  assert.equal((f.rows.get(`instruments/${f.id}`)!.onboarding as {status:string}).status,'BLOCKED');
+  f.advance(86400_000);assert.equal((await process()).status,'SKIPPED');assert.equal(calls,mode==='legacy'?0:1);assert.deepEqual(f.request().steps,{identity:'COMPLETE'});
  }
 });
 

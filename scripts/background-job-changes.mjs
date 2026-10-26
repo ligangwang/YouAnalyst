@@ -17,7 +17,7 @@ const retiredUiPaths = new Set([
 export function backgroundJobTarget(paths) {
   let financial = false, directory = false;
   for (const path of paths) {
-    if (['scripts/deploy-instrument-onboarding.sh','scripts/onboard-instruments.ts','scripts/migrate-instrument-onboarding.ts'].includes(path)) {financial=true;continue;}
+    if (['scripts/deploy-instrument-onboarding.sh','scripts/onboard-instruments.ts','scripts/serve-instrument-onboarding.ts','scripts/migrate-instrument-onboarding.ts'].includes(path)) {financial=true;continue;}
     if (['scripts/serve-sec-downloads.ts','scripts/cleanup-sec-downloads.ts','scripts/deploy-sec-downloads.sh','scripts/serve-sec-discovery.ts','scripts/serve-news-enrichment.ts','scripts/deploy-discovery-enrichment.sh'].includes(path)) {financial=true;continue;}
     if (path.startsWith(UI_LIBRARY_ROOT)) continue;
     if (retiredUiPaths.has(path) && !existsSync(path)) continue;
