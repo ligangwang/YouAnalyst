@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {isDeepStrictEqual} from 'node:util';
 import {catalogThemes,type ThemeCatalog} from './catalog-model';
 import {catalogGraphSectors} from './catalog-graph';
 import {planEnrollment,type EnrollmentBatch} from './enrollment';
@@ -34,11 +35,13 @@ export function themeFields(company:ThemedCompany,catalog:ThemeCatalog,assignmen
     for(const s of a.sources){assert(s&&typeof s.url==='string','Invalid source');try{sourceUrl(s.url);}catch{assert.fail('Invalid official source URL');}assert(typeof s.title==='string'&&s.title.trim()&&s.title.length<=500&&typeof s.summary==='string'&&s.summary.trim()&&s.summary.length<=2400,'Invalid theme evidence');}
     // Automatic retries never overwrite an existing published or withdrawn decision.
     if(!replace&&record.themeMemberships?.[a.theme])continue;
-    const priorGraph=record.inGraph;
+    const priorGraph=record.inGraph,priorMember=record.themeMemberships?.[a.theme];
+    const samePlacement=priorMember?.status==='PUBLISHED'&&priorMember.primarySector===a.primarySector&&isDeepStrictEqual([...(priorMember.secondaryRoles??[])].sort(),[...(a.secondaryRoles??[])].sort())&&(a.theme!=='ai'||isDeepStrictEqual([...((priorGraph as {stageIds?:string[]})?.stageIds??[])].sort(),[...(a.aiStageIds??[])].sort()));
     if(replace){record.themeMemberships={...record.themeMemberships};delete record.themeMemberships[a.theme];if(a.theme==='ai')delete record.inGraph;}
     const proposal={id:company.id,expectedName:String(company.name),primarySector:a.primarySector,secondaryRoles:a.secondaryRoles,aiStageIds:a.aiStageIds,sources:a.sources.map(s=>({url:sourceUrl(s.url),title:s.title.trim(),summary:s.summary.trim()}))};
     const patch=planEnrollment([record],{theme:a.theme,reviewedAt:day,companies:[proposal]},catalog)[0];
     if(patch)record={...record,...patch.fields};
+    if(replace&&samePlacement&&priorMember?.assignments)record.themeMemberships![a.theme].assignments=structuredClone(priorMember.assignments);
     if(replace&&a.theme==='ai'&&priorGraph)record.inGraph={...priorGraph as object,...record.inGraph as object};
   }
   assert(activeThemeIds(record).length,'No existing theme matches the official business evidence');

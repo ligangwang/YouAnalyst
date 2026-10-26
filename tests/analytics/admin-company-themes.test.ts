@@ -35,3 +35,9 @@ test('admins publish corrections with optimistic concurrency without changing su
  assert.equal((f.row.themeMemberships as Record<string,{status:string}>).robotics.status,'WITHDRAWN');
  const next=await(await f.send()).json();assert.equal((await f.send('POST',{version:next.version,assignments:[]})).status,400);
 });
+test('legacy AI-only company remains selected when another theme is added',async()=>{
+ const f=await fixture();f.row.inGraph={status:'PUBLISHED',stageIds:['ai.applications.edge'],sources:[{url:'https://example.com/official',title:'Edge AI'}],memberships:[{summary:'Produces edge AI systems.'}]};
+ const body=await(await f.send()).json();assert.equal(body.assignments.length,1);assert.equal(body.assignments[0].theme,'ai');assert.deepEqual(body.assignments[0].aiStageIds,['ai.applications.edge']);
+ assert.equal((await f.send('POST',{version:body.version,assignments:[...body.assignments,assignment('robotics')]})).status,200);
+ assert.deepEqual((f.row.inGraph as {stageIds:string[]}).stageIds,['ai.applications.edge']);assert.deepEqual(f.row.themeIds,['ai','robotics']);
+});

@@ -10,11 +10,20 @@ export async function readThemeEditor(db:Firestore,id:string){
   const [doc,catalog]=await Promise.all([db.collection('companies').doc(id).get(),loadThemeCatalog(db)]);
   if(!doc.exists||doc.get('isDeleted')||!['DIRECTORY','PUBLISHED'].includes(doc.get('status')))throw Error('Company unavailable');
   const company=doc.data()!;
+  const assignments=Object.entries(company.themeMemberships??{}).filter(([,v])=>(v as {status:string}).status==='PUBLISHED').map(([theme,value])=>{const m=value as ThemeAssignment;return {theme,primarySector:m.primarySector,secondaryRoles:m.secondaryRoles??[],sources:m.sources??[],...(theme==='ai'?{aiStageIds:(company.inGraph as {stageIds?:string[]})?.stageIds??[]}:{} )};});
+  // Older published AI companies may have only the graph projection. Present
+  // that decision as selected so an unrelated edit cannot silently withdraw it.
+  const graph=company.inGraph as {status?:string;stageIds?:string[];sources?:{url:string;title:string}[];memberships?:{summary?:string}[]}|undefined;
+  if(!company.themeMemberships?.ai&&graph?.status==='PUBLISHED'){
+    const sectors=catalogGraphSectors(catalog,'ai').filter(s=>s.stages.some(id=>graph.stageIds?.includes(id)));
+    const summary=graph.memberships?.map(m=>m.summary).filter(Boolean).join(' ')||String(company.description??'');
+    assignments.push({theme:'ai',primarySector:sectors[0]?.id??'',secondaryRoles:sectors.slice(1).map(s=>s.id),aiStageIds:graph.stageIds??[],sources:(graph.sources??[]).map(s=>({url:s.url,title:s.title,summary}))});
+  }
   return {version:themeVersion(company),themes:catalogThemes(catalog).map(t=>{
     const roles=[...new Set(catalogGraphSectors(catalog,t.id).flatMap(s=>[s.id,...s.stages]))];
     const roleNames=Object.fromEntries(roles.map(role=>{const normalized=role.replace(`${t.id}:`,'');const node=catalog.find(n=>n.id===normalized||n.id===`${t.id}.${normalized}`)||catalog.find(n=>n.id.startsWith(`${t.id}.`)&&n.id.split('.').at(-1)===normalized);return [role,node?.names??{en:role,'zh-CN':role}];}));
     return {id:t.id,names:t.names,roles,roleNames};
-  }),assignments:Object.entries(company.themeMemberships??{}).filter(([,v])=>(v as {status:string}).status==='PUBLISHED').map(([theme,value])=>{const m=value as ThemeAssignment;return {theme,primarySector:m.primarySector,secondaryRoles:m.secondaryRoles??[],sources:m.sources??[],...(theme==='ai'?{aiStageIds:(company.inGraph as {stageIds?:string[]})?.stageIds??[]}:{} )};})};
+  }),assignments};
 }
 export async function editCompanyThemes(db:Firestore,id:string,version:string,assignments:ThemeAssignment[]){
   const catalog=await loadThemeCatalog(db);

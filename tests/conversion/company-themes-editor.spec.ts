@@ -26,6 +26,13 @@ test('admin changes themes on the company page and saves immediate corrections',
 test('non-admins do not see editing controls',async({page})=>{
  await page.addInitScript(()=>{window.authScenario={signedIn:true};});await page.route('**/*',r=>new URL(r.request().url()).pathname==='/api/admin/company-themes'?r.fulfill({status:403,json:{error:'Forbidden'}}):r.fulfill({contentType:'text/html',body:html}));await page.goto(origin);await expect(page.getByRole('button',{name:'Edit company themes'})).toHaveCount(0);
 });
+test('selected AI stage is submitted without broadening to its parent sector',async({page})=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});let saved=false;
+ const state={version:initial.version,themes:[{id:'ai',names:{en:'AI','zh-CN':'人工智能'},roles:['applications','ai.applications.edge']}],assignments:[{...initial.assignments[0],theme:'ai',primarySector:'applications',aiStageIds:['applications']}]};
+ await page.route('**/*',route=>{const r=route.request();if(new URL(r.url()).pathname==='/api/admin/company-themes'){
+  if(r.method()==='POST'){const a=r.postDataJSON().assignments[0];expect(a.primarySector).toBe('ai.applications.edge');expect(a.aiStageIds).toEqual(['ai.applications.edge']);saved=true;return route.fulfill({json:{themeIds:['ai']}});}return route.fulfill({json:state});}return route.fulfill({contentType:'text/html',body:html});});
+ await page.goto(origin);await page.getByRole('button',{name:'Edit company themes'}).click();await page.getByLabel('AI sector',{exact:true}).selectOption('ai.applications.edge');await page.getByRole('button',{name:'Save themes',exact:true}).click();await expect(page.getByRole('status')).toHaveText('Themes saved.');expect(saved).toBe(true);
+});
 test('a concurrent correction requires reload and keeps unsaved input',async({page})=>{
  await page.addInitScript(()=>{window.authScenario={signedIn:true};});await page.route('**/*',route=>{const r=route.request();if(new URL(r.url()).pathname==='/api/admin/company-themes')return r.method()==='POST'?route.fulfill({status:409,json:{error:'Changed'}}):route.fulfill({json:initial});return route.fulfill({contentType:'text/html',body:html});});await page.goto(origin);await page.getByRole('button',{name:'Edit company themes'}).click();await page.getByLabel('Robotics business evidence',{exact:true}).fill('Updated business evidence.');await page.getByRole('button',{name:'Save themes',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Company changed');await expect(page.getByLabel('Robotics business evidence',{exact:true})).toHaveValue('Updated business evidence.');
 });

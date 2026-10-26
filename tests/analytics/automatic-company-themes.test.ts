@@ -28,6 +28,15 @@ test('admin replacements withdraw removed themes and legacy AI placement, preser
  assert.deepEqual(fields.themeIds,['space']);assert.equal((fields.inGraph as {status:string}).status,'WITHDRAWN');assert.equal((fields.themeMemberships as Record<string,{status:string}>).ai.status,'WITHDRAWN');assert(!('unrelated'in fields));
  assert.throws(()=>themeFields(existing,catalog,[],'',true),/At least one/);
 });
+test('evidence-only corrections retain granular placements; explicit placement changes replace them',()=>{
+ const a=assignment('robotics');const existing:ThemedCompany={...company,...themeFields(company,catalog,[a],'Description.')};
+ const granular=[{nodeId:'robotics.robot-manufacturers.industrial',status:'PUBLISHED' as const}];existing.themeMemberships!.robotics.assignments=granular;
+ const fields=themeFields(existing,catalog,[{...a,sources:[{...source,summary:'Corrected evidence.'}]}],'',true);
+ assert.deepEqual((fields.themeMemberships as ThemedCompany['themeMemberships'])!.robotics.assignments,granular);
+ const other=catalogGraphSectors(catalog,'robotics').find(s=>s.id!==a.primarySector)!;
+ const changed=themeFields(existing,catalog,[{...a,primarySector:other.id}],'',true);
+ assert.equal((changed.themeMemberships as ThemedCompany['themeMemberships'])!.robotics.assignments,undefined);
+});
 test('invalid sectors, duplicate themes, and invalid source URLs never publish',()=>{
  assert.throws(()=>themeFields(company,catalog,[{...assignment('ai'),primarySector:'made-up'}],'Description'));
  assert.throws(()=>themeFields(company,catalog,[assignment('robotics'),assignment('robotics')],'Description'));
