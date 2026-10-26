@@ -28,4 +28,3 @@ export function onboardingFixture(initialNow=Date.parse('2026-10-25T12:00:00Z'))
   const process=(custom=handlers,key=id)=>processInstrumentOnboarding(db,key,custom,clock);
   return {db,rows,calls,handlers,clock,id,request,enqueue,process,advance:(ms:number)=>{now+=ms;}};
 }
-
