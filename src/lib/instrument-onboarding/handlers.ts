@@ -15,6 +15,7 @@ import type {OnboardingHandlers} from './queue';
 import {backfillOnboardingActions,verifyOnboardingActions} from './actions';
 import {themeFields,themeVersion,type ThemeClassification} from '../company-themes/classification';
 import type {ThemeCatalog} from '../company-themes/catalog-model';
+import {LEGACY_NO_THEME_MATCH,NO_THEME_MATCH_REASON} from './progress';
 
 /** Adapters use existing provider workers and existing feature storage only. */
 export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
@@ -70,10 +71,14 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       }
       const before=await current(request.companyId);
       if(!activeThemeIds(before).length||!before.description){
-        if(!options.classify)throw new OnboardingBlocked('Automatic theme classification is unavailable');
+        // Older queued no-match outcomes already spent their classification call.
+        // Retire them without making another paid request; explicit admin retries
+        // clear lastError and can intentionally research changed evidence again.
+        const priorNoMatch=!activeThemeIds(before).length&&request.lastError===LEGACY_NO_THEME_MATCH;
+        if(!options.classify&&!priorNoMatch)throw new OnboardingBlocked('Automatic theme classification is unavailable');
         const beforeVersion=themeVersion(before);
         await guard();
-        const result=await options.classify({...before,id:request.companyId},catalog);
+        const result=priorNoMatch?{assignments:[],description:''}:await options.classify!({...before,id:request.companyId},catalog);
         await guard();
         const latestCatalog=await loadThemeCatalog(db);
         await db.runTransaction(async tx=>{
@@ -81,7 +86,9 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
           const lease=await tx.get(db.collection('instrument_onboarding_requests').doc(request.instrumentId));
           if(lease.get('leaseOwner')!==request.leaseOwner||Number(lease.get('leaseExpiresAt'))<=Date.now()||lease.get('status')!=='PROCESSING')throw Error('Onboarding lease lost during classification');
           if(themeVersion(fresh)!==beforeVersion)throw Error('Company changed during automatic theme classification; retry with current decisions');
-          tx.update(ref,{...themeFields({...fresh,id:request.companyId},latestCatalog,result.assignments,result.description),updatedAt:Timestamp.now()});
+          if(!result.assignments.length&&!activeThemeIds(fresh).length)throw new OnboardingBlocked(NO_THEME_MATCH_REASON);
+          const fields=result.assignments.length?themeFields({...fresh,id:request.companyId},latestCatalog,result.assignments,result.description):{description:result.description.trim()};
+          tx.update(ref,{...fields,updatedAt:Timestamp.now()});
         });
       }
       await themes(request.companyId);

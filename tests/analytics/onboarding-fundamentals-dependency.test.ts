@@ -7,9 +7,11 @@ import {createOnboardingRequest} from '../../src/lib/instrument-onboarding/model
 import {instrumentFromCompany,instrumentId} from '../../src/lib/instruments/model';
 import seed from '../../data/investment-themes/catalog-v1.json';
 import {catalogGraphSectors} from '../../src/lib/company-themes/catalog-graph';
+import {onboardingFixture} from '../helpers/instrument-onboarding';
+import {LEGACY_NO_THEME_MATCH,NO_THEME_MATCH_REASON} from '../../src/lib/instrument-onboarding/progress';
 
 async function handlersFixture(automatic=false){
-  const bundle=await build({entryPoints:['src/lib/instrument-onboarding/handlers.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'scheduled-financial-dependency',setup(builder){
+  const bundle=await build({stdin:{contents:"export * from './src/lib/instrument-onboarding/handlers';export {processInstrumentOnboarding} from './src/lib/instrument-onboarding/queue';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'scheduled-financial-dependency',setup(builder){
     builder.onLoad({filter:/[\\/]intelligence[\\/]price-cache\.ts$/},()=>({loader:'js',contents:'export const writeCachedPrice=()=>{throw Error("Unexpected price write");};'}));
     builder.onLoad({filter:/[\\/]predictions[\\/]latest-eod\.ts$/},()=>({loader:'js',contents:'export const saveLatestEodPrice=()=>{throw Error("Unexpected latest-price write");};'}));
     builder.onLoad({filter:/[\\/]company-themes[\\/]catalog\.ts$/},()=>({loader:'js',contents:`export const loadThemeCatalog=async()=>${automatic?JSON.stringify(seed.nodes):'[]'};`}));
@@ -18,14 +20,14 @@ async function handlersFixture(automatic=false){
     builder.onLoad({filter:/[\\/]company-themes[\\/]catalog-graph\.ts$/},()=>({loader:'js',contents:'export const catalogGraphSectors=()=>[{id:"compute",stages:[]}];'}));
     }
   }}]});
-  const fixture={exports:{} as typeof import('../../src/lib/instrument-onboarding/handlers')};
+  const fixture={exports:{} as typeof import('../../src/lib/instrument-onboarding/handlers')&Pick<typeof import('../../src/lib/instrument-onboarding/queue'),'processInstrumentOnboarding'>};
   new Function('require','module',bundle.outputFiles[0].text)(createRequire(import.meta.url),fixture);
   return fixture.exports;
 }
 
 test('automatic theme checkpoint publishes once and fences concurrent admin edits and expired ownership',async()=>{
  const api=await handlersFixture(true);
- for(const mode of ['success','admin-change','lease-change']){
+ for(const mode of ['success','admin-change','lease-change','no-match-admin-change']){
   const id='US:NEW',company:Record<string,unknown>={name:'New Company',status:'DIRECTORY',cik:'123'},instrument=instrumentFromCompany(id,company)!;
   const request={...createOnboardingRequest(instrumentId(id),instrument,company,'viewer'),status:'PROCESSING' as const,leaseOwner:'owned',leaseExpiresAt:Date.now()+60000};
   const records=new Map<string,Record<string,unknown>>([['companies/'+id,company],['instrument_onboarding_requests/'+request.instrumentId,{...request}]]);
@@ -34,12 +36,43 @@ test('automatic theme checkpoint publishes once and fences concurrent admin edit
   let writes=0,calls=0;
   const db={collection:(name:string)=>({doc:(key:string)=>({path:name+'/'+key,get:async()=>snapshot({path:name+'/'+key})})}),runTransaction:async(fn:(tx:{get:(ref:Ref)=>Promise<ReturnType<typeof snapshot>>;update:(ref:Ref,fields:Record<string,unknown>)=>void})=>Promise<unknown>)=>fn({get:async(ref:Ref)=>snapshot(ref),update:(ref:Ref,fields:Record<string,unknown>)=>{writes++;Object.assign(records.get(ref.path)!,fields);}})};
   const handlers=api.createOnboardingHandlers({db:db as never,bucket:{} as never,token:'unused',log:{runId:'test'} as never,maintenanceReady:async()=>true,classify:async()=>{
-    calls++;if(mode==='admin-change')company.description='Administrator correction';if(mode==='lease-change')records.get('instrument_onboarding_requests/'+request.instrumentId)!.leaseOwner='different-worker';
-    return {companyId:id,description:'Builds industrial robots.',assignments:[{theme:'robotics',primarySector:catalogGraphSectors(seed.nodes,'robotics')[0].id,sources:[{url:'https://example.com/official',title:'Official business description',summary:'Manufactures industrial robots.'}]}]};
+    calls++;if(mode.includes('admin-change'))company.description='Administrator correction';if(mode==='lease-change')records.get('instrument_onboarding_requests/'+request.instrumentId)!.leaseOwner='different-worker';
+    return {companyId:id,description:'Builds industrial robots.',assignments:mode==='no-match-admin-change'?[]:[{theme:'robotics',primarySector:catalogGraphSectors(seed.nodes,'robotics')[0].id,sources:[{url:'https://example.com/official',title:'Official business description',summary:'Manufactures industrial robots.'}]}]};
   }});
   const context={request,instrument,company,guard:async()=>{}};
   if(mode==='success'){await handlers.themes(context);assert.deepEqual(company.themeIds,['robotics']);assert.equal(company.description,'Builds industrial robots.');await handlers.themes(context);assert.equal(calls,1);assert.equal(writes,1);}
-  else{await assert.rejects(handlers.themes(context),mode==='admin-change'?/Company changed/:/lease lost/);assert.equal(writes,0);assert.equal(company.themeMemberships,undefined);}
+  else{await assert.rejects(handlers.themes(context),mode.includes('admin-change')?/Company changed/:/lease lost/);assert.equal(writes,0);assert.equal(company.themeMemberships,undefined);}
+ }
+});
+
+test('no new match does not withdraw an existing evidenced theme while filling a missing description',async()=>{
+ const api=await handlersFixture(true),f=onboardingFixture(Date.now());await f.enqueue();await f.process();
+ const company=f.rows.get('companies/US:NEW')!,membership={status:'PUBLISHED',primarySector:catalogGraphSectors(seed.nodes,'robotics')[0].id,reviewedAt:'2026-10-25',sources:[{url:'https://example.com/official',title:'Official company business',summary:'Manufactures industrial robots.'}]};
+ company.themeMemberships={robotics:membership};let calls=0;
+ const handlers=api.createOnboardingHandlers({db:f.db,bucket:{} as never,token:'unused',log:{runId:'test'} as never,maintenanceReady:async()=>true,classify:async()=>{calls++;return {companyId:'US:NEW',description:'Official company description.',assignments:[]};}});
+ const result=await api.processInstrumentOnboarding(f.db,f.id,{...f.handlers,themes:handlers.themes},f.clock);
+ assert.equal(result.status,'CHECKPOINTED');assert.equal(f.request().status,'QUEUED');assert.equal(calls,1);assert.deepEqual(f.rows.get('companies/US:NEW')!.themeMemberships,{robotics:membership});assert.equal(f.rows.get('companies/US:NEW')!.description,'Official company description.');
+});
+
+test('valid no-match blocks on the first call; legacy no-match makes no new call; provider errors still retry',async()=>{
+ const api=await handlersFixture(true);
+ for(const mode of ['no-match','legacy','provider-error']){
+  const f=onboardingFixture(Date.now());await f.enqueue();await f.process();
+  if(mode==='legacy'){f.request().lastError=LEGACY_NO_THEME_MATCH;f.request().attemptCount=3;}
+  let calls=0;
+  const handlers=api.createOnboardingHandlers({db:f.db,bucket:{} as never,token:'unused',log:{runId:'test'} as never,maintenanceReady:async()=>true,classify:async()=>{
+   calls++;if(mode==='provider-error')throw Error('Provider returned 503');return {companyId:'US:NEW',description:'Official business description.',assignments:[]};
+  }});
+  const process=()=>api.processInstrumentOnboarding(f.db,f.id,{...f.handlers,themes:handlers.themes},f.clock);
+  assert.equal((await process()).status,'INCOMPLETE');
+  if(mode==='provider-error'){
+   assert.equal(f.request().status,'QUEUED');assert(Number(f.request().nextAttemptAt)>f.clock());assert.equal((await process()).status,'SKIPPED');f.advance(60001);await process();assert.equal(calls,2);
+  }else{
+   assert.equal(f.request().status,'BLOCKED');assert.equal(f.request().nextAttemptAt,0);assert.equal(f.request().lastError,`themes: ${NO_THEME_MATCH_REASON}`);
+   assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'BLOCKED');
+   assert.equal((f.rows.get(`instruments/${f.id}`)!.onboarding as {status:string}).status,'BLOCKED');
+   f.advance(86400_000);assert.equal((await process()).status,'SKIPPED');assert.equal(calls,mode==='legacy'?0:1);assert.deepEqual(f.request().steps,{identity:'COMPLETE'});
+  }
  }
 });
 

@@ -71,6 +71,15 @@ export async function classifyOfficialThemes(company:ThemedCompany,catalog:Theme
   assert(text.length>0&&text.length<80_000&&cited.size>0,'Official search evidence unavailable');
   const result=JSON.parse(text) as ThemeClassification;
   assert(result.companyId===company.id&&Array.isArray(result.assignments),'Classification identity mismatch');
+  if(!result.assignments.length){
+    assert(typeof result.description==='string'&&result.description.trim()&&result.description.length<=4000,'Official company description required');
+    const officialEvidence=[...cited].some(url=>{const u=new URL(url);if(!domains.some(d=>u.hostname===d||u.hostname.endsWith('.'+d)))return false;
+      if((u.hostname==='sec.gov'||u.hostname.endsWith('.sec.gov'))&&/^\d{1,10}$/.test(String(company.cik))){const cik=String(company.cik);return u.pathname.includes(`/data/${Number(cik)}/`)||u.pathname.includes(`CIK${cik.padStart(10,'0')}.json`)||Number(u.searchParams.get('CIK'))===Number(cik);}return true;});
+    assert(officialEvidence,'Official company search evidence unavailable');
+    // A completed, source-backed empty result is a business outcome, not an API
+    // failure. The worker records it as BLOCKED without automatic retries.
+    return result;
+  }
   for(const a of result.assignments)for(const s of a.sources??[]){const url=sourceUrl(s.url),parsed=new URL(url),host=parsed.hostname;assert(domains.some(d=>host===d||host.endsWith('.'+d))&&cited.has(url),'Classification cited an unverified official source');
     if((host==='sec.gov'||host.endsWith('.sec.gov'))&&/^\d{1,10}$/.test(String(company.cik))){const cik=String(company.cik);assert(parsed.pathname.includes(`/data/${Number(cik)}/`)||parsed.pathname.includes(`CIK${cik.padStart(10,'0')}.json`)||Number(parsed.searchParams.get('CIK'))===Number(cik),'SEC citation belongs to a different issuer');}
   }
