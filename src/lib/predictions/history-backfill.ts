@@ -1,4 +1,4 @@
-import {writeCachedPrice} from '../intelligence/price-cache';
+import {createCachedPriceBatch} from '../intelligence/price-cache';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { predictionInstrument } from './instrument';
@@ -35,7 +35,7 @@ export async function backfillPriceHistory(input: {
 }) {
   const { db, bucket, token, through } = input;
   const from=input.from??HISTORY_START,batchSize=input.writeBatchSize??100;
-  if(!validDate(from)||!Number.isInteger(batchSize)||batchSize<1||batchSize>100)throw Error('Invalid backfill range or batch size');
+  if(!validDate(from)||!Number.isInteger(batchSize)||batchSize<1||batchSize>1500)throw Error('Invalid backfill range or batch size');
   if (!validDate(through) || through < from) throw Error('Invalid backfill end date');
   if (!Number.isInteger(input.limit ?? 5) || (input.limit ?? 5) < 1 || (input.limit ?? 5) > 1000) throw Error('Invalid backfill limit');
   const tickers = [...new Set(input.tickers)].sort();
@@ -82,20 +82,19 @@ export async function backfillPriceHistory(input: {
         await input.beforeBatch?.();
         const slice=bars.slice(offset,offset+batchSize);
         const refs=slice.map(row=>db.collection('eod_prices').doc(`${instrument.market}_${ticker}_${row.date}`));
-        const stored=await db.getAll(...refs);
-        await Promise.all(slice.map(async (row,i) => {
-          if (stored[i].exists) { result.existing++; return; }
+        const rows=slice.map((row,i) => {
           const previous=bars[offset+i-1];
-          try {
-            await writeCachedPrice(db,refs[i],{market:instrument.market,ticker,requestedDate:row.date,tradingDate:row.date,
+          return {ref:refs[i],patch:{market:instrument.market,ticker,requestedDate:row.date,tradingDate:row.date,
               open:row.open,high:row.high,low:row.low,close:row.close,rawClose:row.close,adjustedClose:row.adjusted_close,volume:row.volume,
               source:'eodhd-eod',providerSymbol,exchange:instrument.exchange,
               exchangeTimezone:instrument.timeZone,micCode:instrument.exchange,loadedAt,isFinal:true,
               previousClose:previous?.close ?? null,previousTradingDate:previous?.date ?? null,
-              dailyReturn:previous ? (row.close-previous.close)/previous.close : null},{create:true});
-            result.created++;
-          } catch(error) { if (Number((error as {code?:number}).code) === 6) result.existing++; else throw Error('History document write failed'); }
-        }));
+              dailyReturn:previous ? (row.close-previous.close)/previous.close : null}};
+        });
+        let written:{created:number;existing:number};
+        try { written=await createCachedPriceBatch(db,rows); }
+        catch { throw Error('History document write failed'); }
+        result.created+=written.created;result.existing+=written.existing;
         await input.afterBatch?.();
       }
       await input.beforeBatch?.();
