@@ -70,7 +70,18 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
   const claimed=await db.runTransaction(async tx=>{
     const saved=await tx.get(ref);if(!saved.exists)return null;
     const request=parseOnboardingRequest(saved.data());if(request.instrumentId!==id)throw Error('Request identity mismatch');
-    if(['SUPPORTED','BLOCKED'].includes(request.status)||request.nextAttemptAt>clock()||request.leaseExpiresAt>clock())return null;
+    if(['SUPPORTED','BLOCKED'].includes(request.status)||request.leaseExpiresAt>clock())return null;
+    // A failed or interrupted step needs explicit admin retry, even on redelivery.
+    if(request.lastError||request.status==='PROCESSING'){
+      const [inst,company]=await tx.getAll(db.collection('instruments').doc(id),db.collection('companies').doc(request.companyId));
+      const reason=request.lastError??'Worker interrupted; inspect before retrying';
+      tx.set(ref,{...request,status:'BLOCKED',lastError:reason,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(clock()).toISOString()});
+      if(inst.exists)tx.update(inst.ref,{onboarding:onboardingSummary('BLOCKED',clock(),request.requestedAt,inst.get('onboarding'),reason),updatedAt:Timestamp.fromMillis(clock())});
+      const step=ONBOARDING_STEPS.find(key=>request.steps[key]!=='COMPLETE');
+      if(company.exists&&step&&companyStep(step)&&!isSupportedCompany(company.data()!))tx.update(company.ref,{onboarding:onboardingSummary('BLOCKED',clock(),request.requestedAt,company.get('onboarding'),reason),updatedAt:Timestamp.fromMillis(clock())});
+      return null;
+    }
+    if(request.nextAttemptAt>clock())return null;
     let context;
     try{context=await readiness(tx,db,request);}catch(error){
       if(!(error instanceof OnboardingBlocked))throw error;
@@ -118,18 +129,32 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     });
     return {status:step==='verify'?'SUPPORTED' as const:'CHECKPOINTED' as const,step};
   }catch(error){
-    const publicReason=error instanceof OnboardingBlocked?error.message:`${step}: retryable onboarding failure`;
+    const publicReason=error instanceof OnboardingBlocked?error.message:`${step}: onboarding failed; explicit retry required`;
     const privateReason=maintenanceError(error).message.replace(/https?:\/\/[^\s]+/gi,'[provider URL]').replace(/(?:api_?key|api_token|token|secret|password)\s*[=:]\s*[^\s,;]+/gi,'[credential redacted]').slice(0,1500);
     await db.runTransaction(async tx=>{
       const current=parseOnboardingRequest((await tx.get(ref)).data());if(current.leaseOwner!==owner||current.leaseExpiresAt<=clock())return;
       const [inst,company]=await tx.getAll(db.collection('instruments').doc(id),db.collection('companies').doc(current.companyId));
-      const attemptCount=current.attemptCount+1,blocked=error instanceof OnboardingBlocked||attemptCount>=8;
-      tx.set(ref,{...current,status:blocked?'BLOCKED':'QUEUED',attemptCount,nextAttemptAt:blocked?0:clock()+Math.min(6*3600_000,60_000*2**(attemptCount-1)),leaseOwner:null,leaseExpiresAt:0,lastError:`${step}: ${privateReason}`,updatedAt:new Date(clock()).toISOString()});
-      if(inst.exists)tx.update(inst.ref,{onboarding:onboardingSummary(blocked?'BLOCKED':'PROCESSING',clock(),current.requestedAt,inst.get('onboarding'),blocked?publicReason:null),updatedAt:Timestamp.fromMillis(clock())});
-      if(company.exists&&companyStep(step)&&!isSupportedCompany(company.data()!))tx.update(company.ref,{onboarding:onboardingSummary(blocked?'BLOCKED':'PROCESSING',clock(),current.requestedAt,company.get('onboarding'),blocked?publicReason:null),updatedAt:Timestamp.fromMillis(clock())});
+      const attemptCount=current.attemptCount+1;
+      tx.set(ref,{...current,status:'BLOCKED',attemptCount,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:`${step}: ${privateReason}`,updatedAt:new Date(clock()).toISOString()});
+      if(inst.exists)tx.update(inst.ref,{onboarding:onboardingSummary('BLOCKED',clock(),current.requestedAt,inst.get('onboarding'),publicReason),updatedAt:Timestamp.fromMillis(clock())});
+      if(company.exists&&companyStep(step)&&!isSupportedCompany(company.data()!))tx.update(company.ref,{onboarding:onboardingSummary('BLOCKED',clock(),current.requestedAt,company.get('onboarding'),publicReason),updatedAt:Timestamp.fromMillis(clock())});
     });
     return {status:'INCOMPLETE' as const,step};
   }
+}
+
+/** Explicit one-time migration wake for a pre-trigger ready request. Never retries errors. */
+export async function wakeInstrumentOnboarding(db:Firestore,id:string,now=Date.now()){
+  if(!validInstrumentId(id))throw Error('Invalid instrument ID');
+  const ref=db.collection(ONBOARDING_COLLECTION).doc(id);
+  return db.runTransaction(async tx=>{
+    const saved=await tx.get(ref);if(!saved.exists)return false;
+    const row=parseOnboardingRequest(saved.data());
+    if(row.instrumentId!==id)throw Error('Request identity mismatch');
+    if(row.status!=='QUEUED'||row.lastError||row.leaseExpiresAt>now||row.nextAttemptAt>now)return false;
+    tx.update(ref,{updatedAt:new Date(Math.max(now,Date.parse(row.updatedAt)+1)).toISOString()});
+    return true;
+  });
 }
 
 /** Retry only the first unfinished failed checkpoint; never reset completed work. */
