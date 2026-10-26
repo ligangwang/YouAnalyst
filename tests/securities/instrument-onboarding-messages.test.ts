@@ -7,7 +7,7 @@ import {drainInstrumentOnboarding} from '../../src/lib/instrument-onboarding/wor
 import {retryInstrumentOnboarding,wakeInstrumentOnboarding} from '../../src/lib/instrument-onboarding/queue';
 import {ONBOARDING_STEPS} from '../../src/lib/instrument-onboarding/model';
 import {createOnboardingSubscriber,onboardingEventId} from '../../src/lib/instrument-onboarding/subscriber';
-import {verifyOnboardingDelivery} from '../../src/lib/instrument-onboarding/delivery-check';
+import {onboardingDeliveryProbeId,verifyOnboardingDelivery} from '../../src/lib/instrument-onboarding/delivery-check';
 
 test('one message advances consecutive checkpoints; duplicate delivery never repeats completed work',async()=>{
   const f=onboardingFixture();await f.enqueue();
@@ -88,4 +88,21 @@ test('rollout probe refuses existing work and stale revisions before sending a p
   assert.equal((await verifyOnboardingDelivery(input)).providerCalls,0);assert.equal(calls.length,2);
   exists=true;calls.length=0;await assert.rejects(()=>verifyOnboardingDelivery(input),/unexpectedly exists/);assert.equal(calls.length,0);
   exists=false;healthSha='b'.repeat(40);await assert.rejects(()=>verifyOnboardingDelivery(input),/reviewed revision/);assert.equal(calls.length,1);
+});
+
+test('busy worker serves health and a safe probe without processing another stock',async()=>{
+ const f=onboardingFixture(),sha='a'.repeat(40);let started!:()=>void,release!:()=>void,calls=0,absent=true;
+ const entered=new Promise<void>(resolve=>{started=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
+ const server=createOnboardingSubscriber({project:'test',sha,probe:async()=>absent,process:async()=>{calls++;started();await hold;return {status:'SUPPORTED'};}});
+ server.listen(0,'127.0.0.1');await once(server,'listening');const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+ const headers={'ce-type':'google.cloud.firestore.document.v1.written','ce-source':'//firestore.googleapis.com/projects/test/databases/(default)','ce-specversion':'1.0','ce-id':'event-1','ce-subject':`documents/instrument_onboarding_requests/${f.id}`};
+ try{
+  const first=fetch(url+'/events',{method:'POST',headers});await entered;
+  assert.equal((await fetch(url+'/health')).status,200);
+  assert.equal((await fetch(url+'/events',{method:'POST',headers})).status,503);assert.equal(calls,1);
+  const probe={...headers,'ce-id':'delivery-check-'+sha,'ce-subject':`documents/instrument_onboarding_requests/${onboardingDeliveryProbeId(sha)}`};
+  assert.equal((await fetch(url+'/events',{method:'POST',headers:probe})).status,204);assert.equal(calls,1);
+  absent=false;assert.equal((await fetch(url+'/events',{method:'POST',headers:probe})).status,503);assert.equal(calls,1);
+  release();assert.equal((await first).status,204);
+ }finally{release();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
