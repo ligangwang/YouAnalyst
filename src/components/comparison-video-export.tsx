@@ -6,12 +6,46 @@ import { prepareComparisonAudio, type ComparisonAudio } from '@/lib/ui/compare-v
 import { useLocale } from './providers/locale-provider';
 import styles from './stock-compare.module.css';
 
-export function ComparisonVideoExport({ data, style, colors, onStart }: { data: CompareData; style: CompareStyle; colors?: string[]; onStart: () => void }) {
+export function ComparisonVideoExport({ data, style, colors, onStart, playback }: { data: CompareData; style: CompareStyle; colors?: string[]; onStart: () => void; playback?: { playing: boolean; progress: number; speed: number } }) {
   const { text, locale } = useLocale();
   const [seconds, setSeconds] = useState(15), [progress, setProgress] = useState<number | null>(null), [message, setMessage] = useState('');
   const [download, setDownload] = useState<{ url: string; filename: string } | null>(null);
   const [music, setMusic] = useState<File | null>(null), [volume, setVolume] = useState(65), [musicEnabled, setMusicEnabled] = useState(true);
   const musicInput = useRef<HTMLInputElement | null>(null);
+  const preview = useRef<HTMLAudioElement | null>(null);
+  const previewPlaying = !!playback?.playing && musicEnabled && progress === null;
+  const previewProgress = playback?.progress ?? 0, previewSpeed = playback?.speed ?? 1;
+  const previewError = text('Unable to play this music file. Try another MP3 or WAV.', '无法播放此音乐文件，请尝试其他 MP3 或 WAV。');
+  useEffect(() => {
+    if (!music) return;
+    const url = URL.createObjectURL(music), audio = new Audio(url);
+    audio.loop = true; preview.current = audio;
+    return () => { preview.current = null; audio.pause(); audio.removeAttribute('src'); audio.load(); URL.revokeObjectURL(url); };
+  }, [music]);
+  useEffect(() => {
+    const audio = preview.current;
+    if (!audio) return;
+    if (!previewPlaying) { audio.pause(); return; }
+    void audio.play().catch(error => {
+      if (preview.current === audio && error.name !== 'AbortError') setMessage(previewError);
+    });
+  }, [music, previewPlaying, previewError]);
+  useEffect(() => {
+    const audio = preview.current;
+    if (!audio) return;
+    const sync = () => {
+      // The chart's base animation is 20 seconds; its speed control scales both.
+      const time = previewProgress * 20;
+      audio.playbackRate = previewSpeed;
+      audio.volume = volume / 100 * Math.min(1, Math.max(0, (20 - time) / .8));
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        const target = time % audio.duration;
+        if (!previewPlaying || Math.abs(audio.currentTime - target) > .35) audio.currentTime = target;
+      }
+    };
+    sync(); audio.addEventListener('loadedmetadata', sync);
+    return () => audio.removeEventListener('loadedmetadata', sync);
+  }, [music, previewProgress, previewSpeed, previewPlaying, volume]);
   const active = useRef<AbortController | null>(null);
   const downloadUrl = useRef<string | null>(null);
   useEffect(() => () => { const controller = active.current; active.current = null; controller?.abort(); if (downloadUrl.current) URL.revokeObjectURL(downloadUrl.current); }, []);
@@ -62,7 +96,7 @@ export function ComparisonVideoExport({ data, style, colors, onStart }: { data: 
         <button type="button" disabled={progress !== null} onClick={() => setMusic(null)}>{text('Remove music', '移除音乐')}</button>
       </>}
     </div>
-    <p>{text('Music stays in your browser. Short tracks repeat to fit the video and fade out at the end.', '音乐保留在浏览器中。较短的音轨会循环播放以匹配视频，并在结尾淡出。')}</p>
+    <p>{text('Music plays with the chart and in exported videos. It stays in your browser, repeats when needed, and fades out at the end.', '音乐随图表播放，并包含在导出的视频中。文件保留在浏览器中，按需循环并在结尾淡出。')}</p>
     <div><label>{text('Video duration', '视频时长')} <select value={seconds} disabled={progress !== null} onChange={event => setSeconds(Number(event.target.value))}>{[10, 15, 30].map(value => <option key={value} value={value}>{value}{text(' seconds', ' 秒')}</option>)}</select></label>
       <button type="button" title={text('MP4 where supported, otherwise WebM.', '支持时导出 MP4，否则导出 WebM。')} onClick={() => void exportVideo()} disabled={progress !== null}>{text('Export video', '导出视频')}</button>
       {progress !== null && <button type="button" onClick={() => active.current?.abort()}>{text('Cancel export', '取消导出')}</button>}

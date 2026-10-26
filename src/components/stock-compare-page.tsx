@@ -208,7 +208,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
           <label className={styles.speed}>{text("Speed", "速度")}<select aria-label={text("Playback speed", "播放速度")} value={speed} onChange={e => setSpeed(Number(e.target.value))}>{[.5, 1, 2, 4].map(value => <option key={value} value={value}>{value}×</option>)}</select></label>
         </div>
         <div className={styles.caption}><p>{text("Shared trading dates", "共同交易日期")}: {data.dates[0]} → {data.dates.at(-1)}. {text("All stocks start at 0%.", "所有股票从 0% 开始。")}</p><span>YouAnalyst</span></div>
-        {!embedded && <ComparisonVideoExport data={data} style={style} colors={colors} onStart={() => setPlaying(false)}/>}
+        {!embedded && <ComparisonVideoExport data={data} style={style} colors={colors} playback={{ playing, progress, speed }} onStart={() => setPlaying(false)}/>}
       </>}
     </section>
     {!embedded && featured && comparePath(styledConfig()) === comparePath(featured.comparison.config) && <ComparisonCredit post={featured}/>}

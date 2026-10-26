@@ -13,7 +13,11 @@ test.beforeAll(async () => {
     if(params.get('style')==='bar')data.series=Array.from({length:10},(_,i)=>({symbol:['NVDA','MSFT','AAPL','AMZN','GOOGL','META','TSLA','AMD','AVGO','XSHG:600519'][i],values:[0,35-i*7,70-i*13]}));
     document.documentElement.dataset.theme=params.get('theme')||'dark';
     window.drawFrame=(canvas,progress)=>drawComparisonVideoFrame(canvas.getContext('2d'),data,params.get('style')==='bar'?'bar':'line',progress,params.get('theme')==='light',params.has('zh'));
-    createRoot(document.getElementById('root')).render(<LocaleProvider locale={params.has('zh')?'zh-CN':'en'}><ComparisonVideoExport data={data} style={params.get('style')==='bar'?'bar':'line'} onStart={()=>{}}/></LocaleProvider>);
+    function App(){
+      const [playing,setPlaying]=React.useState(false),[progress,setProgress]=React.useState(0),[speed,setSpeed]=React.useState(1);
+      return <><button onClick={()=>setPlaying(true)}>Preview play</button><button onClick={()=>setPlaying(false)}>Preview pause</button><button onClick={()=>{setProgress(0);setPlaying(true)}}>Preview replay</button><button onClick={()=>setProgress(.25)}>Preview seek</button><button onClick={()=>setSpeed(2)}>Preview faster</button><button onClick={()=>{setProgress(1);setPlaying(false)}}>Preview end</button><ComparisonVideoExport data={data} style={params.get('style')==='bar'?'bar':'line'} playback={{playing,progress,speed}} onStart={()=>setPlaying(false)}/></>;
+    }
+    createRoot(document.getElementById('root')).render(<LocaleProvider locale={params.has('zh')?'zh-CN':'en'}><App/></LocaleProvider>);
   `, {}, 'body{font-family:Arial;background:#07111d;color:#f8fafc;--color-line:#ffffff30;--background:#07111d;--foreground:#f8fafc;--text-secondary:#aabaca}');
 });
 
@@ -32,6 +36,37 @@ function musicFixture() {
   for (let i = 0; i < samples; i++) wav.writeInt16LE(Math.round(Math.sin(i * 2 * Math.PI * 440 / rate) * 12000), 44 + i * 2);
   return { name: 'test-music.wav', mimeType: 'audio/wav', buffer: wav };
 }
+
+test('preview music follows play, pause, replay, speed, toggle, and completion', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Original = Audio;
+    window.Audio = new Proxy(Original, { construct(Target, args) {
+      const audio = new Target(...args);
+      (window as unknown as { previewAudio: HTMLAudioElement }).previewAudio = audio;
+      return audio;
+    } });
+  });
+  await open(page);
+  await page.getByLabel('Music file', { exact: true }).setInputFiles(musicFixture());
+  const state = () => page.evaluate(() => { const a = (window as unknown as { previewAudio: HTMLAudioElement }).previewAudio; return { paused: a.paused, time: a.currentTime, speed: a.playbackRate, volume: a.volume }; });
+  await page.getByRole('button', { name: 'Preview play', exact: true }).click();
+  await expect.poll(async () => (await state()).time).toBeGreaterThan(.1);
+  await page.getByRole('button', { name: 'Preview pause', exact: true }).click();
+  await expect.poll(async () => (await state()).paused).toBe(true);
+  await page.getByRole('button', { name: 'Preview seek', exact: true }).click();
+  await expect.poll(async () => (await state()).time).toBeLessThan(.1);
+  await page.getByRole('button', { name: 'Preview replay', exact: true }).click();
+  await expect.poll(async () => (await state()).paused).toBe(false);
+  await page.getByRole('button', { name: 'Preview faster', exact: true }).click();
+  await expect.poll(async () => (await state()).speed).toBe(2);
+  await page.getByLabel('Include music').uncheck();
+  await expect.poll(async () => (await state()).paused).toBe(true);
+  await page.getByLabel('Include music').check();
+  await expect.poll(async () => (await state()).paused).toBe(false);
+  await page.getByRole('button', { name: 'Preview end', exact: true }).click();
+  await expect.poll(async () => (await state()).paused).toBe(true);
+  await expect.poll(async () => (await state()).volume).toBe(0);
+});
 
 test('exports audible music, loops short tracks, and fades the ending', async ({ page }, info) => {
   test.setTimeout(45_000);
