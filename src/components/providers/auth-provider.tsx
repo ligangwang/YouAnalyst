@@ -26,6 +26,8 @@ import { getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client
 import type { AppFeatures } from "@/lib/features";
 
 type AuthContextValue = {
+  profilePhotoURL: string | null;
+  setProfilePhotoURL: (photoURL: string | null) => void;
   user: User | null;
   loading: boolean;
   configured: boolean;
@@ -106,6 +108,7 @@ function friendlyError(error: unknown, fallback: string): Error {
 export function AuthProvider({ children }: AuthProviderProps) {
   const configured = isFirebaseConfigured();
   const [user, setUser] = useState<User | null>(null);
+  const [profilePhotoURL, setProfilePhotoURL] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(() => configured);
   const [error, setError] = useState<string | null>(null);
   const [features, setFeatures] = useState<AppFeatures>(DEFAULT_FEATURES);
@@ -129,7 +132,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       throw new Error("Unable to create user profile.");
     }
 
-    return (await response.json()) as { created: boolean; features?: AppFeatures };
+    const payload = (await response.json()) as { created: boolean; features?: AppFeatures; photoURL: string | null };
+    if (getFirebaseServices().auth.currentUser?.uid === nextUser.uid) {
+      setProfilePhotoURL(payload.photoURL);
+    }
+    return payload;
   }, []);
 
   useEffect(() => {
@@ -140,6 +147,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { auth } = getFirebaseServices();
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
+      setProfilePhotoURL(nextUser?.photoURL ?? null);
       setLoading(false);
 
       if (!nextUser) {
@@ -278,6 +286,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
+      profilePhotoURL,
+      setProfilePhotoURL,
       user,
       loading,
       configured,
@@ -290,6 +300,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       getIdToken,
     }),
     [
+      profilePhotoURL,
       user,
       loading,
       configured,
