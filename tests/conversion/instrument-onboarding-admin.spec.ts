@@ -65,6 +65,46 @@ test('non-admin cannot view onboarding requests or retry controls',async({page})
   await expect(page.getByRole('button',{name:'Retry failed step'})).toHaveCount(0);
 });
 
+test('status selector filters before pagination, keeps refresh scoped, and shows retrying errors',async({page},info)=>{
+  await page.addInitScript(()=>{window.authScenario={signedIn:true};});const queries:{filter:string;cursor:string|null}[]=[];
+  const queued={...item,listing:'US:WAIT',request:{...item.request,instrumentId:'INS_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',status:'QUEUED'},canRetry:true};
+  await page.route('**/*',route=>{
+    const req=route.request(),url=new URL(req.url());
+    if(url.pathname==='/api/admin/me')return route.fulfill({json:{isAdmin:true}});
+    if(url.pathname==='/api/admin/instrument-onboarding'){
+      const filter=url.searchParams.get('filter')??'ALL',cursor=url.searchParams.get('cursor');queries.push({filter,cursor});
+      return route.fulfill({json:{items:filter==='SUPPORTED'?[]:filter==='ALL'?[queued]:filter==='ERRORS'?[item,queued]:cursor?[{...item,listing:'US:NEXT',request:{...item.request,instrumentId:'INS_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}}]:[item],nextCursor:filter==='BLOCKED'&&!cursor?id:null}});
+    }
+    return route.fulfill({contentType:'text/html',body:html});
+  });
+  await page.goto(origin+'/admin/instrument-onboarding');const selector=page.getByLabel('Show requests',{exact:true});
+  await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toBeVisible();
+  await selector.selectOption('BLOCKED');await expect(page.getByRole('heading',{name:'US:NEW.B',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Load more',exact:true}).click();await expect(page.getByRole('heading',{name:'US:NEXT',exact:true})).toBeVisible();expect(queries.at(-1)).toEqual({filter:'BLOCKED',cursor:id});
+  await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.getByRole('heading',{name:'US:NEXT',exact:true})).toHaveCount(0);expect(queries.at(-1)).toEqual({filter:'BLOCKED',cursor:null});
+  await page.screenshot({path:info.outputPath('onboarding-blocked-filter.png'),fullPage:true});
+  await selector.selectOption('ERRORS');await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toBeVisible();await expect(page.getByText('Includes blocked requests and temporary failures waiting for another attempt.',{exact:true})).toBeVisible();
+  await selector.selectOption('SUPPORTED');await expect(page.getByText('No onboarding requests match this status.',{exact:true})).toBeVisible();await expect(page.locator('article')).toHaveCount(0);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+});
+
+test('a delayed response from a previous filter cannot replace the current status results',async({page})=>{
+  await page.addInitScript(()=>{window.authScenario={signedIn:true};});let releaseBlocked!:()=>void;
+  const blockedGate=new Promise<void>(resolve=>{releaseBlocked=resolve;});let blockedStarted!:()=>void;const started=new Promise<void>(resolve=>{blockedStarted=resolve;});
+  await page.route('**/*',async route=>{
+    const url=new URL(route.request().url());if(url.pathname==='/api/admin/me')return route.fulfill({json:{isAdmin:true}});
+    if(url.pathname==='/api/admin/instrument-onboarding'){
+      const filter=url.searchParams.get('filter');if(filter==='BLOCKED'){blockedStarted();await blockedGate;}
+      return route.fulfill({json:{items:filter==='QUEUED'?[{...item,listing:'US:WAIT',request:{...item.request,status:'QUEUED'}}]:[item],nextCursor:null}});
+    }
+    return route.fulfill({contentType:'text/html',body:html});
+  });
+  await page.goto(origin+'/admin/instrument-onboarding');await expect(page.getByRole('heading',{name:'US:NEW.B',exact:true})).toBeVisible();
+  const selector=page.getByLabel('Show requests',{exact:true});await selector.selectOption('BLOCKED');await started;await selector.selectOption('QUEUED');await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toBeVisible();
+  const oldResponse=page.waitForResponse(r=>r.url().includes('filter=BLOCKED'));releaseBlocked();await oldResponse;
+  await expect(selector).toHaveValue('QUEUED');await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'US:NEW.B',exact:true})).toHaveCount(0);
+});
+
 test('admin batch form resolves exact listings and submits once with the signed-in identity',async({page},info)=>{
   await page.addInitScript(()=>{window.authScenario={signedIn:true};});
   let writes=0;const lookedUp:string[]=[];
