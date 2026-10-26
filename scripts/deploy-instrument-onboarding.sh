@@ -3,6 +3,7 @@ set -euo pipefail
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 : "${EODHD_API_TOKEN:?Reuse the existing EODHD credential}"
 : "${EODHD_BULK_EOD_BUCKET:?Set the existing private EODHD bucket}"
+: "${OPENAI_API_KEY:?Reuse the approved existing OpenAI credential}"
 region="${GCP_REGION:-us-central1}"
 job=onboard-instruments-production
 source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
@@ -17,7 +18,7 @@ node - "$env_file" <<'NODE'
 const fs=require('node:fs');
 fs.writeFileSync(process.argv[2],JSON.stringify({GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA,
   EODHD_API_TOKEN:process.env.EODHD_API_TOKEN,EODHD_API_URL:process.env.EODHD_API_URL||'',EODHD_BULK_EOD_BUCKET:process.env.EODHD_BULK_EOD_BUCKET,
-  CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL||'',INSTRUMENT_ONBOARDING_MAINTENANCE_READY:'1'}),{mode:0o600});
+  CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL||'',OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_MODEL:process.env.OPENAI_MODEL||'gpt-6-luna',INSTRUMENT_ONBOARDING_MAINTENANCE_READY:'1'}),{mode:0o600});
 NODE
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
