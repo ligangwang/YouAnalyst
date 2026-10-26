@@ -8,6 +8,7 @@ import {createOnboardingHandlers} from '../src/lib/instrument-onboarding/handler
 import {processInstrumentOnboarding,requestInstrumentOnboarding,retryInstrumentOnboarding} from '../src/lib/instrument-onboarding/queue';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,parseOnboardingRequest} from '../src/lib/instrument-onboarding/model';
 import type {EnrollmentBatch} from './enroll-theme-companies';
+import {loadBusinessEvidence} from '../src/lib/company-themes/business-evidence';
 import {classifyOfficialThemes} from '../src/lib/company-themes/classification';
 import {getOpenAiApiKey} from '../src/lib/openai-runtime';
 import {safeRecordOpenAiUsageEvent} from '../src/lib/openai/usage';
@@ -49,7 +50,7 @@ async function main(){
   if(!Array.isArray(themeBatches))throw Error('Theme review file must contain an array of enrollment batches');
   const log=createMaintenanceLog('instrument-onboarding');
   const handlers=createOnboardingHandlers({db,bucket:getAdminStorageBucket(bucketName),token,log,themeBatches,
-    classify:(company,catalog)=>classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})}),
+    classify:async(company,catalog)=>classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),evidence:await loadBusinessEvidence(db,company),recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})}),
     maintenanceReady:async()=>process.env.INSTRUMENT_ONBOARDING_MAINTENANCE_READY==='1'});
   for(const id of ids){
     const prior=parseOnboardingRequest((await db.collection(ONBOARDING_COLLECTION).doc(id).get()).data());
