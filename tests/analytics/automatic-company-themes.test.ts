@@ -63,3 +63,19 @@ test('source-backed empty classification is a valid one-call no-match result',as
  const wrongIssuer:typeof fetch=async()=>Response.json({status:'completed',output:[{type:'web_search_call',action:{sources:[{url:'https://www.sec.gov/Archives/edgar/data/999/report.htm'}]}},{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
  await assert.rejects(classifyOfficialThemes(company,catalog,{key:'fixture',fetcher:wrongIssuer}),/Official company search evidence unavailable/);
 });
+
+test('dated official business excerpts reach the one classification call and authorize their citations',async()=>{
+ let calls=0;
+ const result={companyId:company.id,description:'Builds industrial robots.',assignments:[assignment('robotics')]};
+ const evidence={url:source.url,title:'Annual business and segments',kind:'annual_business' as const,publishedAt:new Date().toISOString().slice(0,10),text:'Operating segments: Robotics manufactures industrial robots. '.repeat(10)};
+ const fetcher:typeof fetch=async(_url,init)=>{calls++;const body=JSON.parse(String(init?.body)),input=JSON.parse(body.input);
+  assert.match(input.businessEvidence[0].text,/Robotics manufactures/);assert.match(body.instructions,/annual-report business/);assert.match(body.instructions,/A-share annual reports/);assert.match(body.instructions,/untrusted evidence/);assert.equal(body.max_tool_calls,2);assert.equal(body.tool_choice,'required');
+  return Response.json({status:'completed',output:[{type:'web_search_call',action:{sources:[{url:'https://www.sec.gov/Archives/edgar/data/123/newer.htm'}]}},{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ };
+ assert.deepEqual(await classifyOfficialThemes(company,catalog,{key:'fixture',fetcher,evidence:[evidence]}),result);assert.equal(calls,1);
+ const bad={...evidence,url:source.url.replace('/123/','/999/')};
+ await assert.rejects(classifyOfficialThemes(company,catalog,{key:'fixture',evidence:[bad],fetcher:async(_url,init)=>{
+  assert.deepEqual(JSON.parse(JSON.parse(String(init?.body)).input).businessEvidence,[]);
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({...result,assignments:[{...assignment('robotics'),sources:[{...source,url:bad.url}]}]})}]}]});
+ }}),/Official search evidence unavailable/);
+});
