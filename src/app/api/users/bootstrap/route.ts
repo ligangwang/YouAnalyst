@@ -1,4 +1,5 @@
-import { getAdminFirestore, verifyIdToken } from "@/lib/firebase/admin";
+import { resolveProfilePhoto } from "@/lib/users/photo";
+import { getAdminAuth, getAdminFirestore, verifyIdToken } from "@/lib/firebase/admin";
 import { canUseProFeaturesForUserData, getAppFeatures } from "@/lib/features";
 import { getOrCreateDefaultWatchlistForUser } from "@/lib/watchlists/service";
 import { NextRequest, NextResponse } from "next/server";
@@ -27,24 +28,15 @@ export async function POST(request: NextRequest) {
     const features = getAppFeatures();
     const db = getAdminFirestore();
     const userRef = db.collection("users").doc(decoded.uid);
-    const userSnapshot = await userRef.get();
-
-    if (userSnapshot.exists) {
-      const userData = userSnapshot.data() as Record<string, unknown> | undefined;
-      await getOrCreateDefaultWatchlistForUser(decoded.uid);
-      return NextResponse.json({
-        created: false,
-        features: {
-          ...features,
-          canUsePro: canUseProFeaturesForUserData(userData),
-        },
-      });
-    }
+    const account = await getAdminAuth().getUser(decoded.uid);
+    const google = account.providerData.find((provider) => provider.providerId === "google.com");
+    const googlePhotoURL = google?.photoURL ?? null;
 
     const userProfile = {
       displayName: payload.displayName ?? decoded.name ?? null,
       email: payload.email ?? decoded.email ?? null,
-      photoURL: payload.photoURL ?? decoded.picture ?? null,
+      photoURL: googlePhotoURL ?? account.photoURL ?? null,
+      photoSource: "google",
       authProviders: [resolveProvider(decoded.firebase.sign_in_provider)],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -82,19 +74,27 @@ export async function POST(request: NextRequest) {
 
     // Auth restoration and explicit signup may bootstrap concurrently. Never
     // overwrite a profile or its watchlist counters created by the other request.
-    const created = await db.runTransaction(async tx => {
+    const result = await db.runTransaction(async tx => {
       const current = await tx.get(userRef);
-      if (current.exists) return false;
+      if (current.exists) {
+        const data = current.data() as Record<string, unknown>;
+        const photoURL = google || data.photoSource === "google"
+          ? resolveProfilePhoto(data, googlePhotoURL)
+          : typeof data.photoURL === "string" ? data.photoURL : null;
+        if (photoURL !== (data.photoURL ?? null)) tx.update(userRef, { photoURL, updatedAt: new Date().toISOString() });
+        return { created: false, photoURL, data };
+      }
       tx.set(userRef, userProfile);
-      return true;
+      return { created: true, photoURL: userProfile.photoURL, data: userProfile };
     });
     await getOrCreateDefaultWatchlistForUser(decoded.uid);
 
     return NextResponse.json({
-      created,
+      created: result.created,
+      photoURL: result.photoURL,
       features: {
         ...features,
-        canUsePro: canUseProFeaturesForUserData(userProfile as Record<string, unknown>),
+        canUsePro: canUseProFeaturesForUserData(result.data),
       },
     });
   } catch (error) {
