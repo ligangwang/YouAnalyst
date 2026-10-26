@@ -56,3 +56,10 @@ test('OpenAI call requires actual official search citations and is bounded',asyn
  await assert.rejects(classifyOfficialThemes(company,catalog,{key:'fixture',fetcher:unverified}),/unverified official/);
  await assert.rejects(classifyOfficialThemes(company,catalog,{key:'fixture',fetcher:async()=>Response.json({status:'incomplete',output:[]})}),/did not complete/);
 });
+test('source-backed empty classification is a valid one-call no-match result',async()=>{
+ let calls=0,usage=0;const result={companyId:company.id,description:'Officially reported business outside the existing themes.',assignments:[]};
+ const fetcher:typeof fetch=async()=>{calls++;return Response.json({status:'completed',output:[{type:'web_search_call',action:{sources:[{url:source.url}]}},{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});};
+ assert.deepEqual(await classifyOfficialThemes(company,catalog,{key:'fixture',fetcher,recordUsage:async()=>{usage++;}}),result);assert.equal(calls,1);assert.equal(usage,1);
+ const wrongIssuer:typeof fetch=async()=>Response.json({status:'completed',output:[{type:'web_search_call',action:{sources:[{url:'https://www.sec.gov/Archives/edgar/data/999/report.htm'}]}},{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ await assert.rejects(classifyOfficialThemes(company,catalog,{key:'fixture',fetcher:wrongIssuer}),/Official company search evidence unavailable/);
+});
