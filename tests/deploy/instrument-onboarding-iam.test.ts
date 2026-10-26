@@ -22,6 +22,7 @@ test('operator bootstrap grants only trigger create/update and delivery receiver
   assert.match(r.stderr,/serviceAccount:github-deploy-production-sa@demo.*--role projects\/demo\/roles\/instrumentOnboardingEventarcDeploy/);
   assert.match(r.stderr,/serviceAccount:directory-sync-scheduler@demo.*--role roles\/eventarc.eventReceiver/);
   assert.doesNotMatch(r.stderr,/roles\/(owner|editor|resourcemanager.projectIamAdmin)|triggers.delete/);
+  assert.equal(r.stderr.match(/--condition=None/g)?.length,2,'Preserve conditional project policy and bind only these exact unconditioned roles');
 });
 
 test('bootstrap reuses an exact role but refuses an unexpectedly broader existing role before grants',()=>{
