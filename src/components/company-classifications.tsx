@@ -7,6 +7,7 @@ import { companyThemeNodeIds, type CompanyThemeData } from '@/lib/hierarchy/comp
 import { hierarchyPath } from '@/lib/hierarchy/model';
 import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot';
 import { CompanyClassificationsView, type CompanyIndustryLabel } from './company-classifications-view';
+import {CompanyThemesEditor} from './company-themes-editor';
 
 type ClassificationData = CompanyThemeData & { taxonomy?: unknown; classification?: unknown; isDeleted?: boolean };
 
@@ -32,5 +33,5 @@ export async function CompanyClassifications({ companyId, data }: { companyId: s
   if (!nodes) return <CompanyClassificationsView industries={industries} themesUnavailable />;
   const ids = companyThemeNodeIds(company ?? {}, nodes);
   const themePaths = ids.map(id => hierarchyPath(nodes, id)).filter(path => !ids.some(id => id !== path.at(-1)?.id && hierarchyPath(nodes, id).some(node => node.id === path.at(-1)?.id)));
-  return <CompanyClassificationsView industries={industries} themePaths={themePaths} />;
+  return <><CompanyClassificationsView industries={industries} themePaths={themePaths} /><CompanyThemesEditor companyId={companyId}/></>;
 }

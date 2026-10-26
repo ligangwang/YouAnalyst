@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
   && rm -rf /var/lib/apt/lists/*
 
 FROM base AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends jq \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ARG GIT_SHA=local
 ARG NEXT_PUBLIC_APP_ENVIRONMENT=staging

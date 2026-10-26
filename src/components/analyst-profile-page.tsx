@@ -8,6 +8,7 @@ import { UiText, useUiText } from "@/components/ui-text";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ProfilePhotoEditor } from "@/components/profile-photo-editor";
 import { useAuth } from "@/components/providers/auth-provider";
 import { formatTickerSymbol } from "@/components/prediction-ui";
 import { analystLevelName } from "@/lib/predictions/analytics";
@@ -94,7 +95,7 @@ export function AnalystProfilePage({
   promptForNickname?: boolean;
 }) {
   const ui = useUiText();
-  const { user, loading: authLoading, getIdToken } = useAuth();
+  const { user, loading: authLoading, getIdToken, profilePhotoURL } = useAuth();
   const isOwner = Boolean(user && user.uid === userId);
   const [payload, setPayload] = useState<ProfilePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -327,9 +328,9 @@ export function AnalystProfilePage({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-3">
-              {payload.profile.photoURL ? (
+              {(isOwner ? profilePhotoURL : payload.profile.photoURL) ? (
                 <Image
-                  src={payload.profile.photoURL}
+                  src={(isOwner ? profilePhotoURL : payload.profile.photoURL)!}
                   alt={ui(`${preferredName} avatar`)}
                   width={48}
                   height={48}
@@ -363,6 +364,7 @@ export function AnalystProfilePage({
                 </nav>
               </div>
             </div>
+            {isOwner ? <ProfilePhotoEditor onChanged={(photoURL) => setPayload((current) => current ? { ...current, profile: { ...current.profile, photoURL } } : current)} /> : null}
             <div className="mt-4 grid gap-2 text-slate-200">
               <p className="text-base">
                 <span className="text-slate-400"><UiText text={"Score: "} /></span>

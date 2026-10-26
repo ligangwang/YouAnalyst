@@ -13,9 +13,11 @@ import type {MaintenanceLog} from '../maintenance-log';
 import {ONBOARDING_START,OnboardingBlocked,instrumentOnboardingIdentity,validDay,type OnboardingRequest} from './model';
 import type {OnboardingHandlers} from './queue';
 import {backfillOnboardingActions,verifyOnboardingActions} from './actions';
+import {themeFields,themeVersion,type ThemeClassification} from '../company-themes/classification';
+import type {ThemeCatalog} from '../company-themes/catalog-model';
 
 /** Adapters use existing provider workers and existing feature storage only. */
-export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
+export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
   const {db,bucket,log}=options;
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
@@ -64,6 +66,22 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
           const ref=db.collection('companies').doc(request.companyId),doc=await tx.get(ref);
           const patches=planEnrollment([{...doc.data(),id:doc.id} as ThemedCompany],{...batch,companies},catalog);
           if(patches.length)tx.update(ref,{...patches[0].fields,updatedAt:Timestamp.now()});
+        });
+      }
+      const before=await current(request.companyId);
+      if(!activeThemeIds(before).length||!before.description){
+        if(!options.classify)throw new OnboardingBlocked('Automatic theme classification is unavailable');
+        const beforeVersion=themeVersion(before);
+        await guard();
+        const result=await options.classify({...before,id:request.companyId},catalog);
+        await guard();
+        const latestCatalog=await loadThemeCatalog(db);
+        await db.runTransaction(async tx=>{
+          const ref=db.collection('companies').doc(request.companyId),doc=await tx.get(ref),fresh=doc.data()??{};
+          const lease=await tx.get(db.collection('instrument_onboarding_requests').doc(request.instrumentId));
+          if(lease.get('leaseOwner')!==request.leaseOwner||Number(lease.get('leaseExpiresAt'))<=Date.now()||lease.get('status')!=='PROCESSING')throw Error('Onboarding lease lost during classification');
+          if(themeVersion(fresh)!==beforeVersion)throw Error('Company changed during automatic theme classification; retry with current decisions');
+          tx.update(ref,{...themeFields({...fresh,id:request.companyId},latestCatalog,result.assignments,result.description),updatedAt:Timestamp.now()});
         });
       }
       await themes(request.companyId);

@@ -53,7 +53,7 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
   const t = useNavText();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { user, profilePhotoURL } = useAuth();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -75,7 +75,7 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
         className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
       >
         <AvatarButton
-          photoURL={user?.photoURL ?? null}
+          photoURL={profilePhotoURL}
           displayName={user?.displayName ?? null}
           email={user?.email ?? null}
         />

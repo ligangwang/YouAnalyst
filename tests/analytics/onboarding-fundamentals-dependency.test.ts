@@ -5,19 +5,43 @@ import {createRequire} from 'node:module';
 import type {Firestore} from 'firebase-admin/firestore';
 import {createOnboardingRequest} from '../../src/lib/instrument-onboarding/model';
 import {instrumentFromCompany,instrumentId} from '../../src/lib/instruments/model';
+import seed from '../../data/investment-themes/catalog-v1.json';
+import {catalogGraphSectors} from '../../src/lib/company-themes/catalog-graph';
 
-async function handlersFixture(){
+async function handlersFixture(automatic=false){
   const bundle=await build({entryPoints:['src/lib/instrument-onboarding/handlers.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'scheduled-financial-dependency',setup(builder){
     builder.onLoad({filter:/[\\/]intelligence[\\/]price-cache\.ts$/},()=>({loader:'js',contents:'export const writeCachedPrice=()=>{throw Error("Unexpected price write");};'}));
     builder.onLoad({filter:/[\\/]predictions[\\/]latest-eod\.ts$/},()=>({loader:'js',contents:'export const saveLatestEodPrice=()=>{throw Error("Unexpected latest-price write");};'}));
-    builder.onLoad({filter:/[\\/]company-themes[\\/]catalog\.ts$/},()=>({loader:'js',contents:'export const loadThemeCatalog=async()=>[];'}));
-    builder.onLoad({filter:/[\\/]company-themes[\\/]catalog-model\.ts$/},()=>({loader:'js',contents:'export const catalogThemeIds=()=>["ai"];'}));
+    builder.onLoad({filter:/[\\/]company-themes[\\/]catalog\.ts$/},()=>({loader:'js',contents:`export const loadThemeCatalog=async()=>${automatic?JSON.stringify(seed.nodes):'[]'};`}));
+    if(!automatic){
+    builder.onLoad({filter:/[\\/]company-themes[\\/]catalog-model\.ts$/},()=>({loader:'js',contents:'export const catalogThemeIds=()=>["ai"]; export const catalogThemes=()=>[{id:"ai"}];'}));
     builder.onLoad({filter:/[\\/]company-themes[\\/]catalog-graph\.ts$/},()=>({loader:'js',contents:'export const catalogGraphSectors=()=>[{id:"compute",stages:[]}];'}));
+    }
   }}]});
   const fixture={exports:{} as typeof import('../../src/lib/instrument-onboarding/handlers')};
   new Function('require','module',bundle.outputFiles[0].text)(createRequire(import.meta.url),fixture);
   return fixture.exports;
 }
+
+test('automatic theme checkpoint publishes once and fences concurrent admin edits and expired ownership',async()=>{
+ const api=await handlersFixture(true);
+ for(const mode of ['success','admin-change','lease-change']){
+  const id='US:NEW',company:Record<string,unknown>={name:'New Company',status:'DIRECTORY',cik:'123'},instrument=instrumentFromCompany(id,company)!;
+  const request={...createOnboardingRequest(instrumentId(id),instrument,company,'viewer'),status:'PROCESSING' as const,leaseOwner:'owned',leaseExpiresAt:Date.now()+60000};
+  const records=new Map<string,Record<string,unknown>>([['companies/'+id,company],['instrument_onboarding_requests/'+request.instrumentId,{...request}]]);
+  type Ref={path:string};
+  const snapshot=(ref:Ref)=>({data:()=>records.get(ref.path),get:(key:string)=>records.get(ref.path)?.[key]});
+  let writes=0,calls=0;
+  const db={collection:(name:string)=>({doc:(key:string)=>({path:name+'/'+key,get:async()=>snapshot({path:name+'/'+key})})}),runTransaction:async(fn:(tx:{get:(ref:Ref)=>Promise<ReturnType<typeof snapshot>>;update:(ref:Ref,fields:Record<string,unknown>)=>void})=>Promise<unknown>)=>fn({get:async(ref:Ref)=>snapshot(ref),update:(ref:Ref,fields:Record<string,unknown>)=>{writes++;Object.assign(records.get(ref.path)!,fields);}})};
+  const handlers=api.createOnboardingHandlers({db:db as never,bucket:{} as never,token:'unused',log:{runId:'test'} as never,maintenanceReady:async()=>true,classify:async()=>{
+    calls++;if(mode==='admin-change')company.description='Administrator correction';if(mode==='lease-change')records.get('instrument_onboarding_requests/'+request.instrumentId)!.leaseOwner='different-worker';
+    return {companyId:id,description:'Builds industrial robots.',assignments:[{theme:'robotics',primarySector:catalogGraphSectors(seed.nodes,'robotics')[0].id,sources:[{url:'https://example.com/official',title:'Official business description',summary:'Manufactures industrial robots.'}]}]};
+  }});
+  const context={request,instrument,company,guard:async()=>{}};
+  if(mode==='success'){await handlers.themes(context);assert.deepEqual(company.themeIds,['robotics']);assert.equal(company.description,'Builds industrial robots.');await handlers.themes(context);assert.equal(calls,1);assert.equal(writes,1);}
+  else{await assert.rejects(handlers.themes(context),mode==='admin-change'?/Company changed/:/lease lost/);assert.equal(writes,0);assert.equal(company.themeMemberships,undefined);}
+ }
+});
 
 test('company and instrument admission validate backfills without financial data in either market',async()=>{
   const api=await handlersFixture();

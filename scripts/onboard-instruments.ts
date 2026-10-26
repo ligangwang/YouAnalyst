@@ -8,6 +8,10 @@ import {createOnboardingHandlers} from '../src/lib/instrument-onboarding/handler
 import {processInstrumentOnboarding,requestInstrumentOnboarding,retryInstrumentOnboarding} from '../src/lib/instrument-onboarding/queue';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,parseOnboardingRequest} from '../src/lib/instrument-onboarding/model';
 import type {EnrollmentBatch} from './enroll-theme-companies';
+import {classifyOfficialThemes} from '../src/lib/company-themes/classification';
+import {getOpenAiApiKey} from '../src/lib/openai-runtime';
+import {safeRecordOpenAiUsageEvent} from '../src/lib/openai/usage';
+import {LEGACY_THEME_BLOCK,canResumeAutomaticThemes} from '../src/lib/instrument-onboarding/progress';
 
 async function main(){
   const projectId=process.env.GCP_PROJECT_ID;if(!projectId)throw Error('GCP_PROJECT_ID is required');
@@ -22,12 +26,17 @@ async function main(){
   const ids:string[]=[];
   if(instrumentId)ids.push(instrumentId);
   else {
+    // A separate single-field lookup resumes only the old missing-classification
+    // blockers; permanent blockers cannot crowd regular queued work out of a page.
+    const legacy=await db.collection(ONBOARDING_COLLECTION).where('lastError','==',LEGACY_THEME_BLOCK).limit(100).get();
+    for(const doc of legacy.docs){const row=parseOnboardingRequest(doc.data());if(row.instrumentId!==doc.id)throw Error('Request identity mismatch');if(canResumeAutomaticThemes(row)&&row.leaseExpiresAt<=Date.now())ids.push(doc.id);if(ids.length>=limit)break;}
     let cursor:FirebaseFirestore.QueryDocumentSnapshot|undefined,scanned=0;
     for(;;){
+      if(ids.length>=limit)break;
       let query=db.collection(ONBOARDING_COLLECTION).where('status','in',['QUEUED','PROCESSING']).limit(100);
       if(cursor)query=query.startAfter(cursor);
       const page=await query.get();scanned+=page.docs.length;
-      for(const doc of page.docs){const row=parseOnboardingRequest(doc.data());if(row.instrumentId!==doc.id)throw Error('Request identity mismatch');if(row.leaseExpiresAt<=Date.now()&&row.nextAttemptAt<=Date.now())ids.push(doc.id);if(ids.length>=limit)break;}
+      for(const doc of page.docs){const row=parseOnboardingRequest(doc.data());if(row.instrumentId!==doc.id)throw Error('Request identity mismatch');if(row.leaseExpiresAt<=Date.now()&&row.nextAttemptAt<=Date.now()&&!ids.includes(doc.id))ids.push(doc.id);if(ids.length>=limit)break;}
       if(ids.length>=limit||page.docs.length<100||scanned>=1000)break;
       cursor=page.docs.at(-1);
     }
@@ -40,8 +49,11 @@ async function main(){
   if(!Array.isArray(themeBatches))throw Error('Theme review file must contain an array of enrollment batches');
   const log=createMaintenanceLog('instrument-onboarding');
   const handlers=createOnboardingHandlers({db,bucket:getAdminStorageBucket(bucketName),token,log,themeBatches,
+    classify:(company,catalog)=>classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})}),
     maintenanceReady:async()=>process.env.INSTRUMENT_ONBOARDING_MAINTENANCE_READY==='1'});
   for(const id of ids){
+    const prior=parseOnboardingRequest((await db.collection(ONBOARDING_COLLECTION).doc(id).get()).data());
+    if(canResumeAutomaticThemes(prior))await retryInstrumentOnboarding(db,id,{step:'themes',updatedAt:prior.updatedAt});
     const result=await processInstrumentOnboarding(db,id,handlers);
     log.emit('INFO','checkpoint',{instrumentId:id,...result});
     if(result.status==='INCOMPLETE')process.exitCode=1;
