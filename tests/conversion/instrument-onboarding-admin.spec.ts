@@ -79,6 +79,7 @@ test('status selector filters before pagination, keeps refresh scoped, and shows
   });
   await page.goto(origin+'/admin/instrument-onboarding');const selector=page.getByLabel('Show requests',{exact:true});
   await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toBeVisible();
+  await selector.selectOption('ALL');await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toBeVisible();await expect(page.getByText('Loading requests…',{exact:true})).toHaveCount(0);
   await selector.selectOption('BLOCKED');await expect(page.getByRole('heading',{name:'US:NEW.B',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'US:WAIT',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Load more',exact:true}).click();await expect(page.getByRole('heading',{name:'US:NEXT',exact:true})).toBeVisible();expect(queries.at(-1)).toEqual({filter:'BLOCKED',cursor:id});
   await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.getByRole('heading',{name:'US:NEXT',exact:true})).toHaveCount(0);expect(queries.at(-1)).toEqual({filter:'BLOCKED',cursor:null});

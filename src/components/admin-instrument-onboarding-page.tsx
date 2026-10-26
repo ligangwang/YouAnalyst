@@ -74,7 +74,8 @@ export function AdminInstrumentOnboardingPage(){
     <AdminOnboardingBatchRequest onAccepted={()=>void load()}/>
     <div className={styles.filters}><label htmlFor="onboarding-request-filter">{text('Show requests','显示请求')}</label>
       <select id="onboarding-request-filter" value={filter} disabled={pending!==null} onChange={event=>{
-        generation.current++;setItems([]);setCursor(null);setError('');setMessage('');setBusy(true);setFilter(event.target.value as OnboardingFilter);
+        const value=event.target.value as OnboardingFilter;if(value===filter)return;
+        generation.current++;setItems([]);setCursor(null);setError('');setMessage('');setBusy(true);setFilter(value);
       }}>
         {ONBOARDING_FILTERS.map(value=><option key={value} value={value}>{value==='ALL'?text('All statuses','全部状态'):value==='QUEUED'?text('Queued','排队中'):value==='PROCESSING'?text('Processing','处理中'):value==='BLOCKED'?text('Blocked','已阻塞'):value==='SUPPORTED'?text('Supported','已支持'):text('With errors (any status)','存在错误（全部状态）')}</option>)}
       </select>
