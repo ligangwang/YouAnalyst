@@ -3,7 +3,7 @@ import Link from 'next/link';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useAuth} from '@/components/providers/auth-provider';
 import {useLocale} from '@/components/providers/locale-provider';
-import {ONBOARDING_STEPS,COMPANY_STEPS} from '@/lib/instrument-onboarding/progress';
+import {ONBOARDING_STEPS,COMPANY_STEPS,ONBOARDING_FILTERS,type OnboardingFilter} from '@/lib/instrument-onboarding/progress';
 import type {AdminOnboardingItem,AdminOnboardingPage} from '@/lib/instrument-onboarding/admin';
 import type {InstrumentRequestersPage,InstrumentRequester} from '@/lib/instrument-onboarding/requesters';
 import styles from './admin-instrument-onboarding.module.css';
@@ -38,6 +38,7 @@ function AdminRequesters({instrumentId}:{instrumentId:string}){
 }
 export function AdminInstrumentOnboardingPage(){
   const {user,loading,getIdToken}=useAuth(),{text}=useLocale();
+  const [filter,setFilter]=useState<OnboardingFilter>('ALL');
   const [items,setItems]=useState<AdminOnboardingItem[]>([]),[cursor,setCursor]=useState<string|null>(null);
   const [busy,setBusy]=useState(false),[pending,setPending]=useState<string|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('');
   const mounted=useRef(true),generation=useRef(0),retryLock=useRef(false);
@@ -45,13 +46,14 @@ export function AdminInstrumentOnboardingPage(){
     const version=++generation.current;setBusy(true);setError('');
     try{
       const token=await getIdToken();if(!token)throw Error('Sign in with an admin account.');
-      const response=await fetch('/api/admin/instrument-onboarding'+(after?'?'+new URLSearchParams({cursor:after}):''),{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
+      const params=new URLSearchParams({filter,...(after?{cursor:after}:{})});
+      const response=await fetch('/api/admin/instrument-onboarding?'+params,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
       if(!response.ok)throw Error('Unable to load requests. Check admin access and retry.');
       const data:AdminOnboardingPage=await response.json();
       if(mounted.current&&generation.current===version){setItems(current=>after?[...current,...data.items.filter(row=>!current.some(item=>item.request.instrumentId===row.request.instrumentId))]:data.items);setCursor(data.nextCursor);}
     }catch(error){if(mounted.current&&generation.current===version)setError(error instanceof Error?error.message:'Unable to load requests');}
     finally{if(mounted.current&&generation.current===version)setBusy(false);}
-  },[getIdToken]);
+  },[getIdToken,filter]);
   useEffect(()=>{mounted.current=true;if(user&&!loading)void load();return()=>{mounted.current=false;};},[user,loading,load]);
   async function retry(item:AdminOnboardingItem){
     if(retryLock.current||!item.canRetry||!item.step)return;
@@ -70,9 +72,18 @@ export function AdminInstrumentOnboardingPage(){
     <header><div><p className={styles.eyebrow}>{text('SUPPORT OPERATIONS','支持管理')}</p><h1>{text('Instrument Onboarding','证券入驻')}</h1><p>{text('Company readiness is shared. Prices and corporate actions belong to each instrument.','公司就绪状态共享，价格和公司行动按证券分别处理。')}</p></div><button disabled={busy||pending!==null} onClick={()=>void load()}>{text('Refresh','刷新')}</button></header>
     <p>{text('Retry queues only the failed step for the worker. It does not run provider work in this page.','重试仅将失败步骤重新排队，本页面不会执行数据供应商任务。')}</p>
     <AdminOnboardingBatchRequest onAccepted={()=>void load()}/>
+    <div className={styles.filters}><label htmlFor="onboarding-request-filter">{text('Show requests','显示请求')}</label>
+      <select id="onboarding-request-filter" value={filter} disabled={pending!==null} onChange={event=>{
+        const value=event.target.value as OnboardingFilter;if(value===filter)return;
+        generation.current++;setItems([]);setCursor(null);setError('');setMessage('');setBusy(true);setFilter(value);
+      }}>
+        {ONBOARDING_FILTERS.map(value=><option key={value} value={value}>{value==='ALL'?text('All statuses','全部状态'):value==='QUEUED'?text('Queued','排队中'):value==='PROCESSING'?text('Processing','处理中'):value==='BLOCKED'?text('Blocked','已阻塞'):value==='SUPPORTED'?text('Supported','已支持'):text('With errors (any status)','存在错误（全部状态）')}</option>)}
+      </select>
+    </div>
+    {filter==='ERRORS'&&<p>{text('Includes blocked requests and temporary failures waiting for another attempt.','包括已阻塞请求及等待再次尝试的临时失败请求。')}</p>}
     {error&&<p role="alert" className={styles.error}>{error}</p>}{message&&<p role="status">{message}</p>}
     {busy&&<p role="status">{text('Loading requests…','加载请求中…')}</p>}
-    {!busy&&!error&&!items.length&&<p>{text('No onboarding requests yet.','暂无入驻请求。')}</p>}
+    {!busy&&!error&&!items.length&&<p>{filter==='ALL'?text('No onboarding requests yet.','暂无入驻请求。'):filter==='ERRORS'?text('No onboarding requests with errors.','暂无存在错误的入驻请求。'):text('No onboarding requests match this status.','暂无符合此状态的入驻请求。')}</p>}
     <div className={styles.requests}>{items.map(item=><article key={item.request.instrumentId}>
       <div className={styles.title}><div><h2>{item.listing||item.instrumentName}</h2><p>{item.companyName} · {item.request.companyId}</p><small>{item.request.instrumentId}</small></div><strong className={styles.badge}>{item.request.status}</strong></div>
       <div className={styles.readiness}><span>{text('Company','公司')}: <strong>{item.companyStatus}</strong></span><span>{text('Instrument','证券')}: <strong>{item.instrumentStatus}</strong></span></div>
