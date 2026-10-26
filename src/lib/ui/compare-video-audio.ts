@@ -1,9 +1,9 @@
 export type ComparisonAudio = { stream: MediaStream; start: () => void; dispose: () => void };
 
 // Call directly from the export click so resume retains browser user activation.
-export async function prepareComparisonAudio(file: File, volume: number, seconds: number, signal: AbortSignal): Promise<ComparisonAudio> {
+export async function prepareComparisonAudio(music: File | string, volume: number, seconds: number, signal: AbortSignal): Promise<ComparisonAudio> {
   if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
-  if (!file.size || file.size > 20 * 1024 * 1024) throw new Error('audio');
+  if (music instanceof File && (!music.size || music.size > 20 * 1024 * 1024)) throw new Error('audio');
   if (typeof AudioContext === 'undefined') throw new Error('unsupported');
   const context = new AudioContext();
   let source: AudioBufferSourceNode | undefined;
@@ -21,7 +21,14 @@ export async function prepareComparisonAudio(file: File, volume: number, seconds
   signal.addEventListener('abort', dispose, { once: true });
   try {
     await context.resume();
-    const buffer = await context.decodeAudioData(await file.arrayBuffer());
+    let bytes: ArrayBuffer;
+    if (typeof music === 'string') {
+      const response = await fetch(music, { signal });
+      if (!response.ok) throw new Error('audio');
+      bytes = await response.arrayBuffer();
+      if (!bytes.byteLength || bytes.byteLength > 20 * 1024 * 1024) throw new Error('audio');
+    } else bytes = await music.arrayBuffer();
+    const buffer = await context.decodeAudioData(bytes);
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     if (buffer.duration <= 0 || buffer.duration > 300) throw new Error('audio');
     source = context.createBufferSource(); source.buffer = buffer; source.loop = true;

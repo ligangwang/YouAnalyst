@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { componentFixtureHtml } from './fixtures/component-html';
+import { readFileSync } from 'node:fs';
 
 const data = { dates: ['2026-01-02', '2026-02-02', '2026-03-02'], series: [{ symbol: 'NVDA', values: [0, 35, 70] }, { symbol: 'MSFT', values: [0, -10, 20] }], frequency: 'Daily', source: 'Stored closes' };
 let html: string;
@@ -22,7 +23,11 @@ test.beforeAll(async () => {
 });
 
 async function open(page: import('@playwright/test').Page, query = '') {
-  await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: html }));
+  await page.route('**/*', route => new URL(route.request().url()).pathname === '/audio/compare-in-motion.mp3'
+    ? route.fulfill(process.env.COMPARE_DEFAULT_AUDIO
+      ? { contentType: 'audio/mpeg', body: readFileSync(process.env.COMPARE_DEFAULT_AUDIO) }
+      : { contentType: 'audio/wav', body: musicFixture().buffer })
+    : route.fulfill({ contentType: 'text/html', body: html }));
   await page.goto(`http://video.test/${query}`);
 }
 
@@ -37,7 +42,7 @@ function musicFixture() {
   return { name: 'test-music.wav', mimeType: 'audio/wav', buffer: wav };
 }
 
-test('preview music follows play, pause, replay, speed, toggle, and completion', async ({ page }) => {
+test('default music follows play, pause, replay, speed, toggle, and completion without upload', async ({ page }) => {
   await page.addInitScript(() => {
     const Original = Audio;
     window.Audio = new Proxy(Original, { construct(Target, args) {
@@ -47,7 +52,7 @@ test('preview music follows play, pause, replay, speed, toggle, and completion',
     } });
   });
   await open(page);
-  await page.getByLabel('Music file', { exact: true }).setInputFiles(musicFixture());
+  await expect(page.getByText('Compare In Motion (default)')).toBeVisible();
   const state = () => page.evaluate(() => { const a = (window as unknown as { previewAudio: HTMLAudioElement }).previewAudio; return { paused: a.paused, time: a.currentTime, speed: a.playbackRate, volume: a.volume }; });
   await page.getByRole('button', { name: 'Preview play', exact: true }).click();
   await expect.poll(async () => (await state()).time).toBeGreaterThan(.1);
@@ -66,9 +71,30 @@ test('preview music follows play, pause, replay, speed, toggle, and completion',
   await page.getByRole('button', { name: 'Preview end', exact: true }).click();
   await expect.poll(async () => (await state()).paused).toBe(true);
   await expect.poll(async () => (await state()).volume).toBe(0);
+  await page.getByLabel('Music file', { exact: true }).setInputFiles(musicFixture());
+  await expect(page.getByText('test-music.wav')).toBeVisible();
+  await page.getByRole('button', { name: 'Use default music' }).click();
+  await expect(page.getByText('Compare In Motion (default)')).toBeVisible();
 });
 
-test('exports audible music, loops short tracks, and fades the ending', async ({ page }, info) => {
+test('turning music off exports a silent video', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Original = MediaRecorder;
+    window.MediaRecorder = new Proxy(Original, { construct(Target, args) {
+      (window as unknown as { audioTracks: number }).audioTracks = (args[0] as MediaStream).getAudioTracks().length;
+      return new Target(...args as ConstructorParameters<typeof MediaRecorder>);
+    } });
+  });
+  await open(page);
+  await page.getByLabel('Include music').uncheck();
+  await page.getByRole('button', { name: 'Export video', exact: true }).click();
+  await expect(page.getByRole('progressbar')).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { audioTracks: number }).audioTracks)).toBe(0);
+  await page.getByRole('button', { name: 'Cancel export' }).click();
+  await expect(page.getByRole('status')).toHaveText('Video export cancelled.');
+});
+
+test('exports audible default music, loops short tracks, and fades the ending', async ({ page }, info) => {
   test.setTimeout(45_000);
   const seconds = process.env.COMPARE_TEST_MUSIC ? 30 : 10;
   await page.addInitScript(() => {
@@ -76,7 +102,7 @@ test('exports audible music, loops short tracks, and fades the ending', async ({
     URL.createObjectURL = blob => { (window as unknown as { videoBlob: Blob }).videoBlob = blob as Blob; return original(blob); };
   });
   await open(page);
-  await page.getByLabel('Music file', { exact: true }).setInputFiles(process.env.COMPARE_TEST_MUSIC || musicFixture());
+  if (process.env.COMPARE_TEST_MUSIC) await page.getByLabel('Music file', { exact: true }).setInputFiles(process.env.COMPARE_TEST_MUSIC);
   await expect(page.getByLabel('Include music')).toBeChecked();
   await page.getByLabel('Video duration').selectOption(String(seconds));
   const downloading = page.waitForEvent('download');
@@ -107,7 +133,7 @@ test('rejects unreadable music and can export after removing it', async ({ page 
   await page.getByLabel('Music file', { exact: true }).setInputFiles({ name: 'bad.mp3', mimeType: 'audio/mpeg', buffer: Buffer.from('not audio') });
   await page.getByRole('button', { name: 'Export video', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Unable to read this music file');
-  await page.getByRole('button', { name: 'Remove music' }).click();
+  await page.getByRole('button', { name: 'Use default music' }).click();
   await page.getByRole('button', { name: 'Export video', exact: true }).click();
   await expect(page.getByRole('progressbar')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel export' }).click();

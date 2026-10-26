@@ -6,6 +6,8 @@ import { prepareComparisonAudio, type ComparisonAudio } from '@/lib/ui/compare-v
 import { useLocale } from './providers/locale-provider';
 import styles from './stock-compare.module.css';
 
+const DEFAULT_MUSIC = '/audio/compare-in-motion.mp3';
+
 export function ComparisonVideoExport({ data, style, colors, onStart, playback }: { data: CompareData; style: CompareStyle; colors?: string[]; onStart: () => void; playback?: { playing: boolean; progress: number; speed: number } }) {
   const { text, locale } = useLocale();
   const [seconds, setSeconds] = useState(15), [progress, setProgress] = useState<number | null>(null), [message, setMessage] = useState('');
@@ -17,10 +19,9 @@ export function ComparisonVideoExport({ data, style, colors, onStart, playback }
   const previewProgress = playback?.progress ?? 0, previewSpeed = playback?.speed ?? 1;
   const previewError = text('Unable to play this music file. Try another MP3 or WAV.', '无法播放此音乐文件，请尝试其他 MP3 或 WAV。');
   useEffect(() => {
-    if (!music) return;
-    const url = URL.createObjectURL(music), audio = new Audio(url);
+    const url = music ? URL.createObjectURL(music) : DEFAULT_MUSIC, audio = new Audio(url);
     audio.loop = true; preview.current = audio;
-    return () => { preview.current = null; audio.pause(); audio.removeAttribute('src'); audio.load(); URL.revokeObjectURL(url); };
+    return () => { preview.current = null; audio.pause(); audio.removeAttribute('src'); audio.load(); if (music) URL.revokeObjectURL(url); };
   }, [music]);
   useEffect(() => {
     const audio = preview.current;
@@ -58,7 +59,7 @@ export function ComparisonVideoExport({ data, style, colors, onStart, playback }
     setProgress(0); setMessage(''); onStart();
     let audio: ComparisonAudio | undefined;
     try {
-      if (music && musicEnabled) audio = await prepareComparisonAudio(music, volume / 100, seconds, controller.signal);
+      if (musicEnabled) audio = await prepareComparisonAudio(music ?? DEFAULT_MUSIC, volume / 100, seconds, controller.signal);
       const { recordComparisonVideo } = await import('@/lib/ui/compare-video');
       const blob = await recordComparisonVideo({ data, style, colors, seconds, audio, light: document.documentElement.dataset.theme === 'light', chinese: locale === 'zh-CN', signal: controller.signal, onProgress: value => { if (active.current === controller) setProgress(Math.floor(value * 100)); } });
       if (active.current !== controller || controller.signal.aborted) return;
@@ -88,15 +89,13 @@ export function ComparisonVideoExport({ data, style, colors, onStart, playback }
         if (!file.size || file.size > 20 * 1024 * 1024) { setMessage(text('Choose a music file up to 20 MB.', '请选择不超过 20 MB 的音乐文件。')); return; }
         setMusic(file); setMusicEnabled(true); setMessage('');
       }}/>
-      <button type="button" disabled={progress !== null} onClick={() => musicInput.current?.click()}>{music ? text('Change music', '更换音乐') : text('Upload music', '上传音乐')}</button>
-      {music && <>
+      <button type="button" disabled={progress !== null} onClick={() => musicInput.current?.click()}>{text('Upload music', '上传音乐')}</button>
         <label><input type="checkbox" checked={musicEnabled} disabled={progress !== null} onChange={event => setMusicEnabled(event.target.checked)}/>{text('Include music', '包含音乐')}</label>
-        <span className={styles.musicFilename} title={music.name}>{music.name}</span>
+        <span className={styles.musicFilename} title={music?.name ?? 'Compare In Motion'}>{music?.name ?? text('Compare In Motion (default)', 'Compare In Motion（默认）')}</span>
         <label>{text('Music volume', '音乐音量')} <input type="range" min="0" max="100" value={volume} disabled={progress !== null || !musicEnabled} onChange={event => setVolume(Number(event.target.value))}/> {volume}%</label>
-        <button type="button" disabled={progress !== null} onClick={() => setMusic(null)}>{text('Remove music', '移除音乐')}</button>
-      </>}
+        {music && <button type="button" disabled={progress !== null} onClick={() => setMusic(null)}>{text('Use default music', '使用默认音乐')}</button>}
     </div>
-    <p>{text('Music plays with the chart and in exported videos. It stays in your browser, repeats when needed, and fades out at the end.', '音乐随图表播放，并包含在导出的视频中。文件保留在浏览器中，按需循环并在结尾淡出。')}</p>
+    <p>{text('Music plays with the chart and in exported videos. It repeats when needed and fades out at the end. Uploaded music stays in your browser.', '音乐随图表播放，并包含在导出的视频中；按需循环并在结尾淡出。上传的音乐保留在浏览器中。')}</p>
     <div><label>{text('Video duration', '视频时长')} <select value={seconds} disabled={progress !== null} onChange={event => setSeconds(Number(event.target.value))}>{[10, 15, 30].map(value => <option key={value} value={value}>{value}{text(' seconds', ' 秒')}</option>)}</select></label>
       <button type="button" title={text('MP4 where supported, otherwise WebM.', '支持时导出 MP4，否则导出 WebM。')} onClick={() => void exportVideo()} disabled={progress !== null}>{text('Export video', '导出视频')}</button>
       {progress !== null && <button type="button" onClick={() => active.current?.abort()}>{text('Cancel export', '取消导出')}</button>}
