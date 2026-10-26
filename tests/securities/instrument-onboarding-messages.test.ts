@@ -7,6 +7,7 @@ import {drainInstrumentOnboarding} from '../../src/lib/instrument-onboarding/wor
 import {retryInstrumentOnboarding,wakeInstrumentOnboarding} from '../../src/lib/instrument-onboarding/queue';
 import {ONBOARDING_STEPS} from '../../src/lib/instrument-onboarding/model';
 import {createOnboardingSubscriber,onboardingEventId} from '../../src/lib/instrument-onboarding/subscriber';
+import {verifyOnboardingDelivery} from '../../src/lib/instrument-onboarding/delivery-check';
 
 test('one message advances consecutive checkpoints; duplicate delivery never repeats completed work',async()=>{
   const f=onboardingFixture();await f.enqueue();
@@ -78,4 +79,13 @@ test('private subscriber restricts document routing and acknowledges failed chec
     status='CONTINUE';assert.equal((await fetch(url+'/events',{method:'POST',headers,body:''})).status,503);
     status='BLOCKED';assert.equal((await fetch(url+'/events',{method:'POST',headers,body:''})).status,204);
   }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+test('rollout probe refuses existing work and stale revisions before sending a provider-free message',async()=>{
+  const sha='a'.repeat(40),calls:string[]=[];let exists=false,healthSha=sha;
+  const input={url:'https://onboarding.example.run.app',project:'test',sha,exists:async()=>exists,
+    send:async(url:string,headers?:Record<string,string>)=>{calls.push(url);if(headers){assert.match(headers['ce-subject'],/^documents\/instrument_onboarding_requests\/INS_[a-f0-9]{32}$/);return {status:204,data:null};}return {status:200,data:{sha:healthSha}};}};
+  assert.equal((await verifyOnboardingDelivery(input)).providerCalls,0);assert.equal(calls.length,2);
+  exists=true;calls.length=0;await assert.rejects(()=>verifyOnboardingDelivery(input),/unexpectedly exists/);assert.equal(calls.length,0);
+  exists=false;healthSha='b'.repeat(40);await assert.rejects(()=>verifyOnboardingDelivery(input),/reviewed revision/);assert.equal(calls.length,1);
 });

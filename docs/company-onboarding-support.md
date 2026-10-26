@@ -153,7 +153,8 @@ existing maintenance identities and private EODHD bucket/credential. A private C
 `instrument_onboarding_requests/{instrumentId}`. New requests and explicit admin
 retries start immediately. No polling schedule or recovery schedule is used.
 The old onboarding schedule is removed only after the subscriber and trigger are
-ready. The manual Cloud Run job remains available for operator preview/inspection.
+ready and an authenticated, provider-free message delivery check passes against
+the exact reviewed revision. The manual Cloud Run job remains available for operator preview/inspection.
 
 A message processes consecutive checkpoints within a bounded run. Each completed
 step is committed before the next starts; messages read current state rather than

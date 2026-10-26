@@ -1,5 +1,7 @@
 import {onboardingRuntime} from '../src/lib/instrument-onboarding/runtime';
 import {drainInstrumentOnboarding} from '../src/lib/instrument-onboarding/worker';
+import {GoogleAuth} from 'google-auth-library';
+import {verifyOnboardingDelivery} from '../src/lib/instrument-onboarding/delivery-check';
 import {readFile} from 'node:fs/promises';
 import {initializeApp,applicationDefault} from 'firebase-admin/app';
 import {getAdminFirestore} from '../src/lib/firebase/admin';
@@ -14,6 +16,13 @@ async function main(){
   initializeApp({credential:applicationDefault(),projectId});
   const db=getAdminFirestore(),args=process.argv.slice(2),instrumentId=args.find(arg=>arg.startsWith('--instrument='))?.slice(13),listingId=args.find(arg=>arg.startsWith('--listing='))?.slice(10);
   const enqueue=args.includes('--enqueue'),processQueue=args.includes('--process');
+  if(args.includes('--verify-delivery')){
+    if(enqueue||processQueue||instrumentId||args.includes('--retry')||args.includes('--wake'))throw Error('Verification must run alone');
+    const url=process.env.ONBOARDING_SUBSCRIBER_URL;if(!url)throw Error('Subscriber URL is required');
+    const client=await new GoogleAuth().getIdTokenClient(url);
+    console.log(JSON.stringify(await verifyOnboardingDelivery({url,project:projectId,sha:process.env.GIT_SHA??'',exists:async id=>(await db.collection(ONBOARDING_COLLECTION).doc(id).get()).exists,
+      send:async(target,headers)=>{const r=await client.request({url:target,method:headers?'POST':'GET',headers,...(headers?{data:Buffer.alloc(0)}:{}),timeout:60000,retry:false});return {status:r.status,data:r.data};}})));return;
+  }
   if(args.includes('--wake')){if(!instrumentId||enqueue||processQueue||args.includes('--retry'))throw Error('Wake requires only --instrument=<ID> and --wake');console.log(JSON.stringify({instrumentId,woken:await wakeInstrumentOnboarding(db,instrumentId)}));return;}
   if(args.includes('--retry')){if(!instrumentId||enqueue||processQueue)throw Error('Retry requires only --instrument=<ID> and --retry');const request=parseOnboardingRequest((await db.collection(ONBOARDING_COLLECTION).doc(instrumentId).get()).data());const step=ONBOARDING_STEPS.find(key=>request.steps[key]!=='COMPLETE');if(!step)throw Error('No incomplete step');console.log(JSON.stringify(await retryInstrumentOnboarding(db,instrumentId,{step,updatedAt:request.updatedAt})));return;}
   if(enqueue&&processQueue)throw Error('Enqueue and processing are separate actions');

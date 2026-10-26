@@ -34,8 +34,10 @@ gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-instrument-onboarding.cjs --min-instances 0 --max-instances 2 \
   --concurrency 1 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --quiet
-gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
-  --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null
+for account in "$invoker" "$maintenance_runtime_account"; do
+  gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
+    --member "serviceAccount:$account" --role roles/run.invoker --quiet >/dev/null
+done
 gcloud services enable eventarc.googleapis.com eventarcpublishing.googleapis.com --project "$GCP_PROJECT_ID" --quiet
 gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" --member "serviceAccount:$invoker" --role roles/eventarc.eventReceiver --quiet >/dev/null
 location="$(gcloud firestore databases describe --database='(default)' --project "$GCP_PROJECT_ID" --format='value(locationId)')"
@@ -60,6 +62,12 @@ gcloud eventarc triggers describe "$trigger" --location "$location" --project "$
 let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
 const v=JSON.parse(s);if(!v.transport?.pubsub?.subscription||Object.keys(v.conditions||{}).length)process.exit(1);
 });'
+url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
+[[ "$url" == https://*.run.app ]] || { echo 'Invalid subscriber URL' >&2; exit 1; }
+gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$region" --update-env-vars "ONBOARDING_SUBSCRIBER_URL=$url" --quiet
+# Exercise authenticated routing and current-state lookup without creating a request.
+gcloud run jobs execute "$job" --project "$GCP_PROJECT_ID" --region "$region" \
+  --args dist/onboard-instruments.cjs,--verify-delivery --wait --quiet
 if gcloud scheduler jobs describe "$job" --project "$GCP_PROJECT_ID" --location "$region" >/dev/null 2>&1; then
   gcloud scheduler jobs delete "$job" --project "$GCP_PROJECT_ID" --location "$region" --quiet
 fi

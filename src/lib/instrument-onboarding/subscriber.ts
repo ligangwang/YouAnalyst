@@ -18,7 +18,7 @@ export function onboardingEventId(headers:IncomingHttpHeaders,project:string){
 
 export function createOnboardingSubscriber(options:{project:string;process:(id:string)=>Promise<{status:string}>}){
   return createServer(async(req,res)=>{
-    if(req.method==='GET'&&req.url==='/health'){res.writeHead(200);res.end('ok');return;}
+    if(req.method==='GET'&&req.url==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({sha:process.env.GIT_SHA??'unknown'}));return;}
     if(req.method!=='POST'||req.url!=='/events'){res.writeHead(404);res.end();return;}
     let id:string;
     try{

@@ -23,6 +23,8 @@ function run(target:string,extra:Record<string,string>={}) {
         case "$*" in
           "firestore databases describe"*) echo nam5 ;;
           "eventarc triggers describe"*) if [[ "\${ONBOARDING_TRIGGER_NOT_READY:-0}" == 1 && "$*" == *"--format=json"* ]]; then echo '{"conditions":{"transport":{"code":"NOT_READY"}}}'; else echo '{"transport":{"pubsub":{"subscription":"projects/demo/subscriptions/onboarding-events"}}}'; fi ;;
+          "run services describe instrument-onboarding-subscriber"*"value(status.url)"*) echo https://onboarding.example.run.app ;;
+          "run jobs execute onboard-instruments-production"*) if [[ "\${ONBOARDING_DELIVERY_FAIL:-0}" == 1 ]]; then return 1; fi ;;
           "run services describe instrument-onboarding-subscriber"*) echo '{"status":{"conditions":[{"type":"Ready","status":"True"}]}}' ;;
           "scheduler jobs describe onboard-instruments-production"*) if [[ "\${NEW_ONBOARDING:-0}" == 1 ]]; then return 1; fi ;;
           *"get-iam-policy"*)
@@ -93,7 +95,11 @@ test('onboarding rollout uses private on-demand events and retires only its own 
   assert(existing.calls.lastIndexOf('eventarc triggers describe')<existing.calls.indexOf('scheduler jobs delete onboard-instruments-production'));
   const unready=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_TRIGGER_NOT_READY:'1'});
   assert.notEqual(unready.status,0);assert.doesNotMatch(unready.calls,/scheduler jobs delete onboard-instruments-production/);
-  assert.doesNotMatch(r.calls,/private-test-token|private-onboarding-ai-key|scheduler jobs (pause|resume)|run jobs execute/);
+  assert.doesNotMatch(r.calls,/private-test-token|private-onboarding-ai-key|scheduler jobs (pause|resume)/);
+  assert.match(r.calls,/run jobs execute onboard-instruments-production .*--args dist\/onboard-instruments.cjs,--verify-delivery/);
+  assert(existing.calls.indexOf('run jobs execute onboard-instruments-production')<existing.calls.indexOf('scheduler jobs delete onboard-instruments-production'));
+  const failedDelivery=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_DELIVERY_FAIL:'1'});
+  assert.notEqual(failedDelivery.status,0);assert.doesNotMatch(failedDelivery.calls,/scheduler jobs delete onboard-instruments-production/);
   const missingAi=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',OPENAI_API_KEY:'',EODHD_API_TOKEN:'private-test-token',EODHD_BULK_EOD_BUCKET:'demo-eod'});
   assert.notEqual(missingAi.status,0);assert.match(missingAi.stderr,/OPENAI_API_KEY/);assert.doesNotMatch(missingAi.calls,/builds submit|run jobs deploy/);
   const invalid=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'',EODHD_BULK_EOD_BUCKET:'demo-eod'});
