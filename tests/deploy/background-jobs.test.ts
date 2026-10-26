@@ -89,6 +89,7 @@ test('onboarding rollout uses private on-demand events and retires only its own 
   assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--max-instances 2 --concurrency 1/);
   assert.match(r.calls,/eventarc triggers (create|update) instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/scheduler jobs (create|update) http onboard-instruments-production/);
+  assert.doesNotMatch(r.calls,/projects add-iam-policy-binding .*--role roles\/eventarc.eventReceiver/);
   const existing=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod'});
   assert.equal(existing.status,0,existing.stderr);
   assert.match(existing.calls,/scheduler jobs delete onboard-instruments-production/);

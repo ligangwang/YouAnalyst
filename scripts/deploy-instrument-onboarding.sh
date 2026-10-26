@@ -39,7 +39,8 @@ for account in "$invoker" "$maintenance_runtime_account"; do
     --member "serviceAccount:$account" --role roles/run.invoker --quiet >/dev/null
 done
 gcloud services enable eventarc.googleapis.com eventarcpublishing.googleapis.com --project "$GCP_PROJECT_ID" --quiet
-gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" --member "serviceAccount:$invoker" --role roles/eventarc.eventReceiver --quiet >/dev/null
+# Project IAM is operator-bootstrapped with setup-instrument-onboarding.sh;
+# the routine deployment identity cannot modify project permissions.
 location="$(gcloud firestore databases describe --database='(default)' --project "$GCP_PROJECT_ID" --format='value(locationId)')"
 [[ -n "$location" ]] || { echo 'Firestore location required' >&2; exit 1; }
 if gcloud eventarc triggers describe "$trigger" --location "$location" --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then

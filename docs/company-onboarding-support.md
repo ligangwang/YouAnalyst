@@ -166,6 +166,11 @@ clears them. Expired PROCESSING leases are blocked for inspection because the la
 provider operation may have had an unknown outcome. Old queued failures and legacy
 theme blockers are never automatically resumed.
 
+One-time operator setup runs `scripts/setup-instrument-onboarding.sh` before the
+protected rollout. It grants the deployment account only Eventarc trigger create
+and update permissions (existing viewer access is reused), and grants the existing
+delivery account Eventarc receiver access. Routine CI never modifies project IAM.
+
 No Firestore schema changes are required. Eventarc uses the existing request
 collection as the durable message source (including admin and batch request flows).
 It ignores requester subcollections. Existing untouched QUEUED documents predate
