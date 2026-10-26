@@ -1,6 +1,5 @@
 .gcloudignore
 .git
-.github
 .next
 node_modules
 .env*

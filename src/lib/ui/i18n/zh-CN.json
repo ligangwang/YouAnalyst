@@ -1404,5 +1404,20 @@
   "☆ Add to watchlist": "☆ 加入自选股",
   "Could not update watchlist. Retry.": "更新自选股失败，请重试。",
   "Sign in or create an account to add companies to your private watchlist and track sourced updates.": "登录或注册后，将公司加入私密自选股并跟踪有来源的更新。",
-  "Watchlist | YouAnalyst": "自选股 | YouAnalyst"
+  "Watchlist | YouAnalyst": "自选股 | YouAnalyst",
+  "Change photo": "更换头像",
+  "Upload photo": "上传头像",
+  "Use Google photo": "使用 Google 头像",
+  "Saving photo…": "正在保存头像…",
+  "JPEG, PNG, or WebP, up to 5 MB. Photos are cropped to a square and saved immediately.": "支持 JPEG、PNG 或 WebP，最大 5 MB。照片将裁剪为正方形并立即保存。",
+  "To fetch a recently changed Google photo, sign out and sign back in with Google first.": "如需获取最近更换的 Google 头像，请先退出并重新使用 Google 登录。",
+  "A linked Google account is needed to use a Google photo.": "使用 Google 头像需要关联 Google 账号。",
+  "Photo updated. Your custom photo will stay selected when you sign in.": "头像已更新。重新登录后仍会保留您的自定义头像。",
+  "Using your Google photo. It will refresh when you sign in with Google.": "已使用 Google 头像。使用 Google 登录时将刷新头像。",
+  "Choose a JPEG, PNG, or WebP image under 5 MB.": "请选择小于 5 MB 的 JPEG、PNG 或 WebP 图片。",
+  "Sign in to change your photo.": "请登录后更换头像。",
+  "Unable to update your photo.": "无法更新头像。",
+  "Unable to update your photo. Please try again.": "无法更新头像，请重试。",
+  "Choose a valid JPEG, PNG, or WebP image under 5 MB and 25 megapixels.": "请选择小于 5 MB 且不超过 2500 万像素的有效 JPEG、PNG 或 WebP 图片。",
+  "Sign in with a linked Google account to use its photo.": "请使用关联的 Google 账号登录以使用其头像。"
 }
