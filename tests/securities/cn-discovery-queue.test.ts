@@ -48,6 +48,16 @@ test('China discovery dispatch spaces tasks and defers safely at its deadline',a
     execution:'paced',deadline:31500,now:()=>now,earningsEnabled:false,readState:async()=>undefined,intervalMs:1000,sleep:async ms=>{now+=ms;}});
   assert.deepEqual(times,[0,1000]);assert.equal(result.requested,2);assert.equal(result.deferred,1);
 });
+test('paced deadline rotation eventually reaches every issuer without a stored cursor',async()=>{
+  const ids=Array.from({length:6},(_,i)=>`XSHG:${600001+i}`),seen=new Set<string>();
+  for(let hour=0;hour<6;hour++){
+    let now=hour*3600000;
+    const result=await publishCnDiscoveryTasks(ids,'announcements',async task=>{seen.add(task.companyId);},{
+      execution:`run-${hour}`,deadline:now+31500,now:()=>now,earningsEnabled:false,readState:async()=>undefined,intervalMs:1000,sleep:async ms=>{now+=ms;}});
+    assert.equal(result.requested,2);assert.equal(result.deferred,4);
+  }
+  assert.deepEqual([...seen].sort(),ids);
+});
 
 test('worker rechecks canonical enrollment and completed deliveries before any provider work',async()=>{
   const fx=earningsFirestore(),none={...graph,nodes:[]};

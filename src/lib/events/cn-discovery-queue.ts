@@ -58,7 +58,15 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
     }finally{release();}
   };
   const result={mode:'pubsub',requested:0,skipped:0,deferred:0,failed:0};let next=0;
-  const companies=[...new Set(ids)];
+  const sorted=[...new Set(ids)].sort();
+  // Use a step coprime to the scope size so every issuer eventually appears
+  // at the front, even if every run exhausts its deadline. No schema change is
+  // needed, and retries in the same hour choose the same starting position.
+  const gcd=(a:number,b:number):number=>b===0?a:gcd(b,a%b);
+  let step=Math.min(100,Math.max(1,sorted.length-1));
+  while(gcd(step,sorted.length)>1)step--;
+  const start=sorted.length?((Math.floor(now()/3600000)*step)%sorted.length):0;
+  const companies=[...sorted.slice(start),...sorted.slice(0,start)];
   await Promise.all(Array.from({length:Math.min(8,companies.length)},async()=>{while(next<companies.length){
     const id=companies[next++];
     if(now()+30000>=options.deadline){result.deferred++;continue;}
