@@ -29,8 +29,9 @@ export async function rerunFundamentalsBatch(db: Firestore, batchId: string, uid
         // Repair only the exact false error from this completed verification batch.
         tx.set(refs[i], {outcome:'ready',pending:false,lastError:FieldValue.delete(),failedAt:FieldValue.delete()}, {merge:true});
       }
+      const hadFailures = request.companyIds.some(id => progress[id]?.failed);
       for (const id of request.companyIds) if (progress[id]?.failed) delete progress[id];
-      tx.update(ref,{manualRequired:false,progress,manualRetryBy:uid,manualRetryAt:new Date().toISOString()});
+      tx.update(ref,{manualRequired:false,...(hadFailures ? {completed:false} : {}),progress,manualRetryBy:uid,manualRetryAt:new Date().toISOString()});
       return request;
     }
     const retryIds = request.companyIds.filter(id => !progress[id]?.completed || progress[id]?.failed);

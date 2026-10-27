@@ -116,6 +116,19 @@ test('verification retry with a publish failure restores the admin hold without 
   assert.deepEqual(f.rows.get('US:AMD'),company);
   assert.equal(f.rows.get('_batch_batch-1')?.manualRequired,true);
 });
+test('retry reopens a completed verification batch when failed progress must be checked again', async () => {
+  const probe={...request(['AMD']),reason:'verification' as const};
+  const company={outcome:'ready',pending:false,value:{metrics:{revenue:10}}};
+  const f=fixture({'US:AMD':company,'_batch_batch-1':{request:probe,manualRequired:true,completed:true,result:{failed:1},progress:{AMD:{completed:true,failed:true}}}});
+  let sent: FundamentalsRequest | undefined;
+  assert.equal(await rerunFundamentalsBatch(f.db,'batch-1','admin',async r=>{sent=r;}),true);
+  assert.equal(f.rows.get('_batch_batch-1')?.completed,false);
+  const result=await processFundamentalsBatch(sent,f.db,f.log,f.publish,f);
+  assert.equal(result.status,'verified');
+  assert.equal(f.rows.get('_batch_batch-1')?.completed,true);
+  assert.equal((f.rows.get('_batch_batch-1')?.result as Data)?.failed,0);
+  assert.deepEqual(f.calls,[]);
+});
 test("partial failure publishes successful changes and holds failures for admin", async () => {
  const f=fixture();const refresh=async(ticker:string)=>{if(ticker==='NVDA')throw Error('temporary failure');return f.refresh(ticker);};
  const result=await processFundamentalsBatch(request(),f.db,f.log,f.publish,{...f,refresh});
