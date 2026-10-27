@@ -3,6 +3,11 @@ name: Inspect SEC and graph rollout
 on:
   workflow_dispatch:
     inputs:
+      compare_theme_evidence:
+        description: Run the bounded IBM and A-share theme comparison
+        required: false
+        default: false
+        type: boolean
       usage_report:
         description: Read stored token counters and graph budget ledger only
         required: false
@@ -25,7 +30,7 @@ permissions:
 
 jobs:
   usage-report:
-    if: github.ref == 'refs/heads/main' && inputs.usage_report
+    if: github.ref == 'refs/heads/main' && inputs.usage_report && !inputs.compare_theme_evidence
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 10
@@ -44,7 +49,7 @@ jobs:
       - name: Read stored usage aggregates without provider calls or writes
         run: node scripts/inspect-background-usage.mjs
   inspect-only:
-    if: github.ref == 'refs/heads/main' && !inputs.usage_report
+    if: github.ref == 'refs/heads/main' && !inputs.usage_report && !inputs.compare_theme_evidence
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 10
@@ -84,3 +89,28 @@ jobs:
           EXPECTED_GRAPH_REQUEST_ID: ${{ inputs.saved_nvda_request }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: node_modules/.bin/tsx scripts/inspect-saved-graph-response.ts
+  compare-theme-evidence:
+    if: github.ref == 'refs/heads/codex/evidence-first-theme-classification' && inputs.compare_theme_evidence
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+    steps:
+      # The comparison code is pinned: changing the branch cannot change what
+      # receives the protected production credentials after approval.
+      - uses: actions/checkout@v4
+        with:
+          ref: 0ac32fd1a2a608e5967a193581a9f52527f4cb47
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Compare two existing issuers without enrollment writes
+        run: npx tsx scripts/compare-theme-evidence.ts
