@@ -103,7 +103,7 @@ jobs:
       # receives the protected production credentials after approval.
       - uses: actions/checkout@v4
         with:
-          ref: 0ac32fd1a2a608e5967a193581a9f52527f4cb47
+          ref: 53446cccfef39daba7161a1804c64e7c390557f1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
