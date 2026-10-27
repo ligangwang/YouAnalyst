@@ -9,7 +9,7 @@ import { secRequest } from "../sec-request";
 import { secCooldownMs } from "../sec-budget";
 import { validateSource } from "./document";
 import { earningsMetadata } from "./live-store";
-import { validateSourceUrl } from "./issuers";
+import { validateSourceUrl, type EarningsCompany } from "./issuers";
 import type { EarningsSource, RawEarningsDocument } from "./model";
 
 export const MAX_EARNINGS_DOCUMENT_BYTES = 20 * 1024 * 1024;
@@ -83,11 +83,11 @@ export function sharedEarningsRequestGate(db: Firestore, options: Parameters<typ
   return gate;
 }
 export type EarningsDownload = { bytes: Uint8Array; mediaType: RawEarningsDocument["mediaType"]; pdfText?: string };
-export function createEarningsDownloader(db: Firestore, options: { userAgent: string; signal?: AbortSignal; fetcher?: typeof fetch } ) {
+export function createEarningsDownloader(db: Firestore, options: { userAgent: string; signal?: AbortSignal; fetcher?: typeof fetch; verifiedIdentity?:EarningsCompany } ) {
   if (!options.userAgent.trim()) throw new Error("SEC_USER_AGENT is required for the earnings pilot");
   const gate = createEarningsRequestGate(db), fetcher = options.fetcher ?? fetch;
   return async (source: EarningsSource): Promise<EarningsDownload> => {
-    validateSource(source); validateSourceUrl(source.companyId, source.url, source.provider);
+    validateSource(source,options.verifiedIdentity); validateSourceUrl(source.companyId, source.url, source.provider,options.verifiedIdentity);
     const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000);
     const decode = async (response: Response) => {
       if (response.redirected || (response.url && response.url !== source.url)) throw new Error("Unexpected earnings source redirect");

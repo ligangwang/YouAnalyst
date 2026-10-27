@@ -11,6 +11,15 @@ function run(target:string,extra:Record<string,string>={}) {
     const result=spawnSync('bash',['-c',`
       gcloud() {
         echo "$*" >> "$CALLS"
+        if [[ "$1 $2 $3" == "run deploy instrument-onboarding-subscriber" ]]; then
+          local previous=""
+          for argument in "$@"; do
+            if [[ "$previous" == "--env-vars-file" ]]; then
+              node -e 'const fs=require("fs"),env=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));console.log("themeEvidenceFirst="+env.THEME_EVIDENCE_FIRST_ENABLED)' "$argument" >> "$CALLS"
+            fi
+            previous="$argument"
+          done
+        fi
         if [[ "$1 $2 $3 $4" == "run jobs deploy collect-intelligence-news-production" ]]; then
           local previous=""
           for argument in "$@"; do
@@ -86,6 +95,7 @@ test('onboarding rollout uses private on-demand events and retires only its own 
   assert.match(r.calls,/--args dist\/onboard-instruments.cjs,--process,--limit=1/);
   assert.match(r.calls,/--max-retries 0 --task-timeout 20m/);
   assert.match(r.calls,/run deploy instrument-onboarding-subscriber .*--no-allow-unauthenticated/);
+  assert.match(r.calls,/themeEvidenceFirst=1/);
   assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--max-instances 2 --concurrency 16/);
   assert.match(r.calls,/eventarc triggers (create|update) instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/scheduler jobs (create|update) http onboard-instruments-production/);

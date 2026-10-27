@@ -5,7 +5,20 @@ import { resolve } from "node:path";
 import { CN_EARNINGS_ORGS, CnEarningsSourceError, createCnEarningsRequester, createCnEarningsSources, makeCnEarningsPlan, parseCnEarningsOrg, type CnEarningsBlock } from "../../src/lib/earnings/live-cn";
 import { extractEarnings } from "../../src/lib/earnings/extract";
 import { sha256, sourceIdentity, type RawEarningsDocument } from "../../src/lib/earnings/model";
+import { validateSource } from "../../src/lib/earnings/document";
 
+test('onboarding identity can verify a CNINFO issuer without a global registry',()=>{
+ const identity={companyId:'XSHG:600519',issuerId:'cn:600519',cik:null,name:'贵州茅台',aliases:['贵州茅台'],irHosts:[]};
+ const row={code:'600519',category:'A股',orgId:'verified123',zwjc:'贵州茅台'};
+ assert.equal(parseCnEarningsOrg(identity.companyId,[row],identity),'verified123');
+ assert.throws(()=>parseCnEarningsOrg(identity.companyId,[{...row,code:'600518'}],identity));
+ assert.throws(()=>parseCnEarningsOrg(identity.companyId,[{...row,zwjc:'other'}],identity));
+ assert.throws(()=>parseCnEarningsOrg(identity.companyId,[row],{...identity,issuerId:'cn:600518'}));
+ const source={provider:'cninfo' as const,companyId:identity.companyId,issuerId:identity.issuerId,documentId:'123',url:'https://static.cninfo.com.cn/finalpage/2026-03-01/report.PDF',title:'年度报告',publishedAt:null,firstSeenAt:'2026-10-27T12:00:00Z',language:'zh' as const};
+ assert.doesNotThrow(()=>validateSource(source,identity));
+ assert.throws(()=>validateSource({...source,companyId:'XSHG:600518'},identity));
+ assert.throws(()=>validateSource({...source,url:'https://evil.example/report.PDF'},identity));
+});
 const now = "2026-10-02T11:25:00Z";
 const root = resolve("tests/fixtures/earnings/cn");
 const json = (path: string) => JSON.parse(readFileSync(path, "utf8"));

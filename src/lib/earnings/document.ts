@@ -1,5 +1,5 @@
 import { type EarningsSource, type RawEarningsDocument, sha256, sourceIdentity, validDate, validTimestamp } from "./model";
-import { earningsCompany, validateSourceUrl } from "./issuers";
+import { earningsCompany, validateSourceUrl, type EarningsCompany } from "./issuers";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 export function htmlToEarningsText(html: string) {
@@ -16,12 +16,13 @@ export function htmlToEarningsText(html: string) {
     .replace(/&#(?:x([0-9a-f]+)|(\d+));/gi, (_, hex: string, dec: string) => { const n = parseInt(hex || dec, hex ? 16 : 10); return n <= 0x10ffff ? String.fromCodePoint(n) : " "; })
     .replace(/[\t\r ]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
-export function validateSource(source: EarningsSource) {
-  const company = earningsCompany(source.companyId);
+export function validateSource(source: EarningsSource,verifiedIdentity?:EarningsCompany) {
+  const company = verifiedIdentity ?? earningsCompany(source.companyId);
+  if(company.companyId!==source.companyId)throw new Error('Verified issuer identity mismatch');
   if (!["sec", "cninfo", "issuer_ir"].includes(source.provider) || !["en", "zh"].includes(source.language)) throw new Error("Invalid source provider or language");
   if (source.issuerId !== company.issuerId || !source.documentId || source.documentId.length > 500 || !source.title || source.title.length > 1000) throw new Error("Invalid earnings source identity");
   if (source.listingId !== undefined && source.listingId !== source.companyId) throw new Error('Invalid earnings listing identity');
-  validateSourceUrl(source.companyId, source.url, source.provider);
+  validateSourceUrl(source.companyId, source.url, source.provider,verifiedIdentity);
   if (!validTimestamp(source.firstSeenAt)) throw new Error("Invalid first-seen timestamp");
   if (source.publishedAt) {
     const time = source.publishedAt;

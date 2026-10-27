@@ -3,7 +3,7 @@ import { validateSource } from "./document";
 import { datesInEvidence } from "./dates";
 import { type ExtractionPlan, type MetricRule } from "./extract";
 import { type EarningsKind, type Period, type RawEarningsDocument, sha256, validDate, validTimestamp } from "./model";
-import { earningsCompany } from "./issuers";
+import { earningsCompany, type EarningsCompany } from "./issuers";
 
 const ORG_ENDPOINT = "https://www.cninfo.com.cn/new/information/topSearch/query";
 const ANNOUNCEMENT_ENDPOINT = "https://www.cninfo.com.cn/new/hisAnnouncement/query";
@@ -131,13 +131,15 @@ function cnCompany(companyId: string): CnEarningsCompanyId {
   if (company.cik || !/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId)) throw new Error("Company is not a verified mainland map issuer");
   return companyId as CnEarningsCompanyId;
 }
-export function parseCnEarningsOrg(companyId: string, payload: unknown): string {
-  const id = cnCompany(companyId), code = id.split(":")[1];
+export function parseCnEarningsOrg(companyId: string, payload: unknown,verifiedIdentity?:EarningsCompany): string {
+  const id = verifiedIdentity ? companyId as CnEarningsCompanyId : cnCompany(companyId), code = id.split(":")[1];
+  const company=verifiedIdentity ?? earningsCompany(id);
+  if(!/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(id)||company.companyId!==id||company.cik!==null||company.issuerId!==`cn:${code}`)throw new Error('Invalid verified mainland issuer identity');
   if (!Array.isArray(payload)) throw new Error("Invalid CNINFO issuer lookup");
   const matches = payload.filter(row => row && typeof row === "object" && row.code === code && row.category === "A股");
   const reviewed = CN_EARNINGS_ORGS[id as keyof typeof CN_EARNINGS_ORGS];
   if (matches.length !== 1 || typeof matches[0].orgId !== 'string' || !/^\w{1,40}$/.test(matches[0].orgId) || (reviewed && matches[0].orgId !== reviewed)
-    || !(earningsCompany(id).aliases.some(alias => String(matches[0].zwjc ?? "").includes(alias))
+    || !(company.aliases.some(alias => String(matches[0].zwjc ?? "").includes(alias))
       || (reviewed && REVIEWED_CN_RENAMES[id] === matches[0].zwjc))) throw new Error("CNINFO issuer lookup changed or ambiguous: review required");
   return matches[0].orgId as string;
 }
