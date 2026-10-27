@@ -7,6 +7,7 @@ import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { withSecRequestContext } from "../sec-request";
 import { refreshCompanyMarketCaps } from "./market-cap";
 import {withSecBulkFinancialReads} from './sec-bulk-scope';
+import {withLiveCompanyReads} from '../local-cache/company-directory';
 import { digest, fundamentalsVersion, parseFundamentalsRequest,
   type FundamentalsRequest, type FundamentalsUpdate } from "./pubsub";
 
@@ -87,7 +88,7 @@ async function executeFundamentalsBatch(input: unknown, db: Firestore, log: Main
         const company = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
         const stored = (await company.get()).data();
         if (["error", "retry"].includes(stored?.outcome)) {
-          await company.set({pending:false,outcome:"error"},{merge:true});
+          if (request.reason !== 'verification') await company.set({pending:false,outcome:"error"},{merge:true});
           ledger.progress[ticker]={before:fundamentalsVersion(stored?.value),completed:true,failed:true,changed:false};
           await ref.set({progress:ledger.progress},{merge:true});
           log.emit("ERROR","company_requires_admin",{ticker,batchId:request.batchId,error:stored?.lastError});
@@ -120,7 +121,7 @@ async function executeFundamentalsBatch(input: unknown, db: Firestore, log: Main
 
         const details = maintenanceError(error);
         // Persist before acknowledging. A storage failure must not silently lose the error.
-        await db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker)).set({pending:false,outcome:"error",lastError:{...details,stack:details.stack??null},failedAt:new Date().toISOString(),refreshAfter:null},{merge:true});
+        if (request.reason !== 'verification') await db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker)).set({pending:false,outcome:"error",lastError:{...details,stack:details.stack??null},failedAt:new Date().toISOString(),refreshAfter:null},{merge:true});
         ledger.progress[ticker]={before:ledger.progress[ticker]?.before??fundamentalsVersion(null),completed:true,failed:true,changed:false};
         await ref.set({progress:ledger.progress},{merge:true});
         log.emit("ERROR", "company_failed", { ticker, batchId: request.batchId, error: details,
@@ -162,7 +163,7 @@ async function executeFundamentalsBatch(input: unknown, db: Firestore, log: Main
 // A bounded deployment probe goes through the real topic, IAM and subscriber.
 // Reuses cached companies, so it does not force provider requests or invent
 // financial data. This is explicitly invoked, never run during ordinary jobs.
-export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
+async function verifyFundamentalsDeliveryLive(db: Firestore, runId: string,
   publish: (request: FundamentalsRequest) => Promise<unknown>, log: MaintenanceLog,
   dependencies: { now?: () => number; sleep?: (ms: number) => Promise<void> } = {}) {
   const now = dependencies.now ?? Date.now;
@@ -178,6 +179,7 @@ export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
   let previousDuplicateRunId: unknown;
   while (now() < deadline) {
     const data = (await batchRef(db, request.batchId).get()).data();
+    if (data?.manualRequired === true || data?.result?.failed > 0) throw new Error(`SEC verification batch ${request.batchId} needs admin review`);
     if (data?.completed && !duplicatePublished) {
       // Re-send the same payload to exercise the completed-batch fast path.
       previousDuplicateRunId = data.verificationDuplicateRunId;
@@ -193,8 +195,12 @@ export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
   throw new Error(`Subscriber did not ${duplicatePublished ? "confirm duplicate delivery for" : "complete"} probe batch ${request.batchId} within 12 minutes`);
 }
 
+export function verifyFundamentalsDelivery(...args: Parameters<typeof verifyFundamentalsDeliveryLive>) {
+  return withLiveCompanyReads(() => verifyFundamentalsDeliveryLive(...args));
+}
+
 /** A saved failure is terminal until an administrator explicitly reruns it. */
-export async function processFundamentalsBatch(...args: Parameters<typeof executeFundamentalsBatch>) {
+async function processFundamentalsBatchLive(...args: Parameters<typeof executeFundamentalsBatch>) {
   const [input, db, log] = args;
   const request = parseFundamentalsRequest(input);
   const ref = batchRef(db, request.batchId);
@@ -211,7 +217,7 @@ export async function processFundamentalsBatch(...args: Parameters<typeof execut
     const details = maintenanceError(error);
     // Do not acknowledge if persisting the failure fails: losing the request is unsafe.
     const ledger=(await ref.get()).data() as Ledger|undefined;
-    for(const ticker of request.companyIds.filter(id=>!ledger?.progress?.[id]?.completed)) {
+    for(const ticker of request.reason === 'verification' ? [] : request.companyIds.filter(id=>!ledger?.progress?.[id]?.completed)) {
       await db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker)).set({pending:false,outcome:'error',lastError:{message:details.message},failedAt:new Date().toISOString(),refreshAfter:null},{merge:true});
     }
     await ref.set({request, manualRequired:true, lastError:{...details, stack:details.stack??null},
@@ -220,4 +226,8 @@ export async function processFundamentalsBatch(...args: Parameters<typeof execut
     return stopped(ledger);
   }
   });
+}
+
+export function processFundamentalsBatch(...args: Parameters<typeof executeFundamentalsBatch>) {
+  return withLiveCompanyReads(() => processFundamentalsBatchLive(...args));
 }
