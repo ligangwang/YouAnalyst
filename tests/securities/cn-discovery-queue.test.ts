@@ -48,10 +48,16 @@ test('China discovery dispatch spaces tasks and defers safely at its deadline',a
     execution:'paced',deadline:31500,now:()=>now,earningsEnabled:false,readState:async()=>undefined,intervalMs:1000,sleep:async ms=>{now+=ms;}});
   assert.deepEqual(times,[0,1000]);assert.equal(result.requested,2);assert.equal(result.deferred,1);
 });
+test('default China dispatch pace leaves time for slow source requests',async()=>{
+  let now=0;const times:number[]=[];
+  const result=await publishCnDiscoveryTasks(['XSHG:600001','XSHG:600002','XSHG:600003'],'announcements',async()=>{times.push(now);},{
+    execution:'default',deadline:90001,now:()=>now,earningsEnabled:false,readState:async()=>undefined,sleep:async ms=>{now+=ms;}});
+  assert.deepEqual(times,[0,30000,60000]);assert.equal(result.requested,3);
+});
 test('paced deadline rotation eventually reaches every issuer without a stored cursor',async()=>{
   const ids=Array.from({length:6},(_,i)=>`XSHG:${600001+i}`),seen=new Set<string>();
   for(let hour=0;hour<6;hour++){
-    let now=hour*3600000;
+    let now=hour*900000;
     const result=await publishCnDiscoveryTasks(ids,'announcements',async task=>{seen.add(task.companyId);},{
       execution:`run-${hour}`,deadline:now+31500,now:()=>now,earningsEnabled:false,readState:async()=>undefined,intervalMs:1000,sleep:async ms=>{now+=ms;}});
     assert.equal(result.requested,2);assert.equal(result.deferred,4);
