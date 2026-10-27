@@ -30,6 +30,7 @@ async function main(){
     const observedFetch:typeof fetch=async(input,init)=>{const body=JSON.parse(String(init?.body??'{}'));if(body.tools?.some((tool:{type?:string})=>tool.type==='web_search'))searches++;return fetch(input,init);};
     const evidenceOnly=await classifyOfficialThemes(company,catalog,{key,verifiedAnnual:annual,fetcher:observedFetch});
     const usedSearch=searches>0;
+    if(usedSearch){console.log(JSON.stringify({companyId:company.id,status:'inconclusive_fallback',searchRequests:searches}));process.exitCode=1;return;}
     const current=await classifyOfficialThemes(company,catalog,{key,evidence:await loadBusinessEvidence(db,company),fetcher:observedFetch});
     const left=normalized(evidenceOnly),right=normalized(current),same=JSON.stringify(left)===JSON.stringify(right);
     console.log(JSON.stringify({companyId:company.id,status:usedSearch?'inconclusive_fallback':same?'matched':'different',evidenceOnly:left,current:right,searchRequests:searches}));
