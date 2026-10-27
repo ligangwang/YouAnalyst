@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyBrowserCoverage } from '../../scripts/verify-browser-coverage.mjs';
+import { verifyBrowserCoverage, verifyApplicationCoverage } from '../../scripts/verify-browser-coverage.mjs';
 
 const tree = 'a'.repeat(40);
 const current = { workflow_id: 7, repository: { id: 1 } };
@@ -40,4 +40,24 @@ test('fails closed on missing coverage or API failure', async () => {
   empty.github.paginate = async () => { throw new Error('API unavailable'); };
   await assert.rejects(verifyBrowserCoverage(empty), /API unavailable/);
   await assert.rejects(verifyBrowserCoverage({...empty, tree:''}), /Missing release tree/);
+});
+
+const checks = ['Verify app', 'Check standalone release packaging', 'Verify company graph repository', 'Verify industry graph projection'];
+const verified = { name: 'verify', status: 'completed', conclusion: 'success',
+  steps: checks.map(name => ({ name, status: 'completed', conclusion: 'success' })) };
+function applicationFixture(jobs = [verified]) {
+  const base = fixture();
+  const listJobsForWorkflowRun = () => {};
+  return { ...base, github: { ...base.github,
+    paginate: async (endpoint: unknown) => endpoint === listJobsForWorkflowRun ? jobs : [artifact],
+    rest: { actions: { ...base.github.rest.actions, listJobsForWorkflowRun } },
+  } };
+}
+test('application reuse requires explicit successful checks from the covered PR', async () => {
+  assert.equal((await verifyApplicationCoverage(applicationFixture())).id, 42);
+  for (const jobs of [[], [verified, verified], [{ ...verified, conclusion: 'skipped' }],
+    ...checks.map(name => [{ ...verified, steps: verified.steps.filter(step => step.name !== name) }]),
+    ...checks.map(name => [{ ...verified, steps: verified.steps.map(step => step.name === name ? { ...step, conclusion: 'skipped' } : step) }])]) {
+    await assert.rejects(verifyApplicationCoverage(applicationFixture(jobs)), /application/);
+  }
 });

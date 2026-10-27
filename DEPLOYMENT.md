@@ -524,3 +524,26 @@ npm dependency/optional/peer graph, and retains whole packages (including native
 bindings and data assets). Unrelated frontend packages are excluded from worker
 images; the website image and repository dependency manifests are unchanged.
 Missing or undeclared runtime packages fail the build before rollout.
+
+### Reuse identical application verification
+
+Release verification can reuse the successful PR checks only when the complete
+Git tree (including the workflow) matches a non-expired coverage artifact from
+a successful same-repository PR run of this workflow. It additionally requires
+one successful `verify` job with successful app, standalone packaging, company
+graph, and industry graph steps. Missing, skipped, failed, ambiguous, or
+unavailable evidence runs verification normally. PRs always execute the checks.
+Change detection, release packaging, worker readiness, candidate validation,
+monitored promotion, and production smoke tests still execute on releases.
+
+Measured full-production runs on October 27, 2026:
+
+| Run | Duration | Reduction from baseline |
+| --- | --- | --- |
+| 40352842461 (baseline) | 45m32s | — |
+| 40567590129 (bounded worker pool) | 36m38s | 19.5% |
+| 40573136741 (overlap web and worker builds) | 29m25s | 35.4% |
+
+Durations include the entire workflow from run start through final smoke tests
+and job cleanup. The 50% target is 22m46s. These runs passed; the target was not
+yet met by the first two optimization attempts.
