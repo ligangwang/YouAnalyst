@@ -4,6 +4,8 @@ import {createMaintenanceLog} from '../maintenance-log';
 import {createOnboardingHandlers} from './handlers';
 import {loadBusinessEvidence} from '../company-themes/business-evidence';
 import {classifyOfficialThemes} from '../company-themes/classification';
+import {loadOfficialAnnual} from '../company-themes/official-annual-loader';
+import {officialAnnualTransport} from '../company-themes/official-annual-transport';
 import {getOpenAiApiKey} from '../openai-runtime';
 import {safeRecordOpenAiUsageEvent} from '../openai/usage';
 import type {EnrollmentBatch} from '../company-themes/enrollment';
@@ -13,7 +15,13 @@ export function onboardingRuntime(db:Firestore,themeBatches:EnrollmentBatch[]=[]
   if(!bucketName||!token)throw Error('Existing EODHD bucket and token are required');
   const log=createMaintenanceLog('instrument-onboarding');
   const handlers=createOnboardingHandlers({db,bucket:getAdminStorageBucket(bucketName),token,log,themeBatches,
-    classify:async(company,catalog)=>classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),evidence:await loadBusinessEvidence(db,company),recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})}),
+    classify:async(company,catalog)=>{
+      const evidence=await loadBusinessEvidence(db,company);
+      // Leave the experimental path disabled until real-issuer comparisons and
+      // provider capacity checks have passed; ordinary onboarding stays unchanged.
+      const verifiedAnnual=process.env.THEME_EVIDENCE_FIRST_ENABLED==='1' ? await loadOfficialAnnual(company,officialAnnualTransport(db)) : null;
+      return classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),evidence,verifiedAnnual:verifiedAnnual??undefined,recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})});
+    },
     maintenanceReady:async()=>process.env.INSTRUMENT_ONBOARDING_MAINTENANCE_READY==='1'});
   return {handlers,log};
 }

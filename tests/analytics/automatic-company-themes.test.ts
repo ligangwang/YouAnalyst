@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import seed from '../../data/investment-themes/catalog-v1.json';
 import {classifyOfficialThemes,officialThemeDomains,themeFields,themeVersion,type ThemeAssignment} from '../../src/lib/company-themes/classification';
 import {catalogGraphSectors} from '../../src/lib/company-themes/catalog-graph';
@@ -8,6 +9,24 @@ import {LEGACY_THEME_BLOCK,canResumeAutomaticThemes} from '../../src/lib/instrum
 const catalog=seed.nodes,company={id:'US:TEST',name:'Test Company',status:'DIRECTORY',cik:'0000000123'};
 const source={url:'https://www.sec.gov/Archives/edgar/data/123/report.htm',title:'Annual report',summary:'The company builds industrial robots and develops the AI computing systems that control them.'};
 function assignment(theme:string):ThemeAssignment{const sector=catalogGraphSectors(catalog,theme)[0];return {theme,primarySector:sector.id,secondaryRoles:[],...(theme==='ai'?{aiStageIds:[sector.stages.find(id=>id.startsWith('ai.'))!]}:{}),sources:[source]};}
+test('complete verified US and A-share evidence avoids search and preserves the same assignment',async()=>{
+ const text='Official annual business and operating segments describe industrial robots. '.repeat(30),now=new Date().toISOString();
+ for(const input of [{company,issuer:'sec:0000000123',url:source.url},{company:{id:'XSHG:688981',name:'Test CN',status:'DIRECTORY'},issuer:'cn:688981',url:'https://static.cninfo.com.cn/finalpage/2026-03-01/report.PDF'}]){
+  const result={companyId:input.company.id,description:'Builds industrial robots.',assignments:[{...assignment('robotics'),sources:[{...source,url:input.url}]}]};
+  const verifiedAnnual={companyId:input.company.id,issuerId:input.issuer,documentId:'1',latestAnnualId:'1',url:input.url,text,textSha256:createHash('sha256').update(text).digest('hex'),fullText:true,filedAt:now.slice(0,10),indexCheckedAt:now,laterMaterialChanges:false};
+  let calls=0;const fetcher:typeof fetch=async(_url,init)=>{calls++;const body=JSON.parse(String(init?.body));if(calls===1)assert.equal(body.tools,undefined);else assert.equal(body.tool_choice,'required');return Response.json({status:'completed',output:[...(calls===1?[]:[{type:'web_search_call',action:{sources:[{url:input.url}]}}]),{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});};
+  assert.deepEqual(await classifyOfficialThemes(input.company,catalog,{key:'fixture',verifiedAnnual,fetcher}),result);
+  assert.deepEqual(await classifyOfficialThemes(input.company,catalog,{key:'fixture',fetcher}),result);
+  assert.equal(calls,2);
+ }
+});
+test('evidence-only no-match falls back to the official search path exactly once',async()=>{
+ const text='Official annual business descriptions of industrial equipment. '.repeat(25),now=new Date().toISOString();
+ const verifiedAnnual={companyId:company.id,issuerId:'sec:0000000123',documentId:'1',latestAnnualId:'1',url:source.url,text,textSha256:createHash('sha256').update(text).digest('hex'),fullText:true,filedAt:now.slice(0,10),indexCheckedAt:now,laterMaterialChanges:false};
+ const empty={companyId:company.id,description:'Industrial equipment.',assignments:[]},matched={...empty,assignments:[assignment('robotics')]};let calls=0;
+ const fetcher:typeof fetch=async(_url,init)=>{calls++;const body=JSON.parse(String(init?.body));assert.equal(body.tools===undefined,calls===1);return Response.json({status:'completed',output:[...(calls===1?[]:[{type:'web_search_call',action:{sources:[{url:source.url}]}}]),{type:'message',content:[{type:'output_text',text:JSON.stringify(calls===1?empty:matched)}]}]});};
+ assert.deepEqual(await classifyOfficialThemes(company,catalog,{key:'fixture',verifiedAnnual,fetcher}),matched);assert.equal(calls,2);
+});
 test('only old missing-theme blockers resume automatically; identity and financial failures stay untouched',()=>{
  const request={status:'BLOCKED',lastError:LEGACY_THEME_BLOCK,steps:{identity:'COMPLETE' as const}};
  assert(canResumeAutomaticThemes(request));assert(!canResumeAutomaticThemes({...request,lastError:'prices: failed'}));assert(!canResumeAutomaticThemes({...request,steps:{}}));assert(!canResumeAutomaticThemes({...request,steps:{identity:'COMPLETE',themes:'COMPLETE'}}));assert(!canResumeAutomaticThemes({...request,status:'SUPPORTED'}));
