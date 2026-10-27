@@ -44,6 +44,9 @@ jobs:
   verify:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     outputs:
       indexes: ${{ steps.schema.outputs.indexes }}
       workers: ${{ steps.worker-changes.outputs.workers }}
@@ -64,6 +67,24 @@ jobs:
             echo 'indexes=true' >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Find application checks for this exact tree
+        id: application-coverage
+        if: github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const { verifyApplicationCoverage } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/verify-browser-coverage.mjs`);
+            const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+            try {
+              const run = await verifyApplicationCoverage({ github, context, tree });
+              core.notice(`Reusing application checks for tree ${tree} from ${run.html_url}`);
+              core.setOutput('covered', 'true');
+            } catch (error) {
+              core.notice(`${error.message} Running application checks for tree ${tree}.`);
+              core.setOutput('covered', 'false');
+            }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -73,6 +94,7 @@ jobs:
       # Shares the browser shards' key: same image, same lockfile, same tree.
       - name: Cache installed dependencies
         id: node-modules
+        if: steps.application-coverage.outputs.covered != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -81,7 +103,7 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
-        if: steps.node-modules.outputs.cache-hit != 'true'
+        if: steps.application-coverage.outputs.covered != 'true' && steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Detect background worker changes
@@ -91,6 +113,7 @@ jobs:
         run: node scripts/background-job-changes.mjs
 
       - name: Cache Next.js build
+        if: steps.application-coverage.outputs.covered != 'true'
         uses: actions/cache@v4
         with:
           path: .next/cache
@@ -98,6 +121,7 @@ jobs:
           restore-keys: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-
 
       - name: Verify app
+        if: steps.application-coverage.outputs.covered != 'true'
         run: |
           node scripts/check-build-secret-isolation.mjs
           npm run verify:checks
@@ -111,9 +135,11 @@ jobs:
         run: node scripts/prepare-release.mjs
 
       - name: Verify company graph repository
+        if: steps.application-coverage.outputs.covered != 'true'
         run: npm run test:graph
 
       - name: Verify industry graph projection
+        if: steps.application-coverage.outputs.covered != 'true'
         run: npm run test:industry
 
   # Releases skip browser shards only when a successful PR run tested this exact
