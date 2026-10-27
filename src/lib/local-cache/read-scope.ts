@@ -72,7 +72,10 @@ const policies: Record<string, readonly [number, number]> = {
   companies: [1024, 32 * 1024 * 1024],
   instruments: [1024, 16 * 1024 * 1024],
   collectors: [512, 8 * 1024 * 1024],
-  eod_prices: [256, 32 * 1024 * 1024],
+  // A browsing cycle spans ~478 tickers. Keep both current and previous date
+  // bounds live across rollover instead of evicting/reloading each twelve-bar
+  // query on the next visit. Retain the existing byte bound and LRU eviction.
+  eod_prices: [1024, 32 * 1024 * 1024],
   events: [256, 16 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string): Promise<any> | undefined {
