@@ -39,7 +39,7 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
 }){
   if(ids.some(id=>!validId(id)))throw new Error('Invalid A-share company scope');
   const now=options.now??Date.now,requestedAt=new Date(now()).toISOString();
-  const intervalMs=options.intervalMs??1000,sleep=options.sleep??delay;
+  const intervalMs=options.intervalMs??30000,sleep=options.sleep??delay;
   if(!Number.isSafeInteger(intervalMs)||intervalMs<0||intervalMs>60000)throw new Error('Invalid A-share dispatch interval');
   // State reads can remain parallel, while all publications from this run
   // share one pace. Unpublished tasks remain eligible for the next scan.
@@ -61,11 +61,11 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
   const sorted=[...new Set(ids)].sort();
   // Use a step coprime to the scope size so every issuer eventually appears
   // at the front, even if every run exhausts its deadline. No schema change is
-  // needed, and retries in the same hour choose the same starting position.
+  // needed, and retries within the same 15-minute window start together.
   const gcd=(a:number,b:number):number=>b===0?a:gcd(b,a%b);
-  let step=Math.min(100,Math.max(1,sorted.length-1));
+  let step=Math.min(10,Math.max(1,sorted.length-1));
   while(gcd(step,sorted.length)>1)step--;
-  const start=sorted.length?((Math.floor(now()/3600000)*step)%sorted.length):0;
+  const start=sorted.length?((Math.floor(now()/900000)*step)%sorted.length):0;
   const companies=[...sorted.slice(start),...sorted.slice(0,start)];
   await Promise.all(Array.from({length:Math.min(8,companies.length)},async()=>{while(next<companies.length){
     const id=companies[next++];
