@@ -24,6 +24,16 @@ test('loads every bounded later A-share disclosure or falls back without partial
   t.documentText=async(_company,item)=>item.documentId==='100'?`第三节 管理层讨论与分析\n${body}第四节 公司治理`:'详见附件 '+body;
   assert.equal(await loadOfficialAnnual(cn,t,now),null);
 });
+test('resolves an incorporated SEC annual report only from the matching complete submission',async()=>{
+  const t=transport();
+  t.documentText=async()=>`Item 1. Business\nThe annual report to stockholders is incorporated by reference.\n${body}Item 1A. Risk Factors`;
+  const report='<DOCUMENT>\n<TYPE>EX-13\n<FILENAME>annual.htm\n<TEXT><html>'+body+'</html></TEXT>\n</DOCUMENT>';
+  t.secSubmission=async()=>`ACCESSION NUMBER: 0000051143-26-000001\nCENTRAL INDEX KEY: 0000051143\n${report}\n</SEC-DOCUMENT>`;
+  const evidence=await loadOfficialAnnual(us,t,now);
+  assert.equal(evidence?.supplemental?.[0].documentId,'0000051143-26-000001:ex13');
+  t.secSubmission=async()=>`ACCESSION NUMBER: 0000051143-26-000002\nCENTRAL INDEX KEY: 0000051143\n${report}\n</SEC-DOCUMENT>`;
+  assert.equal(await loadOfficialAnnual(us,t,now),null);
+});
 test('missing, stale, later or incomplete sources fail closed to search',async()=>{
   assert.equal(await loadOfficialAnnual(us,{...transport(),secIndex:async()=>{throw Error('offline');}},now),null);
   assert.equal(await loadOfficialAnnual(cn,{...transport(),cnIndex:async()=>null},now),null);

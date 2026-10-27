@@ -3,6 +3,7 @@ import type {ThemedCompany} from './model';
 import {completeAnnualSection} from './annual-section';
 import {cnAnnualIndex,cnLaterDisclosures,secAnnualIndex,type IndexedAnnual,type IndexedDisclosure} from './disclosure-index';
 import {evidenceReadiness,MAX_CLASSIFICATION_EVIDENCE_CHARS,type OfficialAnnualEvidence} from './evidence-readiness';
+import {secIncorporatedAnnual} from './sec-incorporated-report';
 
 /** These adapters must read authoritative, complete issuer-specific indexes and
  * full documents. The no-search path fails closed when either is unavailable. */
@@ -10,6 +11,7 @@ export type OfficialAnnualTransport={
   secIndex:(cik:string)=>Promise<unknown>;
   cnIndex:(company:ThemedCompany)=>Promise<{orgId:string;pages:unknown[]}|null>;
   documentText:(company:ThemedCompany,annual:IndexedAnnual)=>Promise<string>;
+  secSubmission?:(company:ThemedCompany,annual:IndexedAnnual)=>Promise<string>;
 };
 export type OfficialAnnualDecision='eligible'|'unsupported_issuer'|'index_unavailable'|'newer_disclosure'|'unresolved_reference'|'incomplete_section'|'invalid_evidence'|'source_error';
 
@@ -36,12 +38,21 @@ export async function loadOfficialAnnual(company:ThemedCompany,transport:Officia
     // A report may incorporate its business discussion from a separate filing.
     // Until those referenced documents are resolved, section boundaries alone
     // are not evidence that the issuer's business narrative is complete.
-    if(market==='US' && /incorporated\s+by\s+reference\s+into\s+parts?\s+i\b/i.test(document))return fallback('unresolved_reference');
     const text=completeAnnualSection(document,market);
     if(!text)return fallback('incomplete_section');
-    if(/incorporated\s+by\s+reference/i.test(text))return fallback('unresolved_reference');
     const supplemental:NonNullable<OfficialAnnualEvidence['supplemental']>=[];
     let total=text.length;
+    if(market==='US' && (/incorporated\s+by\s+reference\s+into\s+parts?\s+i\b/i.test(document)||/incorporated\s+(?:herein\s+)?by\s+reference/i.test(text))){
+      // Only the explicit annual-report incorporation is supported. Other
+      // references must fall back until their targets can be independently resolved.
+      const references=[...text.matchAll(/incorporated\s+(?:herein\s+)?by\s+reference/gi)];
+      if(!references.length||references.some(match=>!/annual report to (?:stockholders|shareholders)/i.test(text.slice(Math.max(0,match.index!-350),match.index!)))||!transport.secSubmission)return fallback('unresolved_reference');
+      const report=secIncorporatedAnnual(await transport.secSubmission(company,annual),String(company.cik),annual);
+      if(!report)return fallback('unresolved_reference');
+      total+=report.text.length;
+      if(total>MAX_CLASSIFICATION_EVIDENCE_CHARS)return fallback('incomplete_section');
+      supplemental.push({documentId:`${annual.documentId}:ex13`,filedAt:annual.filedAt,url:report.url,title:'Incorporated annual report to stockholders',text:report.text,textSha256:createHash('sha256').update(report.text,'utf8').digest('hex')});
+    }
     for(const item of later){
       const full=await transport.documentText(company,{...item,laterDisclosures:false});
       // Separate attachments cannot be silently omitted from a disclosure.

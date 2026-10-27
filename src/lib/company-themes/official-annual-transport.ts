@@ -23,6 +23,10 @@ export function officialAnnualTransport(db:Firestore,now=Date.now()):OfficialAnn
   const post=(body:Record<string,string>,operation:CnEarningsRequestContext['operation'],companyId:string)=>({method:'POST',body:new URLSearchParams(body).toString(),operation,companyId});
   return {
     secIndex:async cik=>secRequest(`https://data.sec.gov/submissions/CIK${cik}.json`,{headers:{'user-agent':userAgent,accept:'application/json'},signal:AbortSignal.timeout(12_000)},async r=>JSON.parse((await readBoundedEarningsBody(r,4*1024*1024)).toString('utf8')),{cik,operation:'theme_official_index'}),
+    secSubmission:async(company,annual)=>{
+      const cik=String(company.cik),url=`https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${annual.documentId.replaceAll('-','')}/${annual.documentId}.txt`;
+      return secRequest(url,{headers:{'user-agent':userAgent,accept:'text/plain'},signal:AbortSignal.timeout(30_000)},async r=>(await readBoundedEarningsBody(r,20*1024*1024)).toString('utf8'),{cik,accession:annual.documentId,operation:'theme_official_submission'});
+    },
     cnIndex:async company=>{
       const id=company.id,code=id.split(':')[1],identity=onboardingCnIdentity(company),orgId=parseCnEarningsOrg(id,await requester.request('https://www.cninfo.com.cn/new/information/topSearch/query',post({keyWord:code,maxNum:'10'},'cninfo_earnings_org',id)),identity);
       const from=cnDisclosureDay(now-550*86400_000),to=cnDisclosureDay(now),pages:unknown[]=[];
