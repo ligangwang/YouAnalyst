@@ -170,6 +170,11 @@ candidate_json="$(gcloud run services describe "$service_name" --project "$proje
 candidate_url="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.url)process.exit(1);console.log(t.url);})')"
 candidate_revision="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);})')"
 CANDIDATE_URL="$candidate_url" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/verify-release-candidate.mjs
+# Preparing a no-traffic candidate may overlap additive worker rollout. Only
+# the same run/attempt's successful worker gate permits production promotion.
+if [[ "$target" == production && "${GITHUB_ACTIONS:-}" == true ]]; then
+  node scripts/wait-worker-rollout.mjs
+fi
 # Retain and verify the predecessor through a monitored routing/drain grace
 # period. The promoter restores its traffic on any probe or request-log failure.
 RELEASE_SERVICE="$service_name" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/promote-release.mjs

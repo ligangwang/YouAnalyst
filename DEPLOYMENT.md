@@ -468,3 +468,82 @@ response may already have created an execution. Refresh history to inspect statu
 The web runtime needs `run.jobs.run` on this job. Normal worker freshness and SEC
 cooldowns still apply; ready legacy caches missing share metadata are upgraded
 once, even inside their previous freshness window.
+
+
+## Worker deployment performance
+
+The October 27, 2026 production run 40557922101 spent 33m07s in
+`deploy-background-jobs`: 22m15s rolling out workers and 6m32s in four
+sequential delivery probes. The web release waited for this job. Release
+and migration dependency installations also took 1m36s and 1m44s.
+
+Worker rollout now uses a bounded pool (three operations by default).
+Preflight validation, the shared image build, snapshots, and the SEC download
+router still finish before worker fan-out. SEC intake waits for all selected
+workers; earnings and news stay ordered because both update CN discovery.
+Bootstrap IAM runs are serial. Set `DEPLOY_WORKER_CONCURRENCY=1` to use serial
+rollout for diagnosis (accepted range: 1–8).
+
+After producer draining and additive migration finalization, the same four
+provider-free delivery probes run concurrently. Every selected probe must pass
+before graph activation or the website release. Failures stop new queued work,
+drain active operations, and fail the job. Existing revision, index, migration,
+and website candidate-health gates remain in place.
+
+Release and migration jobs reuse the same lockfile-keyed installed-dependency
+cache as verification. A cache miss still runs `npm ci`.
+
+Each worker/probe prints its elapsed seconds. Compare the next full production
+rollout with the baseline above, including queue time, build, deployment, and
+post-deploy health checks. A 50% end-to-end reduction is the target, not yet a
+measured result; worker startup and Cloud Run control-plane times vary. Do not
+remove readiness or migration checks to meet the timing target.
+
+
+### Overlap candidate preparation with workers
+
+The production web job may build and validate a no-traffic candidate while the
+worker job runs. Immediately before promotion, `wait-worker-rollout.mjs` checks
+the exact GitHub run attempt, commit, main branch, and release workflow using a
+read-only Actions token. It requires the worker job to succeed, or to be skipped
+only when change detection explicitly selected `none`. Failure, cancellation,
+missing evidence, API errors, and timeout prevent promotion. The prior website
+revision continues serving during this wait; the existing monitored promotion
+and rollback behavior is unchanged.
+
+The shared worker and directory images also build concurrently. Both builds
+must succeed and resolve to immutable digests before snapshots, subscribers,
+or jobs are deployed. A failed build drains the other build and blocks rollout.
+
+
+### Worker runtime packages
+
+Worker bundles emit esbuild metadata for every entry point. The image build
+uses those external imports as runtime roots, validates the complete installed
+npm dependency/optional/peer graph, and retains whole packages (including native
+bindings and data assets). Unrelated frontend packages are excluded from worker
+images; the website image and repository dependency manifests are unchanged.
+Missing or undeclared runtime packages fail the build before rollout.
+
+### Reuse identical application verification
+
+Release verification can reuse the successful PR checks only when the complete
+Git tree (including the workflow) matches a non-expired coverage artifact from
+a successful same-repository PR run of this workflow. It additionally requires
+one successful `verify` job with successful app, standalone packaging, company
+graph, and industry graph steps. Missing, skipped, failed, ambiguous, or
+unavailable evidence runs verification normally. PRs always execute the checks.
+Change detection, release packaging, worker readiness, candidate validation,
+monitored promotion, and production smoke tests still execute on releases.
+
+Measured full-production runs on October 27, 2026:
+
+| Run | Duration | Reduction from baseline |
+| --- | --- | --- |
+| 40352842461 (baseline) | 45m32s | â€” |
+| 40567590129 (bounded worker pool) | 36m38s | 19.5% |
+| 40573136741 (overlap web and worker builds) | 29m25s | 35.4% |
+
+Durations include the entire workflow from run start through final smoke tests
+and job cleanup. The 50% target is 22m46s. These runs passed; the target was not
+yet met by the first two optimization attempts.

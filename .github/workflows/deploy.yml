@@ -44,6 +44,9 @@ jobs:
   verify:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     outputs:
       indexes: ${{ steps.schema.outputs.indexes }}
       workers: ${{ steps.worker-changes.outputs.workers }}
@@ -64,6 +67,24 @@ jobs:
             echo 'indexes=true' >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Find application checks for this exact tree
+        id: application-coverage
+        if: github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const { verifyApplicationCoverage } = await import(`${process.env.GITHUB_WORKSPACE}/scripts/verify-browser-coverage.mjs`);
+            const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8' }).trim();
+            try {
+              const run = await verifyApplicationCoverage({ github, context, tree });
+              core.notice(`Reusing application checks for tree ${tree} from ${run.html_url}`);
+              core.setOutput('covered', 'true');
+            } catch (error) {
+              core.notice(`${error.message} Running application checks for tree ${tree}.`);
+              core.setOutput('covered', 'false');
+            }
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -73,6 +94,7 @@ jobs:
       # Shares the browser shards' key: same image, same lockfile, same tree.
       - name: Cache installed dependencies
         id: node-modules
+        if: steps.application-coverage.outputs.covered != 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -81,7 +103,7 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
-        if: steps.node-modules.outputs.cache-hit != 'true'
+        if: steps.application-coverage.outputs.covered != 'true' && steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Detect background worker changes
@@ -91,6 +113,7 @@ jobs:
         run: node scripts/background-job-changes.mjs
 
       - name: Cache Next.js build
+        if: steps.application-coverage.outputs.covered != 'true'
         uses: actions/cache@v4
         with:
           path: .next/cache
@@ -98,6 +121,7 @@ jobs:
           restore-keys: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-
 
       - name: Verify app
+        if: steps.application-coverage.outputs.covered != 'true'
         run: |
           node scripts/check-build-secret-isolation.mjs
           npm run verify:checks
@@ -111,9 +135,11 @@ jobs:
         run: node scripts/prepare-release.mjs
 
       - name: Verify company graph repository
+        if: steps.application-coverage.outputs.covered != 'true'
         run: npm run test:graph
 
       - name: Verify industry graph projection
+        if: steps.application-coverage.outputs.covered != 'true'
         run: npm run test:industry
 
   # Releases skip browser shards only when a successful PR run tested this exact
@@ -286,7 +312,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - name: Cache release compilation
         uses: actions/cache@v4
         with:
@@ -577,8 +612,12 @@ jobs:
         run: npm run smoke:test
 
   deploy-production:
-    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && (needs.deploy-background-jobs.result == 'success' || needs.deploy-background-jobs.result == 'skipped') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
-    needs: [verify, verify-browser, build-release, deploy-background-jobs]
+    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
+    needs: [verify, verify-browser, build-release]
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 90
     runs-on: ubuntu-24.04
     environment: production
     env:
@@ -625,7 +664,17 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Download checked release
@@ -680,6 +729,8 @@ jobs:
 
       - name: Deploy production application
         env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_WORKER_TARGET: ${{ needs.verify.outputs.workers }}
           GOOGLE_CLOUD_PROJECT: ${{ env.GCP_PROJECT_ID }}
           GOOGLE_CLOUD_REGION: ${{ env.GCP_REGION }}
           CLOUD_RUN_SERVICE_PRODUCTION: ${{ env.CLOUD_RUN_SERVICE_PRODUCTION }}
@@ -934,7 +985,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
       - name: Install migration dependencies
+        if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
       - name: Seed pending work and compact status documents
         run: npx tsx scripts/migrate-read-optimization.ts --apply
@@ -944,31 +1004,16 @@ jobs:
         run: node scripts/wait-feed-producers.mjs
       - name: Catch up old producer writes and finish additive migration
         run: npx tsx scripts/migrate-read-optimization.ts --apply --finalize
+      - name: Verify worker delivery without provider calls
+        run: node scripts/verify-worker-delivery.mjs
+      # The separately approved NVDA canary inspects these named steps. Record
+      # evidence only for probes selected above, after the entire pool succeeds.
       - name: Verify SEC Pub/Sub delivery with cached companies
         if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals' }}
-        run: >-
-          gcloud run jobs execute refresh-sec-fundamentals-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --update-env-vars FUNDAMENTALS_VERIFY_ONLY=1 --wait --quiet
-      - name: Verify onboarding worker without provider calls
-        if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' }}
-        run: >-
-          gcloud run jobs execute onboard-instruments-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/onboard-instruments.cjs,--verify-delivery --wait --quiet
+        run: echo 'SEC delivery verification passed in the worker delivery pool.'
       - name: Verify graph Pub/Sub delivery without SEC or OpenAI calls
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'company-graph' || env.TARGET_JOB == 'sec-filings') }}
-        run: >-
-          gcloud run jobs execute refresh-company-graph-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/refresh-company-graph.cjs,--verify-delivery
-          --update-env-vars COMPANY_GRAPH_VERIFY_ONLY=1 --wait --quiet
+        run: echo 'Graph delivery verification passed in the worker delivery pool.'
       - name: Verify capped NVDA pipeline and activate reviewed source tree
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && env.COMPANY_GRAPH_PROCESSING_ENABLED == '1' && env.SEC_FILINGS_COLLECTOR_ENABLED == '1' && env.SEC_GRAPH_ACTIVATE_TREE != '' }}
         run: bash scripts/activate-sec-graph.sh
-      - name: Verify earnings delivery without provider calls
-        if: ${{ env.EARNINGS_PIPELINE_ENABLED == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'earnings') }}
-        run: >-
-          gcloud run jobs execute collect-earnings-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/collect-earnings.cjs,--verify-delivery --wait --quiet

@@ -1,6 +1,5 @@
 import type {File} from '@google-cloud/storage';
 import {EventEmitter} from 'node:events';
-import {createRequire} from 'node:module';
 import {Readable,addAbortSignal} from 'node:stream';
 import {SEC_BULK_MAX_JSON} from './sec-bulk-storage';
 
@@ -47,7 +46,9 @@ export async function extractSelectedSecZip(options:{file:File;size:number;ciks:
   if(!Number.isSafeInteger(options.size)||options.size<22||options.size>8*1024**3)throw Error('Invalid SEC bulk ZIP size');
   if([...options.ciks].some(cik=>!/^\d{10}$/.test(cik)||Number(cik)===0))throw Error('Invalid SEC bulk issuer scope');
   options.signal.throwIfAborted();
-  const api=createRequire(__filename)('yauzl') as ZipApi,range=zipRangeSource(options.file,options.size,options.signal);
+  // Keep the literal require visible to esbuild's worker dependency metadata.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const api=require('yauzl') as ZipApi,range=zipRangeSource(options.file,options.size,options.signal);
   class Reader extends api.RandomAccessReader {_readStreamForRange(start:number,end:number){return range(start,end);}}
   const zip=await new Promise<Zip>((resolve,reject)=>api.fromRandomAccessReader(new Reader(),options.size,
     {lazyEntries:true,autoClose:true,strictFileNames:true,validateEntrySizes:true},(error,zip)=>error?reject(error):resolve(zip!)));

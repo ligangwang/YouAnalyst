@@ -1,3 +1,4 @@
+import {deliveryTasks} from '../../scripts/verify-worker-delivery.mjs';
 import {runInNewContext} from 'node:vm';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,8 +49,12 @@ test('worker release passes checks before production web and uses detected targe
   const job=workflow.jobs['deploy-background-jobs'];
   assert.match(workflow.jobs['deploy-production'].if,/github.ref == 'refs\/heads\/main'/);
   assert.deepEqual(job.needs,['verify','verify-browser','build-release']);
-  assert(workflow.jobs['deploy-production'].needs.includes('deploy-background-jobs'));
-  assert.match(workflow.jobs['deploy-production'].if,/deploy-background-jobs.result == 'success'/);
+  assert(!workflow.jobs['deploy-production'].needs.includes('deploy-background-jobs'));
+  assert.equal(workflow.jobs['deploy-production'].permissions.actions, 'read');
+  const productionStep=workflow.jobs['deploy-production'].steps.find((step: {name?: string})=>step.name==='Deploy production application');
+  assert.equal(productionStep.env.EXPECTED_WORKER_TARGET,'${{ needs.verify.outputs.workers }}');
+  const script=readFileSync('scripts/deploy-cloud-run.sh','utf8');
+  assert(script.indexOf('node scripts/wait-worker-rollout.mjs') < script.indexOf('node scripts/promote-release.mjs'));
   assert.match(job.if,/!cancelled\(\)/);
   assert.match(job.if,/needs.verify.result == 'success'/);
   assert.match(job.if,/refs\/heads\/main/);assert.match(job.if,/build-release.result == 'success'/);
@@ -66,13 +71,13 @@ test('production rollout persists explicit pipeline flags and reuses only the ap
   }
   assert.equal(env.OPENAI_API_KEY, "${{ (vars.ENABLE_SEC_FILING_PIPELINE == '1' || vars.CALENDAR_EXTRACTION_ENABLED == '1' || vars.INTELLIGENCE_NEWS_COLLECTOR_ENABLED == '1') && secrets.OPENAI_API_KEY || '' }}");
   assert.equal(env.PUBSUB_BOOTSTRAP_IAM, undefined);
-  const probe=workflow.jobs['deploy-background-jobs'].steps.find((step: {name?:string})=>step.name?.startsWith('Verify graph Pub/Sub'));
-  assert.match(probe.if, /ENABLE_SEC_FILING_PIPELINE == '1'/);
-  assert.match(probe.run, /COMPANY_GRAPH_VERIFY_ONLY=1/);
-  assert.match(probe.run, /--args dist\/refresh-company-graph.cjs,--verify-delivery/);
-  const probeArgs = probe.run.match(/--args ([^\s]+)/)![1].split(',').slice(1);
+  const step=workflow.jobs['deploy-background-jobs'].steps.find((step: {name?:string})=>step.name === 'Verify worker delivery without provider calls');
+  assert.equal(step.run, 'node scripts/verify-worker-delivery.mjs');
+  const probe=deliveryTasks({TARGET_JOB:'all',ENABLE_SEC_FILING_PIPELINE:'1',GCP_PROJECT_ID:'test',GCP_REGION:'us-central1'}).find(task=>task.id==='verify-graph')!;
+  assert(probe.args.includes('COMPANY_GRAPH_VERIFY_ONLY=1'));
+  const probeArgs = probe.args[probe.args.indexOf('--args')+1].split(',').slice(1);
   assert.equal(parseCompanyGraphPublisherArgs(probeArgs, { COMPANY_GRAPH_VERIFY_ONLY: '1' }).verify, true);
-  assert.doesNotMatch(probe.run, /COMPANY_GRAPH_PROCESSING_ENABLED|OPENAI/);
+  assert(!deliveryTasks({TARGET_JOB:'all',ENABLE_SEC_FILING_PIPELINE:'0'}).some(task=>task.id==='verify-graph'));
 
   assert.equal(workflow.jobs['deploy-production'].env.ENABLE_SEC_FILING_PIPELINE, '${{ vars.ENABLE_SEC_FILING_PIPELINE }}');
   assert.equal(workflow.jobs['deploy-staging'].env.ENABLE_SEC_FILING_PIPELINE, undefined);

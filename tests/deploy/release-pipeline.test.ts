@@ -69,7 +69,7 @@ test('parallel release preparation cannot deploy and both environments require t
   assert.equal(build.outputs['artifact-id'], '${{ steps.release.outputs.artifact-id }}');
   for (const target of ['staging', 'production']) {
     const deploy = workflow.jobs[`deploy-${target}`];
-    assert.deepEqual(deploy.needs, ['verify', 'verify-browser', 'build-release', ...(target==='production'?['deploy-background-jobs']:[])]);
+    assert.deepEqual(deploy.needs, ['verify', 'verify-browser', 'build-release']);
     // GitHub propagates skipped ancestors unless the condition includes a
     // status function. Keep explicit success checks for every real gate.
     assert.match(deploy.if, /!cancelled\(\)/);
@@ -113,7 +113,23 @@ test('verify and browser shards share installed dependencies and still install o
     assert.equal(cache.with.path, 'node_modules\n!node_modules/.cache\n');
     assert.equal(cache.with.key, "${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}");
     const install = workflow.jobs[job].steps.find((s: { run?: string }) => s.run === 'npm ci');
-    assert.equal(install.if, "steps.node-modules.outputs.cache-hit != 'true'");
+    assert.equal(install.if, job === 'verify'
+      ? "steps.application-coverage.outputs.covered != 'true' && steps.node-modules.outputs.cache-hit != 'true'"
+      : "steps.node-modules.outputs.cache-hit != 'true'");
   }
   assert.equal(workflow.jobs.verify['runs-on'], workflow.jobs['browser-shard']['runs-on']);
+});
+
+test('only proven application checks are reusable; change detection always executes', () => {
+  const steps = workflow.jobs.verify.steps;
+  const coverage = steps.find((step: { id?: string }) => step.id === 'application-coverage');
+  assert.equal(coverage.if, "github.event_name != 'pull_request'");
+  assert(coverage.with.script.includes('verifyApplicationCoverage'));
+  assert(coverage.with.script.includes("core.setOutput('covered', 'false')"));
+  for (const name of ['Verify app', 'Verify company graph repository', 'Verify industry graph projection']) {
+    assert.equal(steps.find((step: { name?: string }) => step.name === name).if, "steps.application-coverage.outputs.covered != 'true'");
+  }
+  for (const name of ['Detect index changes', 'Detect background worker changes']) {
+    assert.equal(steps.find((step: { name?: string }) => step.name === name).if, undefined);
+  }
 });
