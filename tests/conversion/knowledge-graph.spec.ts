@@ -10,6 +10,27 @@ import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sect
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { marketCapScale } from "../../src/lib/knowledge-graph/market-cap";
 
+test('crowded universe bounds rendered labels and retains company search',async({page})=>{
+ test.setTimeout(90000);
+ const template=graph.relationships.find(e=>e.type!=='PARTICIPATES_IN')!;
+ const fixture:KnowledgeGraph={...graph,relationships:Array.from({length:1000},(_,i)=>({...template,id:`large-edge-${i}`,source:`US:BIG${i}`,target:`US:BIG${(i+1)%2000}`})),nodes:Array.from({length:2000},(_,i)=>({id:`US:BIG${i}`,kind:'COMPANY',name:`Large Company ${i}`,symbol:`BIG${i}`,market:'US',order:i,stageIds:['compute']}))};
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>new URL(r.request().url()).pathname==='/api/knowledge-graph'?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en');
+ await expect(page.locator('canvas')).toBeVisible({timeout:30000});
+ await expect.poll(()=>page.locator('[data-company-id]').count(),{timeout:30000}).toBeGreaterThan(0);
+ expect(await page.locator('[data-company-id]').count()).toBeLessThanOrEqual(240);
+ await expect(page.locator('[data-relationship-id]')).toHaveCount(0);
+ await page.getByRole('button',{name:/^All connections/}).click();
+ await expect.poll(()=>page.locator('[data-relationship-id]').count(),{timeout:10000}).toBeGreaterThan(0);
+ expect(await page.locator('[data-relationship-id]').count()).toBeLessThan(1000);
+ await revealMapSearch(page);
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('BIG1999');
+ await expect(page.getByRole('region',{name:'Search results'})).toContainText('BIG1999');
+ await page.getByRole('region',{name:'Search results'}).getByRole('button',{name:/Large Company 1999/}).click();
+ await expect(page.locator('[data-company-id="US:BIG1999"]')).toHaveAttribute('aria-pressed','true');
+});
+
 for (const view of ['graph','vertical'] as const) test(`clicking the selected ${view} node toggles its detail card`,async({page})=>{
  // The vertical case renders meadow scenery while exercising several complete
  // open/close cycles and rapid reopening; retain bounded assertions within a full minute.
