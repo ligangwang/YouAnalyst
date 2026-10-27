@@ -13,7 +13,7 @@ export const CN_EARNINGS_ORGS = {
   "XSHG:688256": "nssc1000595", "XSHE:300308": "9900022016",
   "XSHG:688347": "9900029531", "XSHE:000672": "gssz0000672",
   "XSHG:600228": "gssh0600228", "XSHE:000504": "gssz0000504",
-} as const; // Verified against CNINFO topSearch on 2026-10-02; rechecked on each discovery.
+} as const; // Reviewed CNINFO organisation IDs are rechecked on each discovery.
 // Explicitly reviewed name changes; a pinned organisation ID and exact current
 // short name must both match. Other mismatches remain review-required.
 const REVIEWED_CN_RENAMES: Record<string,string> = {
