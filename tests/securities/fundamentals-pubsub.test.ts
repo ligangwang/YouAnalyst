@@ -89,7 +89,7 @@ test('admin rerun repairs only company errors proven to be from the completed du
   const value = {metrics:{revenue:10}};
   const message = '6 ALREADY_EXISTS: Document already exists: projects/p/databases/(default)/documents/company_fundamentals/_batch_batch-1';
   const f = fixture({ 'US:AMD':{outcome:'error',pending:false,value,lastError:{message}},
-    '_batch_batch-1':{request:probe,manualRequired:true,completed:true,lastError:{code:6,message},progress:{AMD:{completed:true,version:fundamentalsVersion(value)}}} });
+    '_batch_batch-1':{request:probe,manualRequired:true,completed:true,result:{status:'verified'},lastError:{code:6,message},progress:{AMD:{completed:true,version:fundamentalsVersion(value)}}} });
   let sent: FundamentalsRequest | undefined;
   assert.equal(await rerunFundamentalsBatch(f.db,'batch-1','admin',async r=>{sent=r;}),true);
   assert.equal(f.rows.get('US:AMD')?.outcome,'ready');
@@ -103,7 +103,7 @@ test('admin verification rerun refuses to overwrite unrelated company failures',
   const probe = {...request(['AMD']),reason:'verification' as const};
   const value={metrics:{revenue:10}}, message='6 ALREADY_EXISTS: /company_fundamentals/_batch_batch-1';
   const f=fixture({'US:AMD':{outcome:'error',pending:false,value,lastError:{message:'different failure'}},
-    '_batch_batch-1':{request:probe,manualRequired:true,completed:true,lastError:{code:6,message},progress:{AMD:{completed:true,version:fundamentalsVersion(value)}}} });
+    '_batch_batch-1':{request:probe,manualRequired:true,completed:true,result:{status:'verified'},lastError:{code:6,message},progress:{AMD:{completed:true,version:fundamentalsVersion(value)}}} });
   await assert.rejects(rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{}),/review company failures/);
   assert.equal(f.rows.get('US:AMD')?.outcome,'error');
   assert.equal(f.rows.get('_batch_batch-1')?.manualRequired,true);

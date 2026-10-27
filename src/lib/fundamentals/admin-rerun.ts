@@ -20,7 +20,8 @@ export async function rerunFundamentalsBatch(db: Firestore, batchId: string, uid
         if (company.get('outcome') === 'ready' && company.get('pending') !== true && value) continue;
         const error = company.get('lastError');
         const expected = `/company_fundamentals/_batch_${batchId}`;
-        if (company.get('outcome') !== 'error' || !value || Number(savedError?.code) !== 6 || Number(error?.code ?? savedError.code) !== 6
+        if (snapshot.get('completed') !== true || snapshot.get('result')?.status !== 'verified'
+          || company.get('outcome') !== 'error' || company.get('pending') === true || !value || Number(savedError?.code) !== 6 || Number(error?.code ?? savedError.code) !== 6
           || !String(savedError?.message ?? '').endsWith(expected) || !String(error?.message ?? '').endsWith(expected)
           || progress[id]?.completed !== true || progress[id]?.failed === true || progress[id]?.version !== fundamentalsVersion(value)) {
           throw new Error('Verification requires healthy cached companies; review company failures first');
