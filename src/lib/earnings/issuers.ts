@@ -40,8 +40,9 @@ export function earningsCompany(companyId: string) {
   if (!company) throw new Error("Company has no verified map earnings identity");
   return company;
 }
-export function validateSourceUrl(companyId: string, value: string, provider: "sec" | "cninfo" | "issuer_ir") {
-  const company = earningsCompany(companyId);
+export function validateSourceUrl(companyId: string, value: string, provider: "sec" | "cninfo" | "issuer_ir", verifiedIdentity?:EarningsCompany) {
+  const company = verifiedIdentity ?? earningsCompany(companyId);
+  if(company.companyId!==companyId)throw new Error('Verified issuer identity mismatch');
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash) throw new Error("Unsafe earnings source URL");
   const allowed: readonly string[] = provider === "sec" ? ["www.sec.gov"] : provider === "cninfo" ? ["static.cninfo.com.cn", "dataclouds.cninfo.com.cn", "www.cninfo.com.cn"] : company.irHosts;

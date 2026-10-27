@@ -6,6 +6,14 @@ import { CN_EARNINGS_ORGS, CnEarningsSourceError, createCnEarningsRequester, cre
 import { extractEarnings } from "../../src/lib/earnings/extract";
 import { sha256, sourceIdentity, type RawEarningsDocument } from "../../src/lib/earnings/model";
 
+test('onboarding identity can verify a CNINFO issuer without a global registry',()=>{
+ const identity={companyId:'XSHG:600519',issuerId:'cn:600519',cik:null,name:'贵州茅台',aliases:['贵州茅台'],irHosts:[]};
+ const row={code:'600519',category:'A股',orgId:'verified123',zwjc:'贵州茅台'};
+ assert.equal(parseCnEarningsOrg(identity.companyId,[row],identity),'verified123');
+ assert.throws(()=>parseCnEarningsOrg(identity.companyId,[{...row,code:'600518'}],identity));
+ assert.throws(()=>parseCnEarningsOrg(identity.companyId,[{...row,zwjc:'other'}],identity));
+ assert.throws(()=>parseCnEarningsOrg(identity.companyId,[row],{...identity,issuerId:'cn:600518'}));
+});
 const now = "2026-10-02T11:25:00Z";
 const root = resolve("tests/fixtures/earnings/cn");
 const json = (path: string) => JSON.parse(readFileSync(path, "utf8"));
