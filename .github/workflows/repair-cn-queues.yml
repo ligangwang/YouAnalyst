@@ -38,12 +38,29 @@ jobs:
           for spec in cn-fundamentals-subscriber:10 cn-company-discovery-subscriber:10; do
             service="${spec%:*}"
             concurrency="${spec#*:}"
+            suffix="q${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            revision="$service-$suffix"
             gcloud run services update "$service" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
-              --image "$WORKER_IMAGE" --update-env-vars "GIT_SHA=$GIT_SHA" --concurrency "$concurrency" --no-traffic --tag queue-repair --quiet
-            details="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)"
-            revision="$(jq -er '.status.latestReadyRevisionName' <<<"$details")"
+              --image "$WORKER_IMAGE" --update-env-vars "GIT_SHA=$GIT_SHA" --concurrency "$concurrency" \
+              --revision-suffix "$suffix" --no-traffic --tag queue-repair --async --quiet
+            ready=false
+            for attempt in {1..84}; do
+              revision_details="$(gcloud run revisions describe "$revision" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json 2>/dev/null || true)"
+              if [[ -n "$revision_details" ]] && jq -e --arg image "$WORKER_IMAGE" --arg sha "$GIT_SHA" --argjson concurrency "$concurrency" \
+                '(.status.conditions | any(.type == "Ready" and .status == "True")) and .spec.containers[0].image == $image and .spec.containerConcurrency == $concurrency and (.spec.containers[0].env | any(.name == "GIT_SHA" and .value == $sha))' <<<"$revision_details" >/dev/null; then
+                ready=true; break
+              fi
+              sleep 5
+            done
+            [[ "$ready" == true ]] || { echo "Candidate $revision did not become ready" >&2; exit 1; }
+            candidate_url=''
+            for attempt in {1..24}; do
+              details="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)"
+              candidate_url="$(jq -r --arg revision "$revision" '.status.traffic[] | select(.tag == "queue-repair" and .revisionName == $revision and (.percent // 0) == 0) | .url' <<<"$details")"
+              [[ "$candidate_url" == https://* ]] && break
+              sleep 5
+            done
             service_url="$(jq -er '.status.url' <<<"$details")"
-            candidate_url="$(jq -er --arg revision "$revision" '.status.traffic[] | select(.tag == "queue-repair" and .revisionName == $revision and (.percent // 0) == 0) | .url' <<<"$details")"
             [[ "$candidate_url" == https://* ]]
             token="$(gcloud auth print-identity-token --audiences="$service_url")"
             echo "::add-mask::$token"
