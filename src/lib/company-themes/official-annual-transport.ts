@@ -9,7 +9,7 @@ import type {ThemedCompany} from './model';
 
 function onboardingCnIdentity(company:ThemedCompany):EarningsCompany {
   const code=company.id.split(':')[1], names=company.names && typeof company.names==='object' ? Object.values(company.names as Record<string,unknown>) : [];
-  const aliases=[company.name,...names,...(Array.isArray(company.aliases)?company.aliases:[])].filter((value):value is string=>typeof value==='string'&&value.trim().length>0).map(value=>value.trim());
+  const aliases=[company.name,...names,...(Array.isArray(company.aliases)?company.aliases:[])].filter((value):value is string=>typeof value==='string'&&value.trim().length>=2).map(value=>value.trim());
   if(!/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(company.id)||!['DIRECTORY','PUBLISHED'].includes(String(company.status))||!aliases.length)throw Error('Unverified onboarding issuer');
   return {companyId:company.id,issuerId:`cn:${code}`,cik:null,name:aliases[0],aliases:[...new Set(aliases)],irHosts:[]};
 }
