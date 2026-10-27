@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {cnAnnualIndex,secAnnualIndex} from '../../src/lib/company-themes/disclosure-index';
+import {cnAnnualIndex,cnDisclosureDay,secAnnualIndex} from '../../src/lib/company-themes/disclosure-index';
+
+test('CN index window includes the current Shanghai day across UTC midnight',()=>{
+  assert.equal(cnDisclosureDay(Date.parse('2026-10-27T17:00:00Z')),'2026-10-28');
+});
 
 test('SEC index verifies issuer, complete columns and subsequent disclosures',()=>{
   const recent={form:['10-K','8-K'],accessionNumber:['0000051143-26-000001','0000051143-26-000002'],filingDate:['2026-02-01','2026-03-01'],primaryDocument:['annual.htm','event.htm']};

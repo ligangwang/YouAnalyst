@@ -2,6 +2,11 @@
  * The index itself must be fetched from the official issuer-specific endpoint. */
 export type IndexedAnnual={documentId:string;filedAt:string;url:string;laterDisclosures:boolean};
 const day=(value:unknown):value is string=>typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10)===value;
+export function cnDisclosureDay(time:number):string {
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(time));
+  const value=(key:string)=>parts.find(part=>part.type===key)?.value;
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
 
 export function secAnnualIndex(cik:string,payload:unknown):IndexedAnnual|null {
   if(!/^\d{1,10}$/.test(cik)||Number(cik)===0||!payload||typeof payload!=='object')return null;

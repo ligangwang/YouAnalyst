@@ -6,6 +6,7 @@ import {createEarningsDownloader,readBoundedEarningsBody,sharedEarningsRequestGa
 import type {EarningsCompany} from '../earnings/issuers';
 import {htmlToEarningsText} from '../earnings/document';
 import type {ThemedCompany} from './model';
+import {cnDisclosureDay} from './disclosure-index';
 
 function onboardingCnIdentity(company:ThemedCompany):EarningsCompany {
   const code=company.id.split(':')[1], names=company.names && typeof company.names==='object' ? Object.values(company.names as Record<string,unknown>) : [];
@@ -24,7 +25,7 @@ export function officialAnnualTransport(db:Firestore,now=Date.now()):OfficialAnn
     secIndex:async cik=>secRequest(`https://data.sec.gov/submissions/CIK${cik}.json`,{headers:{'user-agent':userAgent,accept:'application/json'},signal:AbortSignal.timeout(12_000)},async r=>JSON.parse((await readBoundedEarningsBody(r,4*1024*1024)).toString('utf8')),{cik,operation:'theme_official_index'}),
     cnIndex:async company=>{
       const id=company.id,code=id.split(':')[1],identity=onboardingCnIdentity(company),orgId=parseCnEarningsOrg(id,await requester.request('https://www.cninfo.com.cn/new/information/topSearch/query',post({keyWord:code,maxNum:'10'},'cninfo_earnings_org',id)),identity);
-      const from=new Date(now-550*86400_000).toISOString().slice(0,10),to=new Date(now).toISOString().slice(0,10),pages:unknown[]=[];
+      const from=cnDisclosureDay(now-550*86400_000),to=cnDisclosureDay(now),pages:unknown[]=[];
       for(let page=1;page<=20;page++){
         const value=await requester.request('https://www.cninfo.com.cn/new/hisAnnouncement/query',post({pageNum:String(page),pageSize:'30',column:id.startsWith('XSHG:')?'sse':'szse',tabName:'fulltext',plate:'',stock:`${code},${orgId}`,searchkey:'',secid:'',category:'',trade:'',seDate:`${from}~${to}`,sortName:'',sortType:'',isHLtitle:'true'},'cninfo_earnings_announcements',id));
         if(!value||typeof value!=='object'||!Array.isArray((value as {announcements?:unknown}).announcements)||typeof (value as {hasMore?:unknown}).hasMore!=='boolean')throw Error('Invalid official disclosure index');
