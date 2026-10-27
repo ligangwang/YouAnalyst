@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { CN_COMPANY_ID } from "../knowledge-graph/cn-companies";
+import { isKnownCnDelisting } from "./cn-delisted";
 import { digest } from "./pubsub";
 import { refreshCnAnnual } from "./cn-annual-worker";
 import { CN_WORKER_DOC, refreshCnFundamentals } from "./cn-refresh";
@@ -22,7 +23,7 @@ export async function publishCnRequests(db: Firestore, execution: string, compan
   if (!companies.length) throw Error("No A-share map companies found");
   let requested = 0, skipped = 0;
   for (const companyId of new Set(companies)) {
-    if (!options.manual && (await db.collection("company_fundamentals").doc(companyId).get()).get("manualRequired") === true) { skipped++; continue; }
+    if (!options.manual && (isKnownCnDelisting(companyId) || (await db.collection("company_fundamentals").doc(companyId).get()).get("manualRequired") === true)) { skipped++; continue; }
     const request = parseCnRequest({ version: 1, type: "cn-fundamentals.refresh.requested", companyId,
       batchId: (options.manual ? "manual_" : "") + digest({ execution, companyId }), requestedAt: new Date().toISOString() });
     const ref = ledgerRef(db, request.batchId);
@@ -84,6 +85,14 @@ export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: M
     if (!saved.exists || digest(saved.get("request")) !== digest(request)) throw Error("Unknown or conflicting A-share request");
     if (current.get("manualRequired") === true && (!request.batchId.startsWith("manual_") || saved.get("result")?.failed === 1 || saved.get("completed") === true))
       return { status: "manual_required" };
+    if (isKnownCnDelisting(request.companyId)) {
+      await db.runTransaction(async tx => {
+        tx.set(ledger, { completed: true, completedAt: new Date().toISOString() }, { merge: true });
+        if (request.batchId.startsWith("manual_")) tx.set(company, { manualRequired: false }, { merge: true });
+      });
+      log.emit("INFO", "cn_delisted", { company: request.companyId });
+      return { status: "ineligible", reason: "delisted" };
+    }
     try {
       const result = await processCnRequest(request, db, log, { ...dependencies, leaseHeld: true });
       if (request.batchId.startsWith("manual_") && !("duplicate" in result && result.duplicate)) await company.set({ manualRequired: false }, { merge: true });

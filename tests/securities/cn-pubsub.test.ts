@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pubsubFirestore } from "../helpers/pubsub-firestore";
 import { parseCnRequest, publishCnRequests, processCnRequest, runCnRequestForAdmin, type CnRequest } from "../../src/lib/fundamentals/cn-pubsub";
+import {isKnownCnDelisting} from "../../src/lib/fundamentals/cn-delisted";
 import type { refreshCnFundamentals } from "../../src/lib/fundamentals/cn-refresh";
 
 const company = "XSHG:600584";
@@ -78,4 +79,17 @@ test("old completed manual deliveries do not clear a newer failure", async () =>
   f.rows.set(`company_fundamentals/${company}`,{manualRequired:true});
   assert.deepEqual(await runCnRequestForAdmin(requests[0],f.db,f.log,f),{status:"manual_required"});
   assert.equal(f.rows.get(`company_fundamentals/${company}`)?.manualRequired,true);
+});
+
+test("confirmed Shenzhen delistings skip scheduled refresh and a manual review clears the old failure",async()=>{
+  assert.equal(isKnownCnDelisting("XSHE:000004","2026-07-13"),false);
+  assert.equal(isKnownCnDelisting("XSHE:000004","2026-07-14"),true);
+  assert.equal(isKnownCnDelisting("XSHE:000638","2026-06-03"),true);
+  assert.equal(isKnownCnDelisting("XSHE:000503","2026-10-27"),false);
+  const f=pubsubFirestore(),id="XSHE:000004",requests:CnRequest[]=[];
+  f.rows.set(`company_fundamentals/${id}`,{manualRequired:true});
+  assert.equal((await publishCnRequests(f.db,"scheduled",[id],async()=>assert.fail())).requested,0);
+  await publishCnRequests(f.db,"admin",[id],async request=>{requests.push(request);},{manual:true});
+  assert.deepEqual(await runCnRequestForAdmin(requests[0],f.db,f.log,{annual:async()=>assert.fail("delisted source requested")}),{status:"ineligible",reason:"delisted"});
+  assert.equal(f.rows.get(`company_fundamentals/${id}`)?.manualRequired,false);
 });
