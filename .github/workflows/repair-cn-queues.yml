@@ -1,4 +1,4 @@
-name: Repair China queue subscribers
+name: Repair discovery queue subscribers
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - name: Deploy and verify candidates without traffic
         run: |
           set -euo pipefail
-          for spec in cn-fundamentals-subscriber:10 cn-company-discovery-subscriber:10; do
+          for spec in cn-fundamentals-subscriber:10 cn-company-discovery-subscriber:10 sec-company-discovery-subscriber:10; do
             service="${spec%:*}"
             concurrency="${spec#*:}"
             suffix="q${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
