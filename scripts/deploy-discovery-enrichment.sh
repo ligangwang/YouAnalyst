@@ -10,9 +10,11 @@ done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/filing-pipeline-deploy.sh"
 export FILING_PIPELINE_BOOTSTRAP_IAM="${DISCOVERY_ENRICHMENT_BOOTSTRAP_IAM:-0}"
 if [[ "$kind" == sec ]]; then
+  concurrency=10
   source "$(dirname "${BASH_SOURCE[0]}")/lib/sec-download-config.sh"
   service=sec-company-discovery-subscriber; topic=sec-company-discovery-requests; subscription=sec-company-discovery-worker; dead=sec-company-discovery-dead-letter; bundle=serve-sec-discovery
 else
+  concurrency=1
   service=news-article-enrichment-subscriber; topic=news-article-enrichment-requests; subscription=news-article-enrichment-worker; dead=news-article-enrichment-dead-letter; bundle=serve-news-enrichment
 fi
 number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
@@ -56,7 +58,7 @@ NODE
 # issuer registry; the existing global gates and paid intents remain decisive.
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
-  --command node --args "dist/$bundle.cjs" --min-instances 0 --max-instances 2 --concurrency 1 \
+  --command node --args "dist/$bundle.cjs" --min-instances 0 --max-instances 2 --concurrency "$concurrency" \
   --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format='value(status.url)')"

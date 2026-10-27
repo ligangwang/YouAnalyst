@@ -52,7 +52,7 @@ test('new queues fail closed on wrong topic/missing access and read-only checks 
 });
 test('private bounded workers use retained authenticated queues and only article worker receives existing AI key',()=>{
  for(const kind of ['sec','article']){
-  const r=run(kind);assert.equal(r.status,0,r.stderr);assert.match(r.calls,/--no-allow-unauthenticated/);assert.match(r.calls,/--max-instances 2 --concurrency 1/);assert.match(r.calls,/--timeout 600/);assert.match(r.calls,/--push-auth-service-account directory-sync-scheduler@demo/);
+  const r=run(kind);assert.equal(r.status,0,r.stderr);assert.match(r.calls,/--no-allow-unauthenticated/);assert.match(r.calls,new RegExp(`--max-instances 2 --concurrency ${kind==='sec'?10:1}`));assert.match(r.calls,/--timeout 600/);assert.match(r.calls,/--push-auth-service-account directory-sync-scheduler@demo/);
   assert.doesNotMatch(r.calls,/existing-approved-key|add-iam|allUsers|scheduler jobs|run jobs execute/);assert(r.removed);
   if(kind==='article')assert.equal(r.env.OPENAI_API_KEY,'existing-approved-key');else{assert(!r.env.OPENAI_API_KEY);assert.equal(r.env.SEC_DOCUMENT_CACHE_BUCKET,'private-cache');}
  }

@@ -1,4 +1,4 @@
-name: Repair China queue subscribers
+name: Repair discovery queue subscribers
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - name: Deploy and verify candidates without traffic
         run: |
           set -euo pipefail
-          for spec in cn-fundamentals-subscriber:10 cn-company-discovery-subscriber:10; do
+          for spec in cn-fundamentals-subscriber:10 cn-company-discovery-subscriber:10 sec-company-discovery-subscriber:10; do
             service="${spec%:*}"
             concurrency="${spec#*:}"
             suffix="q${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -76,7 +76,7 @@ jobs:
       - name: Update paced discovery producers for future scheduled executions
         run: |
           set -euo pipefail
-          for job in collect-intelligence-news-production collect-earnings-production; do
+          for job in collect-intelligence-news-production collect-earnings-production collect-sec-filings-production; do
             gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
               --image "$WORKER_IMAGE" --update-env-vars "GIT_SHA=$GIT_SHA" --quiet
           done
