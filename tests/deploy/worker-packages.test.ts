@@ -4,6 +4,14 @@ import { runtimeManifest, pruneInstalledPackages } from '../../scripts/prune-wor
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { buildSync } from 'esbuild';
+
+test('SEC bulk ZIP runtime package is visible in worker bundle metadata', () => {
+  const result = buildSync({ entryPoints: ['src/lib/fundamentals/sec-bulk-zip.ts'], bundle: true,
+    platform: 'node', packages: 'external', format: 'cjs', metafile: true, write: false });
+  const runtime = runtimeManifest({ dependencies: { yauzl: '3.4.0' } }, [result.metafile]);
+  assert.equal(runtime.dependencies.yauzl, '3.4.0');
+});
 
 const manifest = { name: 'worker', dependencies: { 'firebase-admin': '^13', 'better-sqlite3': '12', '@scope/pkg': '1', next: '16', react: '19' }, devDependencies: { esbuild: '1' } };
 const metadata = (...paths: string[]) => ({ outputs: { 'dist/worker.cjs': { imports: paths.map(path => ({ path, external: true })) } } });
