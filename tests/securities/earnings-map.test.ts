@@ -202,6 +202,19 @@ test('China map issuers use exact exchange identity and the reviewed common tabl
   assert.equal(extractEarnings({...doc,completeness:'full'},plan,now).status,'extracted');
   assert.deepEqual(discoverCnEarnings('XSHE:000063',{announcements:null,hasMore:false,totalAnnouncement:0},now),[]);
 });
+test('reviewed renamed China issuers require the exact ticker, organisation and current short name',()=>{
+  const cases=[['XSHG:688347','华虹公司','9900029531','华虹宏力'],['XSHE:000672','上峰水泥','gssz0000672','上峰材料'],
+    ['XSHG:600228','*ST返利','gssh0600228','返利科技'],['XSHE:000504','*ST生物','gssz0000504','南华生物']] as const;
+  const renamed:KnowledgeGraph={asOf:'2026-10-27',nodes:cases.map(([id,name],i)=>({id,market:'CN_A',name,kind:'COMPANY',order:i})),relationships:[],sources:[]};
+  configureEarningsMap(renamed,new Map());
+  for(const [id,,orgId,zwjc] of cases){
+    const row={code:id.split(':')[1],category:'A股',orgId,zwjc};
+    assert.equal(parseCnEarningsOrg(id,[row]),orgId);
+    assert.throws(()=>parseCnEarningsOrg(id,[{...row,orgId:'changed'}]));
+    assert.throws(()=>parseCnEarningsOrg(id,[{...row,zwjc:'unrelated'}]));
+    assert.throws(()=>parseCnEarningsOrg(id,[row,row]));
+  }
+});
 
 
 test('issuer membership reflects source changes without a checkpoint or timer',async()=>{

@@ -49,7 +49,7 @@ test('A-share queue preflight checks exact resources and IAM without mutations',
 test('routine deployment is private, bounded and reuses push identity without AI credentials',()=>{
   const result=run();assert.equal(result.status,0,result.stderr);
   assert.match(result.calls,/run deploy cn-company-discovery-subscriber .*--no-allow-unauthenticated/);
-  assert.match(result.calls,/--max-instances 4 --concurrency 1 --timeout 600/);
+  assert.match(result.calls,/--max-instances 4 --concurrency 10 --timeout 600/);
   assert.match(result.calls,/--args dist\/serve-cn-discovery.cjs/);
   assert.match(result.calls,/subscriptions update cn-company-discovery-worker .*--push-auth-service-account directory-sync-scheduler@demo/);
   assert.match(result.calls,/--dead-letter-topic cn-company-discovery-dead-letter/);
