@@ -468,3 +468,33 @@ response may already have created an execution. Refresh history to inspect statu
 The web runtime needs `run.jobs.run` on this job. Normal worker freshness and SEC
 cooldowns still apply; ready legacy caches missing share metadata are upgraded
 once, even inside their previous freshness window.
+
+
+## Worker deployment performance
+
+The October 27, 2026 production run 40557922101 spent 33m07s in
+`deploy-background-jobs`: 22m15s rolling out workers and 6m32s in four
+sequential delivery probes. The web release waited for this job. Release
+and migration dependency installations also took 1m36s and 1m44s.
+
+Worker rollout now uses a bounded pool (three operations by default).
+Preflight validation, the shared image build, snapshots, and the SEC download
+router still finish before worker fan-out. SEC intake waits for all selected
+workers; earnings and news stay ordered because both update CN discovery.
+Bootstrap IAM runs are serial. Set `DEPLOY_WORKER_CONCURRENCY=1` to use serial
+rollout for diagnosis (accepted range: 1–8).
+
+After producer draining and additive migration finalization, the same four
+provider-free delivery probes run concurrently. Every selected probe must pass
+before graph activation or the website release. Failures stop new queued work,
+drain active operations, and fail the job. Existing revision, index, migration,
+and website candidate-health gates remain in place.
+
+Release and migration jobs reuse the same lockfile-keyed installed-dependency
+cache as verification. A cache miss still runs `npm ci`.
+
+Each worker/probe prints its elapsed seconds. Compare the next full production
+rollout with the baseline above, including queue time, build, deployment, and
+post-deploy health checks. A 50% end-to-end reduction is the target, not yet a
+measured result; worker startup and Cloud Run control-plane times vary. Do not
+remove readiness or migration checks to meet the timing target.

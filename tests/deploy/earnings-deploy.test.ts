@@ -1,3 +1,4 @@
+import {deliveryTasks} from '../../scripts/verify-worker-delivery.mjs';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -264,9 +265,11 @@ test("routine workflow preserves SEC/graph settings and never bootstraps earning
   assert.equal(job.env.EARNINGS_BOOTSTRAP_IAM, "0");
   assert.equal(job.env.EARNINGS_SETUP_APPROVED_SHA, undefined);
   assert.equal(job.env.OPENAI_API_KEY, "${{ (vars.ENABLE_SEC_FILING_PIPELINE == '1' || vars.CALENDAR_EXTRACTION_ENABLED == '1' || vars.INTELLIGENCE_NEWS_COLLECTOR_ENABLED == '1') && secrets.OPENAI_API_KEY || '' }}");
-  const probe = job.steps.find((step: { name?: string }) => step.name === "Verify earnings delivery without provider calls");
-  assert.match(probe.if, /EARNINGS_PIPELINE_ENABLED == '1'/);
-  assert.match(probe.run, /--args dist\/collect-earnings.cjs,--verify-delivery/);
+  const step = job.steps.find((step: { name?: string }) => step.name === 'Verify worker delivery without provider calls');
+  assert.equal(step.run, 'node scripts/verify-worker-delivery.mjs');
+  const probe = deliveryTasks({TARGET_JOB:'earnings',EARNINGS_PIPELINE_ENABLED:'1',GCP_PROJECT_ID:'test',GCP_REGION:'us-central1'})[0];
+  assert(probe.args.includes('dist/collect-earnings.cjs,--verify-delivery'));
+  assert.equal(deliveryTasks({TARGET_JOB:'earnings',EARNINGS_PIPELINE_ENABLED:'0'}).length,0);
 });
 
 test("shared image bundles earnings and official PDF extraction; earnings sources select financial releases", () => {

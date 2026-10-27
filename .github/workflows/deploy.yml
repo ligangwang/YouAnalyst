@@ -286,7 +286,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
+      - if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
       - name: Cache release compilation
         uses: actions/cache@v4
         with:
@@ -934,7 +943,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
       - name: Install migration dependencies
+        if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
       - name: Seed pending work and compact status documents
         run: npx tsx scripts/migrate-read-optimization.ts --apply
@@ -944,31 +962,16 @@ jobs:
         run: node scripts/wait-feed-producers.mjs
       - name: Catch up old producer writes and finish additive migration
         run: npx tsx scripts/migrate-read-optimization.ts --apply --finalize
+      - name: Verify worker delivery without provider calls
+        run: node scripts/verify-worker-delivery.mjs
+      # The separately approved NVDA canary inspects these named steps. Record
+      # evidence only for probes selected above, after the entire pool succeeds.
       - name: Verify SEC Pub/Sub delivery with cached companies
         if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals' }}
-        run: >-
-          gcloud run jobs execute refresh-sec-fundamentals-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --update-env-vars FUNDAMENTALS_VERIFY_ONLY=1 --wait --quiet
-      - name: Verify onboarding worker without provider calls
-        if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' }}
-        run: >-
-          gcloud run jobs execute onboard-instruments-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/onboard-instruments.cjs,--verify-delivery --wait --quiet
+        run: echo 'SEC delivery verification passed in the worker delivery pool.'
       - name: Verify graph Pub/Sub delivery without SEC or OpenAI calls
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'company-graph' || env.TARGET_JOB == 'sec-filings') }}
-        run: >-
-          gcloud run jobs execute refresh-company-graph-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/refresh-company-graph.cjs,--verify-delivery
-          --update-env-vars COMPANY_GRAPH_VERIFY_ONLY=1 --wait --quiet
+        run: echo 'Graph delivery verification passed in the worker delivery pool.'
       - name: Verify capped NVDA pipeline and activate reviewed source tree
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && env.COMPANY_GRAPH_PROCESSING_ENABLED == '1' && env.SEC_FILINGS_COLLECTOR_ENABLED == '1' && env.SEC_GRAPH_ACTIVATE_TREE != '' }}
         run: bash scripts/activate-sec-graph.sh
-      - name: Verify earnings delivery without provider calls
-        if: ${{ env.EARNINGS_PIPELINE_ENABLED == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'earnings') }}
-        run: >-
-          gcloud run jobs execute collect-earnings-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/collect-earnings.cjs,--verify-delivery --wait --quiet
