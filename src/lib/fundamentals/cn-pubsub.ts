@@ -37,10 +37,10 @@ export async function publishCnRequests(db: Firestore, execution: string, compan
 }
 
 export async function processCnRequest(input: unknown, db: Firestore, log: MaintenanceLog,
-  dependencies: { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number } = {}) {
+  dependencies: { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number; leaseHeld?: boolean } = {}) {
   const request = parseCnRequest(input), ref = ledgerRef(db, request.batchId);
   const lease = db.collection("company_fundamentals").doc(CN_WORKER_DOC);
-  if (!await acquireMaintenanceLease(lease, log.runId)) throw Error("A-share worker is busy; retry");
+  if (!dependencies.leaseHeld && !await acquireMaintenanceLease(lease, log.runId)) throw Error("A-share worker is busy; retry");
   try {
     const ledger = (await ref.get()).data();
     if (!ledger || digest(ledger.request) !== digest(request)) throw Error("Unknown or conflicting A-share request");
@@ -68,7 +68,7 @@ export async function processCnRequest(input: unknown, db: Firestore, log: Maint
     if (incomplete) throw Error("A-share sources remain incomplete; retry");
     await ref.set({ completed: true, completedAt: new Date().toISOString() }, { merge: true });
     return { ...result, annual, completed: 1 };
-  } finally { await releaseMaintenanceLease(lease, log.runId); }
+  } finally { if (!dependencies.leaseHeld) await releaseMaintenanceLease(lease, log.runId); }
 }
 
 /** A provider failure becomes a durable admin item before acknowledging delivery.
@@ -77,21 +77,24 @@ export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: M
   dependencies: { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number } = {}) {
   const request = parseCnRequest(input), ledger = ledgerRef(db, request.batchId);
   const company = db.collection("company_fundamentals").doc(request.companyId);
-  const [saved, current] = await Promise.all([ledger.get(), company.get()]);
-  if (!saved.exists || digest(saved.get("request")) !== digest(request)) throw Error("Unknown or conflicting A-share request");
-  if (current.get("manualRequired") === true && (!request.batchId.startsWith("manual_") || saved.get("result")?.failed === 1))
-    return { status: "manual_required" };
+  const lease = db.collection("company_fundamentals").doc(CN_WORKER_DOC);
+  if (!await acquireMaintenanceLease(lease, log.runId)) throw Error("A-share worker is busy; retry");
   try {
-    const result = await processCnRequest(request, db, log, dependencies);
-    if (request.batchId.startsWith("manual_")) await company.set({ manualRequired: false }, { merge: true });
-    return result;
-  } catch (error) {
-    if (error instanceof Error && /worker is busy/.test(error.message)) throw error;
-    await db.runTransaction(async tx => {
-      tx.set(company, { manualRequired: true }, { merge: true });
-      tx.set(ledger, { result: { failed: 1 } }, { merge: true });
-    });
-    log.emit("ERROR", "requires_manual_retry", { company: request.companyId, error: error instanceof Error ? error.message : "A-share refresh failed" });
-    return { status: "manual_required" };
-  }
+    const [saved, current] = await Promise.all([ledger.get(), company.get()]);
+    if (!saved.exists || digest(saved.get("request")) !== digest(request)) throw Error("Unknown or conflicting A-share request");
+    if (current.get("manualRequired") === true && (!request.batchId.startsWith("manual_") || saved.get("result")?.failed === 1 || saved.get("completed") === true))
+      return { status: "manual_required" };
+    try {
+      const result = await processCnRequest(request, db, log, { ...dependencies, leaseHeld: true });
+      if (request.batchId.startsWith("manual_") && !("duplicate" in result && result.duplicate)) await company.set({ manualRequired: false }, { merge: true });
+      return result;
+    } catch (error) {
+      await db.runTransaction(async tx => {
+        tx.set(company, { manualRequired: true }, { merge: true });
+        tx.set(ledger, { result: { failed: 1 } }, { merge: true });
+      });
+      log.emit("ERROR", "requires_manual_retry", { company: request.companyId, error: error instanceof Error ? error.message : "A-share refresh failed" });
+      return { status: "manual_required" };
+    }
+  } finally { await releaseMaintenanceLease(lease, log.runId); }
 }

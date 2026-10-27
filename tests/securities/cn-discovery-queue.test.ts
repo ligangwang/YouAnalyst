@@ -85,7 +85,7 @@ test('worker rechecks canonical enrollment and completed deliveries before any p
 
 test('worker fails delivery for busy, failed or deferred company work',async()=>{
   const fx=earningsFirestore(),options={enabled:true,earningsEnabled:true,now:fx.now,loadCompany:async()=>graph,fallback:async()=>({})};
-  for(const result of [{status:'busy'},{failed:1},{deferred:1}])await assert.rejects(processCnDiscoveryTask(task(),fx.db,log,{...options,announcements:async()=>result}),/retry company/);
+  for(const result of [{status:'busy'},{failed:1},{deferred:1}])await assert.rejects(processCnDiscoveryTask(task(),fx.db,log,{...options,announcements:async()=>result}),/busy|retry company/);
   assert.equal((await processCnDiscoveryTask(task(),fx.db,log,{...options,announcements:async()=>({failed:0,deferred:0})})).status,'verified');
 });
 
@@ -184,4 +184,17 @@ test('failed China discovery waits for a later explicit admin request',async()=>
 test('discovery failure is not acknowledged if its hold cannot be saved',async()=>{
   const fx=earningsFirestore();fx.reject((path,value)=>path===`collectors/exchange-${id}`&&value.manualRequired===true);
   await assert.rejects(runCnDiscoveryForAdmin(task(),fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph,announcements:async()=>({failed:1})}),/Injected Firestore/);
+});
+
+test('lease contention stays retryable without creating a manual hold',async()=>{
+  const fx=earningsFirestore();
+  await assert.rejects(runCnDiscoveryForAdmin(task(),fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph,announcements:async()=>({status:'busy'})}),/busy/);
+  assert.notEqual(fx.rows.get(`collectors/exchange-${id}`)?.manualRequired,true);
+});
+test('successful manual discovery cannot clear a newer failure',async()=>{
+  const fx=earningsFirestore(),ref=`collectors/exchange-${id}`;
+  fx.rows.set(ref,{manualRequired:true,lastAttemptAt:new Date(fx.now()).toISOString()});fx.advance(1000);
+  const manual={...task(),batchId:'cn_manual_'+'c'.repeat(64),requestedAt:new Date(fx.now()).toISOString()};
+  await runCnDiscoveryForAdmin(manual,fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph,announcements:async()=>{fx.advance(1000);fx.rows.set(ref,{manualRequired:true,lastAttemptAt:new Date(fx.now()).toISOString()});return {failed:0};}});
+  assert.equal(fx.rows.get(ref)?.manualRequired,true);
 });

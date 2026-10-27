@@ -105,7 +105,8 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
   const publish=(event:Parameters<typeof publishEarningsIntake>[1])=>publishEarningsIntake(db,event);
   const result=task.mode==='announcements'?await (options.announcements??(()=>collectCnMapDisclosures(db,graph,request,{companyId:task.companyId,completedSince:task.requestedAt,deadline,runId:log.runId,earningsEnabled:options.earningsEnabled,now,publish})))()
     :await (options.fallback??(()=>collectLiveEarnings(db,log,{companyId:task.companyId,completedSince:task.requestedAt,deadline,now,discoveryOwnedByMap:true,publish,discoverCn:async(id,from,to,at)=>(await cn.discover({companyId:id,from,to,firstSeenAt:at,maxPages:20})).sources})))();
-  if(('status' in result&&result.status==='busy')||('failed' in result&&result.failed)||('deferred' in result&&result.deferred))throw new Error('A-share discovery incomplete; retry company task');
+  if('status' in result&&result.status==='busy')throw new Error('A-share discovery worker is busy');
+  if(('failed' in result&&result.failed)||('deferred' in result&&result.deferred))throw new Error('A-share discovery incomplete; retry company task');
   return {...result,status:'verified',companyId:task.companyId,mode:task.mode};
 }
 
@@ -117,7 +118,10 @@ export async function runCnDiscoveryForAdmin(input:unknown,db:Firestore,log:Main
   if(state?.manualRequired===true&&(!task.batchId.startsWith('cn_manual_')||Date.parse(task.requestedAt)<=Date.parse(String(state.lastAttemptAt??''))))return {status:'manual_required'};
   try{
     const result=await processCnDiscoveryTask(task,db,log,options);
-    if(task.batchId.startsWith('cn_manual_'))await ref.set({manualRequired:false},{merge:true});
+    if(task.batchId.startsWith('cn_manual_'))await db.runTransaction(async tx=>{
+      const current=(await tx.get(ref)).data();
+      if(current?.manualRequired===true&&current.lastAttemptAt===state?.lastAttemptAt)tx.set(ref,{manualRequired:false},{merge:true});
+    });
     return result;
   }catch(error){
     if(error instanceof Error&&/disabled; retain task|busy/.test(error.message))throw error;

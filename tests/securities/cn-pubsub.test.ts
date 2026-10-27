@@ -69,3 +69,13 @@ test("failure to save the manual hold does not acknowledge the delivery", async 
   f.reject((path, data) => path === `company_fundamentals/${company}` && data.manualRequired === true);
   await assert.rejects(runCnRequestForAdmin(f.request, f.db, f.log, { ...f, annual: async () => ({updated:0,skipped:0,failed:1,deferred:0}) }), /transaction failed/);
 });
+
+test("old completed manual deliveries do not clear a newer failure", async () => {
+  const f=await setup(),requests:CnRequest[]=[];
+  f.rows.set(`company_fundamentals/${company}`,{manualRequired:true});
+  await publishCnRequests(f.db,"admin-old",[company],async request=>{requests.push(request);},{manual:true});
+  await runCnRequestForAdmin(requests[0],f.db,f.log,f);
+  f.rows.set(`company_fundamentals/${company}`,{manualRequired:true});
+  assert.deepEqual(await runCnRequestForAdmin(requests[0],f.db,f.log,f),{status:"manual_required"});
+  assert.equal(f.rows.get(`company_fundamentals/${company}`)?.manualRequired,true);
+});
