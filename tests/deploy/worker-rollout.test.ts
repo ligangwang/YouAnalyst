@@ -57,7 +57,7 @@ test('delivery selection preserves rollout flags and provider-free verification 
   assert.equal(tasks.length, 4);
   for (const task of tasks) {
     assert(task.args.includes('--wait'));
-    assert(task.args.some(arg => arg.includes('VERIFY_ONLY=1') || arg.includes('--verify-delivery')));
+    assert(task.args.some((arg: string) => arg.includes('VERIFY_ONLY=1') || arg.includes('--verify-delivery')));
   }
   assert.equal(deliveryTasks({ ...env, TARGET_JOB: 'directory' }).length, 0);
   assert.deepEqual(deliveryTasks({ ...env, ENABLE_SEC_FILING_PIPELINE: '0', EARNINGS_PIPELINE_ENABLED: '0' }).map(t => t.id), ['verify-sec', 'verify-onboarding']);
