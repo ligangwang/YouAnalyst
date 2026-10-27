@@ -97,14 +97,21 @@ test('peer price history watches the exact bounded query and pushes corrections'
  for(let i=0;i<140;i++)await withSourceCache(()=>sourceSnapshot(db,query([['unrelated',i]]))!);
  const afterOtherReads=opens;
  await load();assert.equal(opens,afterOtherReads,'unrelated reads cannot evict peer prices');
- // A universe exceeding the old shared 128-entry budget remains reusable.
- for(let i=0;i<150;i++)await loadPeerPrices(db,`US:P${i}`,'US','2026-10-18');
+ // Production browsing touched 478 tickers; a 256-entry LRU repeatedly
+ // reloaded their latest twelve bars. Retain two dates across that universe.
+ for(const day of ['2026-10-18','2026-10-19'])
+  for(let i=0;i<478;i++)await loadPeerPrices(db,`US:P${i}`,'US',day);
  const afterUniverse=opens;
+ for(const day of ['2026-10-18','2026-10-19'])
+  for(let i=0;i<478;i++)await loadPeerPrices(db,`US:P${i}`,'US',day);
+ assert.equal(opens,afterUniverse,'a second browsing cycle must not reload recent prices');
+ value=7;for(const next of listeners.values())next(snapshot());
+ assert.equal((await loadPeerPrices(db,'US:P0','US','2026-10-19'))[0].rawClose,7,'retained prices receive live corrections');
  await load();assert.equal(opens,afterUniverse,'revisiting a company reuses its price listener');
  await loadPeerPrices(db,'US:AMD','US','2026-10-19');
  assert.equal(opens,afterUniverse+1,'date bounds must remain distinct');
  // The dedicated partition still evicts idle queries at its own capacity.
- for(let i=0;i<257;i++)await loadPeerPrices(db,`US:NEW${i}`,'US','2026-10-19');
+ for(let i=0;i<1025;i++)await loadPeerPrices(db,`US:NEW${i}`,'US','2026-10-19');
  const afterCapacity=opens;
  await load();assert.equal(opens,afterCapacity+1,'oldest idle price query is evicted at capacity');
  value=3;for(const next of listeners.values())next(snapshot());
