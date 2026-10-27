@@ -1,7 +1,8 @@
 import { COMPARE_COLORS, COMPARE_LIGHT_COLORS, returnLabel, type CompareData, type CompareStyle } from '../compare';
 import { comparisonFrame } from '../compare-chart';
+import type { ComparisonAudio } from './compare-video-audio';
 
-type VideoOptions = { data: CompareData; style: CompareStyle; colors?: string[]; seconds: number; light: boolean; chinese: boolean; signal: AbortSignal; onProgress: (progress: number) => void };
+type VideoOptions = { data: CompareData; style: CompareStyle; colors?: string[]; seconds: number; light: boolean; chinese: boolean; signal: AbortSignal; onProgress: (progress: number) => void; audio?: ComparisonAudio };
 
 // Draw from the same frame model as the interactive chart. HTML labels and branding
 // are painted here too, so the downloaded video is complete without DOM screenshots.
@@ -47,7 +48,7 @@ export function drawComparisonVideoFrame(ctx: CanvasRenderingContext2D, data: Co
   });
   ctx.restore(); ctx.fillStyle = muted; ctx.font = '16px sans-serif';
   ctx.fillText(`${data.dates[0]} → ${data.dates.at(-1)}`, 48, 654);
-  ctx.textAlign = 'right'; ctx.fillText('youanalyst.com', width - 48, 686); ctx.textAlign = 'left';
+  ctx.textAlign = 'right'; ctx.fillText('YouAnalyst.com', width - 48, 686); ctx.textAlign = 'left';
 }
 
 export async function recordComparisonVideo(options: VideoOptions): Promise<Blob> {
@@ -59,8 +60,12 @@ export async function recordComparisonVideo(options: VideoOptions): Promise<Blob
   const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('unsupported');
   drawComparisonVideoFrame(ctx, data, style, 0, light, chinese, options.colors);
   const stream = canvas.captureStream(30);
+  options.audio?.stream.getAudioTracks().forEach(track => stream.addTrack(track));
   let recorder: MediaRecorder | undefined;
-  for (const mimeType of ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
+  const mimeTypes = options.audio
+    ? ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/mp4', 'video/webm']
+    : ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  for (const mimeType of mimeTypes) {
     if (!MediaRecorder.isTypeSupported(mimeType)) continue;
     try { recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5_000_000 }); break; } catch { /* Try the next supported encoder. */ }
   }
@@ -75,6 +80,7 @@ export async function recordComparisonVideo(options: VideoOptions): Promise<Blob
       encoder.ondataavailable = null; encoder.onstop = null; encoder.onerror = null;
       if (encoder.state !== 'inactive') encoder.stop();
       stream.getTracks().forEach(track => track.stop());
+      options.audio?.dispose();
     };
     const fail = (reason: Error) => { if (settled) return; settled = true; cleanup(); reject(reason); };
     const abort = () => fail(new DOMException('Cancelled', 'AbortError'));
@@ -104,7 +110,7 @@ export async function recordComparisonVideo(options: VideoOptions): Promise<Blob
     try {
       if (signal.aborted) { abort(); return; }
       if (document.hidden) { visibility(); return; }
-      encoder.start(250); frame = requestAnimationFrame(advance);
+      encoder.start(250); options.audio?.start(); started = performance.now(); frame = requestAnimationFrame(advance);
     } catch { fail(new Error('encoding')); }
   });
 }

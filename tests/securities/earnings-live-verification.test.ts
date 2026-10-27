@@ -48,6 +48,62 @@ test("provider-free probe processes first/duplicate deliveries while earnings is
     assert.ok(![...fx.rows.keys()].some(path => path.startsWith(EARNINGS_RECORDS + "/")));
   } finally { if (previous === undefined) delete process.env.GIT_SHA; else process.env.GIT_SHA = previous; }
 });
+test("probe waits for the first receipt and tolerates subscription retry backoff", async () => {
+  const previous = process.env.GIT_SHA; process.env.GIT_SHA = revision;
+  try {
+    const fx = earningsFirestore();
+    const due: { event: EarningsJob; at: number }[] = [];
+    let publications = 0;
+    const result = await verifyEarningsDelivery(fx.db, async event => {
+      publications++;
+      if (publications === 2) {
+        const receipt = fx.rows.get(`${EARNINGS_COLLECTORS}/${event.batchId}`);
+        assert.equal(receipt?.firstDeliveries, 1, "duplicate must wait for first receipt");
+      }
+      due.push({ event, at: fx.now() + (publications === 1 ? 310_000 : 5_000) });
+      return `confirmed-${publications}`;
+    }, { revision, now: fx.now, sleep: async ms => {
+      fx.advance(ms);
+      for (const item of due.filter(item => item.at <= fx.now())) {
+        due.splice(due.indexOf(item), 1);
+        await processEarningsJob(item.event, fx.db, log, { enabled: false, now: fx.now,
+          download: async () => { throw new Error("unexpected provider"); }, publish: async () => { throw new Error("unexpected source publish"); } });
+      }
+    } });
+    assert.equal(publications, 2);
+    assert.equal(result.firstDeliveries, 1);
+    assert.equal(result.duplicateDeliveries, 1);
+    assert.ok(![...fx.rows.keys()].some(path => path.startsWith(EARNINGS_RECORDS + "/")));
+  } finally { if (previous === undefined) delete process.env.GIT_SHA; else process.env.GIT_SHA = previous; }
+});
+test("probe cannot succeed without a duplicate receipt", async () => {
+  const previous = process.env.GIT_SHA; process.env.GIT_SHA = revision;
+  try {
+    const fx = earningsFirestore(); let publications = 0;
+    await assert.rejects(() => verifyEarningsDelivery(fx.db, async event => {
+      publications++;
+      if (publications === 1) await processEarningsJob(event, fx.db, log, { enabled: false, now: fx.now,
+        download: async () => { throw new Error("unexpected provider"); }, publish: async () => { throw new Error("unexpected source publish"); } });
+      return "confirmed";
+    }, { revision, now: fx.now, sleep: async ms => fx.advance(ms) }), /delivery verification timed out/);
+    assert.equal(publications, 2);
+    assert.equal(fx.rows.get(`${EARNINGS_COLLECTORS}/last_probe`)?.verified, false);
+  } finally { if (previous === undefined) delete process.env.GIT_SHA; else process.env.GIT_SHA = previous; }
+});
+test("probe rejects receipts from a different subscriber revision", async () => {
+  const previous = process.env.GIT_SHA; process.env.GIT_SHA = "b".repeat(40);
+  try {
+    const fx = earningsFirestore(); let publications = 0;
+    await assert.rejects(() => verifyEarningsDelivery(fx.db, async event => {
+      publications++;
+      await processEarningsJob(event, fx.db, log, { enabled: false, now: fx.now,
+        download: async () => { throw new Error("unexpected provider"); }, publish: async () => { throw new Error("unexpected source publish"); } });
+      return "confirmed";
+    }, { revision, now: fx.now, sleep: async ms => fx.advance(ms) }), /delivery verification timed out/);
+    assert.equal(publications, 1);
+    assert.equal(fx.rows.get(`${EARNINGS_COLLECTORS}/last_probe`)?.verified, false);
+  } finally { if (previous === undefined) delete process.env.GIT_SHA; else process.env.GIT_SHA = previous; }
+});
 test("live canary scopes intake, verifies stored raw proof, and reprocesses children on a new release", async () => {
   const previous = process.env.GIT_SHA; process.env.GIT_SHA = revision;
   try {

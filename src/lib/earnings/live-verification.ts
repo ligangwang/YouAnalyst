@@ -17,12 +17,25 @@ export async function verifyEarningsDelivery(db: Firestore, publish: (event: Ear
   const createdAt = new Date(now()).toISOString(), probe: EarningsDeliveryProbe = { version: 1, type: "earnings.delivery.probe", batchId: `earnings_probe_${randomBytes(16).toString("hex")}`, createdAt };
   const ref = earningsMetadata(db, probe.batchId);
   await earningsMetadata(db, "last_probe").set({ verified: false, revision: options.revision, createdAt, probeId: probe.batchId });
-  await ref.set({ type: probe.type, createdAt, expiresAtMs: now() + 10 * 60_000, deliveries: 0 });
-  for (let attempt = 0; attempt < 2; attempt++) if (!await publish(probe)) throw new Error("Earnings probe publish unconfirmed");
-  const deadline = now() + 4 * 60_000;
+  // The subscriber intentionally accepts one request at a time. Its push
+  // subscription can back off for up to ten minutes after a 429, so allow a
+  // bounded retry window inside the collector job's 20-minute task timeout.
+  await ref.set({ type: probe.type, createdAt, expiresAtMs: now() + 18 * 60_000, deliveries: 0 });
+  if (!await publish(probe)) throw new Error("Earnings probe publish unconfirmed");
+  const deadline = now() + 15 * 60_000;
+  let duplicatePublished = false;
   while (now() < deadline) {
     const receipt = (await ref.get()).data();
-    if (receipt?.firstDeliveries === 1 && Number(receipt.duplicateDeliveries) >= 1 && receipt.subscriberRevision === options.revision) {
+    if (receipt?.firstDeliveries === 1 && receipt.subscriberRevision === options.revision && !duplicatePublished) {
+      // Wait for the first receipt before sending the duplicate, rather than
+      // immediately competing for the subscriber's only request slot.
+      await sleep(5000);
+      if (now() >= deadline) break;
+      if (!await publish(probe)) throw new Error("Earnings probe publish unconfirmed");
+      duplicatePublished = true;
+      continue;
+    }
+    if (duplicatePublished && receipt?.firstDeliveries === 1 && Number(receipt.duplicateDeliveries) >= 1 && receipt.subscriberRevision === options.revision) {
       const result = { verified: true, revision: options.revision, probeId: probe.batchId, completedAt: new Date(now()).toISOString(), firstDeliveries: 1,
         duplicateDeliveries: Number(receipt.duplicateDeliveries), providerRequests: 0, earningsRecords: 0 };
       await earningsMetadata(db, "last_probe").set(result); return result;
