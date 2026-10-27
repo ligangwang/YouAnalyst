@@ -18,7 +18,7 @@ const PROVIDER_COOLDOWN_MS = 6 * HOUR;
 export const CN_FAILURE_THRESHOLD = 2;
 type Stored = DocumentData & { cnShares?: CnShareCount | null; cnActions?: CnActionCheck | null; cnOrgId?: string | null };
 export type CnRunOptions = { db: Firestore; log: MaintenanceLog; sources: CnSources; companies: string[]; deadline: number; dryRun?: boolean;
-  now?: () => Date; print?: (line: string) => void; blockedHosts?: () => Record<string, string> };
+  now?: () => Date; print?: (line: string) => void; blockedHosts?: () => Record<string, string>; manualRetry?: boolean };
 
 // A validated unavailable outcome; anything else thrown while refreshing is retryable.
 const unavailableError = (reason: string) => Object.assign(new Error(reason), { code: reason, unavailable: CN_UNAVAILABLE_REASONS.has(reason) });
@@ -103,7 +103,8 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
       const due = shareRefreshDue(stored.cnShares ?? null, next.cnActions ?? null, today);
       const retryAfter = Number(stored.cnShareStatus?.retryAfter ?? 0);
       if (!due) result.shares.fresh++;
-      else if (retryAfter > now.getTime()) { result.shares.deferred++; log.emit("INFO", "share_refresh_deferred", { company: id, retryAfter: new Date(retryAfter).toISOString() }); }
+      else if (retryAfter > now.getTime() && !(options.manualRetry && stored.cnShareStatus?.outcome === "retry"
+        && ["TIMEOUT", "NETWORK", "inconsistent_share_structure"].includes(String(stored.cnShareStatus?.lastError?.code)))) { result.shares.deferred++; log.emit("INFO", "share_refresh_deferred", { company: id, retryAfter: new Date(retryAfter).toISOString() }); }
       else if (cooling("www.cninfo.com.cn")) result.shares.skipped++;
       else try {
         const structure = await sources.structure(id, today);

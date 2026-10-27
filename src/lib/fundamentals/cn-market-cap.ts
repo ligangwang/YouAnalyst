@@ -61,7 +61,7 @@ const shares = (value: number, unit: number) => Math.round(value * unit);
 // payloads parsed and checked out, and they prove the count cannot be used.
 // Every other reason (malformed, changed or error payloads) is a retryable failure.
 export const CN_UNAVAILABLE_REASONS: ReadonlySet<string> = new Set(["h_share_count_unavailable", "b_share_count_unavailable",
-  "exchange_share_count_mismatch", "cdr_share_structure_unsupported"]);
+  "exchange_share_count_mismatch", "cdr_share_structure_unsupported", "other_share_class_unsupported"]);
 
 // cninfo share structure (股本结构): data20/stockholderCapital/getStockStructure.
 // Records are newest first, in 10,000 shares (万股) with four decimals, dated by
@@ -80,12 +80,16 @@ export function parseCninfoStructure(payload: unknown, sourceUrl: string, today:
   const latest = rows[0];
   if (rows.filter(r => r.VARYDATE === latest.VARYDATE).some(r => r.F003N !== latest.F003N)) return { reason: "ambiguous_share_structure" };
   const optional = (v: unknown) => v === null || v === undefined ? 0 : decimal(v);
-  const total = decimal(latest.F003N), tradableA = decimal(latest.F022N);
+  const total = decimal(latest.F003N), tradableA = decimal(latest.F022N), totalTradable = decimal(latest.F021N);
   const b = optional(latest.F023N), h = optional(latest.F024N), restricted = optional(latest.F028N);
-  if (total === null || tradableA === null || b === null || h === null || restricted === null) return { reason: "unrecognized_source_format" };
+  if (total === null || tradableA === null || totalTradable === null || b === null || h === null || restricted === null) return { reason: "unrecognized_source_format" };
   const [totalShares, aTradableShares, bShares, hShares, restrictedShares] = [total, tradableA, b, h, restricted].map(v => shares(v, 10_000));
-  // Every class must reconcile with the reported total (four-decimal 万股 = whole shares).
-  if (Math.abs(aTradableShares + bShares + hShares + restrictedShares - totalShares) > 4) return { reason: "inconsistent_share_structure" };
+  // F021N includes all unrestricted classes; F022N is only unrestricted A shares.
+  // A gap can represent an unsupported class (for example Singapore-listed shares),
+  // so never infer that those shares are A or H shares.
+  const unrestrictedShares = shares(totalTradable, 10_000);
+  if (Math.abs(unrestrictedShares + restrictedShares - totalShares) > 4 || aTradableShares + bShares + hShares > unrestrictedShares + 4) return { reason: "inconsistent_share_structure" };
+  if (unrestrictedShares - (aTradableShares + bShares + hShares) > 4) return { reason: "other_share_class_unsupported" };
   const aShares = totalShares - bShares - hShares;
   if (!Number.isSafeInteger(totalShares) || totalShares <= 0 || aShares <= 0 || aTradableShares > aShares) return { reason: "invalid_share_count" };
   return { totalShares, aShares, aTradableShares, bShares, hShares, date: latest.VARYDATE as string,
