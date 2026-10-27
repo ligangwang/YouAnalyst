@@ -63,9 +63,9 @@ test('duplicate verification uses authoritative ledger reads even when the snaps
   const f = fixture(Object.fromEntries(['AMD','NVDA'].map(ticker => [`US:${ticker}`, {outcome:'ready',pending:false,value:{metrics:{revenue:10}}}])), true);
   const probe = {...request(),reason:'verification' as const};
   assert.equal((await processFundamentalsBatch(probe, f.db, f.log, f.publish, f)).completed, 2);
-  const result = await processFundamentalsBatch(probe, f.db, {...f.log,runId:'duplicate'}, f.publish, f);
+  const result = await processFundamentalsBatch(probe, f.db, {...f.log,runId:'00000000-0000-0000-0000-000000000002'}, f.publish, f);
   assert.equal('duplicate' in result && result.duplicate, true);
-  assert.equal(f.rows.get('_batch_batch-1')?.verificationDuplicateRunId, 'duplicate');
+  assert.equal(f.rows.get('_batch_batch-1')?.verificationDuplicateRunId, '00000000-0000-0000-0000-000000000002');
   assert.equal(f.rows.get('_batch_batch-1')?.manualRequired, false);
   assert.equal(f.rows.get('US:AMD')?.outcome, 'ready');
 });
@@ -95,7 +95,7 @@ test('admin rerun repairs only company errors proven to be from the completed du
   assert.equal(f.rows.get('US:AMD')?.outcome,'ready');
   assert.equal(f.rows.get('_batch_batch-1')?.completed,true);
   assert.deepEqual(sent,probe);
-  const duplicate = await processFundamentalsBatch(sent,f.db,{...f.log,runId:'retry'},f.publish,f);
+  const duplicate = await processFundamentalsBatch(sent,f.db,{...f.log,runId:'00000000-0000-0000-0000-000000000003'},f.publish,f);
   assert.equal('duplicate' in duplicate && duplicate.duplicate,true);
   assert.deepEqual(f.calls,[]);
 });
