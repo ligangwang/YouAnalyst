@@ -2,6 +2,9 @@ import {createHash} from 'node:crypto';
 import type {ThemedCompany} from './model';
 import {isOfficialBusinessUrl} from './business-evidence';
 
+/** Maximum annual text that the evidence-only classifier will submit. */
+export const MAX_CLASSIFICATION_EVIDENCE_CHARS=120_000;
+
 /** In-memory attestation produced by an independently verified official index.
  * It is not a persisted Firestore field or evidence that a document is current. */
 export type OfficialAnnualEvidence = {

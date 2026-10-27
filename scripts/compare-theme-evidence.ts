@@ -6,6 +6,7 @@ import {loadThemeCatalog} from '../src/lib/company-themes/catalog';
 import {loadBusinessEvidence} from '../src/lib/company-themes/business-evidence';
 import {loadOfficialAnnual} from '../src/lib/company-themes/official-annual-loader';
 import {officialAnnualTransport} from '../src/lib/company-themes/official-annual-transport';
+import {MAX_CLASSIFICATION_EVIDENCE_CHARS} from '../src/lib/company-themes/evidence-readiness';
 import {classifyOfficialThemes,type ThemeClassification} from '../src/lib/company-themes/classification';
 import type {ThemedCompany} from '../src/lib/company-themes/model';
 
@@ -18,6 +19,7 @@ async function main(){
     const company={...doc.data(),id} as ThemedCompany;let decision='unknown';
     const annual=await loadOfficialAnnual(company,officialAnnualTransport(db),Date.now(),value=>{decision=value;});
     if(!annual){console.log(JSON.stringify({companyId:id,status:'not_comparable',decision}));process.exitCode=1;continue;}
+    if(annual.text.length>MAX_CLASSIFICATION_EVIDENCE_CHARS){console.log(JSON.stringify({companyId:id,status:'not_comparable',decision:'evidence_too_large'}));process.exitCode=1;continue;}
     prepared.push({company,annual});
   }
   // Don't make paid model calls if either market lacks usable complete evidence.

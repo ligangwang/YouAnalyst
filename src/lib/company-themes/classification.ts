@@ -6,7 +6,7 @@ import {catalogGraphSectors} from './catalog-graph';
 import {planEnrollment,type EnrollmentBatch} from './enrollment';
 import {activeThemeIds,type ThemedCompany} from './model';
 import {boundedBusinessEvidence,officialThemeDomains,type BusinessEvidence} from './business-evidence';
-import {evidenceReadiness,type OfficialAnnualEvidence} from './evidence-readiness';
+import {evidenceReadiness,MAX_CLASSIFICATION_EVIDENCE_CHARS,type OfficialAnnualEvidence} from './evidence-readiness';
 export {officialThemeDomains} from './business-evidence';
 
 export type ThemeAssignment=Omit<EnrollmentBatch['companies'][number],'id'|'expectedName'>&{theme:string};
@@ -50,7 +50,7 @@ export function themeFields(company:ThemedCompany,catalog:ThemeCatalog,assignmen
 export async function classifyOfficialThemes(company:ThemedCompany,catalog:ThemeCatalog,options:{key:string;evidence?:BusinessEvidence[];verifiedAnnual?:OfficialAnnualEvidence;fetcher?:typeof fetch;model?:string;recordUsage?:(value:{model:string;responseId:string|null;usage:Record<string,unknown>|null})=>Promise<unknown>}):Promise<ThemeClassification>{
   assert(options.key,'Automatic theme classification API key is unavailable');
   const domains=officialThemeDomains(company);
-  const verified=options.verifiedAnnual && options.verifiedAnnual.text.length<=120_000 && evidenceReadiness(company,options.verifiedAnnual) ? options.verifiedAnnual : undefined;
+  const verified=options.verifiedAnnual && options.verifiedAnnual.text.length<=MAX_CLASSIFICATION_EVIDENCE_CHARS && evidenceReadiness(company,options.verifiedAnnual) ? options.verifiedAnnual : undefined;
   const evidence=verified ? [{url:verified.url,title:'Verified complete official annual business section',publishedAt:verified.filedAt,kind:'annual_business' as const,text:verified.text}] : boundedBusinessEvidence(company,options.evidence??[]);
   const themes=catalogThemes(catalog).map(t=>({id:t.id,names:t.names,description:t.descriptions,sectors:catalogGraphSectors(catalog,t.id).map(s=>({id:s.id,name:s.en,stages:s.stages})),stageDefinitions:catalog.filter(n=>n.id.startsWith(t.id+'.')).map(n=>({id:n.id,names:n.names,description:n.descriptions}))}));
   const string={type:'string'};
