@@ -69,6 +69,13 @@ test('explicit live reads bypass file cache',async()=>{
  assert.equal((await db.collection('companies').doc('US:A').get()).get('name'),'Alpha');
  assert.equal((await withLiveCompanyReads(()=>db.collection('companies').doc('US:A').get())).data()?.name,'Live');assert.equal(reads,1);
 });
+test('metadata documents bypass entity snapshots that intentionally exclude them',async()=>{
+ let reads=0,loads=0;
+ const raw={collection:(name:string)=>({path:name,doc:(id:string)=>({path:`${name}/${id}`,id,get:async()=>{reads++;return {exists:true,data:()=>({completed:true})};}})})} as unknown as Firestore;
+ const db=observeFirestore(raw,()=>{});enableCompanyDirectory(db,raw,{file:async()=>{loads++;return new Map();}});
+ const result=await db.collection('company_fundamentals').doc('_batch_test').get();
+ assert.equal(result.data()?.completed,true);assert.equal(reads,1);assert.equal(loads,0);
+});
 test('committed company updates replace memory and survive an older daily file',async()=>{
  let time=0;const sdk=new Firestore({projectId:'test-write-refresh'}),db=observeFirestore(sdk,()=>{});
  let live={name:'New',isDeleted:false,searchPrefixes:Array.from({length:150},(_,i)=>String(i))};
