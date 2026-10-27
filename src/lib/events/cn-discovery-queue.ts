@@ -21,7 +21,7 @@ const validId=(id:unknown):id is string=>typeof id==='string'&&/^(?:XSHG:6\d{5}|
 export function parseCnDiscoveryTask(input:unknown):CnDiscoveryTask{
   const row=input as Partial<CnDiscoveryTask>|null;
   if(!row||row.version!==1||row.type!=='cn.company.discovery.requested'||!validId(row.companyId)
-    ||!['announcements','earnings-fallback'].includes(String(row.mode))||typeof row.batchId!=='string'||! /^cn_[a-f0-9]{64}$/.test(row.batchId)
+    ||!['announcements','earnings-fallback'].includes(String(row.mode))||typeof row.batchId!=='string'||! /^cn_(?:manual_)?[a-f0-9]{64}$/.test(row.batchId)
     ||typeof row.requestedAt!=='string'||!Number.isFinite(Date.parse(row.requestedAt)))throw new Error('Invalid A-share discovery task');
   return {version:1,type:row.type,batchId:row.batchId,companyId:row.companyId,mode:row.mode!,requestedAt:row.requestedAt};
 }
@@ -72,6 +72,7 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
     if(now()+30000>=options.deadline){result.deferred++;continue;}
     try{
       const state=await options.readState(id,mode);
+      if(state?.manualRequired===true){result.skipped++;continue;}
       if(state?.status==='complete'&&Number(state.nextPollAtMs)>now()&&(mode==='earnings-fallback'||!options.earningsEnabled||state.earningsCoverageVersion===2)){result.skipped++;continue;}
       if(mode==='earnings-fallback'&&cnAnnouncementFresh(await options.readState(id,'announcements'),now())){result.skipped++;continue;}
       const batchId='cn_'+createHash('sha256').update(JSON.stringify([options.execution,mode,id])).digest('hex');
@@ -106,4 +107,22 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
     :await (options.fallback??(()=>collectLiveEarnings(db,log,{companyId:task.companyId,completedSince:task.requestedAt,deadline,now,discoveryOwnedByMap:true,publish,discoverCn:async(id,from,to,at)=>(await cn.discover({companyId:id,from,to,firstSeenAt:at,maxPages:20})).sources})))();
   if(('status' in result&&result.status==='busy')||('failed' in result&&result.failed)||('deferred' in result&&result.deferred))throw new Error('A-share discovery incomplete; retry company task');
   return {...result,status:'verified',companyId:task.companyId,mode:task.mode};
+}
+
+/** Hold a failed company for an explicit admin rerun; never acknowledge until the hold is saved. */
+export async function runCnDiscoveryForAdmin(input:unknown,db:Firestore,log:MaintenanceLog,options:Parameters<typeof processCnDiscoveryTask>[3]){
+  const task=parseCnDiscoveryTask(input);
+  const ref=task.mode==='announcements'?db.collection('collectors').doc(`exchange-${task.companyId}`):db.collection('earnings_collectors').doc(`cn_${task.companyId}`);
+  const state=(await ref.get()).data();
+  if(state?.manualRequired===true&&(!task.batchId.startsWith('cn_manual_')||Date.parse(task.requestedAt)<=Date.parse(String(state.lastAttemptAt??''))))return {status:'manual_required'};
+  try{
+    const result=await processCnDiscoveryTask(task,db,log,options);
+    if(task.batchId.startsWith('cn_manual_'))await ref.set({manualRequired:false},{merge:true});
+    return result;
+  }catch(error){
+    if(error instanceof Error&&/disabled; retain task|busy/.test(error.message))throw error;
+    await ref.set({companyId:task.companyId,status:'partial',lastAttemptAt:new Date((options.now??Date.now)()).toISOString(),lastError:error instanceof Error?error.message.slice(0,1000):'China discovery failed',manualRequired:true},{merge:true});
+    log.emit('ERROR','requires_manual_retry',{company:task.companyId,error:error instanceof Error?error.message:'China discovery failed'});
+    return {status:'manual_required'};
+  }
 }

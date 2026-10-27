@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {parseCnDiscoveryTask,publishCnDiscoveryTasks,processCnDiscoveryTask,loadCnDiscoveryCompany} from '../../src/lib/events/cn-discovery-queue';
+import {parseCnDiscoveryTask,publishCnDiscoveryTasks,processCnDiscoveryTask,runCnDiscoveryForAdmin,loadCnDiscoveryCompany} from '../../src/lib/events/cn-discovery-queue';
 import {collectCnMapDisclosures} from '../../src/lib/events/cn-disclosures';
 import {collectLiveEarnings} from '../../src/lib/earnings/live-collector';
 import {configureEarningsMap,restoreEarningsFixtures} from '../../src/lib/earnings/issuers';
@@ -167,4 +167,21 @@ test('completed delivery checks use one progress read under the company lease',a
     assert.equal('duplicate' in second&&second.duplicate,true);assert.equal(reads,2);
     assert(!fx.rows.get(`collectors/exchange-task-${id}`)?.leaseOwner);
   }finally{restoreEarningsFixtures();}
+});
+
+test('failed China discovery waits for a later explicit admin request',async()=>{
+  const fx=earningsFirestore(),base=task(),options={enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph,announcements:async()=>({failed:1})};
+  assert.equal((await runCnDiscoveryForAdmin(base,fx.db,log,options)).status,'manual_required');
+  assert.equal(fx.rows.get(`collectors/exchange-${id}`)?.manualRequired,true);
+  const result=await publishCnDiscoveryTasks([id],'announcements',async()=>assert.fail('held task was published'),{execution:'scheduled',deadline:fx.now()+60000,now:fx.now,earningsEnabled:false,intervalMs:0,readState:async()=>fx.rows.get(`collectors/exchange-${id}`)});
+  assert.equal(result.requested,0);
+  assert.equal((await runCnDiscoveryForAdmin(base,fx.db,log,options)).status,'manual_required');
+  fx.advance(1000);
+  const manual={...base,batchId:'cn_manual_'+'b'.repeat(64),requestedAt:new Date(fx.now()).toISOString()};
+  assert.equal((await runCnDiscoveryForAdmin(manual,fx.db,log,{...options,announcements:async()=>({failed:0})})).status,'verified');
+  assert.equal(fx.rows.get(`collectors/exchange-${id}`)?.manualRequired,false);
+});
+test('discovery failure is not acknowledged if its hold cannot be saved',async()=>{
+  const fx=earningsFirestore();fx.reject((path,value)=>path===`collectors/exchange-${id}`&&value.manualRequired===true);
+  await assert.rejects(runCnDiscoveryForAdmin(task(),fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph,announcements:async()=>({failed:1})}),/Injected Firestore/);
 });

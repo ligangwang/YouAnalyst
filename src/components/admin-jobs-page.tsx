@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminFundamentalsErrors } from './admin-fundamentals-errors';
+import { AdminChinaFailures } from './admin-china-failures';
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -160,6 +161,7 @@ export function AdminJobsPage() {
     <h1 className="mt-4 text-3xl font-semibold">{text("Tasks", "任务")}</h1>
     <p className="mt-2 text-sm text-slate-400">{text("Review run status, results and errors. Log history is retained for 30 days. Times below use your local timezone.", "查看运行状态、结果和错误。日志保留 30 天。下方时间使用您的本地时区。")}</p>
     <AdminFundamentalsErrors />
+    <AdminChinaFailures />
     <AdminGraphBudget />
     <div className="my-6 flex flex-wrap items-end gap-3">
       <label className="grid gap-2 text-sm">{text("Job", "任务")}

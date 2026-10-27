@@ -18,20 +18,22 @@ export function parseCnRequest(input: unknown): CnRequest {
   return { version: 1, type: v.type, batchId: v.batchId, companyId: v.companyId, requestedAt: v.requestedAt };
 }
 
-export async function publishCnRequests(db: Firestore, execution: string, companies: string[], publish: (request: CnRequest) => Promise<unknown>) {
+export async function publishCnRequests(db: Firestore, execution: string, companies: string[], publish: (request: CnRequest) => Promise<unknown>, options: {manual?: boolean} = {}) {
   if (!companies.length) throw Error("No A-share map companies found");
+  let requested = 0, skipped = 0;
   for (const companyId of new Set(companies)) {
+    if (!options.manual && (await db.collection("company_fundamentals").doc(companyId).get()).get("manualRequired") === true) { skipped++; continue; }
     const request = parseCnRequest({ version: 1, type: "cn-fundamentals.refresh.requested", companyId,
-      batchId: digest({ execution, companyId }), requestedAt: new Date().toISOString() });
+      batchId: (options.manual ? "manual_" : "") + digest({ execution, companyId }), requestedAt: new Date().toISOString() });
     const ref = ledgerRef(db, request.batchId);
     const saved = await db.runTransaction(async tx => {
       const existing = (await tx.get(ref)).data();
       if (existing) return parseCnRequest(existing.request);
       tx.create(ref, { request }); return request;
     });
-    await publish(saved);
+    await publish(saved); requested++;
   }
-  return { requested: new Set(companies).size, mode: "pubsub" };
+  return { requested, ...(skipped ? { skipped } : {}), mode: "pubsub" };
 }
 
 export async function processCnRequest(input: unknown, db: Firestore, log: MaintenanceLog,
@@ -67,4 +69,29 @@ export async function processCnRequest(input: unknown, db: Firestore, log: Maint
     await ref.set({ completed: true, completedAt: new Date().toISOString() }, { merge: true });
     return { ...result, annual, completed: 1 };
   } finally { await releaseMaintenanceLease(lease, log.runId); }
+}
+
+/** A provider failure becomes a durable admin item before acknowledging delivery.
+ * Infrastructure contention and failure to save the record still retry delivery. */
+export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: MaintenanceLog,
+  dependencies: { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number } = {}) {
+  const request = parseCnRequest(input), ledger = ledgerRef(db, request.batchId);
+  const company = db.collection("company_fundamentals").doc(request.companyId);
+  const [saved, current] = await Promise.all([ledger.get(), company.get()]);
+  if (!saved.exists || digest(saved.get("request")) !== digest(request)) throw Error("Unknown or conflicting A-share request");
+  if (current.get("manualRequired") === true && (!request.batchId.startsWith("manual_") || saved.get("result")?.failed === 1))
+    return { status: "manual_required" };
+  try {
+    const result = await processCnRequest(request, db, log, dependencies);
+    if (request.batchId.startsWith("manual_")) await company.set({ manualRequired: false }, { merge: true });
+    return result;
+  } catch (error) {
+    if (error instanceof Error && /worker is busy/.test(error.message)) throw error;
+    await db.runTransaction(async tx => {
+      tx.set(company, { manualRequired: true }, { merge: true });
+      tx.set(ledger, { result: { failed: 1 } }, { merge: true });
+    });
+    log.emit("ERROR", "requires_manual_retry", { company: request.companyId, error: error instanceof Error ? error.message : "A-share refresh failed" });
+    return { status: "manual_required" };
+  }
 }
