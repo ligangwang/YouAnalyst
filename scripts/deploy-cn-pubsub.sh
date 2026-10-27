@@ -39,7 +39,7 @@ fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-cn-fundamentals.cjs --min-instances 0 --max-instances 1 \
-  --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
+  --concurrency 10 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
   --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|CN_FUNDAMENTALS_SUBSCRIPTION=$subscription|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null

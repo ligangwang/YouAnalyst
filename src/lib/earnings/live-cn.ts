@@ -11,7 +11,17 @@ const ENDPOINTS = new Set([ORG_ENDPOINT, ANNOUNCEMENT_ENDPOINT]);
 export const CN_EARNINGS_ORGS = {
   "XSHG:688981": "gshk0000981", "XSHE:301308": "9900048787",
   "XSHG:688256": "nssc1000595", "XSHE:300308": "9900022016",
+  "XSHG:688347": "9900029531", "XSHE:000672": "gssz0000672",
+  "XSHG:600228": "gssh0600228", "XSHE:000504": "gssz0000504",
 } as const; // Verified against CNINFO topSearch on 2026-10-02; rechecked on each discovery.
+// Explicitly reviewed name changes; a pinned organisation ID and exact current
+// short name must both match. Other mismatches remain review-required.
+const REVIEWED_CN_RENAMES: Record<string,string> = {
+  'XSHG:688347':'华虹宏力', // https://static.cninfo.com.cn/finalpage/2026-06-04/1225350027.PDF
+  'XSHE:000672':'上峰材料', // https://static.cninfo.com.cn/finalpage/2026-08-24/1225492567.PDF
+  'XSHG:600228':'返利科技', // https://static.cninfo.com.cn/finalpage/2026-06-06/1225354167.PDF
+  'XSHE:000504':'南华生物', // https://static.cninfo.com.cn/finalpage/2017-05-11/1203492613.PDF
+};
 export type CnEarningsCompanyId = `${'XSHG' | 'XSHE'}:${string}`;
 export type CnEarningsRequestContext = { operation: "cninfo_earnings_org" | "cninfo_earnings_announcements"; companyId: string };
 export type CnEarningsJsonRequest = (url: string, init: RequestInit & CnEarningsRequestContext) => Promise<unknown>;
@@ -127,7 +137,8 @@ export function parseCnEarningsOrg(companyId: string, payload: unknown): string 
   const matches = payload.filter(row => row && typeof row === "object" && row.code === code && row.category === "A股");
   const reviewed = CN_EARNINGS_ORGS[id as keyof typeof CN_EARNINGS_ORGS];
   if (matches.length !== 1 || typeof matches[0].orgId !== 'string' || !/^\w{1,40}$/.test(matches[0].orgId) || (reviewed && matches[0].orgId !== reviewed)
-    || !earningsCompany(id).aliases.some(alias => String(matches[0].zwjc ?? "").includes(alias))) throw new Error("CNINFO issuer lookup changed or ambiguous: review required");
+    || !(earningsCompany(id).aliases.some(alias => String(matches[0].zwjc ?? "").includes(alias))
+      || (reviewed && REVIEWED_CN_RENAMES[id] === matches[0].zwjc))) throw new Error("CNINFO issuer lookup changed or ambiguous: review required");
   return matches[0].orgId as string;
 }
 export function createCnEarningsSources(request: CnEarningsJsonRequest) {

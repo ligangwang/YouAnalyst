@@ -1,0 +1,58 @@
+name: Repair China queue subscribers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 35
+    concurrency:
+      group: deploy-background-jobs-production
+      cancel-in-progress: false
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build reviewed worker image
+        run: |
+          image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GIT_SHA"
+          bash scripts/build-fundamentals.sh "$image"
+          digest="$(gcloud artifacts docker images describe "$image" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
+          [[ "$digest" == *@sha256:* ]]
+          echo "WORKER_IMAGE=$digest" >> "$GITHUB_ENV"
+      - name: Deploy and verify candidates without traffic
+        run: |
+          set -euo pipefail
+          for spec in cn-fundamentals-subscriber:10 cn-company-discovery-subscriber:3; do
+            service="${spec%:*}"
+            concurrency="${spec#*:}"
+            gcloud run services update "$service" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+              --image "$WORKER_IMAGE" --update-env-vars "GIT_SHA=$GIT_SHA" --concurrency "$concurrency" --no-traffic --tag queue-repair --quiet
+            details="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)"
+            revision="$(jq -er '.status.latestReadyRevisionName' <<<"$details")"
+            service_url="$(jq -er '.status.url' <<<"$details")"
+            candidate_url="$(jq -er --arg revision "$revision" '.status.traffic[] | select(.tag == "queue-repair" and .revisionName == $revision and (.percent // 0) == 0) | .url' <<<"$details")"
+            [[ "$candidate_url" == https://* ]]
+            token="$(gcloud auth print-identity-token --audiences="$service_url")"
+            echo "::add-mask::$token"
+            [[ "$(curl --fail --silent --show-error -H "Authorization: Bearer $token" "$candidate_url/health")" == ok ]]
+            echo "$service $revision" >> "$RUNNER_TEMP/cn-queue-candidates"
+          done
+      - name: Promote verified candidates
+        run: |
+          set -euo pipefail
+          while read -r service revision; do
+            gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --to-revisions "$revision=100" --quiet
+          done < "$RUNNER_TEMP/cn-queue-candidates"

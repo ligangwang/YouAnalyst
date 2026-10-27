@@ -150,7 +150,7 @@ test('calendar deployment uses Luna and the existing key without putting it in c
 
 test('A-share subscriber is provisioned before publication and preserves schedule state',()=>{
   const r=run('cn-fundamentals');assert.equal(r.status,0,r.stderr);
-  assert.match(r.calls,/run deploy cn-fundamentals-subscriber.*--no-allow-unauthenticated.*--concurrency 1/);
+  assert.match(r.calls,/run deploy cn-fundamentals-subscriber.*--no-allow-unauthenticated.*--max-instances 1 --concurrency 10/);
   assert.match(r.calls,/CN_FUNDAMENTALS_SUBSCRIPTION=cn-fundamentals-worker/);
   assert.match(r.calls,/--dead-letter-topic cn-fundamentals-dead-letter/);
   assert.match(r.calls,/CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests/);

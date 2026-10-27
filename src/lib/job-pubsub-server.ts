@@ -6,7 +6,7 @@ import { createMaintenanceLog, maintenanceError, type MaintenanceLog } from "./m
 export function createJobSubscriber<T extends { batchId: string }>(options: {
   project: string; subscription: string; job: string; parse: (value: unknown) => T;
   additionalSubscriptions?: Array<{ subscription: string; parse: (value: unknown) => T }>;
-  process: (request: T, log: MaintenanceLog) => Promise<Record<string, unknown>>;
+  process: (request: T, log: MaintenanceLog, signal: AbortSignal) => Promise<Record<string, unknown>>;
 }) {
   const parsers = new Map<string, (value: unknown) => T>();
   for (const route of [{ subscription: options.subscription, parse: options.parse }, ...options.additionalSubscriptions ?? []]) {
@@ -18,6 +18,8 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
     if (req.method === "GET" && req.url === "/health") { res.writeHead(200); res.end("ok"); return; }
     if (req.method !== "POST" || req.url !== "/pubsub") { res.writeHead(404); res.end(); return; }
     const log = createMaintenanceLog(options.job, { mode: "pubsub" });
+    const disconnected = new AbortController();
+    res.once("close", () => disconnected.abort());
     let batchId: string | undefined;
     let context: Record<string, unknown> = {};
     try {
@@ -38,13 +40,13 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
         ...("companyId" in request ? { company: request.companyId } : {}),
         ...("companyIds" in request && Array.isArray(request.companyIds) ? { requested: request.companyIds.length } : {}) };
       log.emit("INFO", "run_started", context);
-      const result = await options.process(request, log);
+      const result = await options.process(request, log, disconnected.signal);
       const warning = typeof result.status === "string" && !["verified", "ineligible"].includes(result.status);
       log.emit(warning ? "WARNING" : "INFO", "run_completed", { ...context, ...result });
       res.writeHead(204); res.end();
     } catch (error) {
       log.emit("ERROR", "run_failed", { ...context, batchId, error: maintenanceError(error) });
-      res.writeHead(503); res.end("Processing requires retry");
+      if (!res.destroyed) { res.writeHead(503); res.end("Processing requires retry"); }
     }
   });
 }
