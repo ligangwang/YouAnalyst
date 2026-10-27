@@ -498,3 +498,19 @@ rollout with the baseline above, including queue time, build, deployment, and
 post-deploy health checks. A 50% end-to-end reduction is the target, not yet a
 measured result; worker startup and Cloud Run control-plane times vary. Do not
 remove readiness or migration checks to meet the timing target.
+
+
+### Overlap candidate preparation with workers
+
+The production web job may build and validate a no-traffic candidate while the
+worker job runs. Immediately before promotion, `wait-worker-rollout.mjs` checks
+the exact GitHub run attempt, commit, main branch, and release workflow using a
+read-only Actions token. It requires the worker job to succeed, or to be skipped
+only when change detection explicitly selected `none`. Failure, cancellation,
+missing evidence, API errors, and timeout prevent promotion. The prior website
+revision continues serving during this wait; the existing monitored promotion
+and rollback behavior is unchanged.
+
+The shared worker and directory images also build concurrently. Both builds
+must succeed and resolve to immutable digests before snapshots, subscribers,
+or jobs are deployed. A failed build drains the other build and blocks rollout.

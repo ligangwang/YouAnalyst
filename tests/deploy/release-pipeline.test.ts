@@ -69,7 +69,7 @@ test('parallel release preparation cannot deploy and both environments require t
   assert.equal(build.outputs['artifact-id'], '${{ steps.release.outputs.artifact-id }}');
   for (const target of ['staging', 'production']) {
     const deploy = workflow.jobs[`deploy-${target}`];
-    assert.deepEqual(deploy.needs, ['verify', 'verify-browser', 'build-release', ...(target==='production'?['deploy-background-jobs']:[])]);
+    assert.deepEqual(deploy.needs, ['verify', 'verify-browser', 'build-release']);
     // GitHub propagates skipped ancestors unless the condition includes a
     // status function. Keep explicit success checks for every real gate.
     assert.match(deploy.if, /!cancelled\(\)/);

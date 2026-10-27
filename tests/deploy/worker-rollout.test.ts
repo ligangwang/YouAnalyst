@@ -5,6 +5,19 @@ import { runTasks, runCommand } from '../../scripts/lib/deploy-tasks.mjs';
 import { workerTasks } from '../../scripts/deploy-worker-targets.mjs';
 import { deliveryTasks } from '../../scripts/verify-worker-delivery.mjs';
 import { backgroundJobTarget } from '../../scripts/background-job-changes.mjs';
+import { imageBuildTasks } from '../../scripts/build-worker-images.mjs';
+
+test('full releases build both independent images once; narrow releases build only their image', async () => {
+  const env = { GCP_PROJECT_ID: 'test', GCP_REGION: 'us-central1', GIT_SHA: 'commit' };
+  const tasks = imageBuildTasks(env, ['sec-fundamentals', 'cn-fundamentals', 'directory']);
+  assert.deepEqual(tasks.map(task => task.id), ['fundamentals-image', 'directory-image']);
+  assert.equal(imageBuildTasks(env, ['directory']).length, 1);
+  assert.equal(imageBuildTasks(env, ['earnings']).length, 1);
+  let active = 0, peak = 0;
+  await runTasks(tasks, 2, async () => { active++; peak = Math.max(peak, active); await delay(5); active--; });
+  assert.equal(peak, 2);
+  assert.equal(backgroundJobTarget(['scripts/build-worker-images.mjs']), 'all');
+});
 
 test('orchestration changes trigger the appropriate worker rollout', () => {
   for (const path of ['scripts/deploy-worker-targets.mjs', 'scripts/verify-worker-delivery.mjs', 'scripts/lib/deploy-tasks.mjs']) {

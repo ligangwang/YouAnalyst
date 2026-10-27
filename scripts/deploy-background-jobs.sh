@@ -88,9 +88,16 @@ for target in "${targets[@]}"; do
   WEB_RUNTIME_SERVICE_ACCOUNT="$(bash scripts/lib/maintenance-job-iam.sh --check "$job")"
   export WEB_RUNTIME_SERVICE_ACCOUNT
 done
+# Both independent images must finish before any runtime is changed.
+node scripts/build-worker-images.mjs "${targets[@]}"
+if [[ " ${targets[*]} " == *' directory '* ]]; then
+  directory_tag="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/directory-sync:$GIT_SHA"
+  DIRECTORY_SYNC_IMAGE="$(gcloud artifacts docker images describe "$directory_tag" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
+  [[ "$DIRECTORY_SYNC_IMAGE" == *@sha256:* ]] || { echo 'Missing directory image digest' >&2; exit 1; }
+  export DIRECTORY_SYNC_IMAGE
+fi
 if [[ "$1" != directory ]]; then
   image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GIT_SHA"
-  bash scripts/build-fundamentals.sh "$image"
   FUNDAMENTALS_IMAGE="$(gcloud artifacts docker images describe "$image" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
   [[ "$FUNDAMENTALS_IMAGE" == *@sha256:* ]] || { echo 'Missing fundamentals image digest' >&2; exit 1; }
   export FUNDAMENTALS_IMAGE
