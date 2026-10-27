@@ -1,9 +1,9 @@
 import {createHash} from 'node:crypto';
 import type {ThemedCompany} from './model';
 import {completeAnnualSection} from './annual-section';
-import {cnAnnualIndex,cnLaterDisclosures,secAnnualIndex,type IndexedAnnual,type IndexedDisclosure} from './disclosure-index';
+import {cnAnnualIndex,cnLaterDisclosures,secAnnualIndex,secLaterDisclosures,type IndexedAnnual,type IndexedDisclosure} from './disclosure-index';
 import {evidenceReadiness,MAX_CLASSIFICATION_EVIDENCE_CHARS,type OfficialAnnualEvidence} from './evidence-readiness';
-import {secIncorporatedAnnual} from './sec-incorporated-report';
+import {secCompleteFilingDocuments,secIncorporatedAnnual} from './sec-incorporated-report';
 
 /** These adapters must read authoritative, complete issuer-specific indexes and
  * full documents. The no-search path fails closed when either is unavailable. */
@@ -21,7 +21,12 @@ export async function loadOfficialAnnual(company:ThemedCompany,transport:Officia
     let annual:IndexedAnnual|null=null,issuerId='',market:'US'|'CN_A',later:IndexedDisclosure[]=[];
     if(company.id.startsWith('US:') && /^\d{1,10}$/.test(String(company.cik??'')) && Number(company.cik)>0){
       const cik=String(company.cik).padStart(10,'0');
-      issuerId=`sec:${cik}`;market='US';annual=secAnnualIndex(cik,await transport.secIndex(cik));
+      issuerId=`sec:${cik}`;market='US';
+      const index=await transport.secIndex(cik);
+      annual=secAnnualIndex(cik,index);
+      const documents=secLaterDisclosures(cik,index);
+      if(!documents)return fallback('newer_disclosure');
+      later=documents;
     }else if(/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(company.id)){
       const code=company.id.split(':')[1], index=await transport.cnIndex(company);
       if(!index)return fallback('index_unavailable');
@@ -30,10 +35,7 @@ export async function loadOfficialAnnual(company:ThemedCompany,transport:Officia
       if(!documents)return fallback('newer_disclosure');
       later=documents;
     }else return fallback('unsupported_issuer');
-    // US later filings still require exhibit resolution; fail closed until it
-    // is possible to validate their complete attachments as well.
     if(!annual)return fallback('index_unavailable');
-    if(annual.laterDisclosures && market==='US')return fallback('newer_disclosure');
     const document=await transport.documentText(company,annual);
     // A report may incorporate its business discussion from a separate filing.
     // Until those referenced documents are resolved, section boundaries alone
@@ -54,6 +56,18 @@ export async function loadOfficialAnnual(company:ThemedCompany,transport:Officia
       supplemental.push({documentId:`${annual.documentId}:ex13`,filedAt:annual.filedAt,url:report.url,title:'Incorporated annual report to stockholders',text:report.text,textSha256:createHash('sha256').update(report.text,'utf8').digest('hex')});
     }
     for(const item of later){
+      if(market==='US'){
+        if(!transport.secSubmission)return fallback('newer_disclosure');
+        const filing={...item,laterDisclosures:false};
+        const documents=secCompleteFilingDocuments(await transport.secSubmission(company,filing),String(company.cik),filing,8-supplemental.length);
+        if(!documents)return fallback('unresolved_reference');
+        for(const part of documents){
+          total+=part.text.length;
+          if(total>MAX_CLASSIFICATION_EVIDENCE_CHARS)return fallback('incomplete_section');
+          supplemental.push({...part,textSha256:createHash('sha256').update(part.text,'utf8').digest('hex')});
+        }
+        continue;
+      }
       const full=await transport.documentText(company,{...item,laterDisclosures:false});
       // Separate attachments cannot be silently omitted from a disclosure.
       if(typeof full!=='string'||full.trim().length<100||/详见附件|见附件|附件\s*[：:]/.test(full))return fallback('unresolved_reference');

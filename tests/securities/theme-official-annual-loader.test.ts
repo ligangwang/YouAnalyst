@@ -34,6 +34,16 @@ test('resolves an incorporated SEC annual report only from the matching complete
   t.secSubmission=async()=>`ACCESSION NUMBER: 0000051143-26-000002\nCENTRAL INDEX KEY: 0000051143\n${report}\n</SEC-DOCUMENT>`;
   assert.equal(await loadOfficialAnnual(us,t,now),null);
 });
+test('includes all later SEC filing documents, including exhibits',async()=>{
+  const t=transport(),original=t.secIndex;
+  t.secIndex=async cik=>{const x=await original(cik) as {cik:string;filings:{recent:{form:string[];accessionNumber:string[];filingDate:string[];primaryDocument:string[]}}};x.filings.recent.form.push('8-K');x.filings.recent.accessionNumber.push('0000051143-26-000002');x.filings.recent.filingDate.push('2026-04-01');x.filings.recent.primaryDocument.push('event.htm');return x;};
+  const doc=(type:string,file:string)=>`<DOCUMENT>\n<TYPE>${type}\n<FILENAME>${file}\n<TEXT><html>${body}</html></TEXT>\n</DOCUMENT>`;
+  t.secSubmission=async()=>`ACCESSION NUMBER: 0000051143-26-000002\nCENTRAL INDEX KEY: 0000051143\n${doc('8-K','event.htm')}${doc('EX-99.1','exhibit.htm')}\n</SEC-DOCUMENT>`;
+  const evidence=await loadOfficialAnnual(us,t,now);
+  assert.deepEqual(evidence?.supplemental?.map(item=>item.documentId),['0000051143-26-000002:event.htm','0000051143-26-000002:exhibit.htm']);
+  t.secSubmission=async()=>`ACCESSION NUMBER: 0000051143-26-000002\nCENTRAL INDEX KEY: 0000051143\n${doc('8-K','event.htm')}${doc('EX-99.1','exhibit.pdf')}\n</SEC-DOCUMENT>`;
+  assert.equal(await loadOfficialAnnual(us,t,now),null);
+});
 test('missing, stale, later or incomplete sources fail closed to search',async()=>{
   assert.equal(await loadOfficialAnnual(us,{...transport(),secIndex:async()=>{throw Error('offline');}},now),null);
   assert.equal(await loadOfficialAnnual(cn,{...transport(),cnIndex:async()=>null},now),null);
