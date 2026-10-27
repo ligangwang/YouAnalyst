@@ -36,7 +36,7 @@ export async function refreshCnAnnual(options:{db:Firestore;companies:string[];d
     }catch(error){
       result.failed++;
       // Never clear a previously published report because a provider is unavailable.
-      const message=maintenanceError(error).message.slice(0,300);
+      const message=maintenanceError(error).message.slice(-300);
       log.emit('ERROR','cn_annual_failed',{company:id,error:message});
       if(!dryRun)await ref.set({cnAnnualStatus:{outcome:'retry',checkedAtMs:clock(),retryAfter:clock()+6*3600000,lastError:message}},{merge:true});
     }

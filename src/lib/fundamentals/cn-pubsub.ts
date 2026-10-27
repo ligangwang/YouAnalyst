@@ -57,7 +57,7 @@ export async function processCnRequest(input: unknown, db: Firestore, log: Maint
     if (Date.now() >= deadline - 90_000) throw Error("A-share processing budget exhausted");
     const requester = createCnRequester({ context: { runId: log.runId, job: "cn-fundamentals-check" } });
     const result = await (dependencies.refresh ?? refreshCnFundamentals)({ db, log, companies, deadline,
-      sources: createCnSources(requester), blockedHosts: requester.blockedHosts });
+      sources: createCnSources(requester), blockedHosts: requester.blockedHosts, manualRetry: request.batchId.startsWith("manual_") });
     const stored = (await db.collection("company_fundamentals").doc(request.companyId).get()).data();
     // A single-company request must not use the full-run tolerated-error threshold.
     // Provider cooldowns and unresolved retries remain unacknowledged.

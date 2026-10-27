@@ -65,6 +65,11 @@ test("share structures parse exactly, including H shares, and malformed payloads
   const zte = structureOf(zteStructure);
   assert.equal(zte.totalShares, 4_783_534_887); assert.equal(zte.hShares, 755_502_534); assert.equal(zte.aShares, 4_028_032_353);
   assert.equal(structureOf(jcetStructure).hShares, 0);
+  // Official June 2026 CNINFO records: unrestricted "other" shares must not be labeled A shares.
+  for (const [total, unrestricted, tradable, restricted] of [[97925.2472,97923.5472,97919.32,1.7],[77009.4356,76708.9356,56708.9356,300.5]]) {
+    const row={VARYDATE:"2026-06-30",F003N:total,F021N:unrestricted,F022N:tradable,F028N:restricted,F023N:null,F024N:null};
+    assert.deepEqual(parseCninfoStructure(cninfo([row]),url,TODAY),{reason:"other_share_class_unsupported"});
+  }
   // Classes must reconcile to the total; future records and bad shapes are rejected.
   assert.deepEqual(parseCninfoStructure(cninfo([{ ...smicStructure.data.records[0], F003N: 900000 }]), url, TODAY), { reason: "inconsistent_share_structure" });
   assert.deepEqual(parseCninfoStructure(cninfo([{ ...smicStructure.data.records[0], VARYDATE: "2026-10-01" }]), url, TODAY), { reason: "missing_share_structure" });
@@ -375,4 +380,14 @@ test("validated outcomes (an H listing without an H-share count) stay unavailabl
   assert.equal(stored.cnShareStatus.outcome, "unavailable");
   assert.equal(stored.marketCap.status, "unavailable"); assert.equal(stored.marketCap.reason, "h_share_count_unavailable");
   assert.equal(cnRunFailed(result), false);
+});
+
+test("manual rerun rechecks timeout and data-shape failures but respects rate-limit cooldowns",async(t)=>{
+  t.mock.method(console,"info",()=>{});t.mock.method(console,"error",()=>{});t.mock.method(console,"warn",()=>{});
+  const log=createMaintenanceLog("test"),id="XSHG:688981";
+  for(const [code,manual,expected] of [["TIMEOUT",true,1],["inconsistent_share_structure",true,1],["TIMEOUT",false,0],["429",true,0]] as const){
+    let calls=0;const state=memoryDb({[id]:{cnOrgId:"gshk0000981",cnShareStatus:{outcome:"retry",retryAfter:NOW.getTime()+3600000,lastError:{code}}}},[price(50)],fxDoc);
+    await refreshCnFundamentals({db:state.db,log,companies:[id],deadline:Date.now()+600000,now:()=>NOW,manualRetry:manual,sources:fakeSources({structure:async()=>{calls++;return structureOf(smicStructure);}})});
+    assert.equal(calls,expected,`${code}, manual=${manual}`);
+  }
 });

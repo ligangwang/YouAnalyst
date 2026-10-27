@@ -9,6 +9,7 @@ const reasons: Record<string, [string, string]> = {
   stale_share_count: ["The share count has not been confirmed in the last 180 days.", "股本数据超过 180 天未确认。"],
   corporate_action_check_unavailable: ["Recent share-change announcements could not be checked.", "暂时无法核对近期股本变动公告。"],
   missing_or_invalid_cached_price: ["No stored A-share closing price is available.", "暂无已存储的 A 股收盘价。"],
+  other_share_class_unsupported: ["This company has another share class that is not yet supported.", "该公司有暂不支持的其他股份类别。"],
   h_share_count_unavailable: ["The H-share count is not available.", "暂无 H 股股本数据。"],
   exchange_share_count_mismatch: ["Exchange and issuer share counts do not agree yet.", "交易所与公司披露的股本暂不一致。"],
 };
