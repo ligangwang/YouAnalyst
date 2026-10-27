@@ -12,11 +12,11 @@ function fixture(pages: unknown[], overrides = {}) {
   const urls: string[] = [];
   return { urls, options: { env, ...overrides, timeout: 30000, now: () => clock,
     sleep: async (ms: number) => { clock += ms; }, log: () => {},
-    request: (async (url: unknown) => {
+    request: async (url: unknown) => {
       urls.push(String(url));
       const body = calls++ === 0 ? run : pages.shift();
-      return { ok: true, status: 200, json: async () => body };
-    }) as typeof fetch } };
+      return Response.json(body);
+    } } };
 }
 
 test('promotion waits for the exact attempt and a successful worker release', async () => {
@@ -43,11 +43,11 @@ test('only an explicit no-worker selection permits a skipped worker job', async 
 test('wrong commit, attempt, branch, workflow, or unreadable evidence fail closed', async () => {
   for (const wrong of [{ head_sha: 'b'.repeat(40) }, { run_attempt: 1 }, { head_branch: 'dev' }, { path: 'other.yml' }]) {
     const f = fixture([]);
-    f.options.request = (async () => ({ ok: true, status: 200, json: async () => ({ ...run, ...wrong }) })) as typeof fetch;
+    f.options.request = async () => Response.json({ ...run, ...wrong });
     await assert.rejects(waitForWorkerRollout(f.options));
   }
   const f = fixture([]);
-  f.options.request = (async () => ({ ok: false, status: 403 })) as typeof fetch;
+  f.options.request = async () => new Response('', { status: 403 });
   await assert.rejects(waitForWorkerRollout(f.options), /HTTP 403/);
 });
 
