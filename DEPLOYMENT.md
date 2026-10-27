@@ -514,3 +514,13 @@ and rollback behavior is unchanged.
 The shared worker and directory images also build concurrently. Both builds
 must succeed and resolve to immutable digests before snapshots, subscribers,
 or jobs are deployed. A failed build drains the other build and blocks rollout.
+
+
+### Worker runtime packages
+
+Worker bundles emit esbuild metadata for every entry point. The image build
+uses those external imports as runtime roots, validates the complete installed
+npm dependency/optional/peer graph, and retains whole packages (including native
+bindings and data assets). Unrelated frontend packages are excluded from worker
+images; the website image and repository dependency manifests are unchanged.
+Missing or undeclared runtime packages fail the build before rollout.
