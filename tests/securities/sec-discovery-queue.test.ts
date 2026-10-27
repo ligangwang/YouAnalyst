@@ -22,6 +22,12 @@ test('SEC dispatcher is bounded, retries stable identities, and rotates a trunca
  assert.equal((await publishSecDiscoveryTasks(['US:AMD'],async()=>assert.fail(),{...opts,deadline:now()+1000})).deferred,1);
  assert.equal((await publishSecDiscoveryTasks(['US:AMD'],async()=>{throw Error('outage');},opts)).failed,1);
 });
+test('SEC dispatcher spaces deliveries and retains its rotation checkpoint at the deadline',async()=>{
+ let clock=0;const times:number[]=[];
+ const result=await publishSecDiscoveryTasks(['US:A','US:B','US:C'],async()=>{times.push(clock);},{execution:'paced',deadline:31500,now:()=>clock,intervalMs:1000,sleep:async ms=>{clock+=ms;}});
+ assert.deepEqual(times,[0,1000]);assert.equal(result.requested,2);assert.equal(result.deferred,1);assert.equal(result.afterCompanyId,'US:B');
+ await assert.rejects(publishSecDiscoveryTasks(['US:A'],async()=>{},{execution:'bad',deadline:60000,now:()=>0,intervalMs:-1}),/interval/);
+});
 test('SEC worker rechecks enrollment before source work and cannot run when disabled',async()=>{
  const f=earningsFirestore(),db=withThemeCatalog(f.db);let runs=0;const opts={enabled:true,run:async(ticker:string)=>{assert.equal(ticker,'AMD');runs++;return {status:'verified'};}};
  assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'ineligible');

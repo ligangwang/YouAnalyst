@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {setTimeout as delay} from 'node:timers/promises';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {ThemedCompany} from '../company-themes/model';
 import {supportedCompanyUniverse} from '../company-support/model';
@@ -18,8 +19,11 @@ export function parseSecDiscoveryTask(input:unknown):SecDiscoveryTask{
 /** The hourly job reads checkpoints and publishes; it never contacts SEC. */
 export async function publishSecDiscoveryTasks(ids:readonly string[],publish:(task:SecDiscoveryTask)=>Promise<unknown>,options:{
   execution:string;deadline:number;now?:()=>number;maxCompanies?:number;after?:string;
+  intervalMs?:number;sleep?:(ms:number)=>Promise<void>;
 }){
   const now=options.now??Date.now,requestedAt=new Date(now()).toISOString();
+  const intervalMs=options.intervalMs??1000,sleep=options.sleep??delay;
+  if(!Number.isSafeInteger(intervalMs)||intervalMs<0||intervalMs>60000)throw new Error('Invalid SEC discovery dispatch interval');
   const sorted=[...new Set(ids)].sort();
   if(sorted.some(id=>!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(id)))throw new Error('Invalid SEC discovery scope');
   const start=options.after?sorted.findIndex(id=>id>options.after!):0,index=start<0?0:start;
@@ -27,7 +31,14 @@ export async function publishSecDiscoveryTasks(ids:readonly string[],publish:(ta
   const result={requested:0,failed:0,deferred:0,afterCompanyId:options.after??null};
   // Sequential publication keeps the rotation checkpoint contiguous on failure.
   for(const companyId of ordered){
+    // Spread scheduled bursts across the hour without changing the subscriber's
+    // SEC concurrency limit. Keep enough time to save the rotation checkpoint.
     if(now()+30000>=options.deadline||result.requested>=(options.maxCompanies??500)){result.deferred++;continue;}
+    if(result.requested>0&&intervalMs){
+      if(now()+30000+intervalMs>=options.deadline){result.deferred++;continue;}
+      await sleep(intervalMs);
+      if(now()+30000>=options.deadline){result.deferred++;continue;}
+    }
     const batchId='secd_'+createHash('sha256').update(JSON.stringify([options.execution,companyId])).digest('hex');
     try{await publish(parseSecDiscoveryTask({version:1,type:'sec.company.discovery.requested',batchId,companyId,requestedAt}));result.requested++;result.afterCompanyId=companyId;}
     catch{result.failed++;break;}
