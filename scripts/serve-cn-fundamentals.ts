@@ -8,7 +8,7 @@ if (!process.env.GCP_PROJECT_ID
   || !process.env.CN_FUNDAMENTALS_SUBSCRIPTION) throw new Error("Missing A-share subscriber configuration");
 initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
 const db = getFirestore();
-const admit = createSerialAdmission({ maxWaiting: 9, waitMs: 90_000 });
+const admit = createSerialAdmission({ maxWaiting: 9, waitMs: 120_000 });
 createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: process.env.CN_FUNDAMENTALS_SUBSCRIPTION,
   job: "cn-fundamentals-check", parse: parseCnRequest,
   process: (request, log, signal) => admit(() => processCnRequest(request, db, log), signal),
