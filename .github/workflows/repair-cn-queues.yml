@@ -76,7 +76,7 @@ jobs:
       - name: Update paced discovery producers for future scheduled executions
         run: |
           set -euo pipefail
-          for job in collect-intelligence-news-production collect-earnings-production; do
+          for job in collect-intelligence-news-production collect-earnings-production collect-sec-filings-production; do
             gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
               --image "$WORKER_IMAGE" --update-env-vars "GIT_SHA=$GIT_SHA" --quiet
           done
