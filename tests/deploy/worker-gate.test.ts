@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { waitForWorkerRollout } from '../../scripts/wait-worker-rollout.mjs';
 
-const env = { GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/main', GITHUB_REPOSITORY: 'owner/repo',
+const env = { NODE_ENV: 'test' as const, GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/main', GITHUB_REPOSITORY: 'owner/repo',
   GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '2', GITHUB_SHA: 'a'.repeat(40), GH_TOKEN: 'test-token', EXPECTED_WORKER_TARGET: 'all' };
 const run = { head_sha: env.GITHUB_SHA, head_branch: 'main', run_attempt: 2, path: '.github/workflows/deploy.yml' };
 const job = (conclusion: string | null, status = 'completed') => ({ name: 'deploy-background-jobs', status, conclusion });
