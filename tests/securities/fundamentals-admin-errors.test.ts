@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
 import { liveCompanyReads } from '../../src/lib/local-cache/company-directory';
-import { listFundamentalsErrors } from '../../src/lib/fundamentals/admin-errors';
+import { listFundamentalsErrors } from '../../src/app/api/admin/fundamentals-errors/list';
 
 test('admin failures use current ledger and company records instead of a stale snapshot', async () => {
   const docs = {

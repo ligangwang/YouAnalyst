@@ -5,7 +5,7 @@ import { getAdminFirestore } from '@/lib/firebase/admin';
 import { validFundamentalsTicker, usFundamentalsId } from '@/lib/fundamentals/identity';
 import { rerunFundamentalsBatch } from '@/lib/fundamentals/admin-rerun';
 import { dispatchRequestedFundamentals } from '@/lib/fundamentals/dispatch';
-import { listFundamentalsErrors } from '@/lib/fundamentals/admin-errors';
+import { listFundamentalsErrors } from './list';
 const reply=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'Cache-Control':'private, no-store'}});
 async function authorize(request:NextRequest){const user=await getDecodedUserFromRequest(request);return user && await isAdminUser(user)?user:null;}
 export async function GET(request:NextRequest){

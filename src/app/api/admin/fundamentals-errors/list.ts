@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { withLiveCompanyReads } from '../local-cache/company-directory';
+import { withLiveCompanyReads } from '@/lib/local-cache/company-directory';
 
 /** Admin decisions must see current failures, including newly written ledgers. */
 export async function listFundamentalsErrors(db: Firestore) {

@@ -27,6 +27,7 @@ test('website-only changes skip workers and worker inputs select their images',(
   for(const path of ['scripts/deploy-instrument-onboarding.sh','scripts/onboard-instruments.ts','scripts/serve-instrument-onboarding.ts','scripts/migrate-instrument-onboarding.ts'])assert.equal(backgroundJobTarget([path]),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/serve-intelligence-news.ts','scripts/deploy-news-pubsub.sh']),'fundamentals');
   assert.equal(backgroundJobTarget(['src/components/admin-jobs-page.tsx','docs/github-actions.md']),'none');
+  assert.equal(backgroundJobTarget(['src/app/api/admin/fundamentals-errors/route.ts','src/app/api/admin/fundamentals-errors/list.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/ui/knowledge-graph/tree-tour.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/future-chart-helper.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/compare-video.ts','src/lib/ui/compare-video.ts','src/components/comparison-video-export.tsx','scripts/background-job-changes.mjs']),'none');
