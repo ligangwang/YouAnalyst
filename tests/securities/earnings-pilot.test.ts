@@ -66,6 +66,14 @@ test('pagination never advances a cursor after truncation, repeated pages, malfo
  assert.equal(done.sources.length,1);assert.equal(done.pages,2);
 });
 function secSource(){return discoverSecEarnings('US:AMD',{cik:2488,filings:{recent:{form:['8-K','10-Q','4'],accessionNumber:['0000002488-26-000121','0000002488-26-000122','0000002488-26-000123'],filingDate:['2026-08-04','2026-08-05','2026-08-05'],primaryDocument:['amd8k.htm','amd10q.htm','x.xml'],acceptanceDateTime:['2026-08-04T20:12:00Z','2026-08-05T20:00:00Z','2026-08-05T20:00:00Z']}}},now)[0];}
+test('SEC earnings window ignores irrelevant historical missing documents but validates current reports',()=>{
+ const recent={form:['10-Q','8-K','8-K'],accessionNumber:['0000002488-97-000001','0000002488-98-000002','0000002488-26-000121'],filingDate:['1997-11-14','1998-08-04','2026-08-04'],primaryDocument:['','','amd8k.htm'],items:['','2.02','2.02']};
+ const scan={from:'2026-01-01',to:'2026-12-31',currentReportsOnly:true};
+ const payload={cik:2488,filings:{recent}};
+ assert.equal(discoverSecEarnings('US:AMD',payload,now,scan).length,1);
+ assert.throws(()=>discoverSecEarnings('US:AMD',{cik:2488,filings:{recent:{...recent,primaryDocument:['','','']}}},now,scan),/Invalid SEC filing row/);
+ assert.throws(()=>discoverSecEarnings('US:AMD',payload,now,{...scan,from:'bad'}),/scan window/);
+});
 test('SEC scanner adapter keeps 8-K candidate and acceptance separate from release publication',()=>{
  const source=secSource();assert.equal(source.form,'8-K');assert.equal(source.publishedAt,null);assert.equal(source.filingAcceptedAt,'2026-08-04T20:12:00Z');
  assert.throws(()=>discoverSecEarnings('US:NVDA',{cik:2488,filings:{recent:{form:[]}}},now),/identity/);
