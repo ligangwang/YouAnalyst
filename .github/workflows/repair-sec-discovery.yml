@@ -1,0 +1,53 @@
+name: Repair SEC discovery subscriber
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 35
+    concurrency:
+      group: deploy-background-jobs-production
+      cancel-in-progress: false
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build reviewed worker image
+        run: |
+          image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GIT_SHA"
+          bash scripts/build-fundamentals.sh "$image"
+          digest="$(gcloud artifacts docker images describe "$image" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
+          [[ "$digest" == *@sha256:* ]]
+          echo "WORKER_IMAGE=$digest" >> "$GITHUB_ENV"
+      - name: Deploy a candidate without changing subscriber traffic
+        run: |
+          gcloud run services update sec-company-discovery-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --image "$WORKER_IMAGE" --update-env-vars "GIT_SHA=$GIT_SHA" --no-traffic --tag sec-repair --quiet
+          revision="$(gcloud run services describe sec-company-discovery-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.latestReadyRevisionName)')"
+          [[ -n "$revision" ]]
+          echo "CANDIDATE_REVISION=$revision" >> "$GITHUB_ENV"
+      - name: Verify candidate health before promotion
+        run: |
+          service_url="$(gcloud run services describe sec-company-discovery-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')"
+          candidate_url="$(gcloud run services describe sec-company-discovery-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json | jq -er --arg revision "$CANDIDATE_REVISION" '.status.traffic[] | select(.tag == "sec-repair" and .revisionName == $revision and (.percent // 0) == 0) | .url')"
+          [[ "$candidate_url" == https://* ]]
+          token="$(gcloud auth print-identity-token --audiences="$service_url")"
+          echo "::add-mask::$token"
+          [[ "$(curl --fail --silent --show-error -H "Authorization: Bearer $token" "$candidate_url/health")" == ok ]]
+      - name: Promote the verified subscriber candidate
+        run: |
+          gcloud run services update-traffic sec-company-discovery-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --to-revisions "$CANDIDATE_REVISION=100" --quiet
