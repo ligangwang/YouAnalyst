@@ -18,7 +18,7 @@ export function AdminChinaFailures(){
     }catch(error){setMessage(error instanceof Error?error.message:String(error));}finally{setBusy(false);}
   }
   return <section className="mb-6 rounded-xl border border-slate-700 p-4" aria-labelledby="china-failures-heading">
-    <h2 id="china-failures-heading">{text('China tasks — needs attention','中国任务 — 需要处理')}</h2>
+    <h2 id="china-failures-heading">{text('China failures — needs attention','中国任务 — 需要处理')}</h2>
     <p>{text('Failed tasks wait for your review. Resolve the cause, then rerun.','失败任务等待管理员处理。请解决原因后重新运行。')}</p>
     <button className="rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40" disabled={busy} onClick={()=>request()}>{text('Load / refresh failures','加载 / 刷新失败记录')}</button>
     {message&&<p role="status">{message}</p>}
