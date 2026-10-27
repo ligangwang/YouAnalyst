@@ -391,3 +391,12 @@ test("manual rerun rechecks timeout and data-shape failures but respects rate-li
     assert.equal(calls,expected,`${code}, manual=${manual}`);
   }
 });
+
+test("unsupported other share class is explicit and cannot reuse a prior valuation",async(t)=>{
+  t.mock.method(console,"info",()=>{});t.mock.method(console,"error",()=>{});t.mock.method(console,"warn",()=>{});
+  const id="XSHG:600584",state=memoryDb({[id]:{cnShares:smicCount({asOf:"2026-09-10"}),cnActions:check()}},[price(50,"2026-09-25",id)],fxDoc);
+  const result=await refreshCnFundamentals({db:state.db,log:createMaintenanceLog("test"),sources:fakeSources({structure:async()=>({reason:"other_share_class_unsupported"})}),companies:[id],deadline:Date.now()+600000,now:()=>NOW});
+  const stored=(await state.db.collection("company_fundamentals").doc(id).get()).data();
+  assert.equal(result.shares.unavailable,1);assert.equal(result.shares.failed,0);
+  assert.equal(stored?.marketCap.status,"unavailable");assert.equal(stored?.marketCap.reason,"other_share_class_unsupported");
+});
