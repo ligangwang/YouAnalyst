@@ -106,3 +106,32 @@ export async function writeCachedPrice(db:Firestore,ref:DocumentReference,patch:
   tx.set(db.collection('collectors').doc(META),{buckets:{[id]:randomUUID()}},{merge:true});
  });
 }
+
+/** Create missing history for one instrument in one transaction. The source
+ * rows and the graph cache revision commit together, at most once per batch. */
+export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:DocumentReference;patch:Record<string,unknown>}>){
+ if(!rows.length)return {created:0,existing:0};
+ const ticker=String(rows[0].patch.ticker??''),instrument=predictionInstrument(ticker);
+ if(!instrument||rows.some(row=>row.patch.ticker!==ticker||row.patch.market!==instrument.market))throw Error('Price batch must contain one instrument');
+ const key=keyFor(ticker),id=bucketFor(key);
+ return db.runTransaction(async tx=>{
+  // All reads precede writes, including the cache bucket. A transaction retry
+  // sees prices created concurrently and keeps their authoritative values.
+  const [bucket,...sources]=await tx.getAll(refFor(db,id),...rows.map(row=>row.ref));
+  const entries=(bucket.get('entries')??{}) as Bucket['entries'];
+  const original=entries[key];let entry=original,created=0,existing=0;
+  for(let i=0;i<rows.length;i++){
+   if(sources[i].exists){existing++;continue;}
+   const {ref,patch}=rows[i];tx.create(ref,patch);created++;
+   if(!entry)continue;
+   const bar=barFrom(patch,ticker);if(!bar)continue;
+   entry={bars:priceBars([...entry.bars,bar],'9999-12-31').slice(-2),
+    baselines:Object.fromEntries(Object.entries(entry.baselines).filter(([through])=>through<bar.date))};
+  }
+  if(original&&entry&&JSON.stringify(entry)!==JSON.stringify(original)){
+   entries[key]=entry;tx.set(refFor(db,id),{entries});
+   tx.set(db.collection('collectors').doc(META),{buckets:{[id]:randomUUID()}},{merge:true});
+  }
+  return {created,existing};
+ });
+}

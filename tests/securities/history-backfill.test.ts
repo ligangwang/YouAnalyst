@@ -14,7 +14,7 @@ function fixture() {
   }});
   const db={collection:(name:string)=>({doc:(id:string)=>ref(`${name}/${id}`)}),
     getAll:async(...refs:ReturnType<typeof ref>[])=>Promise.all(refs.map(r=>r.get())),
-    runTransaction:async(fn:(tx:unknown)=>unknown)=>fn({get:(r:ReturnType<typeof ref>)=>r.get(),create:(r:ReturnType<typeof ref>,v:Record<string,unknown>)=>{if(failWrite)throw Error("write failed");if(docs.has(r.id))throw {code:6};docs.set(r.id,v);},set:(r:ReturnType<typeof ref>,value:Record<string,unknown>)=>docs.set(r.id,{...docs.get(r.id),...value})})} as unknown as Firestore;
+    runTransaction:async(fn:(tx:unknown)=>unknown)=>fn({get:(r:ReturnType<typeof ref>)=>r.get(),getAll:(...refs:ReturnType<typeof ref>[])=>Promise.all(refs.map(r=>r.get())),create:(r:ReturnType<typeof ref>,v:Record<string,unknown>)=>{if(failWrite)throw Error("write failed");if(docs.has(r.id))throw {code:6};docs.set(r.id,v);},set:(r:ReturnType<typeof ref>,value:Record<string,unknown>)=>docs.set(r.id,{...docs.get(r.id),...value})})} as unknown as Firestore;
   const bucket={file:(name:string)=>({name,download:async()=>{if(!files.has(name))throw {code:404};return [Buffer.from(files.get(name)!)];},save:async(value:string)=>{files.set(name,value);}})} as unknown as Bucket;
   return {db,bucket,docs,files,setFail:(value:boolean)=>{failWrite=value;}};
 }
@@ -62,4 +62,12 @@ test('onboarding history has its own 2020 range receipt and bounded write batche
   assert.equal(f.docs.get('collectors/eod-history_US_MU_2020-12-30_2026-10-05')?.from,'2020-12-30');
   assert.equal(f.docs.get('collectors/eod-history_US_MU')?.from,'2025-12-31');
   assert.equal((await backfillPriceHistory(input)).skipped,1);assert.equal(calls,1);
+});
+
+test('a full-history sized onboarding batch creates 1500 records in one checkpoint',async()=>{
+  const f=fixture();let batches=0;
+  const bars=Array.from({length:1500},(_,i)=>bar(new Date(Date.parse('2020-12-30T00:00:00Z')+i*86400000).toISOString().slice(0,10)));
+  const result=await backfillPriceHistory({...f,tickers:['MU'],from:'2020-12-30',through:bars.at(-1)!.date,token:'test',writeBatchSize:1500,
+    afterBatch:async()=>{batches++;},fetcher:async()=>new Response(JSON.stringify(bars))});
+  assert.equal(result.completed,1);assert.equal(result.created,1500);assert.equal(batches,1);
 });

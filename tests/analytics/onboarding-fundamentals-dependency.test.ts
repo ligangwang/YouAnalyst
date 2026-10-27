@@ -12,7 +12,7 @@ import {LEGACY_NO_THEME_MATCH,NO_THEME_MATCH_REASON} from '../../src/lib/instrum
 
 async function handlersFixture(automatic=false){
   const bundle=await build({stdin:{contents:"export * from './src/lib/instrument-onboarding/handlers';export {processInstrumentOnboarding} from './src/lib/instrument-onboarding/queue';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'scheduled-financial-dependency',setup(builder){
-    builder.onLoad({filter:/[\\/]intelligence[\\/]price-cache\.ts$/},()=>({loader:'js',contents:'export const writeCachedPrice=()=>{throw Error("Unexpected price write");};'}));
+    builder.onLoad({filter:/[\\/]intelligence[\\/]price-cache\.ts$/},()=>({loader:'js',contents:'export const createCachedPriceBatch=()=>{throw Error("Unexpected price write");};'}));
     builder.onLoad({filter:/[\\/]predictions[\\/]latest-eod\.ts$/},()=>({loader:'js',contents:'export const saveLatestEodPrice=()=>{throw Error("Unexpected latest-price write");};'}));
     builder.onLoad({filter:/[\\/]company-themes[\\/]catalog\.ts$/},()=>({loader:'js',contents:`export const loadThemeCatalog=async()=>${automatic?JSON.stringify(seed.nodes):'[]'};`}));
     if(!automatic){

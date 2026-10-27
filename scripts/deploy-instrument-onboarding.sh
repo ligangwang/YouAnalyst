@@ -33,7 +33,7 @@ invoker="$maintenance_scheduler_account"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-instrument-onboarding.cjs --min-instances 0 --max-instances 2 \
-  --concurrency 1 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --quiet
+  --concurrency 16 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --quiet
 for account in "$invoker" "$maintenance_runtime_account"; do
   gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
     --member "serviceAccount:$account" --role roles/run.invoker --quiet >/dev/null
