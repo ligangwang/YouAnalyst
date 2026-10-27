@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {setTimeout as delay} from 'node:timers/promises';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../knowledge-graph/model';
 import type {ThemedCompany} from '../company-themes/model';
@@ -34,9 +35,28 @@ export function cnAnnouncementFresh(state:State,now:number){
 export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDiscoveryTask['mode'],publish:(task:CnDiscoveryTask)=>Promise<unknown>,options:{
   execution:string;deadline:number;now?:()=>number;earningsEnabled:boolean;
   readState:(id:string,mode:CnDiscoveryTask['mode'])=>Promise<State>;
+  intervalMs?:number;sleep?:(ms:number)=>Promise<void>;
 }){
   if(ids.some(id=>!validId(id)))throw new Error('Invalid A-share company scope');
   const now=options.now??Date.now,requestedAt=new Date(now()).toISOString();
+  const intervalMs=options.intervalMs??1000,sleep=options.sleep??delay;
+  if(!Number.isSafeInteger(intervalMs)||intervalMs<0||intervalMs>60000)throw new Error('Invalid A-share dispatch interval');
+  // State reads can remain parallel, while all publications from this run
+  // share one pace. Unpublished tasks remain eligible for the next scan.
+  let tail:Promise<void>=Promise.resolve(),nextPublishAt=0;
+  const dispatch=async(task:CnDiscoveryTask)=>{
+    const previous=tail;let release!:()=>void;
+    tail=new Promise<void>(resolve=>{release=resolve;});
+    await previous;
+    try{
+      const wait=Math.max(0,nextPublishAt-now());
+      if(now()+30000+wait>=options.deadline)return false;
+      if(wait)await sleep(wait);
+      if(now()+30000>=options.deadline)return false;
+      try{await publish(task);}finally{nextPublishAt=now()+intervalMs;}
+      return true;
+    }finally{release();}
+  };
   const result={mode:'pubsub',requested:0,skipped:0,deferred:0,failed:0};let next=0;
   const companies=[...new Set(ids)];
   await Promise.all(Array.from({length:Math.min(8,companies.length)},async()=>{while(next<companies.length){
@@ -47,7 +67,8 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
       if(state?.status==='complete'&&Number(state.nextPollAtMs)>now()&&(mode==='earnings-fallback'||!options.earningsEnabled||state.earningsCoverageVersion===2)){result.skipped++;continue;}
       if(mode==='earnings-fallback'&&cnAnnouncementFresh(await options.readState(id,'announcements'),now())){result.skipped++;continue;}
       const batchId='cn_'+createHash('sha256').update(JSON.stringify([options.execution,mode,id])).digest('hex');
-      await publish(parseCnDiscoveryTask({version:1,type:'cn.company.discovery.requested',batchId,companyId:id,mode,requestedAt}));result.requested++;
+      if(await dispatch(parseCnDiscoveryTask({version:1,type:'cn.company.discovery.requested',batchId,companyId:id,mode,requestedAt})))result.requested++;
+      else result.deferred++;
     }catch{result.failed++;}
   }}));return result;
 }

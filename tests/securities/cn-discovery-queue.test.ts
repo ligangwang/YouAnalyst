@@ -26,7 +26,7 @@ test('tasks bind one A-share company and mode; payload cannot supply provider UR
 test('dispatch skips only fresh complete coverage, isolates failures, and has stable retry identities',async()=>{
   const now=Date.parse(task().requestedAt),sent:ReturnType<typeof task>[]=[],ids=[id,other,'XSHE:000063','XSHE:300308'];
   const readState=async(company:string)=>company===other?{status:'complete',nextPollAtMs:now+3600000,earningsCoverageVersion:2}:company==='XSHE:000063'?{status:'partial',nextPollAtMs:now+3600000}:{status:'complete',nextPollAtMs:now+3600000,earningsCoverageVersion:1};
-  const opts={execution:'execution',deadline:now+60000,now:()=>now,earningsEnabled:true,readState};
+  const opts={execution:'execution',deadline:now+60000,now:()=>now,earningsEnabled:true,readState,intervalMs:0};
   const first=await publishCnDiscoveryTasks([...ids,id],'announcements',async value=>{sent.push(value);if(value.companyId===id)throw Error('publisher unavailable');},opts);
   assert.deepEqual(first,{mode:'pubsub',requested:2,skipped:1,deferred:0,failed:1});
   const retry:typeof sent=[];await publishCnDiscoveryTasks(ids,'announcements',async value=>{retry.push(value);},opts);
@@ -37,10 +37,16 @@ test('dispatch skips only fresh complete coverage, isolates failures, and has st
 
 test('dispatch bounds publication concurrency and defers when its deadline is exhausted',async()=>{
   const ids=Array.from({length:25},(_,n)=>`XSHG:${600000+n}`),now=Date.parse(task().requestedAt);let active=0,peak=0;
-  const opts={execution:'execution',deadline:now+60000,now:()=>now,earningsEnabled:false,readState:async()=>undefined};
+  const opts={execution:'execution',deadline:now+60000,now:()=>now,earningsEnabled:false,readState:async()=>undefined,intervalMs:0};
   const result=await publishCnDiscoveryTasks(ids,'announcements',async()=>{peak=Math.max(peak,++active);await new Promise(resolve=>setTimeout(resolve,1));active--;},opts);
-  assert.equal(result.requested,25);assert(peak<=8&&peak>1);
+  assert.equal(result.requested,25);assert.equal(peak,1);
   const expired=await publishCnDiscoveryTasks(ids,'announcements',async()=>assert.fail(),{...opts,deadline:now+1000});assert.equal(expired.deferred,25);
+});
+test('China discovery dispatch spaces tasks and defers safely at its deadline',async()=>{
+  let now=0;const times:number[]=[];
+  const result=await publishCnDiscoveryTasks(['XSHG:600001','XSHG:600002','XSHG:600003'],'announcements',async()=>{times.push(now);},{
+    execution:'paced',deadline:31500,now:()=>now,earningsEnabled:false,readState:async()=>undefined,intervalMs:1000,sleep:async ms=>{now+=ms;}});
+  assert.deepEqual(times,[0,1000]);assert.equal(result.requested,2);assert.equal(result.deferred,1);
 });
 
 test('worker rechecks canonical enrollment and completed deliveries before any provider work',async()=>{
