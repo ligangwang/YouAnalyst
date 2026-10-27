@@ -21,15 +21,20 @@ export function layout3D(graph: KnowledgeGraph) {
     const ring = Math.sqrt(1 - y * y);
     return { ax: Math.cos(i * goldenAngle) * ring * radius * .7, ay: y * radius * .7, az: Math.sin(i * goldenAngle) * ring * radius * .7 };
   });
+  // Sort once per sector instead of rescanning all remaining slots for every
+  // company. The original slot index preserves deterministic distance ties.
+  const ranked = anchors.map(({ax,ay,az}) => slots.map((p,index) => ({index,distance:(p.x-ax)**2+(p.y-ay)**2+(p.z-az)**2}))
+    .sort((a,b) => a.distance-b.distance || a.index-b.index));
+  const used = new Uint8Array(slots.length);
+  const next = anchors.map(() => 0);
   const nodes = companies.map(node => {
     const sector = Math.max(0, sectors.findIndex(s => s.id === companySector(node).id));
     const { ax, ay, az } = anchors[sector];
-    let nearest = 0, best = Infinity;
-    slots.forEach((p, i) => {
-      const distance = (p.x - ax) ** 2 + (p.y - ay) ** 2 + (p.z - az) ** 2;
-      if (distance < best) { best = distance; nearest = i; }
-    });
-    return { ...node, ...slots.splice(nearest, 1)[0], ax, ay, az };
+    const order = ranked[sector];
+    while (next[sector] < order.length && used[order[next[sector]].index]) next[sector]++;
+    const index = order[next[sector]++].index;
+    used[index] = 1;
+    return { ...node, ...slots[index], ax, ay, az };
   });
   const ids = new Set(nodes.map(n => n.id));
   const edges = graph.relationships.filter(e => e.type !== "PARTICIPATES_IN" && ids.has(e.source) && ids.has(e.target));

@@ -6,6 +6,7 @@ import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from '..
 import { layoutCompanies } from '../src/lib/knowledge-graph/constellation';
 import { layout3D } from '../src/lib/knowledge-graph/layout-3d';
 import { marketCapScale, marketCapLabel } from '../src/lib/knowledge-graph/market-cap';
+import { densitySelection } from '../src/lib/knowledge-graph/density';
 const graph=combineGraphs([us,cn] as unknown as (KnowledgeGraph & {id:string;language:string})[]);
 
 test('market cap areas scale proportionally within limits and unknown retains default', () => {
@@ -55,4 +56,23 @@ test("unclassified companies have their own spatial anchor",()=>{
  const related=layout.nodes.find(n=>n.id==="ORG:RELATED")!;
  const semiconductor=layout.nodes.find(n=>n.stageIds?.[0]==="materials")!;
  assert.notDeepEqual([related.ax,related.ay,related.az],[semiconductor.ax,semiconductor.ay,semiconductor.az]);
+});
+
+test('large company universes retain deterministic unique finite positions', () => {
+ const templates=graph.nodes.filter(n=>n.kind==='COMPANY');
+ const nodes=Array.from({length:2000},(_,i)=>({...templates[i%templates.length],id:`US:SYNTH${String(i).padStart(5,'0')}`}));
+ const input={...graph,nodes,relationships:[]};
+ const first=layout3D(input), second=layout3D(input);
+ assert.equal(first.nodes.length,2000);
+ assert.deepEqual(first.nodes.map(n=>[n.id,n.x,n.y,n.z]),second.nodes.map(n=>[n.id,n.x,n.y,n.z]));
+ assert.equal(new Set(first.nodes.map(n=>`${n.x},${n.y},${n.z}`)).size,2000);
+ assert(first.nodes.every(n=>Number.isFinite(n.x)&&Number.isFinite(n.y)&&Number.isFinite(n.z)));
+});
+
+test('density selection bounds crowded points and preserves focused company',()=>{
+ const points=Array.from({length:1000},(_,i)=>({id:`company-${i}`,x:(i%20)*5,y:Math.floor(i/20)*5,depth:i/1000,priority:i===999?3:1}));
+ const selected=densitySelection(points,200,300,36,50);
+ assert(selected.includes('company-999'));
+ assert(selected.length<=51);
+ assert.deepEqual(selected,densitySelection([...points].reverse(),200,300,36,50));
 });

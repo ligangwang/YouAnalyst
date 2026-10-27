@@ -13,6 +13,7 @@ import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/kno
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
+import { densitySelection } from "@/lib/knowledge-graph/density";
 import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
@@ -170,11 +171,16 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const [labelHovered, setLabelHovered] = useState("");
   const hovered = labelHovered || pointHovered;
   const [hoveredEdge, setHoveredEdge] = useState("");
+  const crowded=layout.nodes.length>300;
+  const [renderedIds,setRenderedIds]=useState<string[]>([]);
+  const densityLast=useRef(-Infinity);
+  const renderedSet=useMemo(()=>new Set(renderedIds),[renderedIds]);
   useEffect(()=>{setPointHovered("");setLabelHovered("");setHoveredEdge("");},[selected]);
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // while keeping the star geometry mounted throughout the interaction.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
   const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, selected?"":pointHovered, intelligence)])), [layout, selected, activeEdge, showAllEdges, pointHovered, intelligence]);
+  const renderedEdges=useMemo(()=>crowded?layout.edges.filter(edge=>(edgeTargets.get(edge.id)??0)>0 && (edge.id===activeEdge || edge.source===selected || edge.target===selected || edge.source===hovered || edge.target===hovered || intelligence?.edges.includes(edge.id) || renderedSet.has(edge.source) || renderedSet.has(edge.target))):layout.edges,[crowded,layout,edgeTargets,activeEdge,selected,hovered,intelligence,renderedSet]);
   const displayedEdge=((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "")||activeEdge;
   const hoveringEntity=Boolean(hovered || (hoveredEdge && (edgeTargets.get(hoveredEdge) ?? 0) > 0));
   useEffect(()=>{onHoverChange(hoveringEntity);},[hoveringEntity,onHoverChange]);
@@ -188,7 +194,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       ? edge.source !== selected && edge.target !== selected
       : Boolean(sectorFocus) && !sectorMembers.has(edge.source) && !sectorMembers.has(edge.target));
   const focusedCompanies = useMemo(()=>companyFocus ? new Set(companyFocus) : undefined,[companyFocus]);
-  const pointTargets = useMemo(() => layout.nodes.map(n => focusedCompanies && !focusedCompanies.has(n.id) ? .12 : selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints, focusedCompanies]);
+  useEffect(()=>{densityLast.current=-Infinity;invalidate();},[layout,selected,hovered,sectorFocus,focusedCompanies,edgeEndpoints,invalidate]);
+  const pointTargets = useMemo(() => layout.nodes.map(n => crowded && !renderedSet.has(n.id) && n.id!==selected && n.id!==hovered ? 0 : focusedCompanies && !focusedCompanies.has(n.id) ? .12 : selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints, focusedCompanies,crowded,renderedSet]);
   useEffect(()=>{invalidate();},[pointTargets,invalidate]);
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
@@ -201,7 +208,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const lines = useMemo(() => {
     const positions = new Map(layout.nodes.map(n => [n.id, n]));
     const g = new BufferGeometry(), p: number[] = [], c: number[] = [], edgeIds: string[] = [];
-    layout.edges.forEach(e => {
+    renderedEdges.forEach(e => {
       const a = positions.get(e.source)!, b = positions.get(e.target)!;
       const color = lineTint;
       const length = Math.hypot(b.x-a.x, b.y-a.y, b.z-a.z);
@@ -214,13 +221,15 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       }
     });
     g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 4)); g.userData.edgeIds = edgeIds; return g;
-  }, [layout]);
+  }, [layout,renderedEdges]);
+  useEffect(()=>()=>lines.dispose(),[lines]);
   // Match the visible star in screen space: a world-space threshold shrinks
   // at overview zoom and lets relationship lines intercept company clicks.
   function companyHit(raycaster: Raycaster,clickTarget=false) {
     const pointer=raycaster.ray.at(1,new Vector3()).project(camera);
     let nearest:{index:number;distance:number;point:Vector3;screenDistance:number}|undefined;
     layout.nodes.forEach((node,index)=>{
+      if(crowded && !renderedSet.has(node.id) && node.id!==selected && node.id!==hovered)return;
       const point=new Vector3(node.x,node.y,node.z),screen=point.clone().project(camera);
       if(screen.z < -1 || screen.z > 1)return;
       const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
@@ -239,7 +248,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const px=(pointer.x+1)*size.width/2,py=(1-pointer.y)*size.height/2;
     let nearest:{id:string;index:number;point:Vector3;distance:number;screenDistance:number}|undefined;
     const positions=new Map(layout.nodes.map(node=>[node.id,node]));
-    for(const edge of layout.edges){
+    for(const edge of renderedEdges){
       if((edgeTargets.get(edge.id)??0)<=0||(edgeFades.current.get(edge.id)??0)<=.01)continue;
       const a=positions.get(edge.source)!,b=positions.get(edge.target)!;
       const worldA=new Vector3(a.x,a.y,a.z),worldB=new Vector3(b.x,b.y,b.z),sa=worldA.clone().project(camera),sb=worldB.clone().project(camera);
@@ -389,7 +398,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   },[layout]);
   const edgeLabels = useMemo(() => {
     const positions=new Map(layout.nodes.map(n=>[n.id,n]));
-    return layout.edges.map(edge=>{
+    return renderedEdges.map(edge=>{
       const a=positions.get(edge.source)!, b=positions.get(edge.target)!;
       const direction=new Vector3(b.x-a.x,b.y-a.y,b.z-a.z).normalize();
       const t=edge.id===activeEdge ? .5 : selected===edge.source? .38 : selected===edge.target? .62 : .5;
@@ -401,7 +410,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
         directional:!["COMPETES_WITH","PARTNER_OF","ECOSYSTEM_PARTNER_OF","ENERGY_AGREEMENT_WITH"].includes(edge.type)
       };
     });
-  },[layout,selected,activeEdge,locale]);
+  },[layout,selected,activeEdge,locale,renderedEdges]);
   const activeLabelPosition=(edge:{x:number;y:number;z:number}):[number,number]=>{
     const p=new Vector3(edge.x,edge.y,edge.z).project(camera);
     const x=Math.max(118,Math.min(size.width-118,(p.x+1)*size.width/2));
@@ -413,6 +422,12 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
+    if(crowded && performance.now()-densityLast.current>200){
+      densityLast.current=performance.now();
+      const points=layout.nodes.map(n=>{const p=new Vector3(n.x,n.y,n.z).project(camera);return {id:n.id,x:(p.x+1)*size.width/2,y:(1-p.y)*size.height/2,depth:p.z,priority:n.id===selected||n.id===hovered||edgeEndpoints.has(n.id)?3:focusedCompanies?.has(n.id)||sectorMembers.has(n.id)?2:1};}).filter(p=>p.depth>-1&&p.depth<1);
+      const next=densitySelection(points,size.width,size.height);
+      setRenderedIds(previous=>previous.length===next.length&&previous.every((id,i)=>id===next[i])?previous:next);
+    }
     const editingForm=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
     const immediate=reducedMotion.current||editingForm;
     const surface=gl.domElement.closest('[data-graph-interaction]');
@@ -431,7 +446,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       if (Math.abs(next - target) > .0001) fading = true;
     }
     if (pointsChanged) pointEmphasis.needsUpdate = true;
-    for (const edge of layout.edges) {
+    for (const edge of renderedEdges) {
       const target = edgeTargets.get(edge.id) ?? 0;
       const next = fadeEdge(edgeFades.current.get(edge.id) ?? 0, target, delta, immediate);
       edgeFades.current.set(edge.id, next);
@@ -476,7 +491,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     }
     // Correct unsafe destinations smoothly; never teleport the rendered camera mid-return.
     if(controls.current){const p=controls.current.getPosition(new Vector3());if(p.length()<layout.radius*1.12){if(!p.length())p.z=1;p.setLength(layout.radius*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),true);}}
-    gl.domElement.dataset.visibleRelationships=[...edgeTargets].filter(([,opacity])=>opacity>0).map(([id])=>id).join(',');
+    gl.domElement.dataset.visibleRelationships=renderedEdges.filter(edge=>(edgeTargets.get(edge.id)??0)>0).map(edge=>edge.id).join(',');
     gl.domElement.dataset.hoveredRelationship=displayedEdge;
     gl.domElement.dataset.ballRadius=String(layout.radius);
     gl.domElement.dataset.cameraPosition=camera.position.toArray().join(',');
@@ -686,7 +701,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} data-displayed={edge.id===displayedEdge} data-relationship-id={edge.id} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${relationshipSummary(edge,locale)}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{edge.id===displayedEdge?<><strong>{edge.from} {edge.directional?'→':'↔'} {edge.to} · {text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</strong><small>{relationshipSummary(edge,locale)}</small></>:text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
-    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></button></Html>)}
+    {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></button></Html>)}
   </>;
 }
 
