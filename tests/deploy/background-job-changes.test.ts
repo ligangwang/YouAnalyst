@@ -1,3 +1,4 @@
+import {deliveryTasks} from '../../scripts/verify-worker-delivery.mjs';
 import {runInNewContext} from 'node:vm';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,13 +67,13 @@ test('production rollout persists explicit pipeline flags and reuses only the ap
   }
   assert.equal(env.OPENAI_API_KEY, "${{ (vars.ENABLE_SEC_FILING_PIPELINE == '1' || vars.CALENDAR_EXTRACTION_ENABLED == '1' || vars.INTELLIGENCE_NEWS_COLLECTOR_ENABLED == '1') && secrets.OPENAI_API_KEY || '' }}");
   assert.equal(env.PUBSUB_BOOTSTRAP_IAM, undefined);
-  const probe=workflow.jobs['deploy-background-jobs'].steps.find((step: {name?:string})=>step.name?.startsWith('Verify graph Pub/Sub'));
-  assert.match(probe.if, /ENABLE_SEC_FILING_PIPELINE == '1'/);
-  assert.match(probe.run, /COMPANY_GRAPH_VERIFY_ONLY=1/);
-  assert.match(probe.run, /--args dist\/refresh-company-graph.cjs,--verify-delivery/);
-  const probeArgs = probe.run.match(/--args ([^\s]+)/)![1].split(',').slice(1);
+  const step=workflow.jobs['deploy-background-jobs'].steps.find((step: {name?:string})=>step.name === 'Verify worker delivery without provider calls');
+  assert.equal(step.run, 'node scripts/verify-worker-delivery.mjs');
+  const probe=deliveryTasks({TARGET_JOB:'all',ENABLE_SEC_FILING_PIPELINE:'1',GCP_PROJECT_ID:'test',GCP_REGION:'us-central1'}).find(task=>task.id==='verify-graph')!;
+  assert(probe.args.includes('COMPANY_GRAPH_VERIFY_ONLY=1'));
+  const probeArgs = probe.args[probe.args.indexOf('--args')+1].split(',').slice(1);
   assert.equal(parseCompanyGraphPublisherArgs(probeArgs, { COMPANY_GRAPH_VERIFY_ONLY: '1' }).verify, true);
-  assert.doesNotMatch(probe.run, /COMPANY_GRAPH_PROCESSING_ENABLED|OPENAI/);
+  assert(!deliveryTasks({TARGET_JOB:'all',ENABLE_SEC_FILING_PIPELINE:'0'}).some(task=>task.id==='verify-graph'));
 
   assert.equal(workflow.jobs['deploy-production'].env.ENABLE_SEC_FILING_PIPELINE, '${{ vars.ENABLE_SEC_FILING_PIPELINE }}');
   assert.equal(workflow.jobs['deploy-staging'].env.ENABLE_SEC_FILING_PIPELINE, undefined);

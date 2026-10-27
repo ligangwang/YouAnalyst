@@ -104,17 +104,5 @@ if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 && ( " ${targets[*]} " == *
   # publish derived exhibit tasks to its queue.
   bash scripts/deploy-sec-downloads.sh
 fi
-for target in "${targets[@]}"; do
-  if [[ "$target" == directory ]]; then
-    image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/directory-sync:$GIT_SHA"
-    bash scripts/build-fundamentals.sh "$image" cloudbuild.directory-sync.yaml
-    image="$(gcloud artifacts docker images describe "$image" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
-    [[ "$image" == *@sha256:* ]] || { echo 'Missing directory image digest' >&2; exit 1; }
-    export DIRECTORY_SYNC_IMAGE="$image"
-    bash scripts/deploy-directory-pubsub.sh
-    gcloud run jobs update sync-cni-directory-production --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --image "$image" --update-env-vars DIRECTORY_REQUEST_TOPIC=cni-directory-requests --quiet
-    bash scripts/lib/maintenance-job-iam.sh sync-cni-directory-production
-  else
-    bash "scripts/deploy-$target.sh"
-  fi
-done
+# Preflight, shared image, snapshots, and download router are ready before fan-out.
+node scripts/deploy-worker-targets.mjs "${targets[@]}"
