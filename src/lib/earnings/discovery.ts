@@ -12,15 +12,23 @@ export function classifyEarningsTitle(title: string): EarningsKind | "calendar" 
 // Input is the raw official submissions payload, BEFORE the existing scanner's
 // financial-form filter. That shared scanner view still needs coordinated wiring.
 // This pure adapter is not a second poller and does not widen its event contract.
-export function discoverSecEarnings(companyId: string, payload: { cik?: unknown; filings?: { recent?: Record<string, unknown> } }, firstSeenAt: string): EarningsSource[] {
+export function discoverSecEarnings(companyId: string, payload: { cik?: unknown; filings?: { recent?: Record<string, unknown> } }, firstSeenAt: string,
+  scan?: { from: string; to: string; currentReportsOnly: boolean }): EarningsSource[] {
   const company = earningsCompany(companyId), recent = payload.filings?.recent;
   if (!company.cik || Number(payload.cik) !== Number(company.cik) || !recent || !Array.isArray(recent.form) || !validTimestamp(firstSeenAt)) throw new Error("Invalid SEC discovery identity or response");
+  if (scan && (!validDate(scan.from) || !validDate(scan.to) || scan.from > scan.to)) throw new Error("Invalid SEC earnings scan window");
   const keys = ["accessionNumber", "filingDate", "primaryDocument"];
   if (keys.some(key => !Array.isArray(recent[key]) || recent[key].length !== (recent.form as unknown[]).length)) throw new Error("Incomplete SEC discovery columns");
   const cell = (key: string, i: number) => Array.isArray(recent[key]) ? recent[key][i] : undefined;
   const output: EarningsSource[] = [];
   recent.form.forEach((form, i) => {
     if (!["8-K", "8-K/A", "6-K", "6-K/A", "10-Q", "10-Q/A", "10-K", "10-K/A", "20-F", "20-F/A"].includes(String(form))) return;
+    if (scan?.currentReportsOnly && !/^(?:8-K|6-K)(?:\/A)?$/.test(String(form))) return;
+    const filingDate = cell("filingDate", i);
+    if (!validDate(filingDate)) throw new Error("Invalid SEC filing row");
+    // Rows outside the durable overlap window cannot become candidates; old
+    // submissions may legitimately lack document or item metadata.
+    if (scan && (filingDate < scan.from || filingDate > scan.to)) return;
     // Item 2.02 identifies results releases in domestic current reports. Missing
     // item metadata remains reviewable; unrelated known items do not consume
     // exhibit downloads when collection expands to the whole map.
@@ -28,7 +36,7 @@ export function discoverSecEarnings(companyId: string, payload: { cik?: unknown;
       if (!Array.isArray(recent.items) || recent.items.length !== (recent.form as unknown[]).length || typeof recent.items[i] !== 'string') throw new Error('Invalid SEC earnings item metadata');
       if (!recent.items[i].split(',').some((item: string) => item.trim() === '2.02')) return;
     }
-    const accession = cell("accessionNumber", i), filingDate = cell("filingDate", i), primary = cell("primaryDocument", i);
+    const accession = cell("accessionNumber", i), primary = cell("primaryDocument", i);
     if (typeof accession !== "string" || !/^\d{10}-\d{2}-\d{6}$/.test(accession) || !validDate(filingDate) || typeof primary !== "string" || !/^[\w.-]+$/.test(primary)) throw new Error("Invalid SEC filing row");
     const accepted = cell("acceptanceDateTime", i);
     // Do not turn filingDate or reportDate into an earnings announcement time.

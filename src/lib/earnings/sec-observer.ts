@@ -40,14 +40,15 @@ export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, op
       if (!payload.filings || !Array.isArray(payload.filings.files)) throw new Error("Missing SEC archive coverage metadata");
       const recent = payload.filings.recent;
       if (!Array.isArray(recent?.filingDate) || !recent.filingDate.every(validDate)) throw new Error("Invalid SEC recent date coverage");
-      const rows = [...discoverSecEarnings(company.companyId, payload, new Date(now()).toISOString())];
+      const scan = { from: window.from, to: window.to, currentReportsOnly: true };
+      const rows = [...discoverSecEarnings(company.companyId, payload, new Date(now()).toISOString(), scan)];
       const files = payload.filings.files.filter(file => file.filingTo >= window.from);
       if (files.length > 5) throw new Error("SEC earnings archive budget exhausted; checkpoint retained");
       for (const file of files) {
         if (!new RegExp(`^CIK${cik}-submissions-\\d+\\.json$`).test(file.name) || !validDate(file.filingFrom) || !validDate(file.filingTo)) throw new Error("Invalid SEC earnings archive metadata");
         if (now() + 30_000 >= options.deadline) throw new Error("SEC earnings scan deadline reached; checkpoint retained");
         const raw = await archive(file.name) as Record<string, unknown>;
-        rows.push(...discoverSecEarnings(company.companyId, { cik, filings: { recent: raw } }, new Date(now()).toISOString()));
+        rows.push(...discoverSecEarnings(company.companyId, { cik, filings: { recent: raw } }, new Date(now()).toISOString(), scan));
       }
       const candidates = [...new Map(rows.filter(source => /^(?:8-K|6-K)(?:\/A)?$/.test(source.form ?? "") && source.filingDate! >= window.from && source.filingDate! <= window.to).map(source => [source.documentId, source])).values()];
       if (candidates.length > 200) throw new Error("SEC earnings candidate budget exhausted; checkpoint retained");

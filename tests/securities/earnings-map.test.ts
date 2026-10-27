@@ -123,6 +123,14 @@ test('Micron discovery uses the shared SEC response and preserves original accep
   assert.throws(()=>validateSource({...source,issuerId:'sec:0000006951'}));
   assert.throws(()=>validateSource({...source,url:source.url.replace('/723125/','/6951/')}));
 });
+test('SEC earnings observer completes when historical financial rows lack documents',async()=>{
+  configureEarningsMap(graph,ids);
+  const fx=earningsFirestore(),observer=createSecEarningsObserver(fx.db,{runId:'historical',emit:()=>{}} as unknown as MaintenanceLog,{deadline:fx.now()+60000,now:fx.now});
+  const recent={...payload.filings.recent,form:['10-Q',...payload.filings.recent.form],accessionNumber:['0000723125-97-000001',...payload.filings.recent.accessionNumber],
+    filingDate:['1997-11-14',...payload.filings.recent.filingDate],primaryDocument:['',...payload.filings.recent.primaryDocument],acceptanceDateTime:['',...payload.filings.recent.acceptanceDateTime]};
+  await observer.observe('0000723125',{...payload,filings:{...payload.filings,recent}},async()=>{throw new Error('Unexpected archive');});
+  assert.equal(observer.failed.size,0);assert.equal(observer.observed.size,1);
+});
 test('queued SEC earnings cannot advance coverage before its durable intake handoff',async()=>{
  configureEarningsMap(graph,ids);const fx=earningsFirestore(),log={runId:'queued',emit:()=>{}} as unknown as MaintenanceLog;
  let attempted=0;
