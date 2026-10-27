@@ -43,6 +43,14 @@ test("SEC filing metadata fails closed instead of advancing past incomplete rows
   assert.equal(parseSecFilingRows({ ...columns(), isXBRL: [0], isInlineXBRL: [0] })[0].isXbrl, false);
   assert.equal(parseSecFilingRows({ ...columns(), isXBRL: undefined, isInlineXBRL: [1] })[0].isXbrl, true);
 });
+test("paper-era SEC submissions with no primary document use the accession text file", () => {
+  const legacy = { ...columns(), accessionNumber: ["0000719135-97-000008"], filingDate: ["1997-11-14"],
+    primaryDocument: [""], isXBRL: [0], isInlineXBRL: [0] };
+  assert.equal(parseSecFilingRows(legacy)[0].primaryDocument, "0000719135-97-000008.txt");
+  for (const change of [{ filingDate: ["2001-01-01"] }, { isXBRL: [1] }, { accessionNumber: ["../bad"] }]) {
+    assert.throws(() => parseSecFilingRows({ ...legacy, ...change }), /Invalid SEC/);
+  }
+});
 test("submissions archive paths and date bounds are validated", () => {
   const file = { name: "CIK0000002488-submissions-001.json", filingFrom: "2024-01-01", filingTo: "2025-12-31" };
   assert.deepEqual(parseSecSubmissions({ cik: input.cik, filings: { recent: columns(), files: [file] } }, input.cik).files, [file]);

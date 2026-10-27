@@ -33,9 +33,18 @@ export function parseSecFilingRows(value: unknown): SecFiling[] {
     }
     // Inline XBRL is itself XBRL. Missing metadata is never guessed to mean false.
     const isXbrl = xbrl === 1 || xbrl === true || inline === 1 || inline === true;
+    const accessionNumber = (v.accessionNumber as string[])[i];
+    const filingDate = (v.filingDate as string[])[i];
+    const document = (v.primaryDocument as string[])[i];
+    // SEC submissions for some pre-2001 paper-era filings omit the primary
+    // document. Their complete submission is available under the accession's
+    // .txt filename. Keep modern or XBRL rows fail-closed if metadata is missing.
+    const primaryDocument = document === "" && !isXbrl && isSecFilingDate(filingDate)
+      && filingDate < "2001-01-01" && typeof accessionNumber === "string"
+      && /^\d{10}-\d{2}-\d{6}$/.test(accessionNumber)
+      ? `${accessionNumber}.txt` : document;
     const event = createSecFilingDiscovered({ companyId: "CHECK", cik: "0000000001", form, isXbrl,
-      accessionNumber: (v.accessionNumber as string[])[i], filingDate: (v.filingDate as string[])[i],
-      primaryDocument: (v.primaryDocument as string[])[i], discoveredAt: "2000-01-01T00:00:00Z" });
+      accessionNumber, filingDate, primaryDocument, discoveredAt: "2000-01-01T00:00:00Z" });
     const row = { accessionNumber: event.accessionNumber, form, filingDate: event.filingDate, primaryDocument: event.primaryDocument, isXbrl,
       published_at:sourcePublication(Array.isArray(v.acceptanceDateTime)?v.acceptanceDateTime[i]:null) };
     const previous = accessions.get(row.accessionNumber);
