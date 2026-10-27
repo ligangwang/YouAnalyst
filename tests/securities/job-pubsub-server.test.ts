@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import { createJobSubscriber } from "../../src/lib/job-pubsub-server";
+import { createSerialAdmission } from "../../src/lib/serial-admission";
 
 test("shared push handler validates routing and acknowledges only successful processing", async t => {
   t.mock.method(console, "info", () => {}); t.mock.method(console, "error", () => {});
@@ -27,6 +28,33 @@ test("shared push handler validates routing and acknowledges only successful pro
   failed = true;
   assert.equal((await post(body())).status, 503);
   assert.equal(calls, 2);
+});
+
+test('a disconnected queued push does not execute after the worker becomes free', async t => {
+  t.mock.method(console, 'info', () => {}); t.mock.method(console, 'error', () => {});
+  const admit = createSerialAdmission({ maxWaiting: 2, waitMs: 1000 });
+  const started: string[] = [];
+  let release!: () => void, queued!: () => void, closed!: () => void;
+  const entered = new Promise<void>(resolve => { queued = resolve; });
+  const disconnected = new Promise<void>(resolve => { closed = resolve; });
+  const server = createJobSubscriber({ project: 'demo', subscription: 'worker', job: 'fixture',
+    parse: (value: unknown) => value as { batchId: string },
+    process: async (request, _log, signal) => {
+      if (request.batchId === 'abandoned') { signal.addEventListener('abort', closed, { once: true }); queued(); }
+      return admit(async () => { started.push(request.batchId); if (request.batchId === 'first') await new Promise<void>(resolve => { release = resolve; }); return {}; }, signal);
+    } });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/pubsub`;
+  const body = (batchId: string) => JSON.stringify({ subscription: 'projects/demo/subscriptions/worker', message: { data: Buffer.from(JSON.stringify({ batchId })).toString('base64') } });
+  const first = fetch(url, { method: 'POST', body: body('first') });
+  while (!release) await new Promise(resolve => setImmediate(resolve));
+  const controller = new AbortController();
+  const second = fetch(url, { method: 'POST', body: body('abandoned'), signal: controller.signal }).catch(() => undefined);
+  await entered; controller.abort(); await second; await disconnected;
+  release(); assert.equal((await first).status, 204);
+  assert.equal((await fetch(url, { method: 'POST', body: body('third') })).status, 204);
+  assert.deepEqual(started, ['first', 'third']);
 });
 
 test("additional subscriptions use their own parser and reject cross-topic payloads", async t => {

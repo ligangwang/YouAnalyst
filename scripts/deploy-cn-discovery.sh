@@ -47,7 +47,7 @@ fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-cn-discovery.cjs --min-instances 0 --max-instances "$max_instances" \
-  --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
+  --concurrency 3 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
   --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|CN_DISCOVERY_SUBSCRIPTION=$subscription|CN_DISCOVERY_QUEUE_ENABLED=${CN_DISCOVERY_QUEUE_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=${EARNINGS_COLLECTION_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format='value(status.url)')"
