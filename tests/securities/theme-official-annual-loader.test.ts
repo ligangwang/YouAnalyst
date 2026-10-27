@@ -17,5 +17,5 @@ test('missing, stale, later or incomplete sources fail closed to search',async()
   assert.equal(await loadOfficialAnnual(us,{...transport(),documentText:async()=>`Item 1. Business\n${body}`},now),null);
   assert.equal(await loadOfficialAnnual(us,{...transport(),documentText:async()=>`Portions of the annual report are incorporated by reference into Parts I, II and IV.\nItem 1. Business\n${body}Item 1A. Risk Factors`},now),null);
   const t=transport(), original=t.secIndex;t.secIndex=async cik=>{const x=await original(cik) as {cik:string;filings:{recent:{form:string[];accessionNumber:string[];filingDate:string[];primaryDocument:string[]}}};x.filings.recent.form.push('8-K');x.filings.recent.accessionNumber.push('0000051143-26-000002');x.filings.recent.filingDate.push('2026-04-01');x.filings.recent.primaryDocument.push('event.htm');return x;};
-  assert.equal(await loadOfficialAnnual(us,t,now),null);
+  let decision='';assert.equal(await loadOfficialAnnual(us,t,now,value=>{decision=value;}),null);assert.equal(decision,'newer_disclosure');
 });

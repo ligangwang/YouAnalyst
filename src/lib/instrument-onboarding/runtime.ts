@@ -19,7 +19,7 @@ export function onboardingRuntime(db:Firestore,themeBatches:EnrollmentBatch[]=[]
       const evidence=await loadBusinessEvidence(db,company);
       // Leave the experimental path disabled until real-issuer comparisons and
       // provider capacity checks have passed; ordinary onboarding stays unchanged.
-      const verifiedAnnual=process.env.THEME_EVIDENCE_FIRST_ENABLED==='1' ? await loadOfficialAnnual(company,officialAnnualTransport(db)) : null;
+      const verifiedAnnual=process.env.THEME_EVIDENCE_FIRST_ENABLED==='1' ? await loadOfficialAnnual(company,officialAnnualTransport(db),Date.now(),decision=>log.emit('INFO','theme_evidence_decision',{companyId:company.id,decision})) : null;
       return classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),evidence,verifiedAnnual:verifiedAnnual??undefined,recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})});
     },
     maintenanceReady:async()=>process.env.INSTRUMENT_ONBOARDING_MAINTENANCE_READY==='1'});
