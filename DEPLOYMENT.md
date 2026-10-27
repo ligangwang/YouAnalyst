@@ -510,3 +510,7 @@ only when change detection explicitly selected `none`. Failure, cancellation,
 missing evidence, API errors, and timeout prevent promotion. The prior website
 revision continues serving during this wait; the existing monitored promotion
 and rollback behavior is unchanged.
+
+The shared worker and directory images also build concurrently. Both builds
+must succeed and resolve to immutable digests before snapshots, subscribers,
+or jobs are deployed. A failed build drains the other build and blocks rollout.
