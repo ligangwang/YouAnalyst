@@ -586,8 +586,12 @@ jobs:
         run: npm run smoke:test
 
   deploy-production:
-    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && (needs.deploy-background-jobs.result == 'success' || needs.deploy-background-jobs.result == 'skipped') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
-    needs: [verify, verify-browser, build-release, deploy-background-jobs]
+    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
+    needs: [verify, verify-browser, build-release]
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 90
     runs-on: ubuntu-24.04
     environment: production
     env:
@@ -634,7 +638,17 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Cache installed dependencies
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            !node_modules/.cache
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Download checked release
@@ -689,6 +703,8 @@ jobs:
 
       - name: Deploy production application
         env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_WORKER_TARGET: ${{ needs.verify.outputs.workers }}
           GOOGLE_CLOUD_PROJECT: ${{ env.GCP_PROJECT_ID }}
           GOOGLE_CLOUD_REGION: ${{ env.GCP_REGION }}
           CLOUD_RUN_SERVICE_PRODUCTION: ${{ env.CLOUD_RUN_SERVICE_PRODUCTION }}

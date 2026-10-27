@@ -49,8 +49,12 @@ test('worker release passes checks before production web and uses detected targe
   const job=workflow.jobs['deploy-background-jobs'];
   assert.match(workflow.jobs['deploy-production'].if,/github.ref == 'refs\/heads\/main'/);
   assert.deepEqual(job.needs,['verify','verify-browser','build-release']);
-  assert(workflow.jobs['deploy-production'].needs.includes('deploy-background-jobs'));
-  assert.match(workflow.jobs['deploy-production'].if,/deploy-background-jobs.result == 'success'/);
+  assert(!workflow.jobs['deploy-production'].needs.includes('deploy-background-jobs'));
+  assert.equal(workflow.jobs['deploy-production'].permissions.actions, 'read');
+  const productionStep=workflow.jobs['deploy-production'].steps.find((step: {name?: string})=>step.name==='Deploy production application');
+  assert.equal(productionStep.env.EXPECTED_WORKER_TARGET,'${{ needs.verify.outputs.workers }}');
+  const script=readFileSync('scripts/deploy-cloud-run.sh','utf8');
+  assert(script.indexOf('node scripts/wait-worker-rollout.mjs') < script.indexOf('node scripts/promote-release.mjs'));
   assert.match(job.if,/!cancelled\(\)/);
   assert.match(job.if,/needs.verify.result == 'success'/);
   assert.match(job.if,/refs\/heads\/main/);assert.match(job.if,/build-release.result == 'success'/);
