@@ -30,7 +30,9 @@ test('workers overlap within the limit while shared services and intake stay ord
   const targets = ['sec-fundamentals', 'cn-fundamentals', 'eod-maintenance', 'directory', 'instrument-onboarding', 'company-graph', 'earnings', 'intelligence-news', 'sec-filings'];
   const active = new Set<string>(), done = new Set<string>();
   let peak = 0;
+  const started: string[] = [];
   await runTasks(workerTasks(targets), 3, async task => {
+    started.push(task.id);
     if (task.id === 'intelligence-news') assert(done.has('earnings'));
     if (task.id === 'sec-filings') assert.equal(done.size, targets.length - 1);
     active.add(task.id); peak = Math.max(peak, active.size);
@@ -39,6 +41,8 @@ test('workers overlap within the limit while shared services and intake stay ord
   });
   assert.equal(peak, 3);
   assert.equal(done.size, targets.length);
+  assert.deepEqual(started.slice(0, 3), ['earnings', 'instrument-onboarding', 'directory']);
+  assert.equal(started[3], 'intelligence-news');
 });
 
 test('a failed worker blocks pending work and drains active operations before rejecting', async () => {
@@ -50,7 +54,7 @@ test('a failed worker blocks pending work and drains active operations before re
     await delay(10); drained = true;
   }), /rollout failed/);
   assert(drained);
-  assert.deepEqual(started, ['sec-fundamentals', 'earnings']);
+  assert.deepEqual(started, ['earnings', 'sec-fundamentals']);
 });
 
 test('serial fallback and narrow targets still complete', async () => {

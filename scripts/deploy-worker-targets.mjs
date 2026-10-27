@@ -4,7 +4,11 @@ import { runTasks } from './lib/deploy-tasks.mjs';
 const allowed = new Set(['sec-fundamentals', 'cn-fundamentals', 'eod-maintenance', 'directory', 'instrument-onboarding', 'company-graph', 'earnings', 'intelligence-news', 'sec-filings']);
 export function workerTasks(targets) {
   for (const target of targets) if (!allowed.has(target)) throw new Error(`Unknown worker: ${target}`);
-  return targets.map(id => ({
+  // Start the earnings -> news chain early; otherwise short unrelated jobs
+  // postpone the longest dependency chain while later pool slots sit idle.
+  const priority = ['earnings', 'intelligence-news', 'instrument-onboarding', 'directory'];
+  const rank = id => priority.includes(id) ? priority.indexOf(id) : priority.length;
+  return [...targets].sort((a, b) => rank(a) - rank(b)).map(id => ({
     id,
     // Never switch SEC intake until all consumers have finished. Earnings and
     // news both update CN discovery, so those deployments must not overlap.
