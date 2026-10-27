@@ -157,9 +157,6 @@ function document(db:Firestore,id:string,data:DocumentData|undefined,collection:
 }
 export function companySourceSnapshot(db:Firestore,source:object):Promise<unknown>|undefined {
  const spec=state.sources.get(source);if(!spec||!companyDirectoryEnabled(db,spec.collection))return undefined;
- // Entity snapshots deliberately exclude metadata documents. A cache miss for
- // a batch ledger or lease must never masquerade as an absent live document.
- if(spec.id?.startsWith('_'))return undefined;
  // Enable only after legacy price writers drain, timestamps are migrated, and a snapshot is published.
  if(spec.collection==='eod_prices'&&process.env.PRICE_SNAPSHOT_READY!=='1')return undefined;
  const plan=spec.collection==='eod_prices'?pricePlan(spec.id,spec.steps):undefined;
