@@ -19,7 +19,7 @@ async function main(){
     const company={...doc.data(),id} as ThemedCompany;let decision='unknown';
     const annual=await loadOfficialAnnual(company,officialAnnualTransport(db),Date.now(),value=>{decision=value;});
     if(!annual){console.log(JSON.stringify({companyId:id,status:'not_comparable',decision}));process.exitCode=1;continue;}
-    if(annual.text.length>MAX_CLASSIFICATION_EVIDENCE_CHARS){console.log(JSON.stringify({companyId:id,status:'not_comparable',decision:'evidence_too_large'}));process.exitCode=1;continue;}
+    if(annual.text.length+(annual.supplemental??[]).reduce((sum,item)=>sum+item.text.length,0)>MAX_CLASSIFICATION_EVIDENCE_CHARS){console.log(JSON.stringify({companyId:id,status:'not_comparable',decision:'evidence_too_large'}));process.exitCode=1;continue;}
     prepared.push({company,annual});
   }
   // Don't make paid model calls if either market lacks usable complete evidence.

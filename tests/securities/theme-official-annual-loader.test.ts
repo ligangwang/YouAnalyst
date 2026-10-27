@@ -11,6 +11,19 @@ function transport():OfficialAnnualTransport{return {
 test('loads complete, independently indexed US and A-share annual sections',async()=>{
   for(const company of [us,cn]){const value=await loadOfficialAnnual(company,transport(),now);assert(value);assert.match(value.text,/operating segments/);}
 });
+test('loads every bounded later A-share disclosure or falls back without partial evidence',async()=>{
+  const t=transport();
+  t.cnIndex=async()=>({orgId:'gshk0000981',pages:[{announcements:[
+    {secCode:'688981',orgId:'gshk0000981',announcementId:'100',adjunctUrl:'finalpage/2026-03-01/100.PDF',announcementTitle:'2025年年度报告'},
+    {secCode:'688981',orgId:'gshk0000981',announcementId:'101',adjunctUrl:'finalpage/2026-04-01/101.PDF',announcementTitle:'后续公告'}
+  ],hasMore:false,totalAnnouncement:2}]});
+  t.documentText=async(_company,item)=>item.documentId==='100'?`第三节 管理层讨论与分析\n${body}第四节 公司治理`:'Later company disclosure with complete text. '.repeat(5);
+  const evidence=await loadOfficialAnnual(cn,t,now);
+  assert.equal(evidence?.supplemental?.length,1);
+  assert.equal(evidence?.supplemental?.[0].documentId,'101');
+  t.documentText=async(_company,item)=>item.documentId==='100'?`第三节 管理层讨论与分析\n${body}第四节 公司治理`:'详见附件 '+body;
+  assert.equal(await loadOfficialAnnual(cn,t,now),null);
+});
 test('missing, stale, later or incomplete sources fail closed to search',async()=>{
   assert.equal(await loadOfficialAnnual(us,{...transport(),secIndex:async()=>{throw Error('offline');}},now),null);
   assert.equal(await loadOfficialAnnual(cn,{...transport(),cnIndex:async()=>null},now),null);
