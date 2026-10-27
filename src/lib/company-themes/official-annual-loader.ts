@@ -25,8 +25,14 @@ export async function loadOfficialAnnual(company:ThemedCompany,transport:Officia
     }else return null;
     // Never read a document when the index already indicates newer material.
     if(!annual||annual.laterDisclosures)return null;
-    const text=completeAnnualSection(await transport.documentText(company,annual),market);
+    const document=await transport.documentText(company,annual);
+    // A report may incorporate its business discussion from a separate filing.
+    // Until those referenced documents are resolved, section boundaries alone
+    // are not evidence that the issuer's business narrative is complete.
+    if(market==='US' && /incorporated\s+by\s+reference\s+into\s+parts?\s+i\b/i.test(document))return null;
+    const text=completeAnnualSection(document,market);
     if(!text)return null;
+    if(/incorporated\s+by\s+reference/i.test(text))return null;
     const evidence:OfficialAnnualEvidence={companyId:company.id,issuerId,documentId:annual.documentId,latestAnnualId:annual.documentId,
       url:annual.url,text,textSha256:createHash('sha256').update(text,'utf8').digest('hex'),fullText:true,filedAt:annual.filedAt,
       indexCheckedAt:new Date(now).toISOString(),laterMaterialChanges:false};
