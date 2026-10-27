@@ -27,6 +27,13 @@ test('evidence-only no-match falls back to the official search path exactly once
  const fetcher:typeof fetch=async(_url,init)=>{calls++;const body=JSON.parse(String(init?.body));assert.equal(body.tools===undefined,calls===1);return Response.json({status:'completed',output:[...(calls===1?[]:[{type:'web_search_call',action:{sources:[{url:source.url}]}}]),{type:'message',content:[{type:'output_text',text:JSON.stringify(calls===1?empty:matched)}]}]});};
  assert.deepEqual(await classifyOfficialThemes(company,catalog,{key:'fixture',verifiedAnnual,fetcher}),matched);assert.equal(calls,2);
 });
+test('later disclosure is supplied in full and can be cited without search',async()=>{
+ const text='Annual business details. '.repeat(60),laterText='The company manufactures industrial robots. '.repeat(20),now=new Date().toISOString(),laterUrl='https://www.sec.gov/Archives/edgar/data/123/later.htm';
+ const verifiedAnnual={companyId:company.id,issuerId:'sec:0000000123',documentId:'1',latestAnnualId:'1',url:source.url,text,textSha256:createHash('sha256').update(text).digest('hex'),fullText:true,filedAt:now.slice(0,10),indexCheckedAt:now,unresolvedDisclosures:false,supplemental:[{documentId:'2',url:laterUrl,title:'Later disclosure',filedAt:now.slice(0,10),text:laterText,textSha256:createHash('sha256').update(laterText).digest('hex')}]};
+ const result={companyId:company.id,description:'Builds industrial robots.',assignments:[{...assignment('robotics'),sources:[{...source,url:laterUrl}]}]};
+ const fetcher:typeof fetch=async(_url,init)=>{const body=JSON.parse(String(init?.body)),input=JSON.parse(body.input);assert.equal(body.tools,undefined);assert.equal(input.businessEvidence[1].text,laterText);return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});};
+ assert.deepEqual(await classifyOfficialThemes(company,catalog,{key:'fixture',verifiedAnnual,fetcher}),result);
+});
 test('only old missing-theme blockers resume automatically; identity and financial failures stay untouched',()=>{
  const request={status:'BLOCKED',lastError:LEGACY_THEME_BLOCK,steps:{identity:'COMPLETE' as const}};
  assert(canResumeAutomaticThemes(request));assert(!canResumeAutomaticThemes({...request,lastError:'prices: failed'}));assert(!canResumeAutomaticThemes({...request,steps:{}}));assert(!canResumeAutomaticThemes({...request,steps:{identity:'COMPLETE',themes:'COMPLETE'}}));assert(!canResumeAutomaticThemes({...request,status:'SUPPORTED'}));
