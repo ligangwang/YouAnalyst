@@ -5,13 +5,15 @@ import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
 import { processFundamentalsBatch, publishPendingFundamentals, verifyFundamentalsDelivery } from "../../src/lib/fundamentals/pubsub-batch";
 import { fundamentalsVersion, parseFundamentalsRequest, type FundamentalsRequest, type FundamentalsUpdate } from "../../src/lib/fundamentals/pubsub";
+import { liveCompanyReads } from '../../src/lib/local-cache/company-directory';
 
 type Data = Record<string, unknown>;
-function fixture(initial: Record<string, Data> = {}) {
+function fixture(initial: Record<string, Data> = {}, staleLedger = false) {
   const rows = new Map<string, Data>(Object.entries(initial));
   const snap = (id: string) => ({ id, ref:ref(id), data: () => rows.has(id) ? structuredClone(rows.get(id)) : undefined,
     get: (key: string) => rows.get(id)?.[key] });
-  const ref = (id: string) => ({ id, firestore: db, get: async () => snap(id),
+  const ref = (id: string) => ({ id, firestore: db, get: async () => staleLedger && id.startsWith('_batch_') && !liveCompanyReads()
+    ? { ...snap(id), data: () => undefined, get: () => undefined } : snap(id),
     set: async (data: Data) => { rows.set(id, { ...rows.get(id), ...data }); },
     create: async (data: Data) => { assert.ok(!rows.has(id)); rows.set(id, data); } });
   const db = { collection: () => ({ doc: ref, where: (field: string, _operator: string, value: unknown) => {
@@ -56,6 +58,63 @@ test("redelivery skips completed companies and duplicate result publication", as
   const b = await processFundamentalsBatch(request(), f.db, f.log, f.publish, f);
   assert.equal(a.completed, 2); assert.equal("duplicate" in b && b.duplicate, true);
   assert.deepEqual(f.calls, ["AMD", "NVDA"]); assert.equal(f.events.length, 1);
+});
+test('duplicate verification uses authoritative ledger reads even when the snapshot is stale', async () => {
+  const f = fixture(Object.fromEntries(['AMD','NVDA'].map(ticker => [`US:${ticker}`, {outcome:'ready',pending:false,value:{metrics:{revenue:10}}}])), true);
+  const probe = {...request(),reason:'verification' as const};
+  assert.equal((await processFundamentalsBatch(probe, f.db, f.log, f.publish, f)).completed, 2);
+  const result = await processFundamentalsBatch(probe, f.db, {...f.log,runId:'duplicate'}, f.publish, f);
+  assert.equal('duplicate' in result && result.duplicate, true);
+  assert.equal(f.rows.get('_batch_batch-1')?.verificationDuplicateRunId, 'duplicate');
+  assert.equal(f.rows.get('_batch_batch-1')?.manualRequired, false);
+  assert.equal(f.rows.get('US:AMD')?.outcome, 'ready');
+});
+test('failed verification records the batch for admin without changing cached companies', async () => {
+  const f = fixture({ 'US:AMD': {outcome:'ready',pending:false,value:{metrics:{revenue:10}}}, _worker:{leaseExpiresAtMs:Date.now()+60000} });
+  const before = structuredClone(f.rows.get('US:AMD'));
+  const result = await processFundamentalsBatch({...request(['AMD']),reason:'verification'}, f.db, f.log, f.publish, f);
+  assert.equal(result.status, 'needs_admin');
+  assert.deepEqual(f.rows.get('US:AMD'), before);
+  assert.equal(f.rows.get('_batch_batch-1')?.manualRequired, true);
+});
+test('verification does not rewrite an already failed company', async () => {
+  const f=fixture({'US:AMD':{outcome:'retry',pending:true,lastError:{message:'existing failure'}}});
+  const before=structuredClone(f.rows.get('US:AMD'));
+  const result=await processFundamentalsBatch({...request(['AMD']),reason:'verification'},f.db,f.log,f.publish,f);
+  assert.equal(result.status,'needs_admin');
+  assert.deepEqual(f.rows.get('US:AMD'),before);
+});
+test('admin rerun repairs only company errors proven to be from the completed duplicate probe', async () => {
+  const probe = {...request(['AMD']),reason:'verification' as const};
+  const value = {metrics:{revenue:10}};
+  const message = '6 ALREADY_EXISTS: Document already exists: projects/p/databases/(default)/documents/company_fundamentals/_batch_batch-1';
+  const f = fixture({ 'US:AMD':{outcome:'error',pending:false,value,lastError:{message}},
+    '_batch_batch-1':{request:probe,manualRequired:true,completed:true,lastError:{code:6,message},progress:{AMD:{completed:true,version:fundamentalsVersion(value)}}} });
+  let sent: FundamentalsRequest | undefined;
+  assert.equal(await rerunFundamentalsBatch(f.db,'batch-1','admin',async r=>{sent=r;}),true);
+  assert.equal(f.rows.get('US:AMD')?.outcome,'ready');
+  assert.equal(f.rows.get('_batch_batch-1')?.completed,true);
+  assert.deepEqual(sent,probe);
+  const duplicate = await processFundamentalsBatch(sent,f.db,{...f.log,runId:'retry'},f.publish,f);
+  assert.equal('duplicate' in duplicate && duplicate.duplicate,true);
+  assert.deepEqual(f.calls,[]);
+});
+test('admin verification rerun refuses to overwrite unrelated company failures', async () => {
+  const probe = {...request(['AMD']),reason:'verification' as const};
+  const value={metrics:{revenue:10}}, message='6 ALREADY_EXISTS: /company_fundamentals/_batch_batch-1';
+  const f=fixture({'US:AMD':{outcome:'error',pending:false,value,lastError:{message:'different failure'}},
+    '_batch_batch-1':{request:probe,manualRequired:true,completed:true,lastError:{code:6,message},progress:{AMD:{completed:true,version:fundamentalsVersion(value)}}} });
+  await assert.rejects(rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{}),/review company failures/);
+  assert.equal(f.rows.get('US:AMD')?.outcome,'error');
+  assert.equal(f.rows.get('_batch_batch-1')?.manualRequired,true);
+});
+test('verification retry with a publish failure restores the admin hold without changing healthy companies', async () => {
+  const probe={...request(['AMD']),reason:'verification' as const};
+  const company={outcome:'ready',pending:false,value:{metrics:{revenue:10}}};
+  const f=fixture({'US:AMD':company,'_batch_batch-1':{request:probe,manualRequired:true,progress:{}}});
+  await assert.rejects(rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{throw Error('offline');}),/offline/);
+  assert.deepEqual(f.rows.get('US:AMD'),company);
+  assert.equal(f.rows.get('_batch_batch-1')?.manualRequired,true);
 });
 test("partial failure publishes successful changes and holds failures for admin", async () => {
  const f=fixture();const refresh=async(ticker:string)=>{if(ticker==='NVDA')throw Error('temporary failure');return f.refresh(ticker);};
