@@ -87,6 +87,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const labelFadeUntil = useRef(new WeakMap<HTMLElement, number>());
   const labelClearSince = useRef(new WeakMap<HTMLElement, number>());
   const lastLabelView = useRef<number[]>([]);
+  const edgeScales = useRef(new WeakMap<HTMLElement, number>());
   const companyScales = useRef(new WeakMap<HTMLElement, number>());
   const reducedMotion = useRef(false);
   const { size, camera, invalidate, gl } = useThree();
@@ -664,9 +665,9 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
     const close=camera.position.distanceTo(target)<fitDistance*.68;
     const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.5,fitDistance*.65/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
-    // Update font sizes without synchronously measuring layout in this frame.
+    // Composite distance scaling without changing the labels' text layout.
     let scalesSettling=false;
-    // Ease the actual font dimensions, so collision measurement follows what is rendered.
+    // Collision boxes follow the same eased scale as the painted label.
     const blend=1-Math.exp(-Math.min(delta,.05)/.12);
     for(const n of layout.nodes){
       const element=labelElements.current.get(n.id);if(!element)continue;
@@ -682,8 +683,17 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       else element.style.removeProperty("--label-emphasis");
     }
     if(scalesSettling)invalidate();
-    for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
-    const measurements=labelSizes.current;
+    for(const edge of edgeLabels){
+      const element=edgeElements.current.get(edge.id);if(!element)continue;
+      const scale=edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z);
+      edgeScales.current.set(element,scale);
+      element.style.setProperty("--label-scale",String(scale));
+    }
+    const measurementFor=(element:HTMLElement)=>{
+      const base=labelSizes.current.get(element);if(!base)return;
+      const scale=companyScales.current.get(element)??edgeScales.current.get(element)??1;
+      return {width:base.width*scale,height:base.height*scale};
+    };
     // Reserve exits before admitting any new labels, regardless of depth order.
     if(fadeMs)for(const n of layout.nodes){
       const element=labelElements.current.get(n.id);
@@ -691,7 +701,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       invalidate();
       projected.set(n.x,n.y,n.z).project(camera);
       if(projected.z<=-1 || projected.z>=1)continue;
-      const measurement=measurements.get(element);if(!measurement)continue;
+      const measurement=measurementFor(element);if(!measurement)continue;
       const {width,height}=measurement;
       const dx=parseFloat(element.style.getPropertyValue("--label-offset-x"))||0,dy=parseFloat(element.style.getPropertyValue("--label-offset-y"))||0;
       occupied.push({x:(projected.x+1)*size.width/2+dx,y:(1-projected.y)*size.height/2+dy,w:width,h:height,owner:element,retiring:true});
@@ -707,7 +717,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       const element=edgeElements.current.get(edge.id);if(!element)continue;
       positionLabel(element,edge.x,edge.y,edge.z,edge.id===displayedEdge);
       const endpointVisible=(edgeTargets.get(edge.id) ?? 0) > 0 && edge.id===displayedEdge && (visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target));
-      const measurement=measurements.get(element);if(!measurement)continue;
+      const measurement=measurementFor(element);if(!measurement)continue;
       const {width,height}=measurement;
       let visible=false;
       if(edge.id===displayedEdge && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:width,h:height});visible=true;}
@@ -728,7 +738,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     let shown=0;
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
-      const measurement=measurements.get(element);if(!measurement)continue;
+      const measurement=measurementFor(element);if(!measurement)continue;
       const {width,height}=measurement;
       positionLabel(element,n.x,n.y,n.z);
       const depth=-projected.set(n.x,n.y,n.z).applyMatrix4(camera.matrixWorldInverse).z;
