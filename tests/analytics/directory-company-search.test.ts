@@ -37,6 +37,7 @@ test('directory search includes unthemed companies, exposes public states and re
   assert.equal(response.status,200);const {items}=await response.json();
   assert.deepEqual(Object.fromEntries(items.map((i:{id:string;supportState:string})=>[i.id,i.supportState])),{'US:ABC':'ELIGIBLE','US:NOCIK':'CIK_UNMATCHED','XSHG:600000':'ELIGIBLE','US:QUEUED':'QUEUED','US:READY':'SUPPORTED'});
   assert.equal(JSON.stringify(items).includes('private detail'),false);assert.equal(fullReads,0);assert.deepEqual(limits,[50,50,20]);
+  assert.equal(items.find((item:{id:string})=>item.id==='US:READY').hasThemes,false,'support without theme uses company-page search navigation');
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore),true,'search scope does not disable snapshots for other requests');
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore,'instruments'),true);
 });
