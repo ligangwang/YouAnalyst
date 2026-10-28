@@ -8,10 +8,12 @@ import { companyPageUrl } from '@/lib/market-companies/routes';
 import { localizedPath } from '@/lib/ui/i18n/urls';
 import { createPortal } from 'react-dom';
 import {useOptionalAuth} from '@/components/providers/auth-provider';
+import {useCompanySearchActivity} from './company-search-activity';
 
 export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
+  useCompanySearchActivity(enabled && open);
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
   const [featuredCount,setFeaturedCount]=useState<number|null>(null);
   const auth=useOptionalAuth();
@@ -23,16 +25,19 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId(), composing = useRef(false);
   const queuedQuery = useRef<string | null>(null), destination = useRef({onSelect, locale});
+  const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
+  const searchPending = searched.length > 0 && results?.query !== searched;
   useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
   useEffect(()=>{
-    if(!enabled||(!inline&&!open)||featuredCount!==null)return;
+    if(!enabled||(!inline&&!open)||featuredCount!==null||searchPending)return;
     const controller=new AbortController();
-    void fetch('/api/tickers/search?scope=covered&limit=1',{signal:controller.signal,cache:'no-store'})
+    // Coverage is secondary: do not start the graph-backed count while the user
+    // is opening search or waiting for their first suggestions.
+    const timer=setTimeout(()=>{void fetch('/api/tickers/search?scope=covered&limit=1',{signal:controller.signal,cache:'no-store'})
       .then(async response=>{if(!response.ok)return;const data=await response.json();if(!controller.signal.aborted&&Number.isSafeInteger(data.total)&&data.total>=0)setFeaturedCount(data.total);})
-      .catch(()=>{});
-    return()=>controller.abort();
-  },[enabled,inline,open,featuredCount]);
-  const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
+      .catch(()=>{});},1000);
+    return()=>{clearTimeout(timer);controller.abort();};
+  },[enabled,inline,open,featuredCount,searchPending]);
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
   const choose = useCallback((item: SearchSuggestion) => { close(); if (clearOnSelect) { setQuery(''); setResults(null); } const current = destination.current; if (current.onSelect && item.supportState === 'SUPPORTED' && (owner!=='workspace'||item.hasThemes!==false)) current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.companyId??(item.market === 'GLOBAL' ? item.id : item.symbol), item.market, item.slug), current.locale)); }, [close, clearOnSelect,owner]);
