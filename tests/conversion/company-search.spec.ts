@@ -131,6 +131,17 @@ test('Enter before suggestions arrive opens the best match once the pending requ
  await open(page,'',600);await launch(page);await input(page).fill('nvidia');await input(page).press('Enter');
  await expect(page.getByText('Destination /en/company/nvidia',{exact:true})).toBeVisible();
 });
+
+test('fresh suggestions take priority over the graph-backed coverage count',async({page})=>{
+ let countRequests=0;
+ page.on('request',request=>{const url=new URL(request.url());if(url.pathname==='/api/tickers/search'&&!url.searchParams.has('q'))countRequests++;});
+ await open(page,'',1500);await launch(page);await input(page).fill('nvidia');
+ await page.waitForTimeout(1100);
+ expect(countRequests).toBe(0);
+ await expect(page.getByRole('option')).toHaveCount(2);
+ await expect(page.getByText('123 stocks featured',{exact:true})).toBeVisible();
+ expect(countRequests).toBe(1);
+});
 test('editing or dismissing a pending Enter never opens a stale company',async({page})=>{
  const searches=await open(page,'',600);await launch(page);await input(page).fill('nvidia');
  await expect.poll(()=>searches.length).toBe(1);await input(page).press('Enter');await input(page).fill('openai');

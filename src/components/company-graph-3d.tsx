@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
+import {isCompanySearchActive, useCompanySearchActive} from './company-search-activity';
 import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
@@ -152,6 +153,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       const c=controls.current;
       const editing=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
       gl.domElement.closest('[data-graph-interaction]')?.toggleAttribute('data-editing-form',editing);
+      // Search can stop the frame loop before its next diagnostic update.
+      if (editing) gl.domElement.dataset.rotation = 'input';
       if(c&&editing){
         void c.setLookAt(...c.getPosition(new Vector3(),false).toArray(),...c.getTarget(new Vector3(),false).toArray(),false);
       }
@@ -422,6 +425,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
+    if (isCompanySearchActive()) return;
     if(crowded && performance.now()-densityLast.current>200){
       densityLast.current=performance.now();
       const points=layout.nodes.map(n=>{const p=new Vector3(n.x,n.y,n.z).project(camera);return {id:n.id,x:(p.x+1)*size.width/2,y:(1-p.y)*size.height/2,depth:p.z,priority:n.id===selected||n.id===hovered||edgeEndpoints.has(n.id)?3:focusedCompanies?.has(n.id)||sectorMembers.has(n.id)?2:1};}).filter(p=>p.depth>-1&&p.depth<1);
@@ -711,6 +715,8 @@ function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
+  const searchActive = useCompanySearchActive();
+  const [rendererStarted, setRendererStarted] = useState(false);
   const introOrbitRef = useRef(true);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [contextLost,setContextLost]=useState(false);
@@ -732,6 +738,7 @@ export default function CompanyGraph3D(props: Props) {
   const retry=()=>{setContextLost(false);setSupported(null);setAttempt(value=>value+1);};
   const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
+    if (searchActive || supported !== null) return;
     let active = true;
     void Promise.resolve().then(() => {
       let available = false;
@@ -743,10 +750,10 @@ export default function CompanyGraph3D(props: Props) {
       if (active) setSupported(available);
     });
     return () => { active = false; };
-  }, [attempt]);
+  }, [attempt, searchActive, supported]);
   const fallback = <GraphUnavailable onRetry={retry}/>;
-  if (!supported) return <div className={styles.canvas3d}>
-    {supported === null ? <p role="status" className={styles.empty}><LoadingSpinner/>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
+  if (!supported || (searchActive && !rendererStarted)) return <div className={styles.canvas3d}>
+    {supported !== false ? <p role="status" className={styles.empty}><LoadingSpinner/>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
     {props.musicControls && <UniverseMusicToggle/>}
   </div>;
   return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}
@@ -756,7 +763,7 @@ export default function CompanyGraph3D(props: Props) {
     onPointerUpCapture={scheduleHoverHint}
     onWheelCapture={hideHoverHint}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} light={false} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onCreated={()=>setRendererStarted(true)} onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost||searchActive?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} light={false} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
