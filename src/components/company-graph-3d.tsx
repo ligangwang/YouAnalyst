@@ -153,6 +153,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       const c=controls.current;
       const editing=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
       gl.domElement.closest('[data-graph-interaction]')?.toggleAttribute('data-editing-form',editing);
+      // Search can stop the frame loop before its next diagnostic update.
+      if (editing) gl.domElement.dataset.rotation = 'input';
       if(c&&editing){
         void c.setLookAt(...c.getPosition(new Vector3(),false).toArray(),...c.getTarget(new Vector3(),false).toArray(),false);
       }
