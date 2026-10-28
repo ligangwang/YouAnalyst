@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
+import { FieldPath } from 'firebase-admin/firestore';
 
 type Data = Record<string, unknown>;
 export function earningsFirestore() {
@@ -29,12 +30,17 @@ export function earningsFirestore() {
     get: (field: string) => structuredClone(field.split(".").reduce<unknown>((value, key) => (value as Data | undefined)?.[key], rows.get(path))) });
   type Ref = ReturnType<typeof ref>;
   const collection = (name: string) => {
-    const makeQuery = (filters: Array<[string, unknown]> = [], bound = 1000, after = "") => {
+    const makeQuery = (filters: Array<[string | FieldPath, string, unknown]> = [], bound = Infinity, after = "") => {
       const matching = () => [...rows].filter(([path, value]) => path.startsWith(name + "/") && path.slice(name.length + 1) > after
-        && filters.every(([field, expected]) => field.split(".").reduce<unknown>((v, key) => (v as Data | undefined)?.[key], value) === expected))
+        && filters.every(([field, op, expected]) => {
+          const actual = field instanceof FieldPath ? path.slice(name.length + 1) : field.split('.').reduce<unknown>((v, key) => (v as Data | undefined)?.[key], value);
+          if (op === '>=') return String(actual) >= String(expected);
+          if (op === '<') return String(actual) < String(expected);
+          return actual === expected;
+        }))
         .sort(([a], [b]) => a.localeCompare(b));
       return { doc: (id: string) => ref(`${name}/${id}`),
-        where: (field: string, op: string, value: unknown) => { assert.equal(op, "=="); return makeQuery([...filters, [field, value]], bound, after); },
+        where: (field: string | FieldPath, op: string, value: unknown) => { assert(['==', '>=', '<'].includes(op)); return makeQuery([...filters, [field, op, value]], bound, after); },
         orderBy: () => makeQuery(filters, bound, after), limit: (n: number) => makeQuery(filters, n, after),
         startAfter: (id: string) => makeQuery(filters, bound, id),
         count: () => ({ get: async () => ({ data: () => ({ count: matching().length }) }) }),
