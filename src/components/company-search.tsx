@@ -8,12 +8,10 @@ import { companyPageUrl } from '@/lib/market-companies/routes';
 import { localizedPath } from '@/lib/ui/i18n/urls';
 import { createPortal } from 'react-dom';
 import {useOptionalAuth} from '@/components/providers/auth-provider';
-import {useCompanySearchActivity} from './company-search-activity';
 
 export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
-  useCompanySearchActivity(enabled && open);
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
   const [featuredCount,setFeaturedCount]=useState<number|null>(null);
   const auth=useOptionalAuth();

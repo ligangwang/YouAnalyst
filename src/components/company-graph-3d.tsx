@@ -1,10 +1,9 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
-import {isCompanySearchActive, useCompanySearchActive} from './company-search-activity';
 import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { IntelligencePropagation } from './intelligence-propagation';
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
@@ -36,9 +35,18 @@ const lightLineTint = new Color("#536e89");
 const lightHighlightedLineTint = new Color("#176d85");
 const lightFocusedLineTint = new Color("#075f7e");
 
+const overlayPosition = (): [number, number] => [0, 0];
 const flagCountries = new Set(["CA", "CN", "FR", "GB", "IE", "NL", "SG", "TW", "US"]);
+const countryNames = new Map<string, Intl.DisplayNames>();
 function countryName(country: string | undefined, locale: string) {
-  return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
+  if (!country || !flagCountries.has(country)) return undefined;
+  let names = countryNames.get(locale);
+  if (!names) { names = new Intl.DisplayNames([locale], { type: "region" }); countryNames.set(locale, names); }
+  return names.of(country);
+}
+function editingGraphForm() {
+  const element = document.activeElement;
+  return Boolean(element?.matches('input,textarea,[contenteditable="true"]') && !element.closest('[data-company-search]'));
 }
 
 type Props = { companyFocus?: string[]; intelligence?: {origin:string;edges:string[]}; musicControls?: boolean; showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
@@ -151,9 +159,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     // on blur so it resumes from the same camera position.
     const formFocus=()=>{
       const c=controls.current;
-      const editing=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
+      const editing=editingGraphForm();
       gl.domElement.closest('[data-graph-interaction]')?.toggleAttribute('data-editing-form',editing);
-      // Search can stop the frame loop before its next diagnostic update.
       if (editing) gl.domElement.dataset.rotation = 'input';
       if(c&&editing){
         void c.setLookAt(...c.getPosition(new Vector3(),false).toArray(),...c.getTarget(new Vector3(),false).toArray(),false);
@@ -169,6 +176,46 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     return ()=>{media.removeEventListener("change",update);document.removeEventListener("visibilitychange",update);document.removeEventListener('focusin',formFocus);document.removeEventListener('focusout',formFocus);};
   },[invalidate,gl,introOrbitRef]);
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
+  // ResizeObserver delivers dimensions after browser layout, without a synchronous
+  // read-after-write layout flush in the animation loop. It also tracks fonts,
+  // translated text, price updates and responsive CSS.
+  const labelSizes = useRef(new WeakMap<HTMLElement, {width:number;height:number}>());
+  const labelObserver = useRef<ResizeObserver | null>(null);
+  useEffect(() => {
+    const observer = new ResizeObserver(entries => {
+      let changed = false;
+      for (const entry of entries) {
+        const box = entry.borderBoxSize[0];
+        if (!box) continue;
+        const element = entry.target as HTMLElement;
+        const previous = labelSizes.current.get(element);
+        if (previous?.width === box.inlineSize && previous?.height === box.blockSize) continue;
+        labelSizes.current.set(element, {width:box.inlineSize,height:box.blockSize});
+        changed = true;
+      }
+      if (changed) invalidate();
+    });
+    labelObserver.current = observer;
+    for (const element of [...labelElements.current.values(), ...edgeElements.current.values()]) observer.observe(element,{box:"border-box"});
+    return () => { observer.disconnect(); labelObserver.current = null; };
+  }, [invalidate]);
+  const registerLabel = (map: Map<string, HTMLButtonElement>, id: string, element: HTMLButtonElement | null) => {
+    const previous = map.get(id);
+    if (previous === element) return;
+    if (previous) labelObserver.current?.unobserve(previous);
+    if (element) { map.set(id, element); labelObserver.current?.observe(element,{box:"border-box"}); invalidate(); }
+    else map.delete(id);
+  };
+  const positionLabel = (element: HTMLElement, x: number, y: number, z: number, pinned = false) => {
+    const wrapper = element.parentElement!.parentElement!;
+    projected.set(x,y,z).project(camera);
+    const position = pinned ? activeLabelPosition({x,y,z}) : [(projected.x+1)*size.width/2,(1-projected.y)*size.height/2];
+    wrapper.style.transform = `translate3d(${position[0]}px,${position[1]}px,0)`;
+    wrapper.style.zIndex = pinned ? '25' : element.hasAttribute('data-company-id') ? '20' : '19';
+    // Pinned summaries are clamped to the viewport even when their midpoint is
+    // behind the camera; endpoint visibility still controls whether they show.
+    wrapper.style.display = pinned || (projected.z > -1 && projected.z < 1) ? '' : 'none';
+  };
   const projected = useMemo(() => new Vector3(), []);
   const [pointHovered, setPointHovered] = useState("");
   const [labelHovered, setLabelHovered] = useState("");
@@ -317,7 +364,9 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const lastSelected=useRef("");
   const restoredView=useRef(false);
   const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number;width:number;height:number}|null>(null);
-  useEffect(() => {
+  // Apply selection framing before the next paint; a shared overlay can commit
+  // its selection while a passive effect is still waiting behind animation work.
+  useLayoutEffect(() => {
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
@@ -374,7 +423,11 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     const distance = opening && !reduced ? d * 1.4 : d;
     const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
-    const fitted=n?fitSelectionCamera(neighbors,direction,size.width,size.height,layout.radius):null;
+    // The detail card changes the viewport in this commit. Fiber's resize
+    // observer reports that size later; framing against its previous size would
+    // produce a second camera jump. Measure once on selection, never per frame.
+    const selectionSize=n?gl.domElement.parentElement?.getBoundingClientRect():null;
+    const fitted=n?fitSelectionCamera(neighbors,direction,selectionSize?.width||size.width,selectionSize?.height||size.height,layout.radius):null;
     const position=fitted?.position??new Vector3(x,y,z).addScaledVector(direction,distance);
     const target=fitted?.target??new Vector3(x,y,z);
     if(!fitted&&position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
@@ -383,7 +436,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     // for sector navigation and the automatic tour.
     void c.setLookAt(...position.toArray(),...target.toArray(),!n&&!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
@@ -425,14 +478,13 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
-    if (isCompanySearchActive()) return;
     if(crowded && performance.now()-densityLast.current>200){
       densityLast.current=performance.now();
       const points=layout.nodes.map(n=>{const p=new Vector3(n.x,n.y,n.z).project(camera);return {id:n.id,x:(p.x+1)*size.width/2,y:(1-p.y)*size.height/2,depth:p.z,priority:n.id===selected||n.id===hovered||edgeEndpoints.has(n.id)?3:focusedCompanies?.has(n.id)||sectorMembers.has(n.id)?2:1};}).filter(p=>p.depth>-1&&p.depth<1);
       const next=densitySelection(points,size.width,size.height);
       setRenderedIds(previous=>previous.length===next.length&&previous.every((id,i)=>id===next[i])?previous:next);
     }
-    const editingForm=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
+    const editingForm=editingGraphForm();
     const immediate=reducedMotion.current||editingForm;
     const surface=gl.domElement.closest('[data-graph-interaction]');
     if(surface&&surface.hasAttribute('data-editing-form')!==editingForm)surface.toggleAttribute('data-editing-form',editingForm);
@@ -612,7 +664,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
     const close=camera.position.distanceTo(target)<fitDistance*.68;
     const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.5,fitDistance*.65/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
-    // Write all font sizes first, then measure the actual rendered labels in one batch.
+    // Update font sizes without synchronously measuring layout in this frame.
     let scalesSettling=false;
     // Ease the actual font dimensions, so collision measurement follows what is rendered.
     const blend=1-Math.exp(-Math.min(delta,.05)/.12);
@@ -631,7 +683,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     }
     if(scalesSettling)invalidate();
     for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
-    const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
+    const measurements=labelSizes.current;
     // Reserve exits before admitting any new labels, regardless of depth order.
     if(fadeMs)for(const n of layout.nodes){
       const element=labelElements.current.get(n.id);
@@ -639,7 +691,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       invalidate();
       projected.set(n.x,n.y,n.z).project(camera);
       if(projected.z<=-1 || projected.z>=1)continue;
-      const {width,height}=measurements.get(element)!;
+      const measurement=measurements.get(element);if(!measurement)continue;
+      const {width,height}=measurement;
       const dx=parseFloat(element.style.getPropertyValue("--label-offset-x"))||0,dy=parseFloat(element.style.getPropertyValue("--label-offset-y"))||0;
       occupied.push({x:(projected.x+1)*size.width/2+dx,y:(1-projected.y)*size.height/2+dy,w:width,h:height,owner:element,retiring:true});
     }
@@ -652,8 +705,10 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     for(const edge of [...edgeLabels].sort((a,b)=>Number(b.id===activeEdge)-Number(a.id===activeEdge))){
       if((edge.id===activeEdge)!==onlyActive || placedEdges.has(edge.id))continue;
       const element=edgeElements.current.get(edge.id);if(!element)continue;
+      positionLabel(element,edge.x,edge.y,edge.z,edge.id===displayedEdge);
       const endpointVisible=(edgeTargets.get(edge.id) ?? 0) > 0 && edge.id===displayedEdge && (visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target));
-      const {width,height}=measurements.get(element)!;
+      const measurement=measurements.get(element);if(!measurement)continue;
+      const {width,height}=measurement;
       let visible=false;
       if(edge.id===displayedEdge && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:width,h:height});visible=true;}
       else visible=place(element,edge.x,edge.y,edge.z,endpointVisible,width,height);
@@ -673,7 +728,9 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     let shown=0;
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
-      const {width,height}=measurements.get(element)!;
+      const measurement=measurements.get(element);if(!measurement)continue;
+      const {width,height}=measurement;
+      positionLabel(element,n.x,n.y,n.z);
       const depth=-projected.set(n.x,n.y,n.z).applyMatrix4(camera.matrixWorldInverse).z;
       // Match the point shader's physical pixel diameter, then convert to CSS pixels.
       // Hover glow must not move the label out from under a stationary pointer.
@@ -703,9 +760,11 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false}/></lineSegments>
     {edgeLabels.map(edge=><group key={edge.id}>
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
-      <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} data-displayed={edge.id===displayedEdge} data-relationship-id={edge.id} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${relationshipSummary(edge,locale)}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{edge.id===displayedEdge?<><strong>{edge.from} {edge.directional?'→':'↔'} {edge.to} · {text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</strong><small>{relationshipSummary(edge,locale)}</small></>:text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
-    {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></button></Html>)}
+    <Html onOcclude={()=>{}} calculatePosition={overlayPosition} zIndexRange={[20,20]} style={{pointerEvents:"none"}}>
+      {edgeLabels.map(edge=><div key={edge.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={el=>registerLabel(edgeElements.current,edge.id,el)} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} data-displayed={edge.id===displayedEdge} data-relationship-id={edge.id} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${relationshipSummary(edge,locale)}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{edge.id===displayedEdge?<><strong>{edge.from} {edge.directional?'→':'↔'} {edge.to} · {text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</strong><small>{relationshipSummary(edge,locale)}</small></>:text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></div></div>)}
+      {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n=><div key={n.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={element=>registerLabel(labelElements.current,n.id,element)} className={styles.label3d} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></button></div></div>)}
+    </Html>
   </>;
 }
 
@@ -715,8 +774,6 @@ function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
-  const searchActive = useCompanySearchActive();
-  const [rendererStarted, setRendererStarted] = useState(false);
   const introOrbitRef = useRef(true);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [contextLost,setContextLost]=useState(false);
@@ -738,7 +795,7 @@ export default function CompanyGraph3D(props: Props) {
   const retry=()=>{setContextLost(false);setSupported(null);setAttempt(value=>value+1);};
   const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
-    if (searchActive || supported !== null) return;
+    if (supported !== null) return;
     let active = true;
     void Promise.resolve().then(() => {
       let available = false;
@@ -750,9 +807,9 @@ export default function CompanyGraph3D(props: Props) {
       if (active) setSupported(available);
     });
     return () => { active = false; };
-  }, [attempt, searchActive, supported]);
+  }, [attempt, supported]);
   const fallback = <GraphUnavailable onRetry={retry}/>;
-  if (!supported || (searchActive && !rendererStarted)) return <div className={styles.canvas3d}>
+  if (!supported) return <div className={styles.canvas3d}>
     {supported !== false ? <p role="status" className={styles.empty}><LoadingSpinner/>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
     {props.musicControls && <UniverseMusicToggle/>}
   </div>;
@@ -763,7 +820,7 @@ export default function CompanyGraph3D(props: Props) {
     onPointerUpCapture={scheduleHoverHint}
     onWheelCapture={hideHoverHint}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onCreated={()=>setRendererStarted(true)} onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost||searchActive?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} light={false} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} light={false} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
