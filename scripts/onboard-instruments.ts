@@ -10,12 +10,17 @@ import {withLiveCompanyReads} from '../src/lib/local-cache/company-directory';
 import {requestInstrumentOnboarding,retryInstrumentOnboarding,wakeInstrumentOnboarding} from '../src/lib/instrument-onboarding/queue';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,parseOnboardingRequest} from '../src/lib/instrument-onboarding/model';
 import type {EnrollmentBatch} from './enroll-theme-companies';
+import {requireOnboardingCapacity} from '../src/lib/instrument-onboarding/capacity-control';
 
 async function main(){
   const projectId=process.env.GCP_PROJECT_ID;if(!projectId)throw Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId});
   const db=getAdminFirestore(),args=process.argv.slice(2),instrumentId=args.find(arg=>arg.startsWith('--instrument='))?.slice(13),listingId=args.find(arg=>arg.startsWith('--listing='))?.slice(10);
   const enqueue=args.includes('--enqueue'),processQueue=args.includes('--process');
+  if(args.includes('--verify-capacity')){
+    if(enqueue||processQueue||instrumentId||args.includes('--retry')||args.includes('--wake'))throw Error('Capacity verification must run alone');
+    await requireOnboardingCapacity(db);console.log(JSON.stringify({status:'capacity-monitor-ready',providerCalls:0}));return;
+  }
   if(args.includes('--verify-delivery')){
     if(enqueue||processQueue||instrumentId||args.includes('--retry')||args.includes('--wake'))throw Error('Verification must run alone');
     const url=process.env.ONBOARDING_SUBSCRIBER_URL;if(!url)throw Error('Subscriber URL is required');

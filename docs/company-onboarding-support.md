@@ -166,6 +166,25 @@ clears them. Expired PROCESSING leases are blocked for inspection because the la
 provider operation may have had an unknown outcome. Old queued failures and legacy
 theme blockers are never automatically resumed.
 
+The proposed capacity increase permits at most ten subscriber instances, with
+one onboarding operation per instance. Historical price writes are capped at
+200 records per batch with the existing one-second pause; corporate actions
+retain their five-record batches. Workers check a shared safety signal before
+starting and before each price or corporate-action batch. If monitoring reports
+capacity errors or its heartbeat is older than three minutes, workers defer
+without discarding completed checkpoints or automatically retrying provider errors.
+
+The signal uses `pauseNewBatches` (boolean) and `monitorHeartbeatAt` (timestamp)
+in the existing `collectors/instrument-onboarding-safety` document. These new
+persisted fields require explicit user approval before creation. The read-only
+monitor command is `npx tsx scripts/monitor-onboarding-capacity.ts`; the
+`--write-control` option writes the signal and must not be used before approval.
+The monitor checks website health, recent capacity errors, cache event backlog,
+onboarding delivery age, and recorded OpenAI usage estimates. The usage ledger
+is not an authoritative API credit balance or invoice. The monitor must run at
+least once per minute; if the local monitor or its credentials are unavailable,
+new onboarding work waits until monitoring recovers.
+
 One-time operator setup runs `scripts/setup-instrument-onboarding.sh` before the
 protected rollout. It grants the deployment account only Eventarc trigger create
 and update permissions (existing viewer access is reused), and grants the existing

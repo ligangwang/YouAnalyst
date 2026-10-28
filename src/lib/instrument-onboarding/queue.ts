@@ -6,6 +6,7 @@ import {instrumentId,validInstrumentId,instrumentFromCompany,validateInstrument,
 import {maintenanceError} from '../maintenance-log';
 import {REQUESTERS_COLLECTION,requesterId} from './requesters';
 import {isNoThemeOutcome} from './progress';
+import {OnboardingCapacityDeferred} from './capacity-control';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
 
 const LEASE_MS=20*60_000;
@@ -130,6 +131,16 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     });
     return {status:step==='verify'?'SUPPORTED' as const:'CHECKPOINTED' as const,step};
   }catch(error){
+    if(error instanceof OnboardingCapacityDeferred){
+      await db.runTransaction(async tx=>{
+        const current=parseOnboardingRequest((await tx.get(ref)).data());
+        if(current.leaseOwner!==owner||current.leaseExpiresAt<=clock())return;
+        const inst=await tx.get(db.collection('instruments').doc(id));
+        tx.set(ref,{...current,status:'QUEUED',leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(clock()).toISOString()});
+        if(inst.exists)tx.update(inst.ref,{onboarding:onboardingSummary('QUEUED',clock(),current.requestedAt,inst.get('onboarding')),updatedAt:Timestamp.fromMillis(clock())});
+      });
+      return {status:'DEFERRED' as const};
+    }
     const publicReason=error instanceof OnboardingBlocked?error.message:`${step}: onboarding failed; explicit retry required`;
     const privateReason=maintenanceError(error).message.replace(/https?:\/\/[^\s]+/gi,'[provider URL]').replace(/(?:api_?key|api_token|token|secret|password)\s*[=:]\s*[^\s,;]+/gi,'[credential redacted]').slice(0,1500);
     await db.runTransaction(async tx=>{

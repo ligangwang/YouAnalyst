@@ -9,12 +9,13 @@ import {officialAnnualTransport} from '../company-themes/official-annual-transpo
 import {getOpenAiApiKey} from '../openai-runtime';
 import {safeRecordOpenAiUsageEvent} from '../openai/usage';
 import type {EnrollmentBatch} from '../company-themes/enrollment';
+import {requireOnboardingCapacity} from './capacity-control';
 
 export function onboardingRuntime(db:Firestore,themeBatches:EnrollmentBatch[]=[]){
   const bucketName=process.env.EODHD_BULK_EOD_BUCKET,token=process.env.EODHD_API_TOKEN;
   if(!bucketName||!token)throw Error('Existing EODHD bucket and token are required');
   const log=createMaintenanceLog('instrument-onboarding');
-  const handlers=createOnboardingHandlers({db,bucket:getAdminStorageBucket(bucketName),token,log,themeBatches,
+  const handlers=createOnboardingHandlers({db,bucket:getAdminStorageBucket(bucketName),token,log,themeBatches,requireCapacity:()=>requireOnboardingCapacity(db),
     classify:async(company,catalog)=>{
       const evidence=await loadBusinessEvidence(db,company);
       // Deployments explicitly opt in; other runtimes keep the search fallback.

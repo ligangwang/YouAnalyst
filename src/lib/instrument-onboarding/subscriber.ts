@@ -35,7 +35,7 @@ export function createOnboardingSubscriber(options:{project:string;process:(id:s
       res.writeHead(503);res.end('Probe request is not absent');return;
     }
     // Leave HTTP slots for health and delivery checks while one long request
-    // is active. The two-instance service still processes at most two stocks.
+    // is active. Each instance still processes at most one stock.
     if(busy){res.writeHead(503);res.end('Worker busy');return;}
     busy=true;
     const log=createMaintenanceLog('instrument-onboarding-message',{instrumentId:id});
