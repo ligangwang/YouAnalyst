@@ -212,7 +212,9 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const position = pinned ? activeLabelPosition({x,y,z}) : [(projected.x+1)*size.width/2,(1-projected.y)*size.height/2];
     wrapper.style.transform = `translate3d(${position[0]}px,${position[1]}px,0)`;
     wrapper.style.zIndex = pinned ? '25' : element.hasAttribute('data-company-id') ? '20' : '19';
-    wrapper.style.display = projected.z > -1 && projected.z < 1 ? '' : 'none';
+    // Pinned summaries are clamped to the viewport even when their midpoint is
+    // behind the camera; endpoint visibility still controls whether they show.
+    wrapper.style.display = pinned || (projected.z > -1 && projected.z < 1) ? '' : 'none';
   };
   const projected = useMemo(() => new Vector3(), []);
   const [pointHovered, setPointHovered] = useState("");
