@@ -105,6 +105,8 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.equal(existing.status,0,existing.stderr);
   assert.doesNotMatch(existing.calls,/scheduler jobs (delete|pause|resume)/);
   assert.match(existing.calls,/--no-traffic --tag onboarding-candidate/);
+  assert.match(existing.calls,/run jobs update onboard-instruments-production .*--update-env-vars ONBOARDING_SUBSCRIBER_URL=https:\/\/onboarding.example.run.app/);
+  assert.match(existing.calls,/ONBOARDING_SUBSCRIBER_URL=https:\/\/candidate.example.run.app,ONBOARDING_SUBSCRIBER_AUDIENCE=https:\/\/onboarding.example.run.app/);
   assert(existing.calls.indexOf('--verify-delivery')<existing.calls.indexOf('--to-revisions onboarding-new=100'));
   assert(existing.calls.indexOf('--verify-capacity')<existing.calls.indexOf('--to-revisions onboarding-new=100'));
   const unready=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_TRIGGER_NOT_READY:'1'});

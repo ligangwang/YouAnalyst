@@ -61,6 +61,8 @@ candidate_url="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("
 candidate_revision="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="onboarding-candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);});')"
 service_url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
 [[ "$candidate_url" == https://*.run.app && "$service_url" == https://*.run.app && "$candidate_revision" != "$serving_revision" ]] || { echo 'Invalid onboarding candidate' >&2; exit 1; }
+# Later delivery checks execute the job without overrides, so retain its normal URL.
+gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$region" --update-env-vars "ONBOARDING_SUBSCRIBER_URL=$service_url" --quiet
 # Exercise the exact candidate without changing the job's stored environment.
 gcloud run jobs execute "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --args dist/onboard-instruments.cjs,--verify-delivery --update-env-vars "ONBOARDING_SUBSCRIBER_URL=$candidate_url,ONBOARDING_SUBSCRIBER_AUDIENCE=$service_url" --wait --quiet
