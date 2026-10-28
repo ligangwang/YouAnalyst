@@ -220,7 +220,7 @@ async function search(request: NextRequest) {
         },
         score: scoreTicker(item, query),
       }));
-    const items = tickerItems.slice(0, limit).map(({ item }) => item);
+    const items = (directory ? tickerItems : tickerItems.slice(0, limit)).map(({ item }) => item);
     if(directory){
       const stockItems=items.filter(item=>item.instrumentId);
       const instruments=stockItems.length?await db.getAll(...stockItems.map(item=>db.collection('instruments').doc(item.instrumentId!))):[];
@@ -239,7 +239,7 @@ async function search(request: NextRequest) {
     }
 
 
-    return NextResponse.json({ items }, { headers: { 'X-Company-Search-Version': String(COMPANY_SEARCH_VERSION),...(directory?{'Cache-Control':'no-store'}:{}) } });
+    return NextResponse.json({ items: directory ? items.filter(item => item.supportState === 'ELIGIBLE' || item.supportState === 'SUPPORTED').slice(0, limit) : items }, { headers: { 'X-Company-Search-Version': String(COMPANY_SEARCH_VERSION),...(directory?{'Cache-Control':'no-store'}:{}) } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to search tickers";
     return NextResponse.json({ error: message }, { status: 500 });

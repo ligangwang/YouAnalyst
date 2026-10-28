@@ -208,6 +208,9 @@ export function AdminDashboardPage() {
       </div>
 
       <Link href="/admin/instrument-onboarding" className="mb-6 block rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4 text-cyan-200">{text('Instrument onboarding · Progress, errors and retries','证券入驻 · 进度、错误和重试')}</Link>
+      <Link href="/admin/unmatched-cik" className="mb-6 block rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4 text-cyan-200">
+        {text('Companies without a matched CIK', '尚未匹配 CIK 的公司')}
+      </Link>
       <Link href="/admin/jobs" className="mb-6 block rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4 text-cyan-200">
         {ui("Tasks")}
       </Link>
