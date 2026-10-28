@@ -31,7 +31,7 @@ function run(target:string,extra:Record<string,string>={}) {
         fi
         case "$*" in
           "firestore databases describe"*) echo nam5 ;;
-          "eventarc triggers describe"*) if [[ "\${ONBOARDING_TRIGGER_NOT_READY:-0}" == 1 && "$*" == *"--format=json"* ]]; then echo '{"conditions":{"transport":{"code":"NOT_READY"}}}'; else echo '{"transport":{"pubsub":{"subscription":"projects/demo/subscriptions/onboarding-events"}}}'; fi ;;
+          "eventarc triggers describe"*) if [[ "\${ONBOARDING_TRIGGER_NOT_READY:-0}" == 1 && "$*" == *"--format=json"* ]]; then echo '{"conditions":{"transport":{"code":"NOT_READY"}}}'; else echo '{"transport":{"pubsub":{"subscription":"projects/demo/subscriptions/onboarding-events"}},"destination":{"cloudRun":{"service":"instrument-onboarding-subscriber","region":"us-central1","path":"/events"}}}'; fi ;;
           "run services describe instrument-onboarding-subscriber"*"value(status.url)"*) echo https://onboarding.example.run.app ;;
           "run jobs execute onboard-instruments-production"*) if [[ "\${ONBOARDING_DELIVERY_FAIL:-0}" == 1 ]]; then return 1; fi ;;
           "run services describe instrument-onboarding-subscriber"*) echo '{"status":{"conditions":[{"type":"Ready","status":"True"}],"traffic":[{"percent":100,"revisionName":"onboarding-old"},{"tag":"onboarding-candidate","revisionName":"onboarding-new","url":"https://candidate.example.run.app"}]}}' ;;
@@ -97,7 +97,8 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.match(r.calls,/run deploy instrument-onboarding-subscriber .*--no-allow-unauthenticated/);
   assert.match(r.calls,/themeEvidenceFirst=1/);
   assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--max-instances 10 --concurrency 16/);
-  assert.match(r.calls,/eventarc triggers (create|update) instrument-onboarding-requests/);
+  assert.match(r.calls,/eventarc triggers describe instrument-onboarding-requests/);
+  assert.doesNotMatch(r.calls,/eventarc triggers (create|update|delete) instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/scheduler jobs (create|update) http onboard-instruments-production/);
   assert.doesNotMatch(r.calls,/projects add-iam-policy-binding .*--role roles\/eventarc.eventReceiver/);
   const existing=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod'});

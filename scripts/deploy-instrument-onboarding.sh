@@ -47,16 +47,6 @@ gcloud services enable eventarc.googleapis.com eventarcpublishing.googleapis.com
 # the routine deployment identity cannot modify project permissions.
 location="$(gcloud firestore databases describe --database='(default)' --project "$GCP_PROJECT_ID" --format='value(locationId)')"
 [[ -n "$location" ]] || { echo 'Firestore location required' >&2; exit 1; }
-if gcloud eventarc triggers describe "$trigger" --location "$location" --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then
-  gcloud eventarc triggers update "$trigger" --location "$location" --project "$GCP_PROJECT_ID" \
-    --destination-run-service "$service" --destination-run-region "$region" --destination-run-path /events --service-account "$invoker" --quiet
-else
-  gcloud eventarc triggers create "$trigger" --location "$location" --project "$GCP_PROJECT_ID" \
-    --destination-run-service "$service" --destination-run-region "$region" --destination-run-path /events \
-    --event-filters 'type=google.cloud.firestore.document.v1.written' --event-filters 'database=(default)' \
-    --event-filters 'namespace=(default)' --event-filters-path-pattern 'document=instrument_onboarding_requests/{instrumentId}' \
-    --event-data-content-type application/protobuf --service-account "$invoker" --quiet
-fi
 # Keep the serving revision and every existing schedule/subscription in place.
 gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json | node -e '
 let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
@@ -64,15 +54,16 @@ const v=JSON.parse(s);if(!v.status?.conditions?.some(c=>c.type==="Ready"&&c.stat
 });'
 gcloud eventarc triggers describe "$trigger" --location "$location" --project "$GCP_PROJECT_ID" --format=json | node -e '
 let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
-const v=JSON.parse(s);if(!v.transport?.pubsub?.subscription||Object.keys(v.conditions||{}).length)process.exit(1);
-});'
+const v=JSON.parse(s),run=v.destination?.cloudRun;if(!v.transport?.pubsub?.subscription||Object.keys(v.conditions||{}).length||run?.service!==process.argv[1]||run?.region!==process.argv[2]||run?.path!=="/events")process.exit(1);
+});' "$service" "$region"
 candidate="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json)"
 candidate_url="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="onboarding-candidate");if(!t?.url)process.exit(1);console.log(t.url);});')"
 candidate_revision="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="onboarding-candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);});')"
-[[ "$candidate_url" == https://*.run.app && "$candidate_revision" != "$serving_revision" ]] || { echo 'Invalid onboarding candidate' >&2; exit 1; }
+service_url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
+[[ "$candidate_url" == https://*.run.app && "$service_url" == https://*.run.app && "$candidate_revision" != "$serving_revision" ]] || { echo 'Invalid onboarding candidate' >&2; exit 1; }
 # Exercise the exact candidate without changing the job's stored environment.
 gcloud run jobs execute "$job" --project "$GCP_PROJECT_ID" --region "$region" \
-  --args dist/onboard-instruments.cjs,--verify-delivery --update-env-vars "ONBOARDING_SUBSCRIBER_URL=$candidate_url" --wait --quiet
+  --args dist/onboard-instruments.cjs,--verify-delivery --update-env-vars "ONBOARDING_SUBSCRIBER_URL=$candidate_url,ONBOARDING_SUBSCRIBER_AUDIENCE=$service_url" --wait --quiet
 # Do not route production messages to a revision without a live safety monitor.
 gcloud run jobs execute "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --args dist/onboard-instruments.cjs,--verify-capacity --wait --quiet

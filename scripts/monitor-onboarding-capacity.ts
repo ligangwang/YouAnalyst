@@ -20,6 +20,7 @@ export async function observeOnboardingCapacity(credential:string){
  const cacheSubscriptions=new Set<string>();
  for(const trigger of triggers)if(trigger.destination?.cloudRun?.path==='/api/internal/cache-changes'&&trigger.transport?.pubsub?.subscription)cacheSubscriptions.add(trigger.transport.pubsub.subscription.split('/').at(-1));
  for(const item of subscriptions)if(/cache/i.test(item.name))cacheSubscriptions.add(item.name.split('/').at(-1));
+ const usageWarnings=await json('https://logging.googleapis.com/v2/entries:list',{method:'POST',headers:auth,body:JSON.stringify({resourceNames:[`projects/${project}`],filter:`resource.type="cloud_run_revision" AND resource.labels.service_name="instrument-onboarding-subscriber" AND timestamp>="${start.toISOString()}" AND textPayload:"Failed to record OpenAI usage event"`,pageSize:1})});
  const metrics:Record<string,Record<string,number|null>>={};
  for(const sub of [subscription,...cacheSubscriptions]){
   metrics[sub]={};
@@ -34,7 +35,7 @@ export async function observeOnboardingCapacity(credential:string){
  const usage=await json(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents:runQuery`,{method:'POST',headers:auth,body:JSON.stringify({structuredQuery:{from:[{collectionId:'openai_usage_events'}],select:{fields:['purpose','estimatedCostUsd','createdAt'].map(fieldPath=>({fieldPath}))},where:{fieldFilter:{field:{fieldPath:'createdAt'},op:'GREATER_THAN_OR_EQUAL',value:{stringValue:start.toISOString()}}},orderBy:[{field:{fieldPath:'createdAt'}}]}})});
  let events=0,unknownCosts=0,estimatedUsd=0,allEvents=0,allUnknownCosts=0,allEstimatedUsd=0;for(const row of usage){const fields=row.document?.fields;if(!fields)continue;const value=fields.estimatedCostUsd;const known=value?.doubleValue!==undefined||value?.integerValue!==undefined;const cost=known?Number(value.doubleValue??value.integerValue):0;allEvents++;if(known)allEstimatedUsd+=cost;else allUnknownCosts++;if(fields.purpose?.stringValue!=='company_theme_classification')continue;events++;if(known)estimatedUsd+=cost;else unknownCosts++;}
  const websiteErrors=(logs.entries??[]).length;
- return {at:end.toISOString(),windowStart:start.toISOString(),webHealthy,websiteErrors,backlog:metrics[subscription].num_undelivered_messages,oldestAgeSeconds:metrics[subscription].oldest_unacked_message_age,cacheSubscriptions:[...cacheSubscriptions],cacheBacklogHigh,classificationEvents:events,estimatedUsd,unknownCosts,allEvents,allEstimatedUsd,allUnknownCosts,pauseNewBatches:!webHealthy||websiteErrors>0||cacheBacklogHigh||Object.values(metrics[subscription]).some(value=>value===null)};
+ return {at:end.toISOString(),windowStart:start.toISOString(),webHealthy,websiteErrors,backlog:metrics[subscription].num_undelivered_messages,oldestAgeSeconds:metrics[subscription].oldest_unacked_message_age,cacheSubscriptions:[...cacheSubscriptions],cacheBacklogHigh,classificationEvents:events,estimatedUsd,unknownCosts,allEvents,allEstimatedUsd,allUnknownCosts,usageLoggingErrors:(usageWarnings.entries??[]).length,pauseNewBatches:!webHealthy||websiteErrors>0||cacheBacklogHigh||Object.values(metrics[subscription]).some(value=>value===null)};
 }
 async function main(){
  const credential=token();let observed:Awaited<ReturnType<typeof observeOnboardingCapacity>>|undefined;let failure='';

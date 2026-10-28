@@ -24,7 +24,9 @@ async function main(){
   if(args.includes('--verify-delivery')){
     if(enqueue||processQueue||instrumentId||args.includes('--retry')||args.includes('--wake'))throw Error('Verification must run alone');
     const url=process.env.ONBOARDING_SUBSCRIBER_URL;if(!url)throw Error('Subscriber URL is required');
-    const client=await new GoogleAuth().getIdTokenClient(url);
+    // Tagged Cloud Run URLs still require the canonical service URL as audience.
+    const audience=process.env.ONBOARDING_SUBSCRIBER_AUDIENCE??url;
+    const client=await new GoogleAuth().getIdTokenClient(audience);
     console.log(JSON.stringify(await verifyOnboardingDelivery({url,project:projectId,sha:process.env.GIT_SHA??'',exists:async id=>(await db.collection(ONBOARDING_COLLECTION).doc(id).get()).exists,
       send:async(target,headers)=>{const r=await client.request({url:target,method:headers?'POST':'GET',headers,...(headers?{data:Buffer.alloc(0)}:{}),timeout:60000,retry:false});return {status:r.status,data:r.data};}})));return;
   }
