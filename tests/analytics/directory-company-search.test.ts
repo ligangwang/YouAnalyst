@@ -45,3 +45,21 @@ test('directory search includes unthemed companies, exposes public states and re
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore),true,'search scope does not disable snapshots for other requests');
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore,'instruments'),true);
 });
+
+
+test('eligible name matches survive fifty higher-ranked CIK-unmatched symbol matches',async()=>{
+  const row=(id:string,data:Record<string,unknown>)=>({id,data:()=>({status:'DIRECTORY',market:'US',name:id,symbol:id.slice(3),symbolLower:id.slice(3).toLowerCase(),...data})});
+  const unmatched=Array.from({length:50},(_,index)=>row(`US:ABC${index}`,{}));
+  const eligible=row('US:VALID',{name:'ABC eligible company',cik:'123'});
+  const db={collection:()=>({select(){return this;},doc:(id:string)=>({id}),where:(field:string,op:string)=>{
+    const query={where:()=>query,limit:()=>query,get:async()=>({docs:field==='searchPrefixes'?[eligible]:op==='=='?[]:unmatched})};return query;
+  }}),getAll:async(...refs:{id:string}[])=>refs.map(ref=>({id:ref.id,data:()=>undefined}))};
+  const bundle=await build({entryPoints:['src/app/api/tickers/search/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'bounded-candidates',setup(builder){
+    builder.onLoad({filter:/[\\/]firebase[\\/]admin\.ts$/},()=>({contents:'export const getAdminFirestore=()=>db;',loader:'js'}));
+  }}]});
+  const testModule={exports:{} as {GET:(r:{nextUrl:URL})=>Promise<Response>}};
+  new Function('db','require','module',bundle.outputFiles[0].text)(db,createRequire(import.meta.url),testModule);
+  const response=await testModule.exports.GET({nextUrl:new URL('https://example.com/api/tickers/search?scope=directory&q=abc&limit=8')});
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).items.map((item:{id:string})=>item.id),['US:VALID']);
+});

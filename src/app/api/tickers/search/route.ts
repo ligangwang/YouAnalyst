@@ -202,7 +202,8 @@ async function search(request: NextRequest) {
         }
         return left.symbol.localeCompare(right.symbol);
       })
-      .slice(0, 50)
+      // Directory eligibility needs the complete bounded union (50 + 50 + 20).
+      .slice(0, directory ? 120 : 50)
       .map((item) => ({
         item: {
           id: item.id,
