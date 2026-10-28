@@ -54,41 +54,62 @@ async function open(page: Page, eager=false){
 const counts=(page:Page)=>page.evaluate(()=> (window as unknown as {renderCounts:{contexts:number;draws:number}}).renderCounts);
 const search=(page:Page)=>page.getByRole('combobox',{name:'Search company',exact:true});
 
-test('fresh search defers a late graph and shows suggestions before WebGL initialization',async({page})=>{
+async function expectFastSearch(page: Page, query: string) {
+  // Measure in the page, not Playwright round trips while software WebGL runs.
+  await search(page).evaluate((input, query) => {
+    const start = performance.now();
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('[data-company-search] [role="option"]')) return;
+      Object.assign(window, {suggestionMs:performance.now()-start});observer.disconnect();
+    });
+    observer.observe(document.body, {childList:true,subtree:true});
+    Object.assign(window, {suggestionMs:null});
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    set.call(input, query);input.dispatchEvent(new Event('input', {bubbles:true}));
+  }, query);
+  await expect.poll(()=>page.evaluate(()=>(window as unknown as {suggestionMs:number|null}).suggestionMs),{timeout:10000}).not.toBeNull();
+  const elapsed = await page.evaluate(()=>(window as unknown as {suggestionMs:number}).suggestionMs);
+  await test.info().attach(`suggestions-${query}`, {body:JSON.stringify({query,elapsedMs:elapsed}),contentType:'application/json'});
+  expect(elapsed).toBeLessThan(1500);
+  await expect(page.getByRole('option',{name:/Micron/})).toBeVisible();
+}
+
+for (const eager of [false,true]) test(`search stays responsive while graph ${eager?'is already orbiting':'initializes'}`,async({page})=>{
   test.setTimeout(60000);
-  await open(page);
+  await open(page,eager);
+  if(eager)await expect.poll(async()=>(await counts(page)).draws,{timeout:30000}).toBeGreaterThan(0);
   await page.getByRole('button',{name:'Search company',exact:true}).click();
-  await page.evaluate(()=>window.dispatchEvent(new Event('load-graph')));
-  await expect(page.getByText('Loading graph…',{exact:true})).toBeVisible();
-  const start=Date.now();await search(page).fill('mu');
-  await expect(page.getByRole('option',{name:/Micron/})).toBeVisible({timeout:1500});
-  expect(Date.now()-start).toBeLessThan(1500);
-  expect((await counts(page)).contexts).toBe(0);
-  await search(page).press('Escape');
-  await expect(page.locator('canvas')).toBeVisible({timeout:30000});
-  await expect.poll(async()=> (await counts(page)).draws,{timeout:30000}).toBeGreaterThan(0);
+  if(!eager)await page.evaluate(()=>window.dispatchEvent(new Event('load-graph')));
+  await expectFastSearch(page,'mu');
+  // Search remains focused while initialization, labels and the orbit continue.
+  await expect(search(page)).toBeFocused();
+  await expect.poll(async()=>(await counts(page)).draws,{timeout:30000}).toBeGreaterThan(0);
+  const canvas=page.locator('canvas');
+  const before=await counts(page);
+  const position=await canvas.getAttribute('data-camera-position');
+  await expect.poll(async()=>(await counts(page)).draws).toBeGreaterThan(before.draws);
+  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(position);
+  await expect(page.locator('[data-company-id][data-visible="true"]').first()).toBeVisible();
+  await search(page).fill('');
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await expectFastSearch(page,'nv');
 });
 
-test('search pauses a mounted graph and resumes the same canvas after dismissal',async({page})=>{
-  test.setTimeout(60000);await open(page,true);
-  await expect.poll(async()=> (await counts(page)).draws,{timeout:30000}).toBeGreaterThan(0);
-  await page.locator('canvas').evaluate(canvas=>canvas.setAttribute('data-original-canvas','true'));
-  await page.getByRole('button',{name:'Search company',exact:true}).click();
-  await search(page).fill('mu');await expect(page.getByRole('option',{name:/Micron/})).toBeVisible();
-  const paused=await counts(page);await page.waitForTimeout(300);
-  expect(await counts(page)).toEqual(paused);
-  await search(page).press('Escape');
-  await expect.poll(async()=> (await counts(page)).draws,{timeout:10000}).toBeGreaterThan(paused.draws);
-  await expect(page.locator('canvas')).toHaveAttribute('data-original-canvas','true');
-});
-
-test('disabling an open search releases deferred graph initialization',async({page})=>{
-  test.setTimeout(60000);await open(page);
-  await page.getByRole('button',{name:'Search company',exact:true}).click();
-  await page.evaluate(()=>window.dispatchEvent(new Event('load-graph')));
-  await expect(page.getByText('Loading graph…',{exact:true})).toBeVisible();
-  expect((await counts(page)).contexts).toBe(0);
-  await page.evaluate(()=>window.dispatchEvent(new Event('disable-search')));
-  await expect(search(page)).toHaveCount(0);
-  await expect.poll(async()=> (await counts(page)).draws,{timeout:30000}).toBeGreaterThan(0);
+test('graph animation never synchronously measures label dimensions',async({page})=>{
+  test.setTimeout(60000);
+  await page.addInitScript(()=>{
+    Object.assign(window,{labelLayoutReads:0});
+    for(const name of ['offsetWidth','offsetHeight'] as const){
+      const descriptor=Object.getOwnPropertyDescriptor(HTMLElement.prototype,name)!;
+      Object.defineProperty(HTMLElement.prototype,name,{...descriptor,get(){
+        if(this.matches('[data-company-id],[data-relationship-id]'))(window as unknown as {labelLayoutReads:number}).labelLayoutReads++;
+        return descriptor.get!.call(this);
+      }});
+    }
+  });
+  await open(page,true);
+  await expect(page.locator('[data-company-id][data-visible="true"]').first()).toBeVisible({timeout:30000});
+  const before=await counts(page);
+  await expect.poll(async()=>(await counts(page)).draws).toBeGreaterThan(before.draws+20);
+  expect(await page.evaluate(()=>(window as unknown as {labelLayoutReads:number}).labelLayoutReads)).toBe(0);
 });

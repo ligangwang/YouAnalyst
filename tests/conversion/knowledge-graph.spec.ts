@@ -1335,12 +1335,7 @@ test("company labels keep their placement during rotation and after release",asy
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
  const canvas=page.locator("canvas");
- // Every <Html> label mounts through its own React root; on a slow runner some are still
- // mounting after the first appears, and a late label would pop in mid-test with no placement.
- // Mounting all of them is steady but CPU-bound: ~1.3 s locally, while a shared CI runner
- // (other worker in a WebGL test) was seen at 0 -> 41 -> 79 of 129 after 5 s. The expect
- // default (5 s) is a speed limit, not a correctness bound, so allow 20 s; the exact count
- // is unchanged.
+ // Wait for the shared label overlay and its asynchronous size measurements before dragging.
  await expect(page.locator("[data-company-id]")).toHaveCount(layout3D(graph).nodes.length,{timeout:20_000});
  await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
