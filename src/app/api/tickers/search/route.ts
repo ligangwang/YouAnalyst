@@ -164,7 +164,7 @@ async function search(request: NextRequest) {
     }
     const db = getAdminFirestore();
     const collection = db.collection("companies");
-    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus',...(directory?['onboarding','cik']:[]));
+    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus',...(directory?['onboarding','cik','themeMemberships','inGraph']:[]));
     // Return ranking/display metadata, not the potentially large prefix array.
     // Scalar symbol range keeps partial codes ahead of a full page of name matches.
     const symbolSearch = indexed.where('symbolLower', '>=', query).where('symbolLower', '<=', query + '\uf8ff').limit(50).get();

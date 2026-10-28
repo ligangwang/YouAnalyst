@@ -14,15 +14,16 @@ test('directory search includes unthemed companies, exposes public states and re
     ['XSHG:600000',{...base,market:'CN_A'}],
     ['US:QUEUED',{...base,cik:'123',onboarding:{status:'QUEUED',blockedReason:'private detail'}}],
     ['US:READY',{...base,cik:'123',onboarding:{status:'SUPPORTED'}}],
+    ['US:THEMED',{...base,cik:'456',onboarding:{status:'SUPPORTED'},themeMemberships:{robotics:{status:'PUBLISHED'}}}],
     ['US:DELETED',{...base,isDeleted:true}],['US:HIDDEN',{...base,status:'DRAFT'}],
   ] as const;
-  const limits:number[]=[];let fullReads=0;
+  const limits:number[]=[];let fullReads=0;let projection:string[]=[];
   const query={where:()=>query,limit:(n:number)=>{limits.push(n);return query;},get:async()=>{
     assert.equal(companyDirectoryEnabled(db as unknown as Firestore),false,'autocomplete must bypass whole company snapshots even on a cold instance');
     assert.equal(companyDirectoryEnabled(db as unknown as Firestore,'instruments'),false,'support-state enrichment must bypass whole instrument snapshots');
-    return {docs:records.map(([id,data])=>({id,data:()=>data}))};
+    return {docs:records.map(([id,data])=>({id,data:()=>Object.fromEntries(Object.entries(data).filter(([key])=>projection.includes(key)))}))};
   }};
-  const db={collection:(name:string)=>({select:()=>query,doc:(id:string)=>({id,name}),get:()=>{fullReads++;throw Error('No collection scans');}}),getAll:async(...refs:{id:string;name:string}[])=>refs.map(ref=>{const row=records.find(([id])=>instrumentId(id)===ref.id);return {id:ref.id,data:()=>row&&['US:QUEUED','US:READY'].includes(row[0])?{...instrumentFromCompany(row[0],row[1])!,onboarding:onboarding(row[0]==='US:READY'?'SUPPORTED':'QUEUED')}:undefined};})};
+  const db={collection:(name:string)=>({select:(...fields:string[])=>{projection=fields;return query;},doc:(id:string)=>({id,name}),get:()=>{fullReads++;throw Error('No collection scans');}}),getAll:async(...refs:{id:string;name:string}[])=>refs.map(ref=>{const row=records.find(([id])=>instrumentId(id)===ref.id);return {id:ref.id,data:()=>row&&['US:QUEUED','US:READY','US:THEMED'].includes(row[0])?{...instrumentFromCompany(row[0],row[1])!,onboarding:onboarding(row[0]==='US:QUEUED'?'QUEUED':'SUPPORTED')}:undefined};})};
   enableCompanyDirectory(db as unknown as Firestore,db as unknown as Firestore);
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore),true,'fixture has the production bulk cache enabled');
   const bundle=await build({entryPoints:['src/app/api/tickers/search/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'directory-fixture',setup(builder){
@@ -35,9 +36,10 @@ test('directory search includes unthemed companies, exposes public states and re
   new Function('db','require','module',bundle.outputFiles[0].text)(db,createRequire(import.meta.url),testModule);
   const response=await testModule.exports.GET({nextUrl:new URL('https://example.com/api/tickers/search?scope=directory&q=abc')});
   assert.equal(response.status,200);const {items}=await response.json();
-  assert.deepEqual(Object.fromEntries(items.map((i:{id:string;supportState:string})=>[i.id,i.supportState])),{'US:ABC':'ELIGIBLE','US:NOCIK':'CIK_UNMATCHED','XSHG:600000':'ELIGIBLE','US:QUEUED':'QUEUED','US:READY':'SUPPORTED'});
+  assert.deepEqual(Object.fromEntries(items.map((i:{id:string;supportState:string})=>[i.id,i.supportState])),{'US:ABC':'ELIGIBLE','US:NOCIK':'CIK_UNMATCHED','XSHG:600000':'ELIGIBLE','US:QUEUED':'QUEUED','US:READY':'SUPPORTED','US:THEMED':'SUPPORTED'});
   assert.equal(JSON.stringify(items).includes('private detail'),false);assert.equal(fullReads,0);assert.deepEqual(limits,[50,50,20]);
   assert.equal(items.find((item:{id:string})=>item.id==='US:READY').hasThemes,false,'support without theme uses company-page search navigation');
+  assert.equal(items.find((item:{id:string})=>item.id==='US:THEMED').hasThemes,true,'published themes remain available after the search projection');
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore),true,'search scope does not disable snapshots for other requests');
   assert.equal(companyDirectoryEnabled(db as unknown as Firestore,'instruments'),true);
 });
