@@ -3,7 +3,7 @@
 import { LoadingSpinner } from './loading-spinner';
 import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { IntelligencePropagation } from './intelligence-propagation';
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
@@ -362,7 +362,9 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const lastSelected=useRef("");
   const restoredView=useRef(false);
   const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number;width:number;height:number}|null>(null);
-  useEffect(() => {
+  // Apply selection framing before the next paint; a shared overlay can commit
+  // its selection while a passive effect is still waiting behind animation work.
+  useLayoutEffect(() => {
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
@@ -419,7 +421,11 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     const distance = opening && !reduced ? d * 1.4 : d;
     const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
-    const fitted=n?fitSelectionCamera(neighbors,direction,size.width,size.height,layout.radius):null;
+    // The detail card changes the viewport in this commit. Fiber's resize
+    // observer reports that size later; framing against its previous size would
+    // produce a second camera jump. Measure once on selection, never per frame.
+    const selectionSize=n?gl.domElement.parentElement?.getBoundingClientRect():null;
+    const fitted=n?fitSelectionCamera(neighbors,direction,selectionSize?.width||size.width,selectionSize?.height||size.height,layout.radius):null;
     const position=fitted?.position??new Vector3(x,y,z).addScaledVector(direction,distance);
     const target=fitted?.target??new Vector3(x,y,z);
     if(!fitted&&position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
@@ -428,7 +434,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     // for sector navigation and the automatic tour.
     void c.setLookAt(...position.toArray(),...target.toArray(),!n&&!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
