@@ -14,6 +14,17 @@ const leveraged = { supportState: "SUPPORTED", id: "US:NVDL", kind: "ticker", sy
 const openai = { supportState: "SUPPORTED", id: "ORG:OPENAI", kind: "ticker", symbol: "ORG:OPENAI", name: "OpenAI", exchange: null, micCode: null, type: null, market: "GLOBAL" };
 let html: string;
 
+test('workspace search sends a supported stock without themes to its company page',async({page})=>{
+ await page.route('**/*',route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/tickers/search')return route.fulfill({json:{items:url.searchParams.has('q')?[{...nvidia,hasThemes:false}]:[],total:1}});
+  return route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto(origin+'/?workspace=1');await page.getByRole('combobox').fill('NVDA');
+ await page.getByRole('option',{name:/NVIDIA/}).click();
+ await expect(page).toHaveURL(/\/company\/nvidia$/);await expect(page.locator('body')).not.toHaveAttribute('data-selected','US:NVDA');
+});
+
 test.beforeAll(async () => {
   const mock = path.resolve("tests/conversion/fixtures/mocks.tsx");
   const bundled = await build({
@@ -28,7 +39,8 @@ test.beforeAll(async () => {
       function App() {
         const path = useSyncExternalStore(subscribe, () => location.pathname);
         const locale = new URLSearchParams(location.search).get("lang") === "zh-CN" ? "zh-CN" : "en";
-        return <LocaleProvider locale={locale}>{path === "/" ? <><CompanySearch owner="global"/><CompanySearchCard /><MostConnectedCompanies /></> : <p>Destination {path}</p>}</LocaleProvider>;
+        const workspace = new URLSearchParams(location.search).has('workspace');
+        return <LocaleProvider locale={locale}>{path === "/" ? workspace ? <CompanySearch inline owner="workspace" onSelect={item=>{document.body.dataset.selected=item.id;}}/> : <><CompanySearch owner="global"/><CompanySearchCard /><MostConnectedCompanies /></> : <p>Destination {path}</p>}</LocaleProvider>;
       }
       createRoot(document.getElementById("root")).render(<App />);
     `, resolveDir: process.cwd(), loader: "tsx" },

@@ -5,6 +5,7 @@ import {isSupportedCompany} from '../company-support/model';
 import {instrumentId,validInstrumentId,instrumentFromCompany,validateInstrument,type Instrument} from '../instruments/model';
 import {maintenanceError} from '../maintenance-log';
 import {REQUESTERS_COLLECTION,requesterId} from './requesters';
+import {isNoThemeOutcome} from './progress';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
 
 const LEASE_MS=20*60_000;
@@ -166,7 +167,11 @@ export async function retryInstrumentOnboarding(db:Firestore,id:string,expected:
     const request=parseOnboardingRequest(doc.data());const step=ONBOARDING_STEPS.find(key=>request.steps[key]!=='COMPLETE');
     if(request.instrumentId!==id||request.status==='SUPPORTED'||request.leaseExpiresAt>now||!request.lastError||request.updatedAt!==expected.updatedAt||step!==expected.step)throw Error('Request changed or is active; refresh before retrying');
     const fresh=await readiness(tx,db,request);
-    tx.set(ref,{...request,status:'QUEUED',attemptCount:0,nextAttemptAt:0,lastError:null,leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(now).toISOString()});
+    // A completed empty classification is a valid outcome. Explicitly resuming
+    // that outcome keeps its checkpoint instead of buying another model call.
+    const steps={...request.steps};
+    if(request.status==='BLOCKED'&&step==='themes'&&steps.identity==='COMPLETE'&&isNoThemeOutcome(request.lastError))steps.themes='COMPLETE';
+    tx.set(ref,{...request,steps,status:'QUEUED',attemptCount:0,nextAttemptAt:0,lastError:null,leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(now).toISOString()});
     tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary('PROCESSING',now,request.requestedAt,fresh.instrument.onboarding),updatedAt:Timestamp.fromMillis(now)});
     if(companyStep(step)&&!isSupportedCompany(fresh.company))tx.update(db.collection('companies').doc(request.companyId),{onboarding:onboardingSummary('PROCESSING',now,request.requestedAt,fresh.company.onboarding),updatedAt:Timestamp.fromMillis(now)});
     return {instrumentId:id,companyId:request.companyId,status:'QUEUED'};

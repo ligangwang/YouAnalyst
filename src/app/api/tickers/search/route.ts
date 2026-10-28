@@ -11,8 +11,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
 import type {Instrument} from '@/lib/instruments/model';
 import {companySupportState,type CompanySupportState} from '@/lib/instrument-onboarding/search-state';
+import {isCollectionCompany} from '@/lib/company-themes/model';
 
 type TickerSearchItem = {
+  hasThemes?: boolean;
   supportState?: CompanySupportState;
   instrumentId?: string; companyId?: string; instrumentType?: InstrumentType;
   slug?: string;
@@ -194,6 +196,7 @@ export async function GET(request: NextRequest) {
         item: {
           id: item.id,
           ...(directory?{supportState:item.supportState}:{}),
+          hasThemes:undefined as boolean|undefined,
           instrumentId:item.instrumentId, companyId:item.companyId, instrumentType:item.instrumentType,
           kind: item.kind,
           symbol: item.symbol,
@@ -219,6 +222,7 @@ export async function GET(request: NextRequest) {
         const source=sources.get(item.id)??{},record=item.instrumentId?records.get(item.instrumentId):undefined;
         const companyId=record?.companyId??item.companyId;
         item.supportState=companySupportState(item.id,source,record,companyId?sources.get(companyId):undefined);
+        item.hasThemes=isCollectionCompany({...((companyId?sources.get(companyId):undefined)??source),id:companyId??item.id});
         if(companyId)item.companyId=companyId;
       }
     }
