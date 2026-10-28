@@ -88,7 +88,7 @@ export function AdminInstrumentOnboardingPage(){
     {filter==='SUPPORTED_NO_THEMES'&&<p>{text('Supported companies with no published themes. Instrument readiness is shown separately.','没有已发布主题的受支持公司，证券就绪状态单独显示。')}</p>}
     {!busy&&!error&&!items.length&&!companies.length&&<p>{filter==='SUPPORTED_NO_THEMES'?text('No supported companies without themes on this page.','本页没有无主题的受支持公司。'):filter==='ALL'?text('No onboarding requests yet.','暂无入驻请求。'):filter==='ERRORS'?text('No onboarding requests with errors.','暂无存在错误的入驻请求。'):text('No onboarding requests match this status.','暂无符合此状态的入驻请求。')}</p>}
     <div className={styles.requests}>{companies.map(company=><article key={company.id}>
-      <div className={styles.title}><div><h2>{company.name}</h2><p>{company.id} · {company.market}</p></div><strong className={styles.badge}>SUPPORTED</strong></div>
+      <div className={styles.title}><div><h2>{company.name}</h2><p>{company.id} · {company.market}</p></div><strong className={styles.badge}>{text('Supported','已支持')}</strong></div>
       <ul>{company.instruments.map(instrument=><li key={instrument.id}>{instrument.symbol} · {instrument.status}</li>)}</ul>
       {!company.instruments.length&&<p>{text('No instruments recorded yet.','尚无证券记录。')}</p>}
       <Link href={company.href}>{text('Edit themes on company page','在公司页面编辑主题')}</Link>
