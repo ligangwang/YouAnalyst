@@ -15,11 +15,15 @@ type Rows=EntityRows;
 type Entry={rows?:Rows;expires:number;pending?:Promise<Rows>;version:number;overrides:Rows;sync?:EntitySync};
 type Options={price?:PriceOptions;sync?:typeof syncEntityChanges|false;file?:(collection:Collection)=>Promise<Rows|undefined>;now?:()=>number};
 declare global {
+ var __companySearchReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companyPageReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companyDirectoryV2:{entries:WeakMap<Firestore,Map<Collection,Entry>>;sources:WeakMap<object,Source>;clients:WeakMap<Firestore,{raw:Firestore;options:Options}>;live:AsyncLocalStorage<boolean>}|undefined;
 }
 const state=globalThis.__companyDirectoryV2??={entries:new WeakMap(),sources:new WeakMap(),clients:new WeakMap(),live:new AsyncLocalStorage()};
 const pageReads=globalThis.__companyPageReadsV1??=new AsyncLocalStorage<boolean>();
+const searchReads=globalThis.__companySearchReadsV1??=new AsyncLocalStorage<boolean>();
+/** Autocomplete must not hydrate whole company or instrument snapshots. */
+export const withSearchEntityReads=<T>(work:()=>Promise<T>):Promise<T>=>searchReads.run(true,work);
 /** A company request uses the existing targeted push caches, not whole files. */
 export const withPageEntityReads=<T>(work:()=>Promise<T>):Promise<T>=>pageReads.run(true,work);
 const DAY=86_400_000;
@@ -29,7 +33,11 @@ export const liveCompanyReads=()=>state.live.getStore()===true;
 export function enableCompanyDirectory(db:Firestore,raw:Firestore,options:Options={}){if(!state.clients.has(db))state.clients.set(db,{raw,options});}
 /** Collector/graph readers use the same directory; unwrapped test adapters are unchanged. */
 export function enableCompanyDirectoryForReader(db:Firestore){if(typeof db.settings==='function'&&typeof db.getAll==='function'&&state.sources.has(db.collection('companies')))enableCompanyDirectory(db,db);}
-export function companyDirectoryEnabled(db:Firestore,collection:Collection='companies'){return state.clients.has(db)&&!state.live.getStore()&&!(pageReads.getStore()&&['companies','company_fundamentals','company_relationships'].includes(collection));}
+export function companyDirectoryEnabled(db:Firestore,collection:Collection='companies'){
+ return state.clients.has(db)&&!state.live.getStore()
+  &&!(pageReads.getStore()&&['companies','company_fundamentals','company_relationships'].includes(collection))
+  &&!(searchReads.getStore()&&['companies','instruments'].includes(collection));
+}
 export function registerCompanySource(source:object,id:string|undefined,steps:Step[],collection:Collection='companies'){state.sources.set(source,{id,steps,collection});}
 export function companyDirectoryVersion(db:Firestore,collection:Collection='companies'){const entry=state.entries.get(db)?.get(collection);return `${entry?.version??0}:${entry&&Date.now()>=entry.expires?'expired':'current'}`;}
 /** Read after a local committed write, never after an ordinary page request. */

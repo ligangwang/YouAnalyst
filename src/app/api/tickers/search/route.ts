@@ -9,6 +9,8 @@ import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing"
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
+import {withSearchEntityReads} from '@/lib/local-cache/company-directory';
+import {withSourceCache} from '@/lib/local-cache/read-scope';
 import type {Instrument} from '@/lib/instruments/model';
 import {companySupportState,type CompanySupportState} from '@/lib/instrument-onboarding/search-state';
 
@@ -116,6 +118,15 @@ function toSearchItem(id: string, data: TickerDocument) {
 }
 
 export async function GET(request: NextRequest) {
+  // Indexed autocomplete and support-state lookups are bounded reads. Loading
+  // the bulk directory here delays the first keystroke and scans prefix arrays.
+  // Keep the covered graph's separate cache policy unchanged.
+  return request.nextUrl.searchParams.get('scope') === 'covered'
+    ? search(request)
+    : withSearchEntityReads(() => withSourceCache(() => search(request)));
+}
+
+async function search(request: NextRequest) {
   const query = normalizeQuery(request.nextUrl.searchParams.get("q"));
   const nameLocale = /\p{Script=Han}/u.test(query) ? 'zh-CN' : /[a-z]/i.test(query) ? 'en' : null;
   const limitParam = Number(request.nextUrl.searchParams.get("limit") ?? "10");
