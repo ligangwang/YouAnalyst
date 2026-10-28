@@ -17,9 +17,9 @@ test('unmatched CIK admin endpoint enforces authorization and pages before filte
     builder.onLoad({ filter: /[\\/]firebase[\\/]admin-role\.ts$/ }, () => ({ contents: 'export const isAdminUser=async()=>state.admin;', loader: 'js' }));
     builder.onLoad({ filter: /[\\/]firebase[\\/]admin\.ts$/ }, () => ({ contents: 'export const getAdminFirestore=()=>db;', loader: 'js' }));
   } }] });
-  const module = { exports: {} as { GET: (request: { nextUrl: URL }) => Promise<Response> } };
-  new Function('state', 'db', 'require', 'module', bundle.outputFiles[0].text)(state, db, createRequire(import.meta.url), module);
-  const request = (after = '') => module.exports.GET({ nextUrl: new URL('https://example.com/api/admin/unmatched-cik?' + new URLSearchParams({ after })) });
+  const testModule = { exports: {} as { GET: (request: { nextUrl: URL }) => Promise<Response> } };
+  new Function('state', 'db', 'require', 'module', bundle.outputFiles[0].text)(state, db, createRequire(import.meta.url), testModule);
+  const request = (after = '') => testModule.exports.GET({ nextUrl: new URL('https://example.com/api/admin/unmatched-cik?' + new URLSearchParams({ after })) });
   assert.equal((await request()).status, 401);
   state.user = { uid: 'reader' };
   assert.equal((await request()).status, 403);
