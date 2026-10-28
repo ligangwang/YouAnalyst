@@ -166,8 +166,7 @@ clears them. Expired PROCESSING leases are blocked for inspection because the la
 provider operation may have had an unknown outcome. Old queued failures and legacy
 theme blockers are never automatically resumed.
 
-The proposed capacity increase permits at most ten subscriber instances, with
-one onboarding operation per instance. Historical price writes are capped at
+The subscriber is configured with ten warm instances and two HTTP slots per instance, with at most one onboarding operation per instance. Warm instances incur baseline infrastructure costs even when the queue is idle. Historical price writes are capped at
 200 records per batch with the existing one-second pause; corporate actions
 retain their five-record batches. Workers check a shared safety signal before
 starting and before each price or corporate-action batch. If monitoring reports
