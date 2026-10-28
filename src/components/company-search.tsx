@@ -35,7 +35,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
-  const choose = useCallback((item: SearchSuggestion) => { close(); if (clearOnSelect) { setQuery(''); setResults(null); } const current = destination.current; if (current.onSelect && item.supportState === 'SUPPORTED') current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.market === 'GLOBAL' ? item.id : item.symbol, item.market, item.slug), current.locale)); }, [close, clearOnSelect]);
+  const choose = useCallback((item: SearchSuggestion) => { close(); if (clearOnSelect) { setQuery(''); setResults(null); } const current = destination.current; if (current.onSelect && item.supportState === 'SUPPORTED' && (owner!=='workspace'||item.hasThemes!==false)) current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.companyId??(item.market === 'GLOBAL' ? item.id : item.symbol), item.market, item.slug), current.locale)); }, [close, clearOnSelect,owner]);
   const show = useCallback((initial = '') => {
     queuedQuery.current = null; composing.current = false;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;

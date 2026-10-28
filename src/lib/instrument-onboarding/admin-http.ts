@@ -9,6 +9,7 @@ import {validInstrumentId} from '../instruments/model';
 import {listInstrumentRequesters,validRequesterCursor} from './requesters';
 import {hasTrustedRequestOrigin} from '../request-origin';
 import {ONBOARDING_FILTERS,type OnboardingFilter} from './progress';
+import {validCompanyCursor} from './unthemed-companies';
 
 const dependencies={getUser:getDecodedUserFromRequest,isAdmin:isAdminUser,db:getAdminFirestore,list:listInstrumentOnboarding,requesters:listInstrumentRequesters,retry:retryInstrumentOnboarding};
 const headers={'Cache-Control':'private, no-store'};
@@ -25,9 +26,9 @@ export async function adminOnboardingResponse(request:NextRequest,deps=dependenc
       try{return json(await deps.requesters(deps.db(),instrumentId,cursor));}catch{return json({error:'Unable to load requesters'},503);}
     }
     const cursor=request.nextUrl.searchParams.get('cursor')??undefined;
-    if(cursor&&!validInstrumentId(cursor))return json({error:'Invalid cursor'},400);
     const filter=request.nextUrl.searchParams.get('filter')??'ALL';
     if(!ONBOARDING_FILTERS.includes(filter as OnboardingFilter))return json({error:'Invalid filter'},400);
+    if(cursor&&!(filter==='SUPPORTED_NO_THEMES'?validCompanyCursor(cursor):validInstrumentId(cursor)))return json({error:'Invalid cursor'},400);
     try{return json(await deps.list(deps.db(),cursor,undefined,filter as OnboardingFilter));}catch{return json({error:'Unable to load onboarding requests. Refresh if a request changed.'},503);}
   }
   if(request.method!=='POST')return json({error:'Method not allowed'},405);

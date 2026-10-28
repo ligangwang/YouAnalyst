@@ -5,6 +5,7 @@ import {useAuth} from '@/components/providers/auth-provider';
 import {useLocale} from '@/components/providers/locale-provider';
 import {ONBOARDING_STEPS,COMPANY_STEPS,ONBOARDING_FILTERS,type OnboardingFilter} from '@/lib/instrument-onboarding/progress';
 import type {AdminOnboardingItem,AdminOnboardingPage} from '@/lib/instrument-onboarding/admin';
+import type {SupportedUnthemedCompany} from '@/lib/instrument-onboarding/unthemed-companies';
 import type {InstrumentRequestersPage,InstrumentRequester} from '@/lib/instrument-onboarding/requesters';
 import styles from './admin-instrument-onboarding.module.css';
 import {AdminOnboardingBatchRequest} from './admin-onboarding-batch-request';
@@ -40,6 +41,7 @@ export function AdminInstrumentOnboardingPage(){
   const {user,loading,getIdToken}=useAuth(),{text}=useLocale();
   const [filter,setFilter]=useState<OnboardingFilter>('ALL');
   const [items,setItems]=useState<AdminOnboardingItem[]>([]),[cursor,setCursor]=useState<string|null>(null);
+  const [companies,setCompanies]=useState<SupportedUnthemedCompany[]>([]);
   const [busy,setBusy]=useState(false),[pending,setPending]=useState<string|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('');
   const mounted=useRef(true),generation=useRef(0),retryLock=useRef(false);
   const load=useCallback(async(after?:string)=>{
@@ -50,7 +52,7 @@ export function AdminInstrumentOnboardingPage(){
       const response=await fetch('/api/admin/instrument-onboarding?'+params,{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
       if(!response.ok)throw Error('Unable to load requests. Check admin access and retry.');
       const data:AdminOnboardingPage=await response.json();
-      if(mounted.current&&generation.current===version){setItems(current=>after?[...current,...data.items.filter(row=>!current.some(item=>item.request.instrumentId===row.request.instrumentId))]:data.items);setCursor(data.nextCursor);}
+      if(mounted.current&&generation.current===version){setItems(current=>after?[...current,...data.items.filter(row=>!current.some(item=>item.request.instrumentId===row.request.instrumentId))]:data.items);setCompanies(current=>after?[...current,...(data.companies??[]).filter(row=>!current.some(item=>item.id===row.id))]:data.companies??[]);setCursor(data.nextCursor);}
     }catch(error){if(mounted.current&&generation.current===version)setError(error instanceof Error?error.message:'Unable to load requests');}
     finally{if(mounted.current&&generation.current===version)setBusy(false);}
   },[getIdToken,filter]);
@@ -75,15 +77,22 @@ export function AdminInstrumentOnboardingPage(){
     <div className={styles.filters}><label htmlFor="onboarding-request-filter">{text('Show requests','显示请求')}</label>
       <select id="onboarding-request-filter" value={filter} disabled={pending!==null} onChange={event=>{
         const value=event.target.value as OnboardingFilter;if(value===filter)return;
-        generation.current++;setItems([]);setCursor(null);setError('');setMessage('');setBusy(true);setFilter(value);
+        generation.current++;setItems([]);setCompanies([]);setCursor(null);setError('');setMessage('');setBusy(true);setFilter(value);
       }}>
-        {ONBOARDING_FILTERS.map(value=><option key={value} value={value}>{value==='ALL'?text('All statuses','全部状态'):value==='QUEUED'?text('Queued','排队中'):value==='PROCESSING'?text('Processing','处理中'):value==='BLOCKED'?text('Blocked','已阻塞'):value==='SUPPORTED'?text('Supported','已支持'):text('With errors (any status)','存在错误（全部状态）')}</option>)}
+        {ONBOARDING_FILTERS.map(value=><option key={value} value={value}>{value==='ALL'?text('All statuses','全部状态'):value==='QUEUED'?text('Queued','排队中'):value==='PROCESSING'?text('Processing','处理中'):value==='BLOCKED'?text('Blocked','已阻塞'):value==='SUPPORTED'?text('Supported','已支持'):value==='SUPPORTED_NO_THEMES'?text('Supported · No themes','已支持 · 无主题'):text('With errors (any status)','存在错误（全部状态）')}</option>)}
       </select>
     </div>
     {filter==='ERRORS'&&<p>{text('Includes blocked requests and temporary failures waiting for another attempt.','包括已阻塞请求及等待再次尝试的临时失败请求。')}</p>}
     {error&&<p role="alert" className={styles.error}>{error}</p>}{message&&<p role="status">{message}</p>}
     {busy&&<p role="status">{text('Loading requests…','加载请求中…')}</p>}
-    {!busy&&!error&&!items.length&&<p>{filter==='ALL'?text('No onboarding requests yet.','暂无入驻请求。'):filter==='ERRORS'?text('No onboarding requests with errors.','暂无存在错误的入驻请求。'):text('No onboarding requests match this status.','暂无符合此状态的入驻请求。')}</p>}
+    {filter==='SUPPORTED_NO_THEMES'&&<p>{text('Supported companies with no published themes. Instrument readiness is shown separately.','没有已发布主题的受支持公司，证券就绪状态单独显示。')}</p>}
+    {!busy&&!error&&!items.length&&!companies.length&&<p>{filter==='SUPPORTED_NO_THEMES'?text('No supported companies without themes on this page.','本页没有无主题的受支持公司。'):filter==='ALL'?text('No onboarding requests yet.','暂无入驻请求。'):filter==='ERRORS'?text('No onboarding requests with errors.','暂无存在错误的入驻请求。'):text('No onboarding requests match this status.','暂无符合此状态的入驻请求。')}</p>}
+    <div className={styles.requests}>{companies.map(company=><article key={company.id}>
+      <div className={styles.title}><div><h2>{company.name}</h2><p>{company.id} · {company.market}</p></div><strong className={styles.badge}>{text('Supported','已支持')}</strong></div>
+      <ul>{company.instruments.map(instrument=><li key={instrument.id}>{instrument.symbol} · {instrument.status}</li>)}</ul>
+      {!company.instruments.length&&<p>{text('No instruments recorded yet.','尚无证券记录。')}</p>}
+      <Link href={company.href}>{text('Edit themes on company page','在公司页面编辑主题')}</Link>
+    </article>)}</div>
     <div className={styles.requests}>{items.map(item=><article key={item.request.instrumentId}>
       <div className={styles.title}><div><h2>{item.listing||item.instrumentName}</h2><p>{item.companyName} · {item.request.companyId}</p><small>{item.request.instrumentId}</small></div><strong className={styles.badge}>{item.request.status}</strong></div>
       <div className={styles.readiness}><span>{text('Company','公司')}: <strong>{item.companyStatus}</strong></span><span>{text('Instrument','证券')}: <strong>{item.instrumentStatus}</strong></span></div>

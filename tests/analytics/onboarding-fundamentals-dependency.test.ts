@@ -9,6 +9,7 @@ import seed from '../../data/investment-themes/catalog-v1.json';
 import {catalogGraphSectors} from '../../src/lib/company-themes/catalog-graph';
 import {onboardingFixture} from '../helpers/instrument-onboarding';
 import {LEGACY_NO_THEME_MATCH,NO_THEME_MATCH_REASON} from '../../src/lib/instrument-onboarding/progress';
+import {retryInstrumentOnboarding} from '../../src/lib/instrument-onboarding/queue';
 
 async function handlersFixture(automatic=false){
   const bundle=await build({stdin:{contents:"export * from './src/lib/instrument-onboarding/handlers';export {processInstrumentOnboarding} from './src/lib/instrument-onboarding/queue';",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'scheduled-financial-dependency',setup(builder){
@@ -54,7 +55,7 @@ test('no new match does not withdraw an existing evidenced theme while filling a
  assert.equal(result.status,'CHECKPOINTED');assert.equal(f.request().status,'QUEUED');assert.equal(calls,1);assert.deepEqual(f.rows.get('companies/US:NEW')!.themeMemberships,{robotics:membership});assert.equal(f.rows.get('companies/US:NEW')!.description,'Official company description.');
 });
 
-test('no-match and provider errors block once; legacy queued failures never make another call',async()=>{
+test('completed no-match classification advances; provider errors and old blocked work never retry automatically',async()=>{
  const api=await handlersFixture(true);
  for(const mode of ['no-match','legacy','provider-error']){
   const f=onboardingFixture(Date.now());await f.enqueue();await f.process();
@@ -64,14 +65,37 @@ test('no-match and provider errors block once; legacy queued failures never make
    calls++;if(mode==='provider-error')throw Error('Provider returned 503');return {companyId:'US:NEW',description:'Official business description.',assignments:[]};
   }});
   const process=()=>api.processInstrumentOnboarding(f.db,f.id,{...f.handlers,themes:handlers.themes},f.clock);
-  assert.equal((await process()).status,mode==='legacy'?'SKIPPED':'INCOMPLETE');
+  const result=await process();
+  if(mode==='no-match'){
+   assert.equal(result.status,'CHECKPOINTED');assert.equal(f.request().status,'QUEUED');assert.equal((f.request().steps as Record<string,string>).themes,'COMPLETE');assert.equal(calls,1);
+   assert.equal(f.rows.get('companies/US:NEW')!.description,'Official business description.');
+   assert.equal(f.rows.get('companies/US:NEW')!.themeMemberships,undefined);continue;
+  }
+  assert.equal(result.status,mode==='legacy'?'SKIPPED':'INCOMPLETE');
   assert.equal(f.request().status,'BLOCKED');assert.equal(f.request().nextAttemptAt,0);
-  if(mode==='no-match')assert.equal(f.request().lastError,`themes: ${NO_THEME_MATCH_REASON}`);
   if(mode==='legacy')assert.equal(f.request().lastError,LEGACY_NO_THEME_MATCH);
   if(mode==='provider-error')assert.match(String(f.request().lastError),/Provider returned 503/);
   assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'BLOCKED');
   assert.equal((f.rows.get(`instruments/${f.id}`)!.onboarding as {status:string}).status,'BLOCKED');
   f.advance(86400_000);assert.equal((await process()).status,'SKIPPED');assert.equal(calls,mode==='legacy'?0:1);assert.deepEqual(f.request().steps,{identity:'COMPLETE'});
+ }
+});
+
+test('explicit no-theme resume preserves checkpoints, skips classification and still waits for price/action verification',async()=>{
+ for(const reason of [LEGACY_NO_THEME_MATCH,`themes: ${NO_THEME_MATCH_REASON}`,'themes: Provider returned 429']){
+  const f=onboardingFixture();await f.enqueue();await f.process();
+  Object.assign(f.request(),{status:'BLOCKED',lastError:reason,steps:{identity:'COMPLETE'},leaseOwner:null,leaseExpiresAt:0});
+  const before=f.request();await retryInstrumentOnboarding(f.db,f.id,{step:'themes',updatedAt:String(before.updatedAt)},f.clock());
+   if(reason.includes('429')){assert.equal((f.request().steps as Record<string,string>).themes,undefined);continue;}
+   assert.deepEqual(f.request().steps,{identity:'COMPLETE',themes:'COMPLETE'});
+  const api=await handlersFixture(true),handlers=api.createOnboardingHandlers({db:f.db,bucket:{} as never,token:'unused',log:{runId:'test'} as never,maintenanceReady:async()=>true,classify:async()=>{throw Error('Classification must not run');}});
+  const resumed={...f.handlers,...handlers};
+  assert.equal((await f.process(resumed)).step,'profile');assert.equal((await f.process(resumed)).step,'events');
+  assert.equal((f.rows.get('companies/US:NEW')!.onboarding as {status:string}).status,'SUPPORTED');
+  assert.notEqual(f.request().status,'SUPPORTED');
+  const complete={...resumed,corporateActions:f.handlers.corporateActions,prices:f.handlers.prices,verify:async()=>{throw Error('Missing price receipt');}};
+  await f.process(complete);await f.process(complete);assert.equal((await f.process(complete)).status,'INCOMPLETE');
+   assert.equal(f.request().status,'BLOCKED');assert.equal((f.request().steps as Record<string,string>).verify,undefined);
  }
 });
 

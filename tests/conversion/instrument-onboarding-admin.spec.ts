@@ -3,6 +3,22 @@ import {build} from 'esbuild';
 import path from 'node:path';
 
 let html:string;
+
+test('supported no-theme filter lists companies independently of instrument readiness',async({page},info)=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});
+ await page.route('**/*',route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/admin/me')return route.fulfill({json:{isAdmin:true}});
+  if(url.pathname==='/api/admin/instrument-onboarding')return route.fulfill({json:{items:[],companies:url.searchParams.get('filter')==='SUPPORTED_NO_THEMES'?[{id:'US:NEW',name:'Supported issuer',symbol:'NEW',market:'US',href:'/ticker/NEW',instruments:[{id,symbol:'NEW',status:'PROCESSING'}]}]:[],nextCursor:null}});
+  return route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto(origin+'/admin/instrument-onboarding');await page.getByLabel('Show requests',{exact:true}).selectOption('SUPPORTED_NO_THEMES');
+ await expect(page.getByRole('heading',{name:'Supported issuer',exact:true})).toBeVisible();
+ await expect(page.getByText('NEW · PROCESSING',{exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Edit themes on company page'})).toHaveAttribute('href','/ticker/NEW');
+ await expect(page.getByRole('button',{name:'Retry failed step'})).toHaveCount(0);
+ await page.screenshot({path:info.outputPath('supported-no-themes.png'),fullPage:true});
+});
 const origin='http://onboarding.test',id='INS_0123456789abcdef0123456789abcdef';
 const item={request:{instrumentId:id,companyId:'US:NEW',version:1,status:'BLOCKED',requestedByUid:'requester-user-123',requestedAt:'2026-10-25T12:00:00Z',updatedAt:'2026-10-25T13:00:00Z',targetThrough:'2026-10-24',steps:{identity:'COMPLETE',themes:'COMPLETE',profile:'COMPLETE',fundamentals:'COMPLETE',graph:'COMPLETE',events:'COMPLETE',corporateActions:'COMPLETE'},attemptCount:2,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:'prices: Historical price provider returned HTTP 503'},companyName:'New company',instrumentName:'New class B',listing:'US:NEW.B',companyStatus:'SUPPORTED',instrumentStatus:'BLOCKED',step:'prices',canRetry:true};
 test.beforeAll(async()=>{

@@ -2,14 +2,16 @@ import type {Firestore} from 'firebase-admin/firestore';
 import {validInstrumentId} from '../instruments/model';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,parseOnboardingRequest,type OnboardingRequest} from './model';
 import {ONBOARDING_FILTERS,type OnboardingFilter} from './progress';
+import {listSupportedUnthemedCompanies,type SupportedUnthemedCompany} from './unthemed-companies';
 
 export type AdminOnboardingItem={request:OnboardingRequest;companyName:string;instrumentName:string;listing:string;companyStatus:string;instrumentStatus:string;step:string|null;canRetry:boolean};
-export type AdminOnboardingPage={items:AdminOnboardingItem[];nextCursor:string|null};
+export type AdminOnboardingPage={items:AdminOnboardingItem[];companies?:SupportedUnthemedCompany[];nextCursor:string|null};
 
 /** Filter before paging, using existing automatic single-field indexes only. */
 export async function listInstrumentOnboarding(db:Firestore,cursor?:string,now=Date.now(),filter:OnboardingFilter='ALL'):Promise<AdminOnboardingPage>{
-  if(cursor&&!validInstrumentId(cursor))throw Error('Invalid cursor');
   if(!ONBOARDING_FILTERS.includes(filter))throw Error('Invalid filter');
+  if(filter==='SUPPORTED_NO_THEMES')return listSupportedUnthemedCompanies(db,cursor);
+  if(cursor&&!validInstrumentId(cursor))throw Error('Invalid cursor');
   const collection=db.collection(ONBOARDING_COLLECTION);
   let query=filter==='ERRORS'?collection.where('lastError','!=',null).orderBy('lastError').limit(26)
     :(filter!=='ALL'?collection.where('status','==',filter):collection).orderBy('__name__').limit(26);

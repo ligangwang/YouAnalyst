@@ -15,7 +15,7 @@ import type {OnboardingHandlers} from './queue';
 import {backfillOnboardingActions,verifyOnboardingActions} from './actions';
 import {themeFields,themeVersion,type ThemeClassification} from '../company-themes/classification';
 import type {ThemeCatalog} from '../company-themes/catalog-model';
-import {LEGACY_NO_THEME_MATCH,NO_THEME_MATCH_REASON} from './progress';
+import {LEGACY_NO_THEME_MATCH} from './progress';
 
 /** Adapters use existing provider workers and existing feature storage only. */
 export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
@@ -24,7 +24,6 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   const themes=async(id:string)=>{
     const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
     const ids=activeThemeIds(company).filter(id=>allowed.includes(id));
-    if(!ids.length)throw new OnboardingBlocked('Reviewed theme assignment is required');
     for(const id of ids){
       const membership=company.themeMemberships[id];
       if(typeof membership.primarySector!=='string'||!validDay(membership.reviewedAt)||membership.reviewedAt>new Date().toISOString().slice(0,10)||!membership.sources?.length||membership.sources.some((source:{url:string;title:string;summary:string})=>!/^https:\/\//.test(source.url)||!source.title?.trim()||!source.summary?.trim()))throw new OnboardingBlocked('Published themes need reviewed classification evidence');
@@ -72,8 +71,8 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       const before=await current(request.companyId);
       if(!activeThemeIds(before).length||!before.description){
         // Older queued no-match outcomes already spent their classification call.
-        // Retire them without making another paid request; explicit admin retries
-        // clear lastError and can intentionally research changed evidence again.
+        // Accept that outcome without making another paid request. Explicit
+        // resumes also preserve the completed classification checkpoint.
         const priorNoMatch=!activeThemeIds(before).length&&request.lastError===LEGACY_NO_THEME_MATCH;
         if(!options.classify&&!priorNoMatch)throw new OnboardingBlocked('Automatic theme classification is unavailable');
         const beforeVersion=themeVersion(before);
@@ -86,14 +85,14 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
           const lease=await tx.get(db.collection('instrument_onboarding_requests').doc(request.instrumentId));
           if(lease.get('leaseOwner')!==request.leaseOwner||Number(lease.get('leaseExpiresAt'))<=Date.now()||lease.get('status')!=='PROCESSING')throw Error('Onboarding lease lost during classification');
           if(themeVersion(fresh)!==beforeVersion)throw Error('Company changed during automatic theme classification; retry with current decisions');
-          if(!result.assignments.length&&!activeThemeIds(fresh).length)throw new OnboardingBlocked(NO_THEME_MATCH_REASON);
-          const fields=result.assignments.length?themeFields({...fresh,id:request.companyId},latestCatalog,result.assignments,result.description):{description:result.description.trim()};
-          tx.update(ref,{...fields,updatedAt:Timestamp.now()});
+          if(!priorNoMatch&&(typeof result.description!=='string'||!result.description.trim()||result.description.length>4000))throw Error('Official company description required');
+          const fields=result.assignments.length?themeFields({...fresh,id:request.companyId},latestCatalog,result.assignments,result.description):result.description.trim()?{description:result.description.trim()}:{};
+          if(Object.keys(fields).length)tx.update(ref,{...fields,updatedAt:Timestamp.now()});
         });
       }
       await themes(request.companyId);
     },
-    profile:async({request})=>{const company=await current(request.companyId);if(isSupportedCompany(company))return;if(typeof company.description!=='string'||!company.description.trim())throw new OnboardingBlocked('Reviewed company description is required');},
+    profile:async({request})=>{const company=await current(request.companyId);if(typeof company.name!=='string'||!company.name.trim())throw new OnboardingBlocked('Company name is required');},
     corporateActions:async({request,instrument:record,guard})=>{
       const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       // Share exclusion with the normal splits worker without advancing its checkpoint.
@@ -115,7 +114,6 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     events:async({request})=>{
       if(isSupportedCompany(await current(request.companyId)))return;
       await themes(request.companyId);
-      const company=await current(request.companyId);if(typeof company.description!=='string'||!company.description.trim())throw new OnboardingBlocked('Reviewed company description is required');
       if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
     },
     verify:async({request,instrument:record,guard})=>ready(request,record,guard),

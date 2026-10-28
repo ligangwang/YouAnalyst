@@ -25,12 +25,14 @@ test('admin endpoints authorize reads and retries before accessing storage',asyn
   const retry={instrumentId:instrumentId('US:ABC'),step:'prices',updatedAt:'2026-10-25T00:00:00Z'};
   assert.equal((await send('POST',retry)).status,403);assert.equal(retries,0);
   allowed=true;assert.equal((await send()).status,200);assert.equal(reads,1);
-  for(const filter of ['BLOCKED','ERRORS','bad']){
+  for(const filter of ['BLOCKED','ERRORS','SUPPORTED_NO_THEMES','bad']){
     const queryUrl=new URL(url+'?filter='+filter);const before:number=reads;
     const response=await testModule.exports.adminOnboardingResponse(Object.assign(new Request(queryUrl),{nextUrl:queryUrl}),dependencies);
     assert.equal(response.status,filter==='bad'?400:200);assert.equal(reads,before+(filter==='bad'?0:1));
   }
-  assert.deepEqual(filters,['ALL','BLOCKED','ERRORS']);
+  assert.deepEqual(filters,['ALL','BLOCKED','ERRORS','SUPPORTED_NO_THEMES']);
+  const companyCursor=new URL(url+'?filter=SUPPORTED_NO_THEMES&cursor=US:NEW');
+  assert.equal((await testModule.exports.adminOnboardingResponse(Object.assign(new Request(companyCursor),{nextUrl:companyCursor}),dependencies)).status,200);
   assert.equal((await send('POST',retry,'https://other.com')).status,403);assert.equal(retries,0);
   assert.equal((await send('POST',{...retry,step:'unknown'})).status,400);
   const response=await send('POST',retry);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');assert.equal(retries,1);

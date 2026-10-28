@@ -13,8 +13,10 @@ import {withSearchEntityReads} from '@/lib/local-cache/company-directory';
 import {withSourceCache} from '@/lib/local-cache/read-scope';
 import type {Instrument} from '@/lib/instruments/model';
 import {companySupportState,type CompanySupportState} from '@/lib/instrument-onboarding/search-state';
+import {isCollectionCompany} from '@/lib/company-themes/model';
 
 type TickerSearchItem = {
+  hasThemes?: boolean;
   supportState?: CompanySupportState;
   instrumentId?: string; companyId?: string; instrumentType?: InstrumentType;
   slug?: string;
@@ -162,7 +164,7 @@ async function search(request: NextRequest) {
     }
     const db = getAdminFirestore();
     const collection = db.collection("companies");
-    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus',...(directory?['onboarding','cik']:[]));
+    const indexed = collection.select('supersededByCompanyId','isDeleted','slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus',...(directory?['onboarding','cik','themeMemberships','inGraph']:[]));
     // Return ranking/display metadata, not the potentially large prefix array.
     // Scalar symbol range keeps partial codes ahead of a full page of name matches.
     const symbolSearch = indexed.where('symbolLower', '>=', query).where('symbolLower', '<=', query + '\uf8ff').limit(50).get();
@@ -205,6 +207,7 @@ async function search(request: NextRequest) {
         item: {
           id: item.id,
           ...(directory?{supportState:item.supportState}:{}),
+          hasThemes:undefined as boolean|undefined,
           instrumentId:item.instrumentId, companyId:item.companyId, instrumentType:item.instrumentType,
           kind: item.kind,
           symbol: item.symbol,
@@ -230,6 +233,7 @@ async function search(request: NextRequest) {
         const source=sources.get(item.id)??{},record=item.instrumentId?records.get(item.instrumentId):undefined;
         const companyId=record?.companyId??item.companyId;
         item.supportState=companySupportState(item.id,source,record,companyId?sources.get(companyId):undefined);
+        item.hasThemes=isCollectionCompany({...((companyId?sources.get(companyId):undefined)??source),id:companyId??item.id});
         if(companyId)item.companyId=companyId;
       }
     }
