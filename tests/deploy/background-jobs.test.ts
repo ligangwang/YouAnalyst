@@ -34,7 +34,7 @@ function run(target:string,extra:Record<string,string>={}) {
           "eventarc triggers describe"*) if [[ "\${ONBOARDING_TRIGGER_NOT_READY:-0}" == 1 && "$*" == *"--format=json"* ]]; then echo '{"conditions":{"transport":{"code":"NOT_READY"}}}'; else echo '{"transport":{"pubsub":{"subscription":"projects/demo/subscriptions/onboarding-events"}},"destination":{"cloudRun":{"service":"instrument-onboarding-subscriber","region":"us-central1","path":"/events"}}}'; fi ;;
           "run services describe instrument-onboarding-subscriber"*"value(status.url)"*) echo https://onboarding.example.run.app ;;
           "run jobs execute onboard-instruments-production"*) if [[ "\${ONBOARDING_DELIVERY_FAIL:-0}" == 1 ]]; then return 1; fi ;;
-          "run services describe instrument-onboarding-subscriber"*) echo '{"status":{"conditions":[{"type":"Ready","status":"True"}],"traffic":[{"percent":100,"revisionName":"onboarding-old"},{"tag":"onboarding-candidate","revisionName":"onboarding-new","url":"https://candidate.example.run.app"}]}}' ;;
+          "run services describe instrument-onboarding-subscriber"*) echo '{"status":{"conditions":[{"type":"Ready","status":"True"}],"traffic":[{"percent":100,"revisionName":"onboarding-old"},{"tag":"candidate","revisionName":"onboarding-new","url":"https://candidate.example.run.app"}]}}' ;;
           "scheduler jobs describe onboard-instruments-production"*) if [[ "\${NEW_ONBOARDING:-0}" == 1 ]]; then return 1; fi ;;
           *"get-iam-policy"*)
             local arg
@@ -104,7 +104,7 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   const existing=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod'});
   assert.equal(existing.status,0,existing.stderr);
   assert.doesNotMatch(existing.calls,/scheduler jobs (delete|pause|resume)/);
-  assert.match(existing.calls,/--no-traffic --tag onboarding-candidate/);
+  assert.match(existing.calls,/--no-traffic --tag candidate/);
   assert.match(existing.calls,/run jobs update onboard-instruments-production .*--update-env-vars ONBOARDING_SUBSCRIBER_URL=https:\/\/onboarding.example.run.app/);
   assert.match(existing.calls,/ONBOARDING_SUBSCRIBER_URL=https:\/\/candidate.example.run.app,ONBOARDING_SUBSCRIBER_AUDIENCE=https:\/\/onboarding.example.run.app/);
   assert(existing.calls.indexOf('--verify-delivery')<existing.calls.indexOf('--to-revisions onboarding-new=100'));

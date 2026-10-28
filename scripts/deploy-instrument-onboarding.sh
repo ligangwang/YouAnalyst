@@ -33,11 +33,11 @@ invoker="$maintenance_scheduler_account"
 serving_revision="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json | node -e '
 let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const active=(JSON.parse(s).status?.traffic||[]).filter(t=>t.percent>0);if(active.length!==1||active[0].percent!==100||!active[0].revisionName)process.exit(1);console.log(active[0].revisionName);});')"
 [[ -n "$serving_revision" ]] || { echo 'No stable serving onboarding revision' >&2; exit 1; }
-gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --region "$region" --update-tags "retain-$serving_revision=$serving_revision" --quiet
+gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --region "$region" --update-tags "prev=$serving_revision" --quiet
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-instrument-onboarding.cjs --min-instances 0 --max-instances 10 \
-  --concurrency 16 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --no-traffic --tag onboarding-candidate --quiet
+  --concurrency 16 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --no-traffic --tag candidate --quiet
 for account in "$invoker" "$maintenance_runtime_account"; do
   gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
     --member "serviceAccount:$account" --role roles/run.invoker --quiet >/dev/null
@@ -57,8 +57,8 @@ let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{
 const v=JSON.parse(s),run=v.destination?.cloudRun;if(!v.transport?.pubsub?.subscription||Object.keys(v.conditions||{}).length||run?.service!==process.argv[1]||run?.region!==process.argv[2]||run?.path!=="/events")process.exit(1);
 });' "$service" "$region"
 candidate="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json)"
-candidate_url="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="onboarding-candidate");if(!t?.url)process.exit(1);console.log(t.url);});')"
-candidate_revision="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="onboarding-candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);});')"
+candidate_url="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="candidate");if(!t?.url)process.exit(1);console.log(t.url);});')"
+candidate_revision="$(printf '%s' "$candidate" | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const t=JSON.parse(s).status.traffic.find(t=>t.tag==="candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);});')"
 service_url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
 [[ "$candidate_url" == https://*.run.app && "$service_url" == https://*.run.app && "$candidate_revision" != "$serving_revision" ]] || { echo 'Invalid onboarding candidate' >&2; exit 1; }
 # Later delivery checks execute the job without overrides, so retain its normal URL.
