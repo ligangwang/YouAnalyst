@@ -746,14 +746,18 @@ test('bookmarked company selection emphasizes connected graph nodes like a node 
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Memory partnership');
 });
 
-test('graph automatic orbit pauses while the shared search input is focused',async({page})=>{
+test('graph automatic orbit continues while the shared search input is focused',async({page})=>{
  const body=await workspaceFixture(true);
  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({json:{items:[]}}));
  await page.goto('http://workspace.test/?view=graph');
  const canvas=page.locator('[data-graph-interaction] canvas');await expect(canvas).toHaveAttribute('data-rotation','intro');
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  const input=page.getByRole('combobox',{name:'Search company',exact:true});await expect(input).toBeFocused();
- await expect(canvas).toHaveAttribute('data-rotation','input');await input.fill('M');await expect(input).toHaveValue('M');
+ const position=await canvas.getAttribute('data-camera-position');
+ await input.fill('M');await expect(input).toHaveValue('M');
+ await expect(canvas).toHaveAttribute('data-rotation','intro');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(position);
+ await expect(input).toBeFocused();
  await input.press('Escape');await expect(canvas).toHaveAttribute('data-rotation','intro');
 });
 
