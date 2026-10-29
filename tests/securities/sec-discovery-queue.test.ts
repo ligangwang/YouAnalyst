@@ -8,6 +8,8 @@ import {secBudget} from '../../src/lib/sec-budget';
 import {restoreEarningsFixtures} from '../../src/lib/earnings/issuers';
 import {withThemeCatalog} from '../helpers/theme-catalog';
 import type {DocumentReference} from 'firebase-admin/firestore';
+import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
+import {enableCompanyDirectory} from '../../src/lib/local-cache/company-directory';
 const at='2026-10-23T12:00:00.000Z',now=()=>Date.parse(at);
 const task={version:1 as const,type:'sec.company.discovery.requested' as const,batchId:'secd_'+'a'.repeat(64),companyId:'US:AMD',requestedAt:at};
 test('SEC task accepts one canonical listing only and never accepts caller URLs',()=>{
@@ -30,7 +32,13 @@ test('SEC dispatcher spaces deliveries and retains its rotation checkpoint at th
  await assert.rejects(publishSecDiscoveryTasks(['US:A'],async()=>{},{execution:'bad',deadline:60000,now:()=>0,intervalMs:-1}),/interval/);
 });
 test('SEC worker rechecks enrollment before source work and cannot run when disabled',async()=>{
- const f=earningsFirestore(),db=withThemeCatalog(f.db);let runs=0;const opts={enabled:true,run:async(ticker:string)=>{assert.equal(ticker,'AMD');runs++;return {status:'verified'};}};
+ const f=earningsFirestore();
+ Object.assign(f.db,{getAll:async(ref:DocumentReference,options:{fieldMask:string[]})=>{
+  assert(options.fieldMask.includes('onboarding.status'));return [await ref.get()];
+ }});
+ const db=observeFirestore(withThemeCatalog(f.db),()=>{});
+ enableCompanyDirectory(db,f.db,{file:async()=>{throw Error('Task guard must not load the directory');}});
+ let runs=0;const opts={enabled:true,run:async(ticker:string)=>{assert.equal(ticker,'AMD');runs++;return {status:'verified'};}};
  assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'ineligible');
  f.rows.set('companies/US:AMD',{name:'AMD',status:'PUBLISHED',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
  assert.equal((await processSecDiscoveryTask(task,db,opts)).status,'verified');assert.equal(runs,1);
