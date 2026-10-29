@@ -1121,7 +1121,13 @@ test("opening relationship evidence preserves the current company",async({page})
  await canvas.scrollIntoViewIfNeeded();
  const bounds=(await canvas.boundingBox())!;
  const anchor=page.locator('[data-company-id="US:TSM"]');
- const projection=()=>anchor.evaluate(el=>el.parentElement!.parentElement!.style.transform);
+ const projection=()=>anchor.evaluate(el=>{
+   const transform=el.parentElement!.parentElement!.style.transform;
+   if(!transform.includes('translate'))throw new Error('Missing projected company position');
+   const matrix=new DOMMatrixReadOnly(transform);
+   return {x:matrix.m41,y:matrix.m42};
+ });
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:20000});
  const initial=await projection();
  const start=await canvas.evaluate(el=>{
    const b=el.getBoundingClientRect();
@@ -1136,14 +1142,18 @@ test("opening relationship evidence preserves the current company",async({page})
  await page.mouse.down();
  await page.mouse.move(start.x+direction*Math.min(120,bounds.width*.3),start.y,{steps:12});
  await page.mouse.up();
- await expect.poll(projection).not.toBe(initial);
- await page.waitForTimeout(800);
+ await expect.poll(async()=>{const p=await projection();return Math.hypot(p.x-initial.x,p.y-initial.y);}).toBeGreaterThan(1);
+ // Wait for the controls' actual damping completion, not a wall-clock guess.
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:20000});
  const orbited=await projection();
- expect(orbited).toContain("translate");
   await page.locator('summary').filter({hasText:'Connections & roles'}).click();
   await page.getByRole("button",{name:"TSMC → NVIDIA",exact:true}).click();
- await expect.poll(projection).toBe(orbited);
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("NVIDIA");
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:20000});
+ // CSS projection rounding can differ by 0.001px across final frames. Allow
+ // only subpixel noise; a focus/orbit reset still fails this preservation check.
+ const afterEvidence=await projection();
+ expect(Math.hypot(afterEvidence.x-orbited.x,afterEvidence.y-orbited.y)).toBeLessThan(.01);
  await page.getByRole("region",{name:"Selected connection"}).getByRole("button",{name:"Explore TSMC →"}).click();
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("TSMC");
 });
