@@ -115,7 +115,10 @@ const earningsSource:EarningsSource={provider:'sec',companyId:'US:AMD',issuerId:
 function earningsWork(source=earningsSource,inputKind:'sec_filing'|'document'='sec_filing'):EarningsWork{
   return {recordType:'source',source,sourceId:sourceIdentity(source),inputKind,generation:1,status:'queued',publishPending:true,attempts:0,firstSeenAt:source.firstSeenAt,lastObservedAt:source.firstSeenAt,nextCheckAtMs:0};
 }
-const db={} as Firestore;
+const db={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),
+  getAll:async(...refs:Array<{path:string}>)=>refs.map(ref=>({data:()=>ref.path==='companies/US:AMD'
+    ? {name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}}
+    : ref.path==='collectors/sec-identity-US:AMD'?{companyId:'US:AMD',cik:'0000002488'}:undefined}))} as unknown as Firestore;
 test('all SEC earnings producers route through intake, while CN and probes retain the earnings queue',async()=>{
   const work=earningsWork(),request=earningsSourceEvent(work.sourceId,1),sent:Array<{topic:string;event:unknown}>=[];
   const publish=async(topic:string,event:unknown)=>{sent.push({topic,event});return 'message-id';};
@@ -152,4 +155,23 @@ test('intake validates task generations and rejects foreign issuers, probe types
   await assert.rejects(prepareSecIntake(request,db,{...options,readWork:async()=>({...work,source:{...work.source,url:url.replace('/2488/','/9999/')}})}),/issuer/);
   assert.throws(()=>parseSecIntakeJob({version:1,type:'earnings.delivery.probe',batchId:'earnings_probe_abc',createdAt:'2026-10-23T12:00:00Z'}));
   assert.equal(f.downloads(),0);
+});
+
+test('cached raw documents never bypass current company eligibility or SEC identity verification',async()=>{
+  const f=fixture(),source={...earningsSource,companyId:'US:NEW'},work=earningsWork(source);
+  const request=earningsSourceEvent(work.sourceId,1);
+  let supported=true,cik='0000002488',published=0,reads=0;
+  const targetedDb={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),
+    getAll:async(...refs:Array<{path:string}>)=>{
+      reads++;assert.deepEqual(refs.map(ref=>ref.path),['companies/US:NEW','collectors/sec-identity-US:NEW']);
+      return [{data:()=>({name:'New issuer',status:'DIRECTORY',onboarding:{status:supported?'SUPPORTED':'BLOCKED'}})},
+        {data:()=>({companyId:'US:NEW',cik})}];
+    }} as unknown as Firestore;
+  const options={enabled:true,cache:f.cache,readWork:async()=>work,download:f.download,publish:async()=>{published++;}};
+  await prepareSecIntake(request,targetedDb,options);
+  await prepareSecIntake(request,targetedDb,options);
+  assert.equal(f.downloads(),1);assert.equal(published,2);assert.equal(reads,2);
+  cik='0000001234';await assert.rejects(prepareSecIntake(request,targetedDb,options),/source identity/);
+  cik='0000002488';supported=false;await assert.rejects(prepareSecIntake(request,targetedDb,options),/not supported/);
+  assert.equal(f.downloads(),1);assert.equal(published,2);
 });

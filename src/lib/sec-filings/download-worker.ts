@@ -7,6 +7,24 @@ import {EARNINGS_TOPIC,parseEarningsJob,type EarningsSourceDiscovered} from '../
 import {EARNINGS_SOURCES,type EarningsWork} from '../earnings/live-store';
 import {sourceIdentity} from '../earnings/model';
 import {validateSource} from '../earnings/document';
+import {isSupportedCompany} from '../company-support/model';
+import {reviewedEarningsIssuers,type EarningsCompany} from '../earnings/issuers';
+
+/** Intake needs one current issuer, not the graph and identity-directory listeners.
+ * Read afresh so removals and CIK corrections apply to the next delivery. Never
+ * trust the queued source itself to establish its issuer identity.
+ */
+export async function readSecIntakeIdentity(db:Firestore,companyId:string):Promise<EarningsCompany>{
+  if(!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(companyId))throw new Error('Invalid SEC intake company');
+  const [companyDoc,identityDoc]=await db.getAll(db.collection('companies').doc(companyId),db.collection('collectors').doc(`sec-identity-${companyId}`));
+  const company=companyDoc.data(),identity=identityDoc.data();
+  if(!company||!isSupportedCompany(company))throw new Error('SEC intake company is not supported');
+  const cik=identity?.cik;
+  if(identity?.companyId!==companyId||typeof cik!=='string'||!/^\d{10}$/.test(cik)||Number(cik)===0)throw new Error('Unverified SEC intake issuer');
+  const hint=reviewedEarningsIssuers.find(row=>row.companyId===companyId);
+  if(hint?.cik&&hint.cik!==cik)throw new Error('Reviewed issuer CIK changed');
+  return {companyId,cik,issuerId:`sec:${cik}`,name:company.name as string,aliases:[],irHosts:[]};
+}
 
 export const SEC_DOWNLOAD_TOPIC='sec-filing-download-requests';
 export const SEC_DOWNLOAD_SUBSCRIPTION='sec-filing-download-worker';
@@ -48,7 +66,7 @@ export async function prepareSecIntake(input:unknown,db:Firestore,options:{enabl
   if(!options.enabled)throw new Error('SEC intake disabled; retain delivery');
   const work=await (options.readWork??(id=>db.collection(EARNINGS_SOURCES).doc(id).get().then(doc=>doc.data() as EarningsWork|undefined)))(event.sourceId);
   if(!work||work.recordType!=='source'||work.sourceId!==event.sourceId||sourceIdentity(work.source)!==event.sourceId)throw new Error('SEC earnings intake has no durable source');
-  validateSource(work.source);
+  validateSource(work.source,await readSecIntakeIdentity(db,work.source.companyId));
   if(work.generation>event.generation)return {status:'ineligible',stale:true};
   if(work.generation!==event.generation)throw new Error('SEC earnings intake generation is not durable');
   if(work.source.provider!=='sec'||!['sec_filing','document'].includes(work.inputKind))throw new Error('Non-SEC work cannot enter SEC intake');
