@@ -7,6 +7,7 @@ import {discoverSecCompany} from '../../src/lib/sec-filings/discovery';
 import {secBudget} from '../../src/lib/sec-budget';
 import {restoreEarningsFixtures} from '../../src/lib/earnings/issuers';
 import {withThemeCatalog} from '../helpers/theme-catalog';
+import type {DocumentReference} from 'firebase-admin/firestore';
 const at='2026-10-23T12:00:00.000Z',now=()=>Date.parse(at);
 const task={version:1 as const,type:'sec.company.discovery.requested' as const,batchId:'secd_'+'a'.repeat(64),companyId:'US:AMD',requestedAt:at};
 test('SEC task accepts one canonical listing only and never accepts caller URLs',()=>{
@@ -60,6 +61,10 @@ test('queued freshness uses completed coverage of every company, not accepted ta
 });
 test('live company discovery loads only its issuer snapshot and shares the ticker directory across tasks',async()=>{
  const f=earningsFirestore(),originalFetch=globalThis.fetch,gate=secBudget.run,agent=process.env.SEC_USER_AGENT,earnings=process.env.EARNINGS_COLLECTION_ENABLED;
+ Object.assign(f.db,{getAll:async(ref:DocumentReference,options:{fieldMask:string[]})=>{
+  assert(options.fieldMask.includes('classificationMetadata'));assert(!options.fieldMask.includes('searchPrefixes'));
+  return [await ref.get()];
+ }});
  const calls:string[]=[];
  for(const [ticker,cik] of [['AMD','0000002488'],['NVDA','0001045810']])f.rows.set(`companies/US:${ticker}`,{name:ticker,cik,status:'PUBLISHED',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});
  f.rows.set('sec_collector_state/_sec_filings_collector',{bridgeRetired:true});
