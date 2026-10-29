@@ -27,11 +27,11 @@ function disclosures(count:number){return secDisclosureRows('US:MU','0000723125'
 emulatorTest('full-sized historical batch succeeds with the SDK query limit and transaction semantics',async t=>{
   const db=client();t.after(()=>db.terminate());
   const input=rows(db,Array.from({length:1500},(_,i)=>i));
-  assert.deepEqual(await createCachedPriceBatch(db,input),{created:1500,existing:0});
+  assert.deepEqual(await createCachedPriceBatch(db,input,{createFirst:true}),{created:1500,existing:0});
   assert.equal((await db.collection('eod_prices').count().get()).data().count,1500);
 });
 
-emulatorTest('real concurrent price transactions preserve the winning price and publish a consistent graph cache',async t=>{
+for(const createFirst of [false,true])emulatorTest(`real concurrent price transactions preserve the winning price and publish a consistent graph cache (createFirst=${createFirst})`,async t=>{
   const db=client();t.after(()=>db.terminate());
   const bucket=db.collection('collectors').doc(`_graph_prices_v1_${bucketId}`);
   const revision=db.collection('collectors').doc('_graph_prices_v1');
@@ -39,8 +39,8 @@ emulatorTest('real concurrent price transactions preserve the winning price and 
   await revision.set({buckets:{[bucketId]:'before',other:'untouched'}});
   // Both transactions read an overlapping set before attempting conflicting creates.
   const results=await Promise.all([
-    createCachedPriceBatch(db,rows(db,Array.from({length:40},(_,i)=>i),100)),
-    createCachedPriceBatch(db,rows(db,Array.from({length:40},(_,i)=>i+20),1000)),
+    createCachedPriceBatch(db,rows(db,Array.from({length:40},(_,i)=>i),100),{createFirst}),
+    createCachedPriceBatch(db,rows(db,Array.from({length:40},(_,i)=>i+20),1000),{createFirst}),
   ]);
   assert.equal(results.reduce((sum,r)=>sum+r.created,0),60);
   assert.equal(results.reduce((sum,r)=>sum+r.existing,0),20);
@@ -50,7 +50,7 @@ emulatorTest('real concurrent price transactions preserve the winning price and 
   assert.deepEqual(cache.bars,expected);assert.deepEqual(cache.baselines,{});
   assert.equal((await revision.get()).get('buckets.other'),'untouched');
   const original=(await rows(db,[25])[0].ref.get()).data(),before=(await revision.get()).data();
-  assert.deepEqual(await createCachedPriceBatch(db,rows(db,[25],9999)),{created:0,existing:1});
+  assert.deepEqual(await createCachedPriceBatch(db,rows(db,[25],9999),{createFirst}),{created:0,existing:1});
   assert.deepEqual((await rows(db,[25])[0].ref.get()).data(),original);
   assert.deepEqual((await revision.get()).data(),before);
 });
@@ -86,7 +86,7 @@ emulatorTest('actual aborted transactions leave source documents and cache revis
     });
     const value=Reflect.get(target,prop);return typeof value==='function'?value.bind(target):value;
   }});
-  await assert.rejects(createCachedPriceBatch(failing,rows(db,[1,2])),/Injected abort/);
+  await assert.rejects(createCachedPriceBatch(failing,rows(db,[1,2]),{createFirst:true}),/Injected abort/);
   assert((await db.collection('eod_prices').get()).empty);
   assert.deepEqual((await bucket.get()).data(),before);
   assert(!(await db.collection('collectors').doc('_graph_prices_v1').get()).exists);
