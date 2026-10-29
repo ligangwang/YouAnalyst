@@ -89,7 +89,7 @@ test('SEC overlap scans skip confirmed events across runs but discover late arri
     await observer.observe('0000723125',value,async()=>null);assert.equal(observer.failed.size,0);
   };
   await run(raw);
-  const reads=()=>fx.reads.filter(path=>path.startsWith('events/')).length;
+  const reads=()=>fx.queries.filter(query=>query.collection==='events').length;
   assert.equal(reads(),1);
   await run(raw);assert.equal(reads(),1,'persisted receipt survives a new observer instance');
   const recent={...raw.filings.recent,accessionNumber:['0000723125-26-000099']};
@@ -110,7 +110,7 @@ test('failed SEC receipt checkpoint safely rechecks committed events on the next
   fx.reject(()=>false);
   const second=run();await second.observe('0000723125',raw,async()=>null);
   assert.equal(second.failed.size,0);
-  assert.equal(fx.reads.filter(path=>path.startsWith('events/')).length,2);
+  assert.equal(fx.queries.filter(query=>query.collection==='events').length,2);
   assert.equal([...fx.rows.keys()].filter(path=>path.startsWith('events/')).length,1);
 });
 test('expanded SEC coverage backfills existing issuers and resumes bounded batches without changing original timestamps',async()=>{
@@ -202,7 +202,7 @@ test('exchange overlap skips confirmed IDs but checks late arrivals and explicit
     :{hasMore:false,totalAnnouncement:announcements.length,announcements};
   const run=()=>collectCnMapDisclosures(fx.db,graph,request,{deadline:fx.now()+60000,runId:'test',earningsEnabled:false,now:fx.now});
   await run();
-  const eventReads=()=>fx.reads.filter(path=>path.startsWith('events/')).length;
+  const eventReads=()=>fx.queries.filter(query=>query.collection==='events').length;
   assert.equal(eventReads(),1);
   fx.advance(3600000);await run();assert.equal(eventReads(),1);
   announcements=[first,{...first,announcementId:'12124',adjunctUrl:'finalpage/2026-09-30/12124.PDF'}];
@@ -211,7 +211,7 @@ test('exchange overlap skips confirmed IDs but checks late arrivals and explicit
   fx.rows.delete(events[0]);
   fx.rows.set(checkpoint,{...fx.rows.get(checkpoint),confirmedDisclosures:[]});
   fx.advance(3600000);await run();
-  assert.equal(eventReads(),4);assert(fx.rows.has(events[0]));
+  assert.equal(eventReads(),3,'both repair candidates share one ID query');assert(fx.rows.has(events[0]));
 });
 test('exchange checkpoint failure retains transactional duplicate checks on the next run',async()=>{
   const fx=earningsFirestore(),checkpoint='collectors/exchange-XSHE:000063';
@@ -220,7 +220,7 @@ test('exchange checkpoint failure retains transactional duplicate checks on the 
   fx.reject((path,value)=>path===checkpoint&&value.status==='complete');
   await run();assert.equal(fx.rows.get(checkpoint)?.confirmedDisclosures,undefined);
   fx.reject(()=>false);fx.advance(3600000);await run();
-  assert.equal(fx.reads.filter(path=>path.startsWith('events/')).length,2);
+  assert.equal(fx.queries.filter(query=>query.collection==='events').length,2);
   assert.equal([...fx.rows.keys()].filter(path=>path.startsWith('events/')).length,1);
 });
 test('earnings discovery hands off per issuer only when enabled and fresh, and falls back during rollout or outages',async()=>{
