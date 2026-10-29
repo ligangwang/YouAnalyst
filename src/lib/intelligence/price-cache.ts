@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { FieldPath, type Firestore, type DocumentReference, type Precondition, type Transaction } from 'firebase-admin/firestore';
 import { predictionInstrument } from '../predictions/instrument';
+import { existingDocumentIds, runInsertTransaction } from '../firebase/insert-transaction';
 import { completedCloseDate, priceBars, type PriceBar } from './price-performance';
 
 const META='_graph_prices_v1';
@@ -114,14 +115,15 @@ export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:Docume
  const ticker=String(rows[0].patch.ticker??''),instrument=predictionInstrument(ticker);
  if(!instrument||rows.some(row=>row.patch.ticker!==ticker||row.patch.market!==instrument.market))throw Error('Price batch must contain one instrument');
  const key=keyFor(ticker),id=bucketFor(key);
- return db.runTransaction(async tx=>{
+ return runInsertTransaction(db,async tx=>{
   // All reads precede writes, including the cache bucket. A transaction retry
   // sees prices created concurrently and keeps their authoritative values.
-  const [bucket,...sources]=await tx.getAll(refFor(db,id),...rows.map(row=>row.ref));
+  const bucket=await tx.get(refFor(db,id));
+  const sources=await existingDocumentIds(tx,db.collection('eod_prices'),rows.map(row=>row.ref.id));
   const entries=(bucket.get('entries')??{}) as Bucket['entries'];
   const original=entries[key];let entry=original,created=0,existing=0;
   for(let i=0;i<rows.length;i++){
-   if(sources[i].exists){existing++;continue;}
+   if(sources.has(rows[i].ref.id)){existing++;continue;}
    const {ref,patch}=rows[i];tx.create(ref,patch);created++;
    if(!entry)continue;
    const bar=barFrom(patch,ticker);if(!bar)continue;

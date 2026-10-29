@@ -1,22 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Firestore } from 'firebase-admin/firestore';
+import { earningsFirestore } from '../helpers/earnings-firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { backfillPriceHistory, historyBars, historyThrough, historyProviderSymbol } from '../../src/lib/predictions/history-backfill';
 
 const bar=(date:string)=>({date,open:10,high:12,low:9,close:11,adjusted_close:10.5,volume:100});
 function fixture() {
-  const docs=new Map<string,Record<string,unknown>>();
+  const f=earningsFirestore(),docs=f.rows,db=f.db;
   const files=new Map<string,string>();
-  let failWrite=false;
-  const ref=(id:string)=>({id,get:async()=>({exists:docs.has(id),data:()=>docs.get(id),get:(key:string)=>docs.get(id)?.[key]}),create:async(value:Record<string,unknown>)=>{
-    if(failWrite)throw Error('write failed');if(docs.has(id))throw {code:6};docs.set(id,value);
-  }});
-  const db={collection:(name:string)=>({doc:(id:string)=>ref(`${name}/${id}`)}),
-    getAll:async(...refs:ReturnType<typeof ref>[])=>Promise.all(refs.map(r=>r.get())),
-    runTransaction:async(fn:(tx:unknown)=>unknown)=>fn({get:(r:ReturnType<typeof ref>)=>r.get(),getAll:(...refs:ReturnType<typeof ref>[])=>Promise.all(refs.map(r=>r.get())),create:(r:ReturnType<typeof ref>,v:Record<string,unknown>)=>{if(failWrite)throw Error("write failed");if(docs.has(r.id))throw {code:6};docs.set(r.id,v);},set:(r:ReturnType<typeof ref>,value:Record<string,unknown>)=>docs.set(r.id,{...docs.get(r.id),...value})})} as unknown as Firestore;
   const bucket={file:(name:string)=>({name,download:async()=>{if(!files.has(name))throw {code:404};return [Buffer.from(files.get(name)!)];},save:async(value:string)=>{files.set(name,value);}})} as unknown as Bucket;
-  return {db,bucket,docs,files,setFail:(value:boolean)=>{failWrite=value;}};
+  return {db,bucket,docs,files,setFail:(value:boolean)=>f.reject(path=>value&&path.startsWith('eod_prices/'))};
 }
 test('history validation rejects malformed dates, duplicate bars and invalid prices',()=>{
   assert.throws(()=>historyBars([bar('2026-02-30')],'2025-12-31','2026-10-05'));

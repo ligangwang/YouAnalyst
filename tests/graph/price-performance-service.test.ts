@@ -13,12 +13,12 @@ function fixture(){
  const snap=(r:Ref)=>{const row=structuredClone(data.get(r.path));return {id:r.path.split('/').at(-1)!,exists:!!row,data:()=>row,get:(k:string)=>row?.[k]};};
  function client(){
   function collection(name:string){
-   function query(filters:Array<[string,string]>=[],limit=100,after=''){
-    return {doc:(id:string)=>({path:`${name}/${id}`,get:async()=>snap({path:`${name}/${id}`})}),
-     where:(_f:unknown,op:string,v:string)=>query([...filters,[op,v]],limit,after),orderBy:()=>query(filters,limit,after),
+   function query(filters:Array<[string,string|string[]]>=[],limit=100,after=''){
+    return {doc:(id:string)=>({id,path:`${name}/${id}`,get:async()=>snap({path:`${name}/${id}`})}),
+     where:(_f:unknown,op:string,v:string|string[])=>query([...filters,[op,v]],limit,after),orderBy:()=>query(filters,limit,after),
      limit:(n:number)=>query(filters,n,after),select:()=>query(filters,limit,after),startAfter:(d:{id:string})=>query(filters,limit,d.id),
-     get:async()=>{queries.push({limit,through:filters.find(([op])=>op==='<=')![1]});
-      const docs=[...data.keys()].filter(p=>p.startsWith(name+'/')).map(p=>p.slice(name.length+1)).filter(id=>(!after||id<after)&&filters.every(([op,v])=>op==='>='?id>=v:id<=v)).sort().reverse().slice(0,limit).map(id=>snap({path:`${name}/${id}`}));
+     get:async()=>{queries.push({limit,through:String(filters.find(([op])=>op==='<=')?.[1]??'')});
+      const docs=[...data.keys()].filter(p=>p.startsWith(name+'/')).map(p=>p.slice(name.length+1)).filter(id=>(!after||id<after)&&filters.every(([op,v])=>op==='in'?(v as string[]).includes(id):op==='>='?id>=String(v):id<=String(v))).sort().reverse().slice(0,limit).map(id=>snap({path:`${name}/${id}`}));
       return {docs,size:docs.length};}};
    }return query();
   }
