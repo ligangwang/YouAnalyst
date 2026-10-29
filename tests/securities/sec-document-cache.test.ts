@@ -9,6 +9,8 @@ import {type EarningsSource,sourceIdentity} from '../../src/lib/earnings/model';
 import type {EarningsWork} from '../../src/lib/earnings/live-store';
 import {publishEarningsIntake} from '../../src/lib/sec-filings/intake-routing';
 import type {Firestore} from 'firebase-admin/firestore';
+import {readSecDocumentBytes,SecDocumentSizeError} from '../../src/lib/sec-filings/document-cache';
+import {deliverSecIntake,SEC_DOWNLOAD_DEAD_LETTER_TOPIC} from '../../src/lib/sec-filings/download-worker';
 
 const url='https://www.sec.gov/Archives/edgar/data/2488/000000248826000001/report.htm';
 const owner=secCacheOwner('fundamentals','filing-1'),graph=secCacheOwner('graph','filing-1');
@@ -97,6 +99,24 @@ test('errors or deferred processing never clear retention holds',async()=>{
 });
 
 const event=createSecFilingDiscovered({companyId:'AMD',cik:'0000002488',accessionNumber:'0000002488-26-000001',form:'10-K',filingDate:'2026-10-22',primaryDocument:'report.htm',isXbrl:true,discoveredAt:'2026-10-23T12:00:00Z'});
+test('oversized originals are retained for review and never acknowledged on quarantine failure',async()=>{
+  const f=fixture(),sent:unknown[]=[];
+  const options={enabled:true,cache:f.cache,download:async()=>{throw new SecDocumentSizeError();},publish:async(topic:string,message:unknown)=>{assert.equal(topic,SEC_DOWNLOAD_DEAD_LETTER_TOPIC);sent.push(message);}};
+  assert.equal((await deliverSecIntake(event,{} as Firestore,options)).status,'needs_admin');
+  assert.deepEqual(sent,[event]);assert.equal(f.objects.size,0);
+  await assert.rejects(deliverSecIntake(event,{} as Firestore,{...options,publish:async()=>{throw Error('Audit publish unavailable');}}),/Audit publish/);
+  await assert.rejects(deliverSecIntake(event,{} as Firestore,{...options,download:async()=>{throw Object.assign(Error('cooldown'),{code:429});}}),{code:429});
+  assert.equal(sent.length,1,'transient failures must remain on the original queue');
+});
+
+test('byte limits cancel streams and distinguish oversized originals from empty responses',async()=>{
+  let cancelled=0;
+  const large=()=>new ReadableStream<Uint8Array>({start(controller){controller.enqueue(new Uint8Array(SEC_MAX_DOCUMENT_BYTES+1));},cancel(){cancelled++;}});
+  await assert.rejects(readSecDocumentBytes(new Response(large(),{headers:{'content-length':String(SEC_MAX_DOCUMENT_BYTES+1)}})),SecDocumentSizeError);
+  await assert.rejects(readSecDocumentBytes(new Response(large())),SecDocumentSizeError);
+  assert.equal(cancelled,2);
+  await assert.rejects(readSecDocumentBytes(new Response(null)),error=>error instanceof Error&&!(error instanceof SecDocumentSizeError));
+});
 test('queued download durably caches before publishing the unchanged SEC filing event',async()=>{
   const f=fixture(),sent:unknown[]=[];
   await prepareSecFiling(event,{enabled:true,cache:f.cache,download:f.download,publish:async(topic,message)=>{assert.equal(topic,SEC_FILINGS_TOPIC);assert.equal(f.objects.size,1);sent.push(message);}});

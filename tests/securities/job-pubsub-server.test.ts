@@ -7,10 +7,10 @@ import { createSerialAdmission } from "../../src/lib/serial-admission";
 
 test("shared push handler validates routing and acknowledges only successful processing", async t => {
   t.mock.method(console, "info", () => {}); t.mock.method(console, "error", () => {});
-  let calls = 0, failed = false;
+  let calls = 0, failed = false,deferred=false;
   const server = createJobSubscriber({ project: "demo", subscription: "worker", job: "fixture",
     parse: (value: unknown) => { const v = value as { batchId?: string }; if (v?.batchId !== "valid") throw Error("invalid payload"); return { batchId: v.batchId }; },
-    process: async () => { calls++; if (failed) throw Error("retry me"); return { completed: 1 }; },
+    process: async () => { calls++; if(deferred)throw Object.assign(Error('Provider cooldown'),{code:429});if (failed) throw Error("retry me"); return { completed: 1 }; },
   });
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   t.after(() => { server.closeAllConnections(); server.close(); });
@@ -28,6 +28,7 @@ test("shared push handler validates routing and acknowledges only successful pro
   failed = true;
   assert.equal((await post(body())).status, 503);
   assert.equal(calls, 2);
+  deferred=true;assert.equal((await post(body())).status,429,'cooldown remains unacknowledged for retry');
 });
 
 test('a disconnected queued push does not execute after the worker becomes free', async t => {

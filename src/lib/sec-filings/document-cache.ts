@@ -5,6 +5,9 @@ import {getStorage} from 'firebase-admin/storage';
 export const SEC_CACHE_PREFIX='sec-document-cache/v1/';
 export const SEC_CACHE_RETENTION_MS=90*86400000;
 export const SEC_MAX_DOCUMENT_BYTES=20*1024*1024;
+export class SecDocumentSizeError extends Error {
+  constructor(){super('SEC document exceeds byte limit / cache byte bounds');this.name='SecDocumentSizeError';}
+}
 export type CachedSecMetadata={key:string;sourceUrl:string;rawSha256:string;downloadedAt:string;completedAt?:string;contentType:string;owners:Record<string,'pending'|'complete'>;generation:string;metageneration:string;temporaryHold:boolean};
 export interface SecDocumentStore{
   metadata(key:string):Promise<CachedSecMetadata|null>;
@@ -87,7 +90,8 @@ export function createSecDocumentCache(store:SecDocumentStore,now=Date.now){
       let meta=await store.metadata(key);
       if(!meta){
         const raw=await download();
-        if(!raw.bytes.length||raw.bytes.length>SEC_MAX_DOCUMENT_BYTES)throw new Error('SEC document exceeds cache byte bounds');
+        if(raw.bytes.length>SEC_MAX_DOCUMENT_BYTES)throw new SecDocumentSizeError();
+        if(!raw.bytes.length)throw new Error('SEC document is empty');
         await store.create({key,sourceUrl:url,rawSha256:digest(raw.bytes),downloadedAt:new Date(now()).toISOString(),contentType:raw.contentType,owners:Object.fromEntries(owners.map(owner=>[owner,'pending' as const])),temporaryHold:true},raw.bytes);
       }
       meta=await change(key,current=>{
@@ -140,8 +144,9 @@ export async function withSecDocumentProcessing<T>(owner:string,url:string,work:
 }
 
 export async function readSecDocumentBytes(response:Response){
-  if(!response.body||Number(response.headers.get('content-length'))>SEC_MAX_DOCUMENT_BYTES){await response.body?.cancel();throw new Error('SEC document exceeds byte limit');}
+  if(Number(response.headers.get('content-length'))>SEC_MAX_DOCUMENT_BYTES){await response.body?.cancel();throw new SecDocumentSizeError();}
+  if(!response.body)throw new Error('SEC document is empty');
   const reader=response.body.getReader(),chunks:Buffer[]=[];let size=0;
-  try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>SEC_MAX_DOCUMENT_BYTES)throw new Error('SEC document exceeds byte limit');chunks.push(Buffer.from(value));}}finally{await reader.cancel();}
+  try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>SEC_MAX_DOCUMENT_BYTES)throw new SecDocumentSizeError();chunks.push(Buffer.from(value));}}finally{await reader.cancel();}
   return {bytes:Buffer.concat(chunks),contentType:response.headers.get('content-type')??'application/octet-stream'};
 }
