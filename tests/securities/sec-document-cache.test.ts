@@ -116,7 +116,7 @@ function earningsWork(source=earningsSource,inputKind:'sec_filing'|'document'='s
   return {recordType:'source',source,sourceId:sourceIdentity(source),inputKind,generation:1,status:'queued',publishPending:true,attempts:0,firstSeenAt:source.firstSeenAt,lastObservedAt:source.firstSeenAt,nextCheckAtMs:0};
 }
 const db={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),
-  getAll:async(...refs:Array<{path:string}>)=>refs.map(ref=>({data:()=>ref.path==='companies/US:AMD'
+  getAll:async(...args:Array<{path:string}|{fieldMask:string[]}>)=>args.filter((ref):ref is {path:string}=>'path' in ref).map(ref=>({data:()=>ref.path==='companies/US:AMD'
     ? {name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}}
     : ref.path==='collectors/sec-identity-US:AMD'?{companyId:'US:AMD',cik:'0000002488'}:undefined}))} as unknown as Firestore;
 test('all SEC earnings producers route through intake, while CN and probes retain the earnings queue',async()=>{
@@ -162,7 +162,8 @@ test('cached raw documents never bypass current company eligibility or SEC ident
   const request=earningsSourceEvent(work.sourceId,1);
   let supported=true,cik='0000002488',published=0,reads=0;
   const targetedDb={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),
-    getAll:async(...refs:Array<{path:string}>)=>{
+    getAll:async(...args:Array<{path:string}|{fieldMask:string[]}>)=>{
+      const refs=args.filter((ref):ref is {path:string}=>'path' in ref);
       reads++;assert.deepEqual(refs.map(ref=>ref.path),['companies/US:NEW','collectors/sec-identity-US:NEW']);
       return [{data:()=>({name:'New issuer',status:'DIRECTORY',onboarding:{status:supported?'SUPPORTED':'BLOCKED'}})},
         {data:()=>({companyId:'US:NEW',cik})}];

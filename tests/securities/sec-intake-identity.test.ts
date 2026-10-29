@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import type {Firestore} from 'firebase-admin/firestore';
+import {Firestore} from 'firebase-admin/firestore';
+import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
+import {enableCompanyDirectory} from '../../src/lib/local-cache/company-directory';
 import {readSecIntakeIdentity} from '../../src/lib/sec-filings/download-worker';
 import {earningsCompany} from '../../src/lib/earnings/issuers';
 
@@ -8,7 +10,9 @@ function fixture(){
   const rows=new Map<string,Record<string,unknown>>();
   let reads=0;
   const db={collection:(collection:string)=>({doc:(id:string)=>({path:`${collection}/${id}`})}),
-    getAll:async(...refs:Array<{path:string}>)=>{
+    getAll:async(...args:Array<{path:string}|{fieldMask:string[]}>)=>{
+      const options=args.pop() as {fieldMask:string[]};assert(options.fieldMask.includes('onboarding.status'));
+      const refs=args as Array<{path:string}>;
       assert.equal(refs.length,2,'No universe scans or bulk identity loads');reads+=refs.length;
       return refs.map(ref=>({data:()=>rows.get(ref.path)}));
     }} as unknown as Firestore;
@@ -18,6 +22,24 @@ function fixture(){
   };
   return {db,rows,put,get reads(){return reads;}};
 }
+
+test('production Firestore adapter bypasses company snapshots and listeners for intake validation',async()=>{
+  const raw=new Firestore({projectId:'sec-intake-projection-test'});
+  let calls=0,directoryLoads=0,cik='0000001234';
+  raw.getAll=(async(...args:unknown[])=>{
+    calls++;
+    assert.deepEqual(args.slice(0,2).map(ref=>(ref as {path:string}).path),['companies/US:AAA','collectors/sec-identity-US:AAA']);
+    assert.deepEqual(args[2],{fieldMask:['name','status','isDeleted','supersededByCompanyId','onboarding.status','companyId','cik']});
+    return [{exists:true,data:()=>({name:'AAA',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}})},
+      {exists:true,data:()=>({companyId:'US:AAA',cik})}];
+  }) as unknown as typeof raw.getAll;
+  const db=observeFirestore(raw,()=>{});
+  enableCompanyDirectory(db,raw,{file:async()=>{directoryLoads++;throw Error('Intake must not hydrate company directory');}});
+  assert.equal((await readSecIntakeIdentity(db,'US:AAA')).cik,'0000001234');
+  cik='0000005678';
+  assert.equal((await readSecIntakeIdentity(db,'US:AAA')).cik,'0000005678');
+  assert.equal(calls,2);assert.equal(directoryLoads,0);
+});
 
 test('repeated and concurrent deliveries read only their two issuer documents without listeners or global map replacement',async()=>{
   const f=fixture();f.put('US:AAA','0000001234');f.put('US:BBB','0000005678');

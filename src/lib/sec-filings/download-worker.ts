@@ -16,7 +16,10 @@ import {reviewedEarningsIssuers,type EarningsCompany} from '../earnings/issuers'
  */
 export async function readSecIntakeIdentity(db:Firestore,companyId:string):Promise<EarningsCompany>{
   if(!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(companyId))throw new Error('Invalid SEC intake company');
-  const [companyDoc,identityDoc]=await db.getAll(db.collection('companies').doc(companyId),db.collection('collectors').doc(`sec-identity-${companyId}`));
+  // Field-mask reads retain SDK semantics in the Firestore adapter instead of
+  // hydrating the shared company snapshot directory and opening its listener.
+  const [companyDoc,identityDoc]=await db.getAll(db.collection('companies').doc(companyId),db.collection('collectors').doc(`sec-identity-${companyId}`),
+    {fieldMask:['name','status','isDeleted','supersededByCompanyId','onboarding.status','companyId','cik']});
   const company=companyDoc.data(),identity=identityDoc.data();
   if(!company||!isSupportedCompany(company))throw new Error('SEC intake company is not supported');
   const cik=identity?.cik;
