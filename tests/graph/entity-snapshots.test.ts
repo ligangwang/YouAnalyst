@@ -133,3 +133,14 @@ test('snapshot storage preserves timestamps and refuses a stale publisher',async
  await assert.rejects(files.load('companies',undefined,timingOptions),/Incomplete/);
  assert.equal(timings.at(-1)?.status,'error');assert.equal(timings.at(-1)?.rowsDecoded,1);
 });
+
+
+test('snapshot pages stop fetching when the consumer stops',async()=>{
+ let calls=0;
+ const query:Record<string,unknown>={};
+ query.orderBy=query.limit=()=>query;
+ query.get=async()=>{calls++;return {size:250,docs:Array.from({length:250},(_,i)=>({id:String(i),data:()=>({updatedAt:stamp(1)}),get:()=>stamp(1)}))};};
+ const source=snapshotSource({collection:()=>query} as unknown as Firestore);
+ for await(const page of source.pages!('eod_prices',undefined,stamp(2))){assert.equal(page.length,250);break;}
+ assert.equal(calls,1);
+});

@@ -80,3 +80,34 @@ test('price sync rewrites only changed ticker/year partitions, and failed public
  try{assert.equal((await files.load('eod_prices')).snapshot!.rows.length,0);}finally{await files.close();}
  assert.deepEqual(boundaries,[undefined,10,10]);assert.equal(f.objects.has('entity-snapshots/eod_prices.sqlite'),false);
 });
+
+
+test('paged price catch-up merges interleaved partitions without the all-rows loader',async()=>{
+ const f=bucketFixture();let time=10,fail=false;
+ const row=(ticker:string,date:string,close:number):Row=>({id:`US_${ticker}_${date}`,data:{close,updatedAt:new Timestamp(time-1,123)}});
+ let pages:Row[][]=[[row('AMD','2026-01-02',1),row('NVDA','2026-01-02',2)],[row('AMD','2026-01-03',3)]];
+ const source:Source={boundary:async()=>new Timestamp(time,0),rows:async()=>{throw Error('unbounded loader');},pages:async function*(){for(const page of pages){yield page;if(fail)throw Error('interrupted read');}}};
+ assert.deepEqual(await syncPricePartitions(source,f.bucket),{collection:'eod_prices',changed:3,partitions:2,records:3,deleted:0});
+ const checkpoint=f.objects.get('price-snapshots/checkpoint.json');
+ time=20;pages=[[row('AMD','2026-01-02',4)],[{id:'US_NVDA_2026-01-02',data:{isDeleted:true,updatedAt:new Timestamp(19,0)}}]];
+ fail=true;await assert.rejects(syncPricePartitions(source,f.bucket),/interrupted read/);
+ assert.equal(f.objects.get('price-snapshots/checkpoint.json'),checkpoint);
+ fail=false;await syncPricePartitions(source,f.bucket);
+ const files=sqliteSnapshotFiles(f.bucket,()=> 'price-snapshots/US/AMD/2026.sqlite');
+ try{const rows=(await files.load('eod_prices')).snapshot!.rows;assert.deepEqual(rows.map(row=>row.data.close),[4,3]);assert.equal(rows[0].data.updatedAt.nanoseconds,123);}finally{await files.close();}
+});
+
+test('overlapping price publication cannot overwrite a newer partition or checkpoint',async()=>{
+ const f=bucketFixture(),upload=f.bucket.upload.bind(f.bucket);let overlap=true;
+ const source=(time:number):Source=>({boundary:async()=>new Timestamp(time,0),rows:async()=>[],pages:async function*(){yield [{id:'US_AMD_2026-01-02',data:{close:time,updatedAt:new Timestamp(time-1,0)}}];}});
+ f.bucket.upload=(async(...args:Parameters<typeof upload>)=>{
+  if(overlap){overlap=false;await syncPricePartitions(source(20),f.bucket);}
+  return upload(...args);
+ }) as unknown as typeof f.bucket.upload;
+ await assert.rejects(syncPricePartitions(source(10),f.bucket),/precondition/);
+ const checkpoint=f.objects.get('price-snapshots/checkpoint.json')!.bytes.toString();
+ const files=sqliteSnapshotFiles(f.bucket,()=> 'price-snapshots/US/AMD/2026.sqlite');
+ try{const snapshot=(await files.load('eod_prices')).snapshot!;assert.equal(snapshot.watermark.seconds,20);assert.equal(snapshot.rows[0].data.close,20);}finally{await files.close();}
+ await assert.rejects(syncPricePartitions(source(10),f.bucket),/future/);
+ assert.equal(f.objects.get('price-snapshots/checkpoint.json')!.bytes.toString(),checkpoint);
+});

@@ -35,6 +35,8 @@ async function main(){
     const result=await syncCollection(collection,source,files);
     changed+=result.changed;records+=result.records;deleted+=result.deleted;
     console.info(JSON.stringify({job:'sync-entity-snapshots',event:'entity_snapshot_sync',status:'success',...result}));
+    // Release decoded rows before the next collection and price catch-up.
+    await files.close();
 
   }
   }finally{await files.close();}

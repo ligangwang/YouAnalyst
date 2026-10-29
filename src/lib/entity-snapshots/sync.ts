@@ -5,6 +5,7 @@ export type Row = { id: string; data: DocumentData };
 export type Snapshot = { version: 1; collection: Collection; watermark: Timestamp; rows: Row[] };
 export interface Source {
   boundary(): Promise<Timestamp>;
+  pages?(collection: Collection, since: Timestamp | undefined, through: Timestamp): AsyncIterable<Row[]>;
   rows(collection: Collection, since: Timestamp | undefined, through: Timestamp): Promise<Row[]>;
 }
 export interface Files {
