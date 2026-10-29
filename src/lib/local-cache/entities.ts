@@ -3,7 +3,7 @@ import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Collection, RelationshipQuery } from '../central-cache/store';
 import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
-import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader} from './company-directory';
+import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery} from './company-directory';
 import { themeIdBatches } from '../company-themes/company-query';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
@@ -19,6 +19,12 @@ function watchQuery(query:Query,changed:(docs:DocumentSnapshot[])=>void){return 
   changed(snapshot.docs);next(new Map(snapshot.docs.map(doc=>[doc.id,doc])));
 },error)));}
 export async function localQuery(db:Firestore,key:string,query:Query,collection:string='companies'){
+ // Page scope is for targeted entity reads. Global enrollment/theme selectors
+ // otherwise create thousands-document listeners in every website process.
+ if(collection==='companies'&&(key==='companies:supported'||key.startsWith('companies:themes:'))){
+  const snapshot=await withSharedCompanyQuery(()=>companyDirectoryEnabled(db)?query.get():Promise.resolve(undefined));
+  if(snapshot)return new Map(snapshot.docs.map(doc=>[doc.id,doc]));
+ }
  if(companyDirectoryEnabled(db,collection as import('../entity-snapshots/sync').Collection))return new Map((await query.get()).docs.map(doc=>[doc.id,doc]));
  const s=store(db);let watch=s.queries.get(key);
  if(!watch){

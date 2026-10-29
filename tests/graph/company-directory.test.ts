@@ -3,9 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore,FieldPath} from 'firebase-admin/firestore';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
-import {enableCompanyDirectory,withLiveCompanyReads,refreshCompanyDirectoryIds} from '../../src/lib/local-cache/company-directory';
+import {enableCompanyDirectory,withLiveCompanyReads,refreshCompanyDirectoryIds,withPageEntityReads,companyDirectoryEnabled} from '../../src/lib/local-cache/company-directory';
 import {readCompanyLookup} from '../../src/lib/company-lookup-cache';
-import {localDocuments} from '../../src/lib/local-cache/entities';
+import {localDocuments,localQuery} from '../../src/lib/local-cache/entities';
 import {loadSitemapPaths} from '../../src/lib/local-cache/sitemaps';
 
 function fixture(file:()=>Promise<Map<string,Record<string,unknown>>|undefined>,now=()=>0){
@@ -21,6 +21,22 @@ const records=()=>new Map([
  ['US:C',{name:'Charlie',themeIds:['ai'],symbolLower:'c',rank:3}],
  ['US:X',{name:'Deleted',isDeleted:true,themeIds:['ai'],symbolLower:'x',rank:4}],
 ]);
+
+test('parallel page scopes share broad company selectors without leaking into targeted reads',async()=>{
+ let loads=0;const f=fixture(async()=>{loads++;return records();});
+ await Promise.all(Array.from({length:8},()=>withPageEntityReads(async()=>{
+  assert.equal(companyDirectoryEnabled(f.db),false);
+  const query=f.db.collection('companies').where('themeIds','array-contains-any',['ai']);
+  const [themes,supported]=await Promise.all([
+   localQuery(f.db,'companies:themes:ai',query),
+   localQuery(f.db,'companies:supported',f.db.collection('companies').where('rank','>=',2)),
+  ]);
+  assert.deepEqual([...themes.keys()],['US:A','US:C']);
+  assert.deepEqual([...supported.keys()],['US:B','US:C']);
+  assert.equal(companyDirectoryEnabled(f.db),false,'the caller still uses targeted page reads');
+ })));
+ assert.equal(loads,1);assert.equal(f.reads(),0);
+});
 test('company page, aliases, search, themes, batches and sitemap share one file load',async()=>{
  let loads=0;const f=fixture(async()=>{loads++;return records();});
  const collection=f.db.collection('companies');

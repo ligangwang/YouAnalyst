@@ -26,6 +26,9 @@ const searchReads=globalThis.__companySearchReadsV1??=new AsyncLocalStorage<bool
 export const withSearchEntityReads=<T>(work:()=>Promise<T>):Promise<T>=>searchReads.run(true,work);
 /** A company request uses the existing targeted push caches, not whole files. */
 export const withPageEntityReads=<T>(work:()=>Promise<T>):Promise<T>=>pageReads.run(true,work);
+/** A page's broad company selectors still belong to the shared directory.
+ * Explicit authoritative reads remain live through the independent live scope. */
+export const withSharedCompanyQuery=<T>(work:()=>Promise<T>):Promise<T>=>pageReads.run(false,work);
 const DAY=86_400_000;
 /** Maintenance and transactional decisions must read authoritative data. */
 export const withLiveCompanyReads=<T>(work:()=>T):T=>state.live.run(true,work);
