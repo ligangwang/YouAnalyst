@@ -5,6 +5,7 @@ import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {enableCompanyDirectory} from '../../src/lib/local-cache/company-directory';
 import {withCacheReadScope} from '../../src/lib/change-cache';
 import {loadNewsCollectionContext} from '../../src/lib/intelligence/collectors/source-service';
+import {readCollectionCompanies,readSecCollectionCompany} from '../../src/lib/company-support/collection-reader';
 
 function fixture(count:number){
   const records=new Map(Array.from({length:count},(_,i)=>['US:C'+String(i).padStart(5,'0'),{
@@ -59,4 +60,41 @@ test('fresh scheduled scopes exclude removals and unpublished sources without st
 test('projection still rejects unapproved publisher configuration',async()=>{
   const f=fixture(1);f.records.get('US:C00000')!.newsSources=[{...source,url:'https://evil.org/feed'}];
   await assert.rejects(loadNewsCollectionContext(f.db),/Unapproved feed/);
+});
+
+test('regional scheduler queries exclude unrelated listings before reading documents',async()=>{
+  const all=['ORG:PRIVATE','US:A','US:Z','XSHE:000001','XSHG:600000','XSHG;OTHER'];
+  const returned:string[]=[];
+  function query(filters:Array<[unknown,string,string]>=[]){return {
+    where:(field:unknown,op:string,value:string)=>query([...filters,[field,op,value]]),
+    orderBy:()=>query(filters),select:()=>query(filters),limit:()=>query(filters),
+    async get(){
+      const ids=all.filter(id=>filters.every(([field,op,value])=>typeof field==='string'||(op==='>='?id>=value:id<value)));
+      returned.push(...ids);
+      return {size:ids.length,docs:ids.map(id=>({id,data:()=>({name:id,status:'DIRECTORY',onboarding:{status:'SUPPORTED'}})}))};
+    },
+  };}
+  const db={collection:()=>query()} as unknown as Firestore;
+  assert.deepEqual((await readCollectionCompanies(db,[],'CN')).map(c=>c.id),['XSHE:000001','XSHG:600000']);
+  assert.deepEqual(returned,['XSHE:000001','XSHG:600000']);returned.length=0;
+  assert.deepEqual((await readCollectionCompanies(db,[],'US')).map(c=>c.id),['US:A','US:Z']);
+  assert.deepEqual(returned,['US:A','US:Z']);
+});
+
+test('queued SEC discovery reads one live projection and preserves classification fields',async()=>{
+  let current:Record<string,unknown>|undefined={name:'Issuer',cik:'0000000001',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},taxonomy:'SIC',classification:['1234'],classificationMetadata:{catalogVersion:'v1'}};
+  let reads=0;
+  const raw={collection:()=>({path:'companies',doc:(id:string)=>({id,path:`companies/${id}`})}),
+    getAll:async(ref:{id:string},options:{fieldMask:string[]})=>{
+      reads++;assert(options.fieldMask.includes('classificationMetadata'));assert(!options.fieldMask.includes('searchPrefixes'));
+      return [{id:ref.id,exists:!!current,data:()=>current}];
+    }} as unknown as Firestore;
+  const db=observeFirestore(raw,()=>{});
+  enableCompanyDirectory(db,raw,{file:async()=>{throw Error('Must not load company snapshot');}});
+  const first=await readSecCollectionCompany(db,'US:A');
+  assert.deepEqual(first?.classification,['1234']);
+  current={...current,cik:'0000000002'};
+  assert.equal((await readSecCollectionCompany(db,'US:A'))?.cik,'0000000002');
+  current=undefined;assert.equal(await readSecCollectionCompany(db,'US:A'),undefined);
+  assert.equal(reads,3);
 });
