@@ -110,16 +110,16 @@ export async function writeCachedPrice(db:Firestore,ref:DocumentReference,patch:
 
 /** Create missing history for one instrument in one transaction. The source
  * rows and the graph cache revision commit together, at most once per batch. */
-export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:DocumentReference;patch:Record<string,unknown>}>){
+export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:DocumentReference;patch:Record<string,unknown>}>,options:{createFirst?:boolean}={}){
  if(!rows.length)return {created:0,existing:0};
  const ticker=String(rows[0].patch.ticker??''),instrument=predictionInstrument(ticker);
  if(!instrument||rows.some(row=>row.patch.ticker!==ticker||row.patch.market!==instrument.market))throw Error('Price batch must contain one instrument');
  const key=keyFor(ticker),id=bucketFor(key);
- return runInsertTransaction(db,async tx=>{
+ const write=async(tx:Transaction,checkExisting:boolean)=>{
   // All reads precede writes, including the cache bucket. A transaction retry
   // sees prices created concurrently and keeps their authoritative values.
   const bucket=await tx.get(refFor(db,id));
-  const sources=await existingDocumentIds(tx,db.collection('eod_prices'),rows.map(row=>row.ref.id));
+  const sources=checkExisting?await existingDocumentIds(tx,db.collection('eod_prices'),rows.map(row=>row.ref.id)):new Set<string>();
   const entries=(bucket.get('entries')??{}) as Bucket['entries'];
   const original=entries[key];let entry=original,created=0,existing=0;
   for(let i=0;i<rows.length;i++){
@@ -135,5 +135,14 @@ export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:Docume
    tx.set(db.collection('collectors').doc(META),{buckets:{[id]:randomUUID()}},{merge:true});
   }
   return {created,existing};
- });
+ };
+ if(options.createFirst){
+  // Fresh onboarding normally has no history. Create preconditions protect
+  // partial/repeated onboarding; a conflict rolls back source AND cache writes.
+  try{return await db.runTransaction(tx=>write(tx,false));}
+  catch(error){if((error as {code?:number}|null)?.code!==6)throw error;}
+ }
+ // Start a fresh transaction after a competing create, including a fresh cache
+ // snapshot. Further create races use the same bounded retry as normal imports.
+ return runInsertTransaction(db,tx=>write(tx,true));
 }

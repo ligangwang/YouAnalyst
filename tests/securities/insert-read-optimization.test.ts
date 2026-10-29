@@ -30,6 +30,49 @@ function disclosures(count:number){
 }
 const at='2026-10-28T12:00:00Z';
 
+test('create-first onboarding commits prices and cache with no existence queries',async()=>{
+  const f=earningsFirestore();seedCache(f);
+  assert.deepEqual(await createCachedPriceBatch(f.db,priceRows(f.db,[1,2]),{createFirst:true}),{created:2,existing:0});
+  assert.equal(f.queries.length,0);assert.deepEqual(f.reads,[bucketPath]);
+  assert.deepEqual(entry(f).bars,[bar(1),bar(2)]);
+  assert.deepEqual(entry(f).baselines,{[date(0)]:bar(0)});
+  assert.equal(f.writes.filter(path=>path===revisionPath).length,1);
+});
+
+test('create-first conflict falls back to grouped reads and preserves authoritative prices',async()=>{
+  const f=earningsFirestore();seedCache(f);
+  const rows=priceRows(f.db,Array.from({length:31},(_,i)=>i+1));
+  f.rows.set(rows[0].ref.path,{...rows[0].patch,rawClose:777});
+  assert.deepEqual(await createCachedPriceBatch(f.db,rows,{createFirst:true}),{created:30,existing:1});
+  assert.deepEqual(f.queries.map(q=>q.ids?.length),[30,1]);
+  assert.equal(f.rows.get(rows[0].ref.path)?.rawClose,777);
+  assert(!f.writes.includes(rows[0].ref.path));
+  assert.equal(f.reads.length,2);
+  assert.equal(f.writes.filter(path=>path===revisionPath).length,1,'failed fast path publishes nothing');
+});
+
+test('create-first race rereads the winning cache instead of publishing speculative prices',async()=>{
+  const f=earningsFirestore();seedCache(f);const rows=priceRows(f.db,[1,2]);
+  f.beforeCommit(()=>{
+    f.rows.set(rows[0].ref.path,{...rows[0].patch,rawClose:777});
+    f.rows.set(bucketPath,{entries:{[key]:{bars:[bar(0),bar(1,777)],baselines:{[date(0)]:bar(0)}}}});
+  });
+  assert.deepEqual(await createCachedPriceBatch(f.db,rows,{createFirst:true}),{created:1,existing:1});
+  assert.deepEqual(entry(f).bars,[bar(1,777),bar(2)]);
+  assert.equal(f.queries.length,1);assert.equal(f.reads.length,2);
+  const before=structuredClone([...f.rows]);
+  assert.deepEqual(await createCachedPriceBatch(f.db,rows,{createFirst:true}),{created:0,existing:2});
+  assert.deepEqual([...f.rows],before,'an all-existing replay publishes no cache update');
+});
+
+test('create-first non-conflict failure rolls back all writes without querying or retrying',async()=>{
+  const f=earningsFirestore();seedCache(f);const before=structuredClone([...f.rows]);
+  f.reject(path=>path===revisionPath);
+  await assert.rejects(createCachedPriceBatch(f.db,priceRows(f.db,[1,2]),{createFirst:true}),/Injected Firestore commit failure/);
+  assert.deepEqual([...f.rows],before);assert.equal(f.writes.length,0);
+  assert.equal(f.queries.length,0);assert.equal(f.reads.length,1);
+});
+
 test('1500 absent prices use 50 exact-ID queries and one cache read, with no price point reads',async()=>{
   const f=earningsFirestore(),rows=priceRows(f.db,Array.from({length:1500},(_,i)=>i));
   assert.deepEqual(await createCachedPriceBatch(f.db,rows),{created:1500,existing:0});

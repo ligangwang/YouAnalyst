@@ -30,7 +30,7 @@ export function historyBars(value: unknown, from: string, through: string): Bar[
 /** No prediction scoring or latest-price mutation: only fill missing historical documents. */
 export async function backfillPriceHistory(input: {
   db: Firestore; bucket: Bucket; tickers: string[]; through: string; from?: string; limit?: number;
-  writeBatchSize?: number; beforeBatch?: () => Promise<void>; afterBatch?: () => Promise<void>;
+  writeBatchSize?: number; createFirst?: boolean; beforeBatch?: () => Promise<void>; afterBatch?: () => Promise<void>;
   token: string; apiUrl?: string; fetcher?: typeof fetch; now?: () => number;
 }) {
   const { db, bucket, token, through } = input;
@@ -92,7 +92,7 @@ export async function backfillPriceHistory(input: {
               dailyReturn:previous ? (row.close-previous.close)/previous.close : null}};
         });
         let written:{created:number;existing:number};
-        try { written=await createCachedPriceBatch(db,rows); }
+        try { written=await createCachedPriceBatch(db,rows,{createFirst:input.createFirst}); }
         catch { throw Error('History document write failed'); }
         result.created+=written.created;result.existing+=written.existing;
         await input.afterBatch?.();

@@ -105,7 +105,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     prices:async({request,instrument:record,guard})=>{
       const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await guard();
-      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:1500,beforeBatch:guard,
+      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:1500,createFirst:true,beforeBatch:guard,
         afterBatch:async()=>{await guard();await new Promise<void>(resolve=>setTimeout(resolve,1000));}});
       if(result.failures.length)throw Error('Historical price backfill incomplete');
       const {bars}=await priceHistory(request,record),last=bars.at(-1)!;
