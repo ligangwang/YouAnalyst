@@ -7,7 +7,7 @@ function run(mode:string){
     gcloud() {
       case "$*" in
         "run revisions describe"*)
-          node -e 'const image=process.env.MODE==="wrong-image"?"image@sha256:wrong":"image@sha256:expected"; console.log(JSON.stringify({metadata:{name:"worker-r123"},spec:{serviceAccountName:"runtime@demo",containerConcurrency:1,containers:[{image,env:[{name:"GIT_SHA",value:"commit"}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
+          node -e 'const image=process.env.MODE==="wrong-image"?"image@sha256:wrong":"image@sha256:expected"; console.log(JSON.stringify({metadata:{name:"worker-r123"},spec:{serviceAccountName:"runtime@demo",containerConcurrency:5,containers:[{image,env:[{name:"GIT_SHA",value:"commit"}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
         "run services describe"*)
           node -e 'const revisionName=process.env.MODE==="wrong-route"?"older":"worker-r123"; console.log(JSON.stringify({status:{conditions:[{type:"Ready",status:"True"}],traffic:[{revisionName,percent:100}]}}))' ;;
       esac

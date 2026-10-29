@@ -1,6 +1,6 @@
 import {parseSecFilingDiscovered,type SecFilingDiscovered,SEC_FILINGS_TOPIC} from './event';
 import {secRequest} from '../sec-request';
-import {configuredSecDocumentCache,readSecDocumentBytes,secCacheOwner,type SecDocumentCache} from './document-cache';
+import {configuredSecDocumentCache,readSecDocumentBytes,secCacheOwner,SecDocumentSizeError,type SecDocumentCache} from './document-cache';
 import {secArchiveIdentity} from './document-cache';
 import type {Firestore} from 'firebase-admin/firestore';
 import {EARNINGS_TOPIC,parseEarningsJob,type EarningsSourceDiscovered} from '../earnings/live-event';
@@ -31,7 +31,20 @@ export async function readSecIntakeIdentity(db:Firestore,companyId:string):Promi
 
 export const SEC_DOWNLOAD_TOPIC='sec-filing-download-requests';
 export const SEC_DOWNLOAD_SUBSCRIPTION='sec-filing-download-worker';
+export const SEC_DOWNLOAD_DEAD_LETTER_TOPIC='sec-filing-download-dead-letter';
 export type SecIntakeJob=SecFilingDiscovered|EarningsSourceDiscovered;
+
+/** Deterministically oversized originals need operator review, not 100 downloads.
+ * Ack only after the unchanged request reaches the existing retained audit queue. */
+export async function deliverSecIntake(input:unknown,db:Firestore,options:Parameters<typeof prepareSecIntake>[2]){
+  const event=parseSecIntakeJob(input);
+  try{return await prepareSecIntake(event,db,options);}
+  catch(error){
+    if(!(error instanceof SecDocumentSizeError))throw error;
+    await options.publish(SEC_DOWNLOAD_DEAD_LETTER_TOPIC,event);
+    return {status:'needs_admin',batchId:event.batchId,reason:error.message,quarantined:true};
+  }
+}
 export function parseSecIntakeJob(input:unknown):SecIntakeJob{
   if((input as {type?:string}|null)?.type==='sec.filing.discovered')return parseSecFilingDiscovered(input);
   const event=parseEarningsJob(input);

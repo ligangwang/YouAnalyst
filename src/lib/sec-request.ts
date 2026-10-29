@@ -56,7 +56,7 @@ async function secNetworkRequest<T>(url: string, init: RequestInit, read: (respo
     const kind = signal.aborted ? (signal.reason?.name === "TimeoutError" ? "timeout" : "aborted")
       : state.phase === "http" ? "http" : state.phase === "decode" ? "decode" : "network";
     console.error(JSON.stringify({
-      severity: "ERROR", message: "SEC API request failed", event: "sec_request_failed", provider: "SEC",
+      severity: (error as {code?:unknown}|null)?.code===429?'WARNING':"ERROR", message: "SEC API request failed", event: "sec_request_failed", provider: "SEC",
       timestamp: new Date().toISOString(), ...context.getStore(), ...fields,
       requestId, endpoint: `${endpoint.origin}${endpoint.pathname}`, method: init.method ?? "GET",
       cik: fields.cik ?? context.getStore()?.cik ?? endpoint.pathname.match(/CIK(\d+)/)?.[1]

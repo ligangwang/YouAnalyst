@@ -23,6 +23,7 @@ if [[ "$FILING_PIPELINE_BOOTSTRAP_IAM" == 0 ]]; then
   pipeline_iam topic sec-filings-discovered roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
   pipeline_iam topic earnings-sources-discovered roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
   pipeline_iam topic "$dead" roles/pubsub.publisher "serviceAccount:$pipeline_agent"
+  pipeline_iam topic "$dead" roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
   pipeline_iam subscription "$subscription" roles/pubsub.subscriber "serviceAccount:$pipeline_agent"
   pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
   pipeline_iam job "$job" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
@@ -58,6 +59,7 @@ if [[ "$FILING_PIPELINE_BOOTSTRAP_IAM" == 1 ]]; then
   pipeline_topic "$dead"
   pipeline_retained_subscription "$subscription" "$topic"
   pipeline_retained_subscription "$dead-audit" "$dead"
+  pipeline_iam topic "$dead" roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
   pipeline_iam topic "$topic" roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
   pipeline_iam topic sec-filings-discovered roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
   pipeline_iam topic earnings-sources-discovered roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
@@ -67,7 +69,7 @@ revision="$service-$suffix"
 deploy_error="$(mktemp)"; chmod 600 "$deploy_error"; trap 'rm -f -- "$deploy_error"' EXIT
 if gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
-  --command node --args dist/serve-sec-downloads.cjs --min-instances 0 --max-instances 2 --concurrency 1 --timeout 180 --memory 1Gi --cpu 1 --cpu-throttling \
+  --command node --args dist/serve-sec-downloads.cjs --min-instances 0 --max-instances 2 --concurrency 5 --timeout 180 --memory 1Gi --cpu 1 --cpu-throttling \
   --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|ENTITY_SNAPSHOT_BUCKET=${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}|GIT_SHA=${GIT_SHA:-unknown}|SEC_USER_AGENT=$SEC_USER_AGENT|SEC_DOWNLOAD_SUBSCRIPTION=$subscription$sec_download_env" --revision-suffix "$suffix" --quiet 2> >(tee "$deploy_error" >&2); then
   :
 else
