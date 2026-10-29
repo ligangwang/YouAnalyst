@@ -407,6 +407,7 @@
     }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"company_fundamentals","fieldPath":"companyIds","indexes":[]},
     {"collectionGroup":"eod_prices","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
 {"collectionGroup":"instruments","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
 {"collectionGroup":"companies","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
