@@ -21,7 +21,7 @@ import { useLocale } from "./providers/locale-provider";
 import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
 import { safeGraphOrbitStep } from "./graph-orbit-step";
 import { TreeStarField } from './tree-star-field';
-import { TreeGalaxies } from './tree-galaxies';
+import { DeepSpaceClouds } from './deep-space-clouds';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import styles from "./ai-knowledge-graph.module.css";
 
@@ -761,7 +761,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    {!light && <><TreeStarField height={0} count={900} paused/><TreeGalaxies height={0}/></>}
+    {!light && <><TreeStarField height={0} count={1800} paused/><DeepSpaceClouds height={0}/></>}
     <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
