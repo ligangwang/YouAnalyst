@@ -12,6 +12,7 @@ type Browse={selection:string;layer:string;branch:string;step:'layers'|'branches
 export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=false}:{companies:GraphNode[];selected:string;onSelect:(id:string)=>void;closing:boolean;embedded?:boolean}){
  const {text,locale}=useLocale();
  const selectedRow=useRef<HTMLButtonElement>(null);
+ const root=useRef<HTMLElement>(null);
  const layers=useMemo(()=>industryTree(companies),[companies]);
  const path=companyTreePath(layers,selected);
  const [browse,setBrowse]=useState<Browse>(()=>({selection:selected,layer:path?.open[1]??layers[0]?.id??'',branch:path?.open[2]??'',step:selected?'companies':'layers'}));
@@ -19,12 +20,12 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
  const layer=layers.find(item=>item.id===browse.layer)??layers[0];
  const branch=layer?.branches.find(item=>item.id===browse.branch);
  const members=branch?.companies??layer?.companies??[];
- useEffect(()=>{selectedRow.current?.scrollIntoView({block:'nearest',inline:'nearest'});},[selected,layer?.id,branch?.id,browse.step]);
+ useEffect(()=>{const target=!embedded&&window.matchMedia('(max-width:850px)').matches?root.current?.querySelector<HTMLElement>('[role=dialog]'):selectedRow.current;target?.scrollIntoView({block:'nearest',inline:'nearest'});},[selected,layer?.id,branch?.id,browse.step,embedded]);
  const label=(item:{en:string;zh:string})=>locale==='zh-CN'?item.zh:item.en;
  const company=companies.find(item=>item.id===selected);
  const chooseLayer=(id:string)=>{const next=layers.find(item=>item.id===id);setBrowse({selection:'',layer:id,branch:'',step:next?.directCompanies?'companies':'branches'});if(selected)onSelect('');};
  const back=()=>setBrowse(current=>({...current,step:current.step==='companies'&&!layer?.directCompanies?'branches':'layers'}));
- return <section className={`${styles.hierarchy} ${embedded?styles.embedded:''}`} aria-label={text('Company hierarchy','公司层级图')} data-industry-section="hierarchy" data-step={browse.step}>
+ return <section ref={root} className={`${styles.hierarchy} ${embedded?styles.embedded:''}`} aria-label={text('Company hierarchy','公司层级图')} data-industry-section="hierarchy" data-step={browse.step}>
   <header className={styles.heading}><div><span>{text('INDUSTRY EXPLORER','产业探索')}</span><h2>{industryRootLabel(layers,locale)}</h2></div><button onClick={()=>{setBrowse({selection:'',layer:layers[0]?.id??'',branch:'',step:'layers'});onSelect('');}}>{text('Reset view','复位视角')}</button></header>
   <div className={styles.mobileHeading}><button onClick={back}>← {text('Back','返回')}</button><h2>{layer?branch?label(branch):label(layer):text('Companies','公司')}</h2><p>{members.length} {text('companies','家公司')}</p></div>
   <div className={styles.columns} data-industry-tree="hierarchy">
