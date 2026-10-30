@@ -1,3 +1,4 @@
+import {ComparisonCoverageError,comparisonErrorResponse} from '../src/lib/compare-error';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildComparison, comparePath, parseCompareConfig, validateCompareConfig, yearsBefore, type CompareConfig } from "../src/lib/compare";
@@ -130,7 +131,7 @@ test("loads only stored prices/actions and uses the same chart mapper", async ()
 });
 
 test('coverage errors return 422 while infrastructure errors remain redacted 503 responses', async()=>{
- const {ComparisonCoverageError,comparisonErrorResponse}=await import('../src/lib/compare-error');
+
  let coverage:unknown;
  try{buildComparison([{symbol:'YPF',points:[]}],config);}catch(error){coverage=error;}
  assert(coverage instanceof ComparisonCoverageError);
