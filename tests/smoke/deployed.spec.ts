@@ -233,7 +233,10 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toHaveCount(1);
   await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
   await page.getByRole("tab", { name: "Company hierarchy", exact: true }).click();
-  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible({timeout:15_000});
+  const hierarchy=page.locator('[data-industry-tree="hierarchy"]');
+  await expect(hierarchy.getByRole('navigation',{name:'Industry sectors'})).toBeVisible({timeout:15_000});
+  await expect(hierarchy.getByRole('region',{name:'Sector companies'})).toBeVisible();
+  await expect(hierarchy.getByRole('region',{name:'Sector companies'}).getByRole('button').first()).toBeVisible();
   await expect(page.locator('[data-industry-tree="hierarchy"] canvas')).toHaveCount(0);
  });
 
