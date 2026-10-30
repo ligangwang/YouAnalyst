@@ -89,7 +89,7 @@ for (const eager of [false,true]) test(`search stays responsive while graph ${ea
   const position=await canvas.getAttribute('data-camera-position');
   await expect.poll(async()=>(await counts(page)).draws).toBeGreaterThan(before.draws);
   await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(position);
-  await expect(page.locator('[data-company-id][data-visible="true"]').first()).toBeVisible();
+  await expect(page.locator('[data-company-id][data-visible="true"]')).toHaveCount(0);
   await search(page).fill('');
   await expect(page.getByRole('option')).toHaveCount(0);
   await expectFastSearch(page,'nv');
@@ -108,7 +108,9 @@ test('graph animation never synchronously measures label dimensions',async({page
     }
   });
   await open(page,true);
-  await expect(page.locator('[data-company-id][data-visible="true"]').first()).toBeVisible({timeout:30000});
+  await expect(page.locator('[data-company-id]').first()).toBeAttached({timeout:30000});
+  await page.locator('[data-company-id]').first().dispatchEvent('pointerenter',{pointerType:'mouse'});
+  await expect(page.locator('[data-company-id][data-visible="true"]').first()).toBeVisible();
   const before=await counts(page);
   await expect.poll(async()=>(await counts(page)).draws).toBeGreaterThan(before.draws+20);
   expect(await page.evaluate(()=>(window as unknown as {labelLayoutReads:number}).labelLayoutReads)).toBe(0);

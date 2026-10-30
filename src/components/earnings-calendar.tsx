@@ -22,10 +22,9 @@ export function EarningsCalendar({initialDate='',initialCompany='',initialEvent=
     return()=>{clearTimeout(initial);clearInterval(timer);document.removeEventListener('visibilitychange',tick);};
   },[]);
   const agendaRef=useRef<HTMLElement>(null);
-  const [showHistory,setShowHistory]=useState(false);
+  const [showHistory,setShowHistory]=useState(Boolean(initialDate||initialEvent));
   const [today]=useState(()=>initialToday??easternDay(new Date().toISOString()));
   const [anchor,setAnchor]=useState(initialDate||today),[selected,setSelected]=useState(initialDate||today),[view,setView]=useState<'month'|'week'>('month');
-  useEffect(()=>{if(!window.matchMedia('(max-width:800px)').matches||!initialDate||initialDate>=today)return;const timer=setTimeout(()=>{setAnchor(today);setSelected(today);},0);return()=>clearTimeout(timer);},[initialDate,today]);
   const [theme,setTheme]=useState('all'),[search,setSearch]=useState(initialCompany.split(':').at(-1)??''),[following,setFollowing]=useState(false);
   const [companyFilter,setCompanyFilter]=useState(initialCompany);
   const [payload,setPayload]=useState<CalendarPayload|null>(initialPayload??null),[requestState,setRequestState]=useState({key:initialPayload?`${initialPayload.from}|${initialPayload.to}|0`:'',error:''}),[retry,setRetry]=useState(0);

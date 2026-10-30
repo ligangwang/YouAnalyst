@@ -85,7 +85,7 @@ test('server calendar snapshot avoids a duplicate read and range changes still r
   await expect(page.getByRole('status')).toHaveText('8 scheduled events in view');
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(null)))));
   expect(requests).toBe(0);
-  await page.getByRole('button',{name:'Next period'}).click();
+  await page.getByRole('button',{name:'Next period',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('0 scheduled events in view');
   expect(requests).toBe(1);
 });
@@ -142,6 +142,7 @@ test('month and week handle crowded dates, theme overlap, source links and a fai
   await page.goto('http://calendar.test/');
   await expect(page.getByRole('status')).toHaveText('8 scheduled events in view');
   const selectedDayLabel=new Intl.DateTimeFormat('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'}).format(fixtureDate);
+  const history=page.getByRole('button',{name:'Browse dates & history'});if(await history.isVisible())await history.click();
   await page.getByRole('button',{name:selectedDayLabel,exact:true}).click();
   const agenda=page.getByRole('complementary',{name:'Selected day agenda'});
   await expect(agenda.getByRole('article')).toHaveCount(8);
@@ -187,7 +188,7 @@ test('month and week handle crowded dates, theme overlap, source links and a fai
   await expect(agenda).not.toContainText('Results & call');
   await page.getByRole('button',{name:'Week',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('10 scheduled events in view');
-  fail=true;await page.getByRole('button',{name:'Next period'}).click();
+  fail=true;await page.getByRole('button',{name:'Next period',exact:true}).click();
   await expect(page.getByRole('status')).toContainText('Schedules could not be refreshed.');
   await expect(page.getByRole('heading',{name:'Earnings calendar',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Retry',exact:true})).toBeVisible();

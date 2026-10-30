@@ -41,3 +41,5 @@
  .workspace>[data-timeline-dock]{max-height:none!important;overflow:visible!important;width:100%}
  .workspace>aside[aria-label="Events and sources"]>div{max-height:none!important;overflow:visible}
 }
+
+@media(max-width:850px){.workspace [data-company-search-owner="workspace"]{display:none}.workspace [data-chart-size="full"] [data-company-search-owner="workspace"]{display:inline}}

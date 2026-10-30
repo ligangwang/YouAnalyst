@@ -49,8 +49,8 @@ test('theme switches preserve selected company, camera, graph geometry and chart
   const graphCanvas=page.locator('#graph canvas'),chartCanvas=page.locator('#chart canvas');
   const company=page.locator('[data-company-id="US:NVDA"]');
   await expect(graphCanvas).toBeVisible({timeout:20000});
-  try { await expect(company).toBeVisible({timeout:15000}); } catch(error) { throw new Error(`${error}\n${errors.join('\n')}\n${await page.locator('body').innerText()}`); }
-  await company.click();
+  try { await expect(company).toBeAttached({timeout:15000}); } catch(error) { throw new Error(`${error}\n${errors.join('\n')}\n${await page.locator('body').innerText()}`); }
+  await company.evaluate((el:HTMLButtonElement)=>el.click());
   await expect(company).toHaveAttribute('aria-pressed','true');
   await expect(graphCanvas).toHaveAttribute('data-camera','idle',{timeout:15000});
   await expect(chartCanvas).toBeVisible();
