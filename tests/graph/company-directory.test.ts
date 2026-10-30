@@ -167,3 +167,14 @@ test('supported universes share the lightweight file and never expand search arr
  assert.deepEqual(all.nodes.map(node=>node.id),['US:A','XSHE:000001']);assert.deepEqual(us.nodes.map(node=>node.id),['US:A']);
  assert.deepEqual(us.nodes[0].aliases,['Alias']);assert.deepEqual(us.nodes[0].stageIds,['compute']);assert.equal(us.nodes[0].slug,'issuer');assert.equal(us.nodes[0].country,'US');assert.equal(us.nodes[0].listings![0].exchange,'NASDAQ');assert.deepEqual(loads,[true]);
 });
+
+import {loadNewsSources} from '../../src/lib/intelligence/collectors/source-service';
+import {loadFundamentalsCompanyIds} from '../../src/lib/fundamentals/company-scope';
+
+test('news and fundamentals consumers use projected company data without expanding search',async()=>{
+ const sdk=new Firestore({projectId:'test-consumer-projection'}),db=observeFirestore(sdk,()=>{});const loads:boolean[]=[];
+ const feed={id:'new-company-ir',companyId:'US:NEW',name:'New company IR',url:'https://ir.newcompany.com/rss.xml',allowedHosts:['ir.newcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+ enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async(_collection,view)=>{loads.push(!!view);assert.equal(view,true);return new Map([['US:NEW',{name:'New company',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},newsSources:[feed],get searchPrefixes(){throw Error('Search index expanded');}}]]);}});
+ const [sources,ids]=await Promise.all([loadNewsSources(db),loadFundamentalsCompanyIds(db,'US')]);
+ assert.deepEqual(ids,['US:NEW']);assert.equal(sources.length,1);assert.equal(sources[0].id,feed.id);assert.deepEqual(sources[0].allowedHosts,feed.allowedHosts);assert.deepEqual(loads,[true]);
+});
