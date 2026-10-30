@@ -104,3 +104,37 @@ test('transactions bypass the directory even after a cached read',async()=>{
  const name=await db.runTransaction(async tx=>(await tx.get(db.collection('companies').doc('US:A'))).data()?.name);
  assert.equal(name,'Live');assert.equal(reads,1);
 });
+
+import {companyDirectory,withCompanyViewQuery} from '../../src/lib/local-cache/company-directory';
+import {Timestamp} from 'firebase-admin/firestore';
+
+test('view queries coalesce independently and never serve incomplete search or full documents',async()=>{
+ const loads:boolean[]=[];
+ const sdk=new Firestore({projectId:'test-view-isolation'}),db=observeFirestore(sdk,()=>{});
+ enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async(_collection,view)=>{
+  loads.push(!!view);return new Map([['A',view?{name:'View'}:{name:'Full',searchTerms:['alpha']}]]);
+ }});
+ const c=db.collection('companies');
+ const results=await Promise.all(Array.from({length:8},()=>withCompanyViewQuery(()=>c.select('name').get())));
+ assert.ok(results.every(result=>result.docs[0].get('name')==='View'));assert.deepEqual(loads,[true]);
+ assert.equal((await withCompanyViewQuery(()=>c.doc('A').get())).get('name'),'Full');
+ assert.deepEqual((await withCompanyViewQuery(()=>c.select('searchTerms').get())).docs[0].get('searchTerms'),['alpha']);
+ assert.equal((await withCompanyViewQuery(()=>c.where('searchTerms','array-contains','alpha').select('name').get())).docs[0].get('name'),'Full');
+ assert.deepEqual(loads,[true,false]);
+});
+
+test('concurrent view refresh and committed updates preserve immutable generations without expanding search',async()=>{
+ let now=0,release:(rows:Map<string,Record<string,unknown>>)=>void=()=>{};
+ const sdk=new Firestore({projectId:'test-view-updates'}),db=observeFirestore(sdk,()=>{});
+ let reads=0;
+ const raw={collection:()=>({doc:(id:string)=>({id})}),getAll:async()=>{reads++;return [{id:'A',exists:true,data:()=>({name:'Committed',updatedAt:new Timestamp(30,0),get searchPrefixes(){throw Error('expanded search');}})}];}} as unknown as Firestore;
+ enableCompanyDirectory(db,raw,{sync:false,now:()=>now,file:async()=>now?new Promise(resolve=>{release=resolve;}):new Map([['A',{name:'Old',updatedAt:new Timestamp(10,0)}]])});
+ const old=await companyDirectory(db,'companies',true);
+ now=86_400_001;
+ const pending=companyDirectory(db,'companies',true);await Promise.resolve();
+ await refreshCompanyDirectoryIds(db,['A']);
+ release(new Map([['A',{name:'File',updatedAt:new Timestamp(20,0)}]]));
+ const current=await pending;
+ assert.equal(current.get('A')!.name,'Committed');assert.equal(old.get('A')!.name,'Old');
+ assert.equal(current.get('A')!.searchPrefixes,undefined);assert.equal(reads,1);
+});

@@ -1,3 +1,4 @@
+import {COMPANY_VIEW_OBJECT,companyViewData,isCompanyViewField} from '../entity-snapshots/company-view';
 import {pricePlan,priceRows,refreshPriceIds,type PriceOptions} from './price-directory';
 import {syncEntityChanges,type EntitySync,type EntityChange} from './entity-sync';
 import {collections,type Collection} from '../entity-snapshots/sync';
@@ -12,12 +13,13 @@ import {loadEntitySqlite,inheritEntitySqliteIndex,type EntityRows} from '../enti
 type Step={method:string;args:unknown[]};
 type Source={id?:string;steps:Step[];collection:Collection};
 type Rows=EntityRows;
-type Entry={rows?:Rows;expires:number;pending?:Promise<Rows>;version:number;overrides:Rows;sync?:EntitySync};
-type Options={price?:PriceOptions;sync?:typeof syncEntityChanges|false;file?:(collection:Collection)=>Promise<Rows|undefined>;now?:()=>number};
+type Entry={view?:boolean;rows?:Rows;expires:number;pending?:Promise<Rows>;version:number;overrides:Rows;sync?:EntitySync};
+type Options={price?:PriceOptions;sync?:typeof syncEntityChanges|false;file?:(collection:Collection,view?:boolean)=>Promise<Rows|undefined>;now?:()=>number};
 declare global {
+ var __companyViewReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companySearchReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companyPageReadsV1:AsyncLocalStorage<boolean>|undefined;
- var __companyDirectoryV2:{entries:WeakMap<Firestore,Map<Collection,Entry>>;sources:WeakMap<object,Source>;clients:WeakMap<Firestore,{raw:Firestore;options:Options}>;live:AsyncLocalStorage<boolean>}|undefined;
+ var __companyDirectoryV2:{entries:WeakMap<Firestore,Map<string,Entry>>;sources:WeakMap<object,Source>;clients:WeakMap<Firestore,{raw:Firestore;options:Options}>;live:AsyncLocalStorage<boolean>}|undefined;
 }
 const state=globalThis.__companyDirectoryV2??={entries:new WeakMap(),sources:new WeakMap(),clients:new WeakMap(),live:new AsyncLocalStorage()};
 const pageReads=globalThis.__companyPageReadsV1??=new AsyncLocalStorage<boolean>();
@@ -29,6 +31,8 @@ export const withPageEntityReads=<T>(work:()=>Promise<T>):Promise<T>=>pageReads.
 /** A page's broad company selectors still belong to the shared directory.
  * Explicit authoritative reads remain live through the independent live scope. */
 export const withSharedCompanyQuery=<T>(work:()=>Promise<T>):Promise<T>=>pageReads.run(false,work);
+const viewReads=globalThis.__companyViewReadsV1??=new AsyncLocalStorage<boolean>();
+export const withCompanyViewQuery=<T>(work:()=>Promise<T>):Promise<T>=>viewReads.run(true,work);
 const DAY=86_400_000;
 /** Maintenance and transactional decisions must read authoritative data. */
 export const withLiveCompanyReads=<T>(work:()=>T):T=>state.live.run(true,work);
@@ -42,14 +46,16 @@ export function companyDirectoryEnabled(db:Firestore,collection:Collection='comp
   &&!(searchReads.getStore()&&['companies','instruments'].includes(collection));
 }
 export function registerCompanySource(source:object,id:string|undefined,steps:Step[],collection:Collection='companies'){state.sources.set(source,{id,steps,collection});}
-export function companyDirectoryVersion(db:Firestore,collection:Collection='companies'){const entry=state.entries.get(db)?.get(collection);return `${entry?.version??0}:${entry&&Date.now()>=entry.expires?'expired':'current'}`;}
+export function companyDirectoryVersion(db:Firestore,collection:Collection='companies'){
+ return [collection,...(collection==='companies'?['companies:view']:[])].map(key=>{const entry=state.entries.get(db)?.get(key);return `${entry?.version??0}:${entry&&Date.now()>=entry.expires?'expired':'current'}`;}).join('|');
+}
 /** Read after a local committed write, never after an ordinary page request. */
 export async function refreshCompanyDirectoryIds(db:Firestore,ids:string[],collection:Collection='companies'){
  const client=state.clients.get(db);if(!client||!ids.length)return;
  if(collection==='eod_prices')return refreshPriceIds(client.raw,ids);
- const entry=state.entries.get(db)?.get(collection);if(!entry)return;
+ const entries=[collection,...(collection==='companies'?['companies:view']:[])].flatMap(key=>{const entry=state.entries.get(db)?.get(key);return entry?[entry]:[];});if(!entries.length)return;
  const docs=await withLiveCompanyReads(()=>client.raw.getAll(...[...new Set(ids)].map(id=>client.raw.collection(collection).doc(id))));
- applyChanges(entry,docs.map(doc=>({id:doc.id,data:doc.exists?doc.data()!:{isDeleted:true}})));
+ for(const entry of entries)applyChanges(entry,docs.map(doc=>({id:doc.id,data:doc.exists?doc.data()!:{isDeleted:true}})));
 
 }
 
@@ -58,16 +64,17 @@ function applyChanges(entry:Entry,changes:EntityChange[]){
  for(const {id,data} of changes){
   const previous=entry.overrides.get(id)??entry.rows?.get(id);
   if(previous?.updatedAt instanceof Timestamp&&data.updatedAt instanceof Timestamp&&compare(previous.updatedAt,data.updatedAt)>0)continue;
-  entry.overrides.set(id,compact(data));changed.push(id);
+  entry.overrides.set(id,entry.view?companyViewData(data):compact(data));changed.push(id);
  }
  if(entry.rows&&changed.length){entry.rows=inheritEntitySqliteIndex(entry.rows,new Map([...entry.rows,...entry.overrides]),changed);entry.version++;}
 }
 
-async function fileRows(reason:'cold'|'refresh',collection:Collection):Promise<Rows|undefined>{
+async function fileRows(reason:'cold'|'refresh',collection:Collection,view=false):Promise<Rows|undefined>{
  const bucket=process.env.ENTITY_SNAPSHOT_BUCKET?.trim()||process.env.EODHD_BULK_EOD_BUCKET?.trim();
  if(!bucket)return undefined;
  const {getAdminStorageBucket}=await import('../firebase/admin');
  const storage=getAdminStorageBucket(bucket);
+ if(view){const rows=await loadEntitySqlite(storage,reason,undefined,'companies',COMPANY_VIEW_OBJECT);if(rows)return rows;}
  const sqlite=await loadEntitySqlite(storage,reason,undefined,collection);if(sqlite)return sqlite;
  // Rolling compatibility until the daily job publishes its first SQLite file.
  const result=await snapshotFiles(storage).load(collection,row=>({id:row.id,data:compact(row.data)}),{reason});
@@ -85,23 +92,25 @@ function compact(data:DocumentData):DocumentData {
  }
  return data;
 }
-export async function companyDirectory(db:Firestore,collection:Collection='companies'):Promise<Rows>{
+export async function companyDirectory(db:Firestore,collection:Collection='companies',view=false):Promise<Rows>{
+ if(view&&collection!=='companies')throw Error('Company view requires companies');
  if(collection==='eod_prices')throw Error('Prices require a ticker/year query');
  const client=state.clients.get(db);if(!client)throw Error('Company directory is not enabled');
  const now=client.options.now??Date.now;
  let partition=state.entries.get(db);if(!partition){partition=new Map();state.entries.set(db,partition);}
- let entry=partition.get(collection);if(!entry){entry={expires:0,version:0,overrides:new Map()};partition.set(collection,entry);}
+ const key=view?'companies:view':collection;
+ let entry=partition.get(key);if(!entry){entry={view,expires:0,version:0,overrides:new Map()};partition.set(key,entry);}
  if(entry.rows&&now()<entry.expires)return entry.rows;
  const current=entry;
  if(!current.pending)current.pending=Promise.resolve().then(async()=>{
-   let rows=await(client.options.file?client.options.file(collection):fileRows(current.rows?'refresh':'cold',collection));
+   let rows=await(client.options.file?client.options.file(collection,view):fileRows(current.rows?'refresh':'cold',collection,view));
    // An empty snapshot is valid. Only an absent file triggers Firestore.
    if(!rows){
     rows=new Map();let cursor:string|undefined;
     const base=client.raw.collection(collection).orderBy(FieldPath.documentId());
     for(;;){const page=await withLiveCompanyReads(()=>(cursor?base.startAfter(cursor):base).limit(500).get());
      rows.watermark??=page.readTime;
-     for(const doc of page.docs)rows.set(doc.id,compact(doc.data()));
+     for(const doc of page.docs)rows.set(doc.id,view?companyViewData(doc.data()):compact(doc.data()));
      if(page.size<500)break;cursor=page.docs.at(-1)!.id;
     }
    }
@@ -172,8 +181,13 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
  if(spec.collection==='eod_prices'&&process.env.PRICE_SNAPSHOT_READY!=='1')return undefined;
  const plan=spec.collection==='eod_prices'?pricePlan(spec.id,spec.steps):undefined;
  if(spec.collection==='eod_prices'&&!plan)return undefined;
+ // Only explicitly projected, search-independent queries may use the smaller file.
+ const projection=spec.steps.find(step=>step.method==='select');
+ const view=spec.collection==='companies'&&viewReads.getStore()===true&&spec.id===undefined&&!!projection
+  &&projection.args.every(arg=>isCompanyViewField(fieldName(arg)))
+  &&spec.steps.filter(step=>['where','orderBy'].includes(step.method)).every(step=>isCompanyViewField(fieldName(step.args[0])));
  // Small peer comparisons share the same file + watermark delta path as charts.
- return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection)).then(rows=>{
+ return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection,view)).then(rows=>{
   if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data,spec.collection);}
   const filters=spec.steps.filter(s=>s.method==='where');
   let candidates:Set<string>|undefined;

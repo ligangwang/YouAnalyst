@@ -3,7 +3,7 @@ import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Collection, RelationshipQuery } from '../central-cache/store';
 import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
-import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery} from './company-directory';
+import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery,withCompanyViewQuery} from './company-directory';
 import { themeIdBatches, GRAPH_COMPANY_FIELDS } from '../company-themes/company-query';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
@@ -102,7 +102,8 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
   for(const ids of batches){
    const source=db.collection(collection).where('themeIds','array-contains-any',ids);
    const query=projected?source.select(...GRAPH_COMPANY_FIELDS):source;
-   const docs=await localQuery(db,`companies:themes:${ids.join(',')}${projected?':graph':''}`,query,collection);
+   const read=()=>localQuery(db,`companies:themes:${ids.join(',')}${projected?':graph':''}`,query,collection);
+   const docs=await (projected?withCompanyViewQuery(read):read());
    for(const [id,doc] of docs)if(doc.data()?.isDeleted!==true)found.set(id,doc);
   }
   return [...found.values()].filter(doc=>!region || (typeof doc.get==='function'?doc.get('exchange_region'):doc.data()?.exchange_region)===region);

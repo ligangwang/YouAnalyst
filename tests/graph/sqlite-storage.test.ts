@@ -143,3 +143,31 @@ test('compressed snapshots stream into readers with exact transfer accounting an
   await assert.rejects(loadEntitySqlite(f.bucket,'cold',()=>{}));
  }finally{await files.close();}
 });
+import {companyViewSnapshotFiles} from '../../src/lib/entity-snapshots/company-view-storage';
+import {COMPANY_VIEW_OBJECT,companyViewData} from '../../src/lib/entity-snapshots/company-view';
+
+test('derived view omits search payload without evaluating lazy getters',()=>{
+ const data={name:'Alpha',updatedAt:new Timestamp(1,2),get searchPrefixes(){throw Error('expanded prefixes');},get searchTerms(){throw Error('expanded terms');}};
+ assert.deepEqual(companyViewData(data),{name:'Alpha',updatedAt:new Timestamp(1,2)});
+});
+
+test('view publication preserves complete snapshot, watermark, updates and stale-writer protection',async()=>{
+ const f=bucketFixture(),a=companyViewSnapshotFiles(f.bucket),b=companyViewSnapshotFiles(f.bucket);
+ const make=(seconds:number,name:string)=>({version:1 as const,collection:'companies' as const,watermark:new Timestamp(seconds,123),rows:[{id:'A',data:{name,themeIds:['ai'],onboarding:{status:'SUPPORTED'},searchPrefixes:['alpha'],searchTerms:['alpha'],updatedAt:new Timestamp(seconds,0)}}]});
+ try{
+  await a.save('companies',make(10,'Old'),'0');
+  const old=await b.load('companies');
+  const full=await a.load('companies');
+  assert.deepEqual(full.snapshot!.rows[0].data.searchPrefixes,['alpha']);
+  const view=await loadEntitySqlite(f.bucket,'cold',()=>{},'companies',COMPANY_VIEW_OBJECT);
+  assert.equal(view!.get('A')!.name,'Old');assert.equal(view!.get('A')!.searchPrefixes,undefined);
+  assert.equal(view!.watermark!.nanoseconds,123);
+  assert.deepEqual([...view!.candidateIds!('onboarding.status','==','SUPPORTED')!],['A']);
+  await a.save('companies',make(20,'New'),full.generation);
+  const generation=f.objects.get(COMPANY_VIEW_OBJECT)!.generation;
+  await assert.rejects(b.save('companies',make(30,'Stale'),old.generation),/precondition/);
+  assert.equal(f.objects.get(COMPANY_VIEW_OBJECT)!.generation,generation);
+  const latest=await loadEntitySqlite(f.bucket,'cold',()=>{},'companies',COMPANY_VIEW_OBJECT);
+  assert.equal(latest!.get('A')!.name,'New');assert.equal(latest!.watermark!.seconds,20);
+ }finally{await a.close();await b.close();}
+});
