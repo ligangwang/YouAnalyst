@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { earningsFirestore } from '../helpers/earnings-firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { backfillPriceHistory, historyBars, historyThrough, historyProviderSymbol } from '../../src/lib/predictions/history-backfill';
+import {OnboardingCapacityDeferred} from '../../src/lib/instrument-onboarding/capacity-control';
 
 const bar=(date:string)=>({date,open:10,high:12,low:9,close:11,adjusted_close:10.5,volume:100});
 function fixture() {
@@ -40,6 +41,18 @@ test('a failed write resumes from raw cache without another provider call',async
   f.setFail(true);assert.equal((await backfillPriceHistory(input)).failures.length,1);
   clock+=86400001;f.setFail(false);
   assert.equal((await backfillPriceHistory(input)).completed,1);assert.equal(calls,1);
+});
+
+test('capacity pause stops the next batch and resumes cached history without another provider call',async()=>{
+  const f=fixture();let calls=0,batches=0;
+  const input={...f,tickers:['MU'],through:'2026-10-05',token:'test',writeBatchSize:1,
+    beforeBatch:async()=>{if(batches===1)throw new OnboardingCapacityDeferred('pause');},
+    afterBatch:async()=>{batches++;},fetcher:async()=>{calls++;return new Response(JSON.stringify([bar('2025-12-31'),bar('2026-01-02')]));}};
+  await assert.rejects(()=>backfillPriceHistory(input),OnboardingCapacityDeferred);
+  assert.equal(f.docs.has('eod_prices/US_MU_2025-12-31'),true);assert.equal(f.docs.has('eod_prices/US_MU_2026-01-02'),false);
+  const receipt=f.docs.get('collectors/eod-history_US_MU')!;assert.equal(receipt.leaseUntil,0);assert.equal(receipt.retryAfter,0);
+  const result=await backfillPriceHistory({...input,beforeBatch:async()=>{}});
+  assert.equal(result.completed,1);assert.equal(result.existing,1);assert.equal(result.created,1);assert.equal(calls,1);
 });
 
 test('onboarding history has its own 2020 range receipt and bounded write batches',async()=>{

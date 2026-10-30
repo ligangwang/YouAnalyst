@@ -18,7 +18,7 @@ import type {ThemeCatalog} from '../company-themes/catalog-model';
 import {LEGACY_NO_THEME_MATCH} from './progress';
 
 /** Adapters use existing provider workers and existing feature storage only. */
-export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>}) :OnboardingHandlers{
+export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>;requireCapacity?:()=>Promise<void>}) :OnboardingHandlers{
   const {db,bucket,log}=options;
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
@@ -99,13 +99,14 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       const state=db.collection('collectors').doc(`split-history_${instrument.market}_${instrument.ticker}`),owner=log.runId;
       const acquired=await db.runTransaction(async tx=>{const doc=await tx.get(state);if(Number(doc.get('leaseUntil'))>Date.now())return false;tx.set(state,{leaseOwner:owner,leaseUntil:Date.now()+20*60_000},{merge:true});return true;});
       if(!acquired)throw Error('Corporate action synchronization is active');
-      try{await backfillOnboardingActions({db,bucket,ticker:instrument.ticker,market:instrument.market,providerSymbol:historyProviderSymbol(instrument.ticker),through:request.targetThrough,token:options.token,guard});}
+      try{await backfillOnboardingActions({db,bucket,ticker:instrument.ticker,market:instrument.market,providerSymbol:historyProviderSymbol(instrument.ticker),through:request.targetThrough,token:options.token,guard:async()=>{await guard();await options.requireCapacity?.();}});}
       finally{await db.runTransaction(async tx=>{if((await tx.get(state)).get('leaseOwner')===owner)tx.set(state,{leaseOwner:null,leaseUntil:0},{merge:true});});}
     },
     prices:async({request,instrument:record,guard})=>{
       const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await guard();
-      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:1500,createFirst:true,beforeBatch:guard,
+      // Bound the aggregate write burst when up to ten workers run in parallel.
+      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,createFirst:true,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
         afterBatch:async()=>{await guard();await new Promise<void>(resolve=>setTimeout(resolve,1000));}});
       if(result.failures.length)throw Error('Historical price backfill incomplete');
       const {bars}=await priceHistory(request,record),last=bars.at(-1)!;

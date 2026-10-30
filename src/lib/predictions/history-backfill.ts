@@ -2,6 +2,7 @@ import {createCachedPriceBatch} from '../intelligence/price-cache';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { predictionInstrument } from './instrument';
+import {OnboardingCapacityDeferred} from '../instrument-onboarding/capacity-control';
 export {historyThrough} from './history-range';
 
 export const HISTORY_START = '2025-12-31';
@@ -106,6 +107,10 @@ export async function backfillPriceHistory(input: {
       });
       result.completed++;
     } catch(error) {
+      if(error instanceof OnboardingCapacityDeferred){
+        await db.runTransaction(async tx=>{const current=await tx.get(ref);if(current.data()?.leaseUntil===claim.lease)tx.set(ref,{status:'pending',leaseUntil:0,retryAfter:0},{merge:true});});
+        throw error;
+      }
       const reason = error instanceof Error && /^(Empty or invalid historical response|Invalid historical bar|History cache read failed|EODHD credential unavailable|Historical provider request failed|Historical provider HTTP \d+|History document write failed|History lease lost)$/.test(error.message) ? error.message : 'Historical backfill failed';
       result.failures.push({ticker,reason});
       await db.runTransaction(async tx=>{const current=await tx.get(ref);if(current.data()?.leaseUntil===claim.lease)tx.set(ref,{status:'failed',leaseUntil:0,retryAfter:now()+86400000,lastError:reason},{merge:true});});

@@ -28,6 +28,7 @@ export function catalogThemeForNode(nodes: ThemeCatalog, id: string) {
   return hierarchyPath(nodes,id)[1];
 }
 export function catalogThemeName(nodes: ThemeCatalog, id: string, chinese=false) {
+  if (id === 'ai' && !chinese) return 'AI';
   return nodes.find(node=>node.id===id)?.names[chinese?'zh-CN':'en'] ?? id;
 }
 /** Families and themes aggregate descendants at read time; company records stay unchanged. */
