@@ -143,7 +143,7 @@ test('a delayed local refresh cannot overwrite a newer listener correction',asyn
 test('partition eviction stays bounded and revisits reload files instead of full price listeners',async()=>{
  const db={} as Firestore,loads:string[]=[],closed:string[]=[];
  const options:PriceOptions={years:async()=>[2026],file:async part=>{loads.push(part.object);const rows:EntityRows=new Map([[part.prefix+'01-01',{close:1,updatedAt:stamp(1)}]]);rows.watermark=stamp(2);return rows;},subscribe:part=>(_since,next)=>{queueMicrotask(()=>next({readTime:stamp(3),changes:[]}));return()=>{closed.push(part.object);};}};
- for(let n=0;n<129;n++)await priceRows(db,query(`US_P${n}_`,`US_P${n}_2026-12-31`,1),options);
+ for(let n=0;n<1025;n++)await priceRows(db,query(`US_P${n}_`,`US_P${n}_2026-12-31`,1),options);
  assert.deepEqual(closed,['price-snapshots/US/P0/2026.sqlite']);
  await priceRows(db,query('US_P0_','US_P0_2026-12-31',1),options);
  assert.equal(loads.filter(name=>name==='price-snapshots/US/P0/2026.sqlite').length,2);
@@ -164,4 +164,28 @@ test('a committed physical deletion cannot be resurrected by an older listener u
  await refreshPriceIds(f.db,['US_NVDA_2026-01-20']);
  f.callbacks.get(f.loads[0])!({readTime:stamp(10),changes:[{id:'US_NVDA_2026-01-20',data:{close:80,updatedAt:stamp(8)}}]});
  assert.equal((await priceRows(f.db,plan,f.options)).has('US_NVDA_2026-01-20'),false);
+});
+
+
+test('two 478-ticker file-backed browsing cycles reuse hydrated partitions and delta listeners',async()=>{
+ const db={} as Firestore;let loads=0,listeners=0;
+ const options:PriceOptions={years:async()=>[2026],file:async part=>{
+  loads++;const rows:EntityRows=new Map();
+  for(let day=1;day<=250;day++)rows.set(part.prefix+new Date(Date.UTC(2026,0,day)).toISOString().slice(5,10),{close:day,open:day,high:day+1,low:day-1,volume:100000,updatedAt:stamp(1)});
+  rows.watermark=stamp(2);return rows;
+ },subscribe:()=> (_since,next)=>{listeners++;queueMicrotask(()=>next({readTime:stamp(3),changes:[]}));return()=>{};}};
+ for(let cycle=0;cycle<2;cycle++)for(let n=0;n<478;n++)await priceRows(db,query(`US_P${n}_`,`US_P${n}_2026-12-31`),options);
+ assert.equal(loads,478);assert.equal(listeners,478);
+});
+
+
+test('retained bytes evict partitions below the listener cap and account for live row growth',async()=>{
+ const db={} as Firestore,closed:string[]=[],callbacks=new Map<string,(batch:ChangeBatch)=>void>(),padding='x'.repeat(1024*1024);
+ const options:PriceOptions={years:async()=>[2026],file:async part=>{
+  const rows:EntityRows=new Map([[part.prefix+'01-01',{close:1,padding,updatedAt:stamp(1)}]]);rows.watermark=stamp(2);return rows;
+ },subscribe:part=>(_since,next)=>{callbacks.set(part.object,next);queueMicrotask(()=>next({readTime:stamp(3),changes:[]}));return()=>{closed.push(part.object);};}};
+ for(let n=0;n<64;n++)await priceRows(db,query(`US_P${n}_`,`US_P${n}_2026-12-31`,1),options);
+ assert.deepEqual(closed,['price-snapshots/US/P0/2026.sqlite']);
+ callbacks.get('price-snapshots/US/P63/2026.sqlite')!({readTime:stamp(4),changes:[{id:'US_P63_2026-01-02',data:{close:2,padding,updatedAt:stamp(4)}}]});
+ assert.deepEqual(closed,['price-snapshots/US/P0/2026.sqlite','price-snapshots/US/P1/2026.sqlite']);
 });
