@@ -1,3 +1,4 @@
+import {loadEntitySqlite} from '../../src/lib/entity-snapshots/sqlite';
 import {syncPricePartitions} from '../../src/lib/entity-snapshots/price-sync';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -110,4 +111,18 @@ test('overlapping price publication cannot overwrite a newer partition or checkp
  try{const snapshot=(await files.load('eod_prices')).snapshot!;assert.equal(snapshot.watermark.seconds,20);assert.equal(snapshot.rows[0].data.close,20);}finally{await files.close();}
  await assert.rejects(syncPricePartitions(source(10),f.bucket),/future/);
  assert.equal(f.objects.get('price-snapshots/checkpoint.json')!.bytes.toString(),checkpoint);
+});
+
+
+test('price file loads remain readable after their SQLite reader is closed',async()=>{
+ const f=bucketFixture(),files=sqliteSnapshotFiles(f.bucket,()=> 'price-snapshots/US/AMD/2026.sqlite');
+ const stamp=new Timestamp(12,345);
+ await files.save('eod_prices',{version:1,collection:'eod_prices',watermark:stamp,rows:[{id:'US_AMD_2026-01-02',data:{close:100,updatedAt:stamp,nested:{source:'official'}}}]},'0');
+ const logs:Record<string,unknown>[]=[];
+ const rows=await loadEntitySqlite(f.bucket,'cold',entry=>logs.push(entry),'eod_prices','price-snapshots/US/AMD/2026.sqlite');
+ assert.equal(rows!.get('US_AMD_2026-01-02')!.close,100);
+ assert.deepEqual(rows!.get('US_AMD_2026-01-02')!.nested,{source:'official'});
+ assert.equal(rows!.get('US_AMD_2026-01-02')!.updatedAt.nanoseconds,345);
+ assert.equal(rows!.watermark!.nanoseconds,345);assert.equal(logs[0].rowsDecoded,1);
+ await files.close();
 });
