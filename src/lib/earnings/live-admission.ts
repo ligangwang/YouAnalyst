@@ -1,7 +1,7 @@
 import { createSerialAdmission } from '../serial-admission';
 import type { EarningsJob } from './live-event';
 
-/** Nine source deliveries occupy at most nine of the ten HTTP slots.
+/** Nine source deliveries occupy at most nine of the eighty HTTP slots.
  * Only one may do provider work; provider-free probes bypass that queue. */
 export function createEarningsAdmission() {
   const serial = createSerialAdmission({ maxWaiting: 8, waitMs: 90_000 });
