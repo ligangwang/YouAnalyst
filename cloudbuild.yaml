@@ -52,6 +52,10 @@ steps:
       - --region
       - ${_REGION}
       - --no-traffic
+      # Next opens its TCP socket before handler/SDK initialization completes.
+      # A data-free HTTP response, not an open port, gates each new instance.
+      - --startup-probe
+      - httpGet.path=/api/health,httpGet.port=8080,initialDelaySeconds=0,timeoutSeconds=2,periodSeconds=2,failureThreshold=60
       - --tag
       - candidate
       - --allow-unauthenticated
