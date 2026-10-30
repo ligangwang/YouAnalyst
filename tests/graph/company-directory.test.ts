@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore,FieldPath} from 'firebase-admin/firestore';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
-import {enableCompanyDirectory,withLiveCompanyReads,refreshCompanyDirectoryIds,withPageEntityReads,companyDirectoryEnabled} from '../../src/lib/local-cache/company-directory';
+import {enableCompanyDirectory,enableCompanyDirectoryForReader,withLiveCompanyReads,refreshCompanyDirectoryIds,withPageEntityReads,companyDirectoryEnabled} from '../../src/lib/local-cache/company-directory';
 import {readCompanyLookup} from '../../src/lib/company-lookup-cache';
 import {localDocuments,localQuery} from '../../src/lib/local-cache/entities';
 import {loadSitemapPaths} from '../../src/lib/local-cache/sitemaps';
@@ -21,6 +21,15 @@ const records=()=>new Map([
  ['US:C',{name:'Charlie',themeIds:['ai'],symbolLower:'c',rank:3}],
  ['US:X',{name:'Deleted',isDeleted:true,themeIds:['ai'],symbolLower:'x',rank:4}],
 ]);
+
+test('ingestion directory enrollment leaves unrelated collections authoritative',()=>{
+ const db=observeFirestore(new Firestore({projectId:'test-ingestion-directory'}),()=>{});
+ enableCompanyDirectoryForReader(db,['companies']);
+ assert.equal(companyDirectoryEnabled(db,'companies'),true);
+ for(const collection of ['company_fundamentals','instruments','company_relationships','eod_prices'] as const)
+   assert.equal(companyDirectoryEnabled(db,collection),false);
+ assert.equal(withLiveCompanyReads(()=>companyDirectoryEnabled(db,'companies')),false);
+});
 
 test('parallel page scopes share broad company selectors without leaking into targeted reads',async()=>{
  let loads=0;const f=fixture(async()=>{loads++;return records();});

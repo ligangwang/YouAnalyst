@@ -10,7 +10,7 @@ import { backgroundJobTarget } from "../../scripts/background-job-changes.mjs";
 
 const require = createRequire(import.meta.url);
 const sha = "a".repeat(40);
-const mutations = /builds submit|run deploy|run jobs (deploy|update|execute)|add-iam-policy-binding|(?:topics|subscriptions) (create|update)|scheduler jobs (create|update|pause|resume)/;
+const mutations = /builds submit|run deploy|run jobs (deploy|update|execute)|add-iam-policy-binding|(?:topics|subscriptions) (create|update|modify-push-config)|scheduler jobs (create|update|pause|resume)/;
 
 function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnings.sh", arg = "") {
   const dir = mkdtempSync(path.join(tmpdir(), "earnings-deploy-"));
@@ -61,7 +61,7 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
           "builds submit"*) echo build-id ;;
           "builds describe"*) echo SUCCESS ;;
           "artifacts docker images describe"*) echo example/image@sha256:abcdef ;;
-          *"add-iam-policy-binding"*|"pubsub topics create"*|"pubsub subscriptions create"*|"pubsub subscriptions update"*|"run deploy"*|"run jobs deploy"*|"run jobs update"*|"scheduler jobs create"*|"scheduler jobs update"*|"scheduler jobs pause"*|"services enable"*|"beta services identity create"*) ;;
+          *"add-iam-policy-binding"*|"pubsub topics create"*|"pubsub subscriptions create"*|"pubsub subscriptions update"*|"pubsub subscriptions modify-push-config"*|"run deploy"*|"run jobs deploy"*|"run jobs update"*|"scheduler jobs create"*|"scheduler jobs update"*|"scheduler jobs pause"*|"services enable"*|"beta services identity create"*) ;;
           *) echo "Unexpected mock gcloud command: $*" >&2; return 2 ;;
         esac
       }
@@ -82,6 +82,19 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+test('pull deployment requires an existing scoped binding and preserves retry/dead-letter settings',()=>{
+  const r=run({EARNINGS_DELIVERY_MODE:'pull'});
+  assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/get-iam-policy earnings-worker.*roles\/pubsub.subscriber.*directory-sync-runtime@demo/);
+  assert(!r.calls.includes('add-iam-policy-binding'));
+  assert.match(r.calls,/run deploy earnings-subscriber.*--min-instances 1 --no-cpu-throttling/);
+  assert.match(r.calls,/subscriptions modify-push-config earnings-worker .*--push-endpoint=/);
+  assert.match(r.calls,/subscriptions update earnings-worker .*--ack-deadline 600.*--max-delivery-attempts 100/);
+  assert(r.configs.every(config=>config.EARNINGS_DELIVERY_MODE==='pull'));
+  const blocked=run({EARNINGS_DELIVERY_MODE:'pull',EARNINGS_BOOTSTRAP_IAM:'1',EARNINGS_SETUP_APPROVED_SHA:sha});
+  assert.notEqual(blocked.status,0);assert(!mutations.test(blocked.calls));
+});
+
 test("approved earnings setup grants only five resource bindings and leaves a disabled paused pipeline", () => {
   const r = run({ EARNINGS_BOOTSTRAP_IAM: "1", EARNINGS_SETUP_APPROVED_SHA: sha, NEW_RESOURCES: "1" });
   assert.equal(r.status, 0, r.stderr);
@@ -99,7 +112,7 @@ test("approved earnings setup grants only five resource bindings and leaves a di
   }
   assert.match(r.calls, /subscriptions create earnings-dead-letter-audit .*--topic earnings-dead-letter.*--message-retention-duration 7d --expiration-period never/);
   assert.match(r.calls, /run deploy earnings-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-earnings.cjs.*--max-instances 1 --concurrency 80 --timeout 600/);
-  assert.match(r.calls, /run deploy earnings-subscriber.*--memory 1Gi --cpu 2 --cpu-throttling/);
+  assert.match(r.calls, /run deploy earnings-subscriber.*--memory 1Gi --cpu 2 --min-instances 0 --cpu-throttling/);
   assert.match(r.calls, /subscriptions create earnings-worker --topic earnings-sources-discovered.*--push-auth-service-account directory-sync-scheduler@demo.iam.gserviceaccount.com.*--push-auth-token-audience https:\/\/subscriber.example.run.app.*--ack-deadline 600.*--dead-letter-topic earnings-dead-letter.*--max-delivery-attempts 100/);
   assert.match(r.calls, /run jobs deploy collect-earnings-production.*--tasks 1 --parallelism 1.*--args dist\/collect-earnings.cjs,--apply/);
   assert.match(r.calls, /scheduler jobs create http collect-earnings-production.*--schedule \*\/15 \* \* \* \* --time-zone UTC/);

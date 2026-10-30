@@ -15,7 +15,7 @@ type Step={method:string;args:unknown[]};
 type Source={id?:string;steps:Step[];collection:Collection};
 type Rows=EntityRows;
 type Entry={view?:boolean;rows?:Rows;expires:number;pending?:Promise<Rows>;version:number;overrides:Rows;sync?:EntitySync};
-type Options={price?:PriceOptions;sync?:typeof syncEntityChanges|false;file?:(collection:Collection,view?:boolean)=>Promise<Rows|undefined>;now?:()=>number};
+type Options={onlyCollections?:readonly Collection[];price?:PriceOptions;sync?:typeof syncEntityChanges|false;file?:(collection:Collection,view?:boolean)=>Promise<Rows|undefined>;now?:()=>number};
 declare global {
  var __companyViewReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companySearchReadsV1:AsyncLocalStorage<boolean>|undefined;
@@ -40,9 +40,10 @@ export const withLiveCompanyReads=<T>(work:()=>T):T=>state.live.run(true,work);
 export const liveCompanyReads=()=>state.live.getStore()===true;
 export function enableCompanyDirectory(db:Firestore,raw:Firestore,options:Options={}){if(!state.clients.has(db))state.clients.set(db,{raw,options});}
 /** Collector/graph readers use the same directory; unwrapped test adapters are unchanged. */
-export function enableCompanyDirectoryForReader(db:Firestore){if(typeof db.settings==='function'&&typeof db.getAll==='function'&&state.sources.has(db.collection('companies')))enableCompanyDirectory(db,db);}
+export function enableCompanyDirectoryForReader(db:Firestore,onlyCollections?:readonly Collection[]){if(typeof db.settings==='function'&&typeof db.getAll==='function'&&state.sources.has(db.collection('companies')))enableCompanyDirectory(db,db,{onlyCollections});}
 export function companyDirectoryEnabled(db:Firestore,collection:Collection='companies'){
- return state.clients.has(db)&&!state.live.getStore()
+ const client=state.clients.get(db);
+ return !!client&&(!client.options.onlyCollections||client.options.onlyCollections.includes(collection))&&!state.live.getStore()
   &&!(pageReads.getStore()&&['companies','company_fundamentals','company_relationships'].includes(collection))
   &&!(searchReads.getStore()&&['companies','instruments'].includes(collection));
 }

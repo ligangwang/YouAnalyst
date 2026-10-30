@@ -4,7 +4,7 @@ import { loadCollectionCompanyScope } from '../company-themes/service';
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import { mapListedCompanies } from '../events/disclosures';
 import { configureEarningsMap } from './issuers';
-import { secIdentitySnapshot } from './identity-cache';
+import { supportedSecIdentitySnapshot } from './identity-cache';
 
 /** Existing scanner checkpoints bind map tickers to verified SEC identities.
  * No provider requests or new collection. Missing identities remain ineligible
@@ -20,7 +20,7 @@ export async function loadEarningsMap(db: Firestore, graph?: KnowledgeGraph,
       const rows = initialStates
         ? await Promise.all(companies.map(node => db.collection('collectors').doc(`sec-${node.id}`).get()))
         : undefined;
-      const directory = rows ? undefined : await secIdentitySnapshot(db);
+      const directory = rows ? undefined : await supportedSecIdentitySnapshot(db, companies.map(company => company.id));
       for (let i = 0; i < companies.length; i++) {
         const row = rows ? rows[i].data() : directory!.get(`sec-identity-${companies[i].id}`);
         initialStates?.set(companies[i].id, row);
