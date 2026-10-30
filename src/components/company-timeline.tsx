@@ -22,6 +22,7 @@ import type { SearchSuggestion } from "./ticker-search-input";
 import { ChartStockReview, type ChartWatchlist } from './chart-stock-review';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 import { useChartRangePreference, rememberChartRange } from './chart-range-preference';
+import {useVisibleDemand} from './use-visible-demand';
 
 export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, closed:controlledClosed, onClosedChange, watchlist, onSelectCompany, stockToolsRequest, onCloseStockToolsRequest }: { stockToolsRequest?:{companyId:string;anchor:EventWindowAnchor}|null; onCloseStockToolsRequest?:()=>void; watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; closed?:boolean; onClosedChange?:(closed:boolean)=>void; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
@@ -110,7 +111,8 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const priceDate = priceSelection?.companyId === companyId ? priceSelection.date : hoverPrice?.companyId===companyId?hoverPrice.date:null;
   const hoverOnly=priceSelection?.companyId!==companyId&&hoverPrice?.companyId===companyId;
   const [width, setWidth] = useState(600);
-  const chart = useRef<HTMLDivElement>(null);
+  const chart=useRef<HTMLDivElement>(null);
+  const chartVisible=useVisibleDemand(chart,!closed);
   const priceTooltip = useRef<HTMLDivElement>(null);
   const hoverPoint = useRef<{x:number;y:number}|null>(null);
   const [fullChartHeight,setFullChartHeight] = useState(0);
@@ -195,11 +197,11 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     return () => controller.abort();
   }, [companyId, days, interval, matchingInitial, initialHistoryReady, needsHistory, maxAverage, key]);
   useEffect(() => {
-    if (graph) return;
+    if (graph || !chartVisible) return;
     const controller = new AbortController();
     fetch("/api/knowledge-graph", { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(setLoadedGraph).catch(() => {});
     return () => controller.abort();
-  }, [graph]);
+  }, [graph,chartVisible]);
   useEffect(() => {
     const el = chart.current; if (!el) return;
     const observer = new ResizeObserver(([entry]) => { if (entry.contentRect.width > 0) setWidth(entry.contentRect.width); });

@@ -1,7 +1,8 @@
 import {loadThemeCatalog} from '@/lib/company-themes/catalog';
 import {catalogThemeName} from '@/lib/company-themes/catalog-model';
 import { ImageResponse } from "next/og";
-import { loadThemeGraph } from "@/lib/company-themes/graph-service";
+import { loadThemeGraphStructure } from "@/lib/company-themes/graph-service";
+import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
 import { parseCompanyTheme } from "@/lib/company-themes/model";
 import { companyName } from "@/lib/knowledge-graph/model";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -10,7 +11,8 @@ export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
   const theme=parseCompanyTheme(q.get('theme')),title=catalogThemeName(await loadThemeCatalog(),theme);
   const raw = q.get("company") ?? "", id = raw.includes(":") ? raw.toUpperCase() : `US:${raw.toUpperCase()}`;
-  const graph = /^[A-Z_]+:[A-Z0-9.-]{1,80}$/.test(id) ? await loadThemeGraph(theme).catch(()=>null) : null;
+  // Preview text uses identities and relationships, never market valuations.
+  const graph = /^[A-Z_]+:[A-Z0-9.-]{1,80}$/.test(id) ? await withCompanyPageReads(()=>loadThemeGraphStructure(theme)).catch(()=>null) : null;
   const company = graph?.nodes.find(n=>n.kind==="COMPANY"&&n.id===id);
   const edges = company ? graph!.relationships.filter(e=>e.type!=="PARTICIPATES_IN"&&(e.source===id||e.target===id)&&(!q.get("relationship")||e.id===q.get("relationship"))).slice(0,3) : [];
   const name = (nodeId:string) => {const n=graph?.nodes.find(n=>n.id===nodeId);return n?companyName(n,"en"):nodeId;};
