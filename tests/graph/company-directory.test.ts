@@ -154,3 +154,16 @@ test('large unindexed queries yield before completion and retain their original 
  assert.deepEqual(result.docs.map(doc=>doc.get('rank')),Array.from({length:512},(_,i)=>i*2));
  assert.equal((await db.collection('companies').doc('1000').get()).get('name'),'New');
 });
+
+import {loadSupportedCompanyUniverse} from '../../src/lib/company-support/service';
+import {loadCollectionCompanyScope} from '../../src/lib/company-themes/service';
+
+test('supported universes share the lightweight file and never expand search arrays',async()=>{
+ const loads:boolean[]=[];
+ const sdk=new Firestore({projectId:'test-universe-projection'}),db=observeFirestore(sdk,()=>{});
+ const rows=new Map(['US:A','XSHE:000001'].map(id=>[id,{name:id,status:'DIRECTORY',onboarding:{status:'SUPPORTED'},country:'US',listingStatus:'PUBLIC',listings:[{market:'US',exchange:'NASDAQ',symbol:'A'}],names:{en:'Issuer'},aliases:['Alias'],slug:'issuer',inGraph:{status:'PUBLISHED',stageIds:['compute']},get searchPrefixes(){throw Error('Search prefixes expanded');},get searchTerms(){throw Error('Search terms expanded');}}]));
+ enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async(_collection,view)=>{loads.push(!!view);assert.equal(view,true,'universe must not download the complete file');return rows;}});
+ const [all,us]=await Promise.all([loadSupportedCompanyUniverse(db),loadCollectionCompanyScope(db,'US')]);
+ assert.deepEqual(all.nodes.map(node=>node.id),['US:A','XSHE:000001']);assert.deepEqual(us.nodes.map(node=>node.id),['US:A']);
+ assert.deepEqual(us.nodes[0].aliases,['Alias']);assert.deepEqual(us.nodes[0].stageIds,['compute']);assert.equal(us.nodes[0].slug,'issuer');assert.equal(us.nodes[0].country,'US');assert.equal(us.nodes[0].listings![0].exchange,'NASDAQ');assert.deepEqual(loads,[true]);
+});
