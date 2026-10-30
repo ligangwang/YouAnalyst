@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from 'react';
-import { BackSide, BufferGeometry, Float32BufferAttribute } from 'three';
+import { useThree } from '@react-three/fiber';
+import { BackSide, BufferGeometry, Float32BufferAttribute, Vector2 } from 'three';
 
 const SKY_RADIUS = 60000;
 // The galactic plane crosses the default view diagonally; its bright bulge sits
@@ -28,6 +29,7 @@ const skyFragment = `
   varying vec3 skyDirection;
   uniform vec3 plane;
   uniform vec3 bulgeDirection;
+  uniform vec2 resolution;
   float hash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);
     p *= 17.0;
@@ -62,16 +64,22 @@ const skyFragment = `
     float ridge = 1.0 - abs(fbm(d * 5.0 + vec3(4.0)) * 2.0 - 1.0);
     float filaments = ridge * ridge * ridge * ridge;
 
-    vec3 sky = mix(vec3(0.012, 0.02, 0.05), vec3(0.03, 0.04, 0.095), haze);
-    vec3 milky = mix(vec3(0.34, 0.46, 0.86), vec3(1.0, 0.7, 0.46), bulge);
-    sky += milky * band * (0.16 + 0.42 * detail * detail) * (1.0 - lanes * 0.85);
-    sky += vec3(1.0, 0.68, 0.42) * bulge * (band * 0.26 + haze * 0.07) * (1.0 - lanes * 0.7);
+    vec3 light = vec3(0.0);
+    vec3 milky = mix(vec3(0.34, 0.46, 0.86), vec3(0.92, 0.8, 0.68), bulge);
+    light += milky * band * (0.16 + 0.42 * detail * detail) * (1.0 - lanes * 0.85);
+    light += vec3(0.92, 0.78, 0.64) * bulge * (band * 0.18 + haze * 0.05) * (1.0 - lanes * 0.7);
 
     float cyan = smoothstep(0.5, 0.82, fbm(d * 1.9 + vec3(11.0, 3.0, -2.0)));
     float magenta = smoothstep(0.52, 0.84, fbm(d * 2.3 + vec3(-5.0, 2.0, 8.0)));
-    sky += vec3(0.04, 0.48, 0.7) * cyan * (0.12 + filaments * 0.5);
-    sky += vec3(0.5, 0.12, 0.66) * magenta * (0.08 + filaments * 0.36);
-    sky += vec3(0.85, 0.3, 0.55) * cyan * magenta * filaments * 0.2;
+    light += vec3(0.04, 0.48, 0.7) * cyan * (0.12 + filaments * 0.5);
+    light += vec3(0.5, 0.12, 0.66) * magenta * (0.08 + filaments * 0.36);
+    light += vec3(0.85, 0.3, 0.55) * cyan * magenta * filaments * 0.2;
+
+    // Keep the sky calm behind the company cluster so sector colors keep their
+    // contrast; the galaxy and nebulae stay vivid toward the frame edges.
+    vec2 screen = (gl_FragCoord.xy / resolution - 0.5) * vec2(resolution.x / resolution.y, 1.0);
+    float calm = smoothstep(0.12, 0.62, length(screen * vec2(0.8, 1.0)));
+    vec3 sky = mix(vec3(0.012, 0.02, 0.05), vec3(0.03, 0.04, 0.095), haze) + light * mix(0.28, 1.0, calm);
 
     // A small dither keeps the dark gradients from banding on 8-bit displays.
     sky += (hash(d * 4000.0) - 0.5) / 255.0;
@@ -85,7 +93,9 @@ const bandFragment = `varying vec3 starColor;
   void main() { float r = length(gl_PointCoord - 0.5); float alpha = 1.0 - smoothstep(0.1, 0.5, r); if (alpha < 0.02) discard; gl_FragColor = vec4(starColor, alpha); }`;
 
 export function DeepSpaceSky({ height }: { height: number }) {
-  const uniforms = useMemo(() => ({ plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) } }), []);
+  const { gl, size } = useThree();
+  const uniforms = useMemo(() => ({ plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) }, resolution: { value: new Vector2(1, 1) } }), []);
+  useEffect(() => { gl.getDrawingBufferSize(uniforms.resolution.value); }, [gl, size, uniforms]);
   // Fine stars crowd the galactic band and thin out toward its edges.
   const bandStars = useMemo(() => {
     const plane = normalize(PLANE), bulge = normalize(BULGE);
