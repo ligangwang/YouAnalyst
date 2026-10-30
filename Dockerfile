@@ -1,9 +1,11 @@
 ARG PREVIOUS_WEB_IMAGE=empty-assets
 ARG RETAINED_WEB_IMAGE=empty-assets
+ARG BOOTSTRAP_WEB_IMAGE=empty-assets
 FROM node:20-bookworm-slim AS empty-assets
 RUN mkdir -p /app/.next/static
 FROM ${PREVIOUS_WEB_IMAGE} AS previous-assets
 FROM ${RETAINED_WEB_IMAGE} AS retained-assets
+FROM ${BOOTSTRAP_WEB_IMAGE} AS bootstrap-assets
 FROM node:20-bookworm-slim AS base
 
 FROM base AS deps
@@ -48,6 +50,7 @@ ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
+COPY --from=bootstrap-assets /app/.next/static ./.next/static
 COPY --from=retained-assets /app/.next/static ./.next/static
 COPY --from=previous-assets /app/.next/static ./.next/static
 COPY --from=builder /app/.next/static ./.next/static

@@ -40,6 +40,13 @@ The `empty-assets` defaults are only for a first deployment with no predecessor.
 Do not prune inherited chunks without a separate policy for old open pages.
 This deliberately trades growing image storage for continued asset availability.
 CI runs the actual runner-layer retention test with `TEST_ASSET_IMAGES=1`.
+
+For the first migration to asset retention, an already-observed missing chunk may
+predate both selected images. Set `BOOTSTRAP_WEB_IMAGE` (or Cloud Build's
+`_BOOTSTRAP_WEB_IMAGE`) to that older retained revision's immutable image digest.
+Its static assets are copied first, so it cannot replace current assets. Later
+images inherit the recovered files automatically; this override is only needed
+to recover history that earlier releases had already discarded.
 The existing full source Dockerfile remains available for manual deployments.
 
 Both the builder and runtime use Linux x64 Node 20 with glibc. Changes to Node,

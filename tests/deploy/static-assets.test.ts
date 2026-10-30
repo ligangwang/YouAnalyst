@@ -20,13 +20,15 @@ test('both image paths preserve predecessor assets before overlaying the new rel
   const docker=readFileSync(file,'utf8');
   assert.match(docker,/FROM \$\{PREVIOUS_WEB_IMAGE\} AS previous-assets/);
   assert.match(docker,/FROM \$\{RETAINED_WEB_IMAGE\} AS retained-assets/);
+  assert.match(docker,/FROM \$\{BOOTSTRAP_WEB_IMAGE\} AS bootstrap-assets/);
+  const bootstrap=docker.lastIndexOf('COPY --from=bootstrap-assets /app/.next/static ./.next/static');
   const previous=docker.lastIndexOf('COPY --from=previous-assets /app/.next/static ./.next/static');
   const retained=docker.lastIndexOf('COPY --from=retained-assets /app/.next/static ./.next/static');
   const current=docker.lastIndexOf(file==='Dockerfile'?'COPY --from=builder /app/.next/static ./.next/static':'COPY --from=native /app ./');
-  assert(retained>0&&previous>retained&&current>previous);
+  assert(bootstrap>0&&retained>bootstrap&&previous>retained&&current>previous);
  }
  const deploy=readFileSync('scripts/deploy-cloud-run.sh','utf8'),cloud=readFileSync('cloudbuild.yaml','utf8');
  assert(deploy.indexOf('node scripts/previous-web-image.mjs')<deploy.indexOf('gcloud builds submit'));
- for(const name of ['PREVIOUS_WEB_IMAGE','RETAINED_WEB_IMAGE'])assert(cloud.includes(`${name}=\${_${name}}`));
+ for(const name of ['PREVIOUS_WEB_IMAGE','RETAINED_WEB_IMAGE','BOOTSTRAP_WEB_IMAGE'])assert(cloud.includes(`${name}=\${_${name}}`));
  assert.match(readFileSync('next.config.ts','utf8'),/deploymentId: process.env.GIT_SHA/);
 });

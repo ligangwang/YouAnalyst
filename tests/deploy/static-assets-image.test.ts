@@ -13,7 +13,7 @@ test('real Docker copy layers serve old lazy chunks and current assets for both 
  const server=`const http=require('http'),fs=require('fs');http.createServer((req,res)=>{try{res.end(fs.readFileSync('.next/static/'+req.url.split('/_next/static/')[1].split('?')[0]));}catch{res.statusCode=404;res.end();}}).listen(8080,'0.0.0.0');`;
  const images:string[]=[],containers:string[]=[];
  try{
-  for(const [name,files] of Object.entries({retained:{'old-lazy.js':'old lazy module','shared.js':'old'},previous:{'previous.js':'previous module','shared.js':'previous'},current:{'current.js':'current module','shared.js':'current'}})){
+  for(const [name,files] of Object.entries({bootstrap:{'ancient-lazy.js':'recovered module'},retained:{'old-lazy.js':'old lazy module','shared.js':'old'},previous:{'previous.js':'previous module','shared.js':'previous'},current:{'current.js':'current module','shared.js':'current'}})){
    await mkdir(join(dir,name,'chunks'),{recursive:true});
    for(const [file,value] of Object.entries(files))await writeFile(join(dir,name,'chunks',file),value);
   }
@@ -26,7 +26,7 @@ test('real Docker copy layers serve old lazy chunks and current assets for both 
    // Exercise the actual shipping runner stage; replace only expensive compilation
    // stages with tiny assets representing three deployments.
    const runner=original.slice(original.lastIndexOf('FROM '));
-   const fixture=`FROM node:20-bookworm-slim AS base\nFROM base AS retained-assets\nCOPY retained /app/.next/static\nFROM base AS previous-assets\nCOPY previous /app/.next/static\nFROM base AS builder\nCOPY app /app\nCOPY current /app/.next/static\nFROM builder AS native\n${runner}`;
+   const fixture=`FROM node:20-bookworm-slim AS base\nFROM base AS bootstrap-assets\nCOPY bootstrap /app/.next/static\nFROM base AS retained-assets\nCOPY retained /app/.next/static\nFROM base AS previous-assets\nCOPY previous /app/.next/static\nFROM base AS builder\nCOPY app /app\nCOPY current /app/.next/static\nFROM builder AS native\n${runner}`;
    await writeFile(join(dir,'Dockerfile'),fixture);
    const image=`${tag}:${file==='Dockerfile'?'source':'release'}`;images.push(image);
    docker(['build','-q','-t',image,dir]);
@@ -42,7 +42,7 @@ test('real Docker copy layers serve old lazy chunks and current assets for both 
    const url=`http://127.0.0.1:${port}/_next/static/chunks/`;
    // Retry only container startup, never a failed asset assertion.
    for(let i=0;i<50;i++){try{await fetch(url+'current.js');break;}catch{await new Promise(resolve=>setTimeout(resolve,100));}}
-   for(const [name,body] of Object.entries({'old-lazy.js':'old lazy module','previous.js':'previous module','current.js':'current module','shared.js':'current'})){
+   for(const [name,body] of Object.entries({'ancient-lazy.js':'recovered module','old-lazy.js':'old lazy module','previous.js':'previous module','current.js':'current module','shared.js':'current'})){
     const response=await fetch(url+name+'?dpl=old');assert.equal(response.status,200,`${file}: ${name}`);assert.equal(await response.text(),body);
    }
    assert.equal((await fetch(url+'missing.js')).status,404);

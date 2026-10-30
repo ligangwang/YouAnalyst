@@ -94,7 +94,7 @@ build_submit_args=(
 )
 
 # Keep the existing source-build path for manual deployments.
-build_submit_args[5]+=",_DOCKERFILE=$dockerfile,_PREVIOUS_WEB_IMAGE=$previous_web_image,_RETAINED_WEB_IMAGE=$retained_web_image"
+build_submit_args[5]+=",_DOCKERFILE=$dockerfile,_PREVIOUS_WEB_IMAGE=$previous_web_image,_RETAINED_WEB_IMAGE=$retained_web_image,_BOOTSTRAP_WEB_IMAGE=${BOOTSTRAP_WEB_IMAGE:-empty-assets}"
 
 if [[ -n "${CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR:-}" ]]; then
   build_submit_args+=(--default-buckets-behavior "$CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR")
