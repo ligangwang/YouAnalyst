@@ -11,7 +11,7 @@ import type {KnowledgeGraph} from '../knowledge-graph/model';
 
 export async function loadSupportedInstrumentUniverse(db:Firestore=getAdminFirestore()):Promise<KnowledgeGraph>{
   const query=db.collection('instruments').where('onboarding.status','==','SUPPORTED');
-  const [issuers,records]=await Promise.all([loadSupportedCompanies(db),typeof db.collection('instruments').onSnapshot==='function'
+  const [issuers,records]=await Promise.all([loadSupportedCompanies(db,undefined,'universe'),typeof db.collection('instruments').onSnapshot==='function'
     ?localQuery(db,'instruments:supported',query,'instruments').then(rows=>[...rows.values()]):query.get().then(page=>page.docs)]);
   const companies=new Map(issuers.map(doc=>[doc.id,{...doc.data(),id:doc.id} as ThemedCompany]));
   const nodes=records.flatMap(doc=>{
