@@ -9,6 +9,12 @@ steps:
       - --build-arg
       - GIT_SHA=${_GIT_SHA}
       - --build-arg
+      - PREVIOUS_WEB_IMAGE=${_PREVIOUS_WEB_IMAGE}
+      - --build-arg
+      - RETAINED_WEB_IMAGE=${_RETAINED_WEB_IMAGE}
+      - --build-arg
+      - BOOTSTRAP_WEB_IMAGE=${_BOOTSTRAP_WEB_IMAGE}
+      - --build-arg
       - NEXT_PUBLIC_APP_ENVIRONMENT=${_NEXT_PUBLIC_APP_ENVIRONMENT}
       - --build-arg
       - NEXT_PUBLIC_SITE_URL=${_NEXT_PUBLIC_SITE_URL}
@@ -58,6 +64,9 @@ substitutions:
   _RESEARCH_PUBLISHER_EMAIL: ""
   _RESEARCH_TOKEN_AUDIENCE: ""
   _DOCKERFILE: Dockerfile
+  _PREVIOUS_WEB_IMAGE: empty-assets
+  _RETAINED_WEB_IMAGE: empty-assets
+  _BOOTSTRAP_WEB_IMAGE: empty-assets
   _SERVICE_NAME: ifindata-web
   _REGION: us-central1
   _MUSIC_STORAGE_BUCKET: ""

@@ -321,13 +321,14 @@ test('company financial reads start before relationship resolution and the page 
  const mappedPending=CompanyTickerContent({params:Promise.resolve({symbol:'SMALL'}),resolved,pendingFundamentals:Promise.resolve(null)});
  void mappedPending.then(()=>{mappedSettled=true;});
  await new Promise(resolve=>setImmediate(resolve));
- assert.equal(mappedSettled,false,'earnings remain blocked while comparison work is already running');
- assert.equal(peerReads,2,'peer comparison starts before earnings resolve, with successful graph absence retained for the first page');
+ assert.equal(mappedSettled,false,'earnings remain blocked independently of the comparison panel');
+ assert.equal(peerReads,0,'offscreen peer comparison must never start in the page response');
  finishEarnings();const mapped=await mappedPending;
  assert.equal(financials,1,'the financial promise started before the content import is reused');
  const mappedOverview=props((props(mapped).children as unknown[])[1]).overview;
- const peerLoader=props(props(mappedOverview).comparison).children;
- assert.equal(props(peerLoader).pending,comparison,'the streamed panel reuses the already-started comparison');
+ const peerLoader=props(mappedOverview).comparison;
+ assert.equal(props(peerLoader).companyId,'US:SMALL');
+ assert.equal(props(peerLoader).pending,undefined,'only company identity is sent to the demand-loaded panel');
  const panel=props(props(mappedOverview).graphContent).children as {type:(props:unknown)=>Promise<unknown>;props:unknown};
  assert.equal(props(await panel.type(panel.props)).initialGraph,neighborhood);
  assert.equal(graphReads,0,'direct relationship panel must not fetch unrelated global valuations');
@@ -374,7 +375,7 @@ test('initial peer comparison never starts prices; demand reads only validated v
   if(id.endsWith('/predictions/instrument'))return {marketDate:()=> '2026-10-24'};
   if(id.endsWith('/company-themes/catalog'))return {loadThemeCatalog:async()=>({})};
   if(id.endsWith('/company-themes/catalog-model'))return {catalogThemeIds:()=>['ai']};
-  if(id.endsWith('/company-themes/graph-service'))return {loadThemeGraphStructure:async()=>{throw Error('fixture selection owns graph');}};
+  if(id==='./structure')return {loadPeerStructure:async()=>{throw Error('fixture selection owns graph');}};
   if(id.endsWith('/theme-group'))return {findPeerThemeGroup:async()=>({graph:{nodes:ids.map(id=>({id}))},group:{companies:ids.map(id=>({id})),market:'US'}})};
   if(id.endsWith('/company-document-cache'))return {loadCompanyDocuments:async(_db:unknown,collection:string,requested:string[])=>{
    if(collection==='company_fundamentals')financialReads+=requested.length;

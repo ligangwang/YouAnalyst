@@ -1,3 +1,11 @@
+ARG PREVIOUS_WEB_IMAGE=empty-assets
+ARG RETAINED_WEB_IMAGE=empty-assets
+ARG BOOTSTRAP_WEB_IMAGE=empty-assets
+FROM node:20-bookworm-slim AS empty-assets
+RUN mkdir -p /app/.next/static
+FROM ${PREVIOUS_WEB_IMAGE} AS previous-assets
+FROM ${RETAINED_WEB_IMAGE} AS retained-assets
+FROM ${BOOTSTRAP_WEB_IMAGE} AS bootstrap-assets
 FROM node:20-bookworm-slim AS native
 WORKDIR /native
 # CI's Ubuntu native binding can require a newer glibc than production.
@@ -16,6 +24,9 @@ ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 # Application code is prebuilt; native bindings match this runtime image.
+COPY --from=bootstrap-assets /app/.next/static ./.next/static
+COPY --from=retained-assets /app/.next/static ./.next/static
+COPY --from=previous-assets /app/.next/static ./.next/static
 COPY --from=native /app ./
 RUN node -e "const db = new (require('better-sqlite3'))(':memory:'); if (db.prepare('SELECT 1 AS ready').get().ready !== 1) process.exit(1); db.close()"
 EXPOSE 8080

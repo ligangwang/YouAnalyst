@@ -2,7 +2,7 @@ import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { loadPeerPrices } from './price-cache';
 import { getAdminFirestore } from '../firebase/admin';
-import { loadThemeGraphStructure } from '../company-themes/graph-service';
+import { loadPeerStructure } from './structure';
 import { loadThemeCatalog } from '../company-themes/catalog';
 import { catalogThemeIds } from '../company-themes/catalog-model';
 import { marketDate } from '../predictions/instrument';
@@ -14,7 +14,7 @@ import {normalizePriceDemand} from './price-demand';
 import {timeCompanyPhase} from '../company-page-timing';
 
 /** Read existing caches only. Comparison views never enqueue provider requests or create collections. */
-export async function loadPeerComparison(companyId:string,options:{company?:Record<string,unknown>;aiEligible?:boolean;priceIds?:string[];signal?:AbortSignal}={}):Promise<PeerComparison|null>{
+export async function loadPeerComparison(companyId:string,options:{company?:Record<string,unknown>;aiEligible?:boolean;priceIds?:string[];signal?:AbortSignal;strict?:boolean}={}):Promise<PeerComparison|null>{
  if(!/^(US:[A-Z0-9][A-Z0-9.-]{0,11}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId))return null;
  const demand=options.priceIds===undefined?undefined:normalizePriceDemand(companyId,options.priceIds);
  if(options.priceIds!==undefined&&!demand)return null;
@@ -23,9 +23,10 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
  // Date is an input to the comparison, not a cache-expiry timer.
  const dateKey=[marketDate('US'),marketDate('CN_A')].join(':');
  try{return await withCompanyPageReads(()=>changeCached(db,`peers:${companyId}:${dateKey}:${demand?.join(",")??"financials"}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
+  options.signal?.throwIfAborted();
   const [catalog,documents]=await Promise.all([loadThemeCatalog(db),options.company?Promise.resolve([{data:()=>options.company}]):loadCompanyDocuments(db,'companies',[companyId])]);
   const selected=await findPeerThemeGroup(companyId,documents[0]?.data() as Partial<ThemedCompany>|undefined,
-   catalogThemeIds(catalog).filter(theme=>theme!=='ai'||options.aiEligible!==false),theme=>loadThemeGraphStructure(theme).catch(()=>{complete=false;return null;}));
+   catalogThemeIds(catalog).filter(theme=>theme!=='ai'||options.aiEligible!==false),theme=>loadPeerStructure(db,theme).catch(error=>{if(options.strict)throw error;complete=false;return null;}));
   if(selected){
    const {graph,group}=selected;
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);
@@ -43,8 +44,9 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
     });
    }else await timeCompanyPhase('peer_financials',async()=>{
     for(let i=0;i<group.companies.length;i+=100){
+     options.signal?.throwIfAborted();
      const batch=group.companies.slice(i,i+100);
-     const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id)).catch(()=>{complete=false;return [];});
+     const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id)).catch(error=>{if(options.strict)throw error;complete=false;return [];});
      docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
     }
    });
@@ -55,5 +57,5 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
   }
   return null;
  },()=>complete));}
- catch(error){if(!options.signal?.aborted)console.error('Company peer comparison unavailable',error);return null;}
+ catch(error){if(!options.signal?.aborted)console.error('Company peer comparison unavailable',error);if(options.strict)throw error;return null;}
 }

@@ -30,7 +30,7 @@ export async function localQuery(db:Firestore,key:string,query:Query,collection:
  if(!watch){
   watch=watchQuery(query,()=>s.versions.set(collection,(s.versions.get(collection)??0)+1));
   const created=watch,close=created.close.bind(created);
-  created.close=()=>{if(s.queries.get(key)===created)s.queries.delete(key);close();};
+  created.close=()=>{if(s.queries.get(key)===created){s.queries.delete(key);s.versions.set(collection,(s.versions.get(collection)??0)+1);}close();};
   s.queries.set(key,watch);
  }
  const users=s.queryUsers??=new Map();users.set(key,(users.get(key)??0)+1);
@@ -65,6 +65,7 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
   });
   const close=group.watch.close.bind(group.watch);
   group.watch.close=()=>{
+   if(cache.groups.has(group))entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
    cache.groups.delete(group);
    for(const key of group.ids)if(cache.documents.get(key)===group)cache.documents.delete(key);
    close();
