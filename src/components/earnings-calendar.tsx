@@ -22,8 +22,10 @@ export function EarningsCalendar({initialDate='',initialCompany='',initialEvent=
     return()=>{clearTimeout(initial);clearInterval(timer);document.removeEventListener('visibilitychange',tick);};
   },[]);
   const agendaRef=useRef<HTMLElement>(null);
+  const [showHistory,setShowHistory]=useState(false);
   const [today]=useState(()=>initialToday??easternDay(new Date().toISOString()));
   const [anchor,setAnchor]=useState(initialDate||today),[selected,setSelected]=useState(initialDate||today),[view,setView]=useState<'month'|'week'>('month');
+  useEffect(()=>{if(window.matchMedia('(max-width:800px)').matches&&initialDate&&initialDate<today){setAnchor(today);setSelected(today);}},[initialDate,today]);
   const [theme,setTheme]=useState('all'),[search,setSearch]=useState(initialCompany.split(':').at(-1)??''),[following,setFollowing]=useState(false);
   const [companyFilter,setCompanyFilter]=useState(initialCompany);
   const [payload,setPayload]=useState<CalendarPayload|null>(initialPayload??null),[requestState,setRequestState]=useState({key:initialPayload?`${initialPayload.from}|${initialPayload.to}|0`:'',error:''}),[retry,setRetry]=useState(0);
@@ -54,13 +56,19 @@ export function EarningsCalendar({initialDate='',initialCompany='',initialEvent=
   const dayLabel=(day:string)=>new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`));
   function move(delta:number){const next=view==='week'?shiftDay(anchor,7*delta):new Date(Date.UTC(Number(anchor.slice(0,4)),Number(anchor.slice(5,7))-1+delta,1)).toISOString().slice(0,10);setAnchor(next);setSelected(next);}
   function chooseDay(day:string){setSelected(day);if(window.matchMedia('(max-width:800px)').matches)agendaRef.current?.scrollIntoView({behavior:'smooth',block:'start'});}
+  const upcoming=[...grouped.values()].flat().filter(group=>group.day>=(now?easternDay(new Date(now).toISOString()):today));
   const selectedItems=grouped.get(selected)??[];
-  return <main className={styles.page}>
+  return <main className={styles.page} data-history={showHistory}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{t('UPCOMING COMPANY EVENTS','公司活动预告')}</p><h1>{t('Earnings calendar','财报日历')}</h1><p className={styles.subtitle}>{t('Company-announced releases and calls across investment themes.','涵盖各投资主题的公司财报发布与电话会。')}</p></div><span className={styles.zone}>{t('Times in Eastern Time · ET','时间显示为美国东部时间 · ET')}</span></header>
     <div className={styles.toolbar}><div className={styles.period}><button aria-label={t('Previous period','上一时段')} onClick={()=>move(-1)}>‹</button><h2>{heading}</h2><button aria-label={t('Next period','下一时段')} onClick={()=>move(1)}>›</button><button onClick={()=>{setAnchor(today);setSelected(today);}}>{t('Today','今天')}</button></div><div className={styles.switcher}>{(['month','week'] as const).map(value=><button key={value} aria-pressed={view===value} onClick={()=>{setAnchor(selected);setView(value);}}>{value==='month'?t('Month','月视图'):t('Week','周视图')}</button>)}</div></div>
     <div className={styles.filters}><label>{t('Theme','主题')}<select value={theme} onChange={event=>setTheme(event.target.value)}><option value="all">{t('All themes','全部主题')}</option>{themes.map(id=><option key={id} value={id}>{themeName(id,chinese)}</option>)}</select></label><label className={styles.search}><span className={styles.srOnly}>{t('Search company or ticker','搜索公司或代码')}</span><input type="search" placeholder={t('Search company / ticker','搜索公司 / 代码')} value={search} onChange={event=>{setSearch(event.target.value);setCompanyFilter('');}}/></label><label className={styles.following}><input type="checkbox" checked={following} disabled={!saved.user || !saved.ready} onChange={event=>setFollowing(event.target.checked)}/>{t('Watchlist only','仅看自选股')}</label>{!saved.user&&<LocalizedLink href="/auth">{t('Sign in','登录')}</LocalizedLink>}{saved.error&&<button onClick={()=>void saved.refresh()}>{t('Retry watchlist','重试加载自选股')}</button>}</div>
     {payload&&payload.collectionStatus!=='complete'&&<p className={styles.coverage}>{payload.collectionStatus==='not_started'?t('Schedule collection is starting; announced dates will appear as sources are processed.','日程采集即将开始；已公告日期将在来源处理后显示。'):t('Collection is in progress; this calendar includes announced dates and does not yet cover every company.','日程采集仍在进行中；此日历收录已公告的日期，尚未覆盖所有公司。')}</p>}
     <div className={styles.status} role="status">{loading?t('Loading schedules…','正在加载日程…'):error?t('Schedules could not be refreshed.','无法刷新日程。'):`${[...grouped.values()].flat().filter(group=>group.day>=from&&group.day<=to&&group.schedules.some(item=>item.status!=='cancelled')).length} ${t('scheduled events in view','项活动')}`}{error&&<button onClick={()=>setRetry(value=>value+1)}>{t('Retry','重试')}</button>}</div>
+    <section className={styles.mobileAgenda}>
+      <h2>{t('Now & next','当下与即将发生')}</h2>
+      <button aria-expanded={showHistory} onClick={()=>setShowHistory(value=>!value)}>{showHistory?t('Hide date browser','收起日期浏览'):t('Browse dates & history','查看日期与历史')}</button>
+      {!showHistory&&<>{upcoming.map(group=><div key={group.id}><h3>{dayLabel(group.day)}</h3><EarningsEventCard group={group} now={now}/></div>)}{!upcoming.length&&<p>{loading?t('Loading schedules…','正在加载日程…'):t('No upcoming events in this period.','此时段暂无即将发生的活动。')}</p>}<button onClick={()=>move(1)}>{t('Next period →','查看下一时段 →')}</button></>}
+    </section>
     <div className={`${styles.layout} ${view==='week'?styles.weekLayout:''}`} aria-busy={loading}>
       <section className={styles.calendar} aria-label={t('Earnings calendar','财报日历')}>
         <div className={`${styles.grid} ${view==='week'?styles.week:''}`}>{displayDays.map(day=>{
