@@ -145,3 +145,24 @@ test('older snapshots without enrollment lookups use the compatible scan path',a
  try{assert.equal(opened.rows.candidateIds!('onboarding.status','==','SUPPORTED'),undefined);}
  finally{opened.close();await rm(f.directory,{recursive:true,force:true});}
 });
+
+test('large snapshot transport retains checksums and pins metadata-selected generations',async()=>{
+ const f=await fixture();
+ try{
+  for(const md5Hash of [undefined,'provided-by-storage']){
+   let fail=false;const seen:unknown[]=[];
+   const bucket={file:(_object:string,options?:{generation:string})=>({
+    getMetadata:async()=>[{generation:'321',md5Hash}],
+    createReadStream:(readOptions:unknown)=>{
+     assert.deepEqual(options,{generation:'321'});seen.push(readOptions);
+     const stream=createReadStream(f.path);
+     if(fail)queueMicrotask(()=>stream.destroy(Object.assign(Error('checksum mismatch'),{code:'CONTENT_DOWNLOAD_MISMATCH'})));
+     return stream;
+    },
+   })} as unknown as Bucket;
+   const rows=await loadEntitySqlite(bucket,'cold',()=>{});assert.equal(rows?.size,2);
+   assert.deepEqual(seen,[{decompress:false,validation:md5Hash?'md5':'crc32c'}]);
+   fail=true;await assert.rejects(loadEntitySqlite(bucket,'cold',()=>{}),/checksum mismatch/);
+  }
+ }finally{await rm(f.directory,{recursive:true,force:true});}
+});
