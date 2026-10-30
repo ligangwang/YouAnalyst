@@ -39,7 +39,7 @@ function project(id:string,row:DocumentData,fields:string[]):DirectoryCompany {
 export async function* hierarchyCompanyRows(db:Firestore,kind:BrowseKind,nodes:HierarchyNode[],pause:()=>Promise<unknown>=yieldToRequests):AsyncGenerator<DirectoryCompany> {
   const fields=hierarchyCompanyFields(kind,nodes);
   enableCompanyDirectoryForReader(db);
-  const rows=await withSharedCompanyQuery(()=>companyDirectoryEnabled(db)?companyDirectory(db):Promise.resolve(undefined));
+  const rows=await withSharedCompanyQuery(()=>companyDirectoryEnabled(db)?companyDirectory(db,'companies',true):Promise.resolve(undefined));
   if(rows){
     // Yield even while scanning unsupported rows, retaining a consistent shared
     // directory generation while updates publish a replacement map.

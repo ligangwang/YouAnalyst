@@ -5,7 +5,7 @@ import {getStorage} from 'firebase-admin/storage';
 import {getFirestore} from '../src/lib/firebase/firestore';
 import {collections,syncCollection} from '../src/lib/entity-snapshots/sync';
 import {snapshotSource} from '../src/lib/entity-snapshots/firestore-source';
-import {sqliteSnapshotFiles} from '../src/lib/entity-snapshots/sqlite-storage';
+import {companyViewSnapshotFiles} from '../src/lib/entity-snapshots/company-view-storage';
 import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 
 async function main(){
@@ -14,7 +14,7 @@ async function main(){
   if(!projectId||!bucketName)throw Error('GCP_PROJECT_ID and ENTITY_SNAPSHOT_BUCKET are required');
   if(process.env.ENTITY_TIMESTAMP_MIGRATION_COMPLETE!=='1')throw Error('Verify entity timestamp migration before enabling snapshot sync');
   initializeApp({credential:applicationDefault(),projectId});
-  const db=getFirestore(),source=snapshotSource(db),files=sqliteSnapshotFiles(getStorage().bucket(bucketName));
+  const db=getFirestore(),source=snapshotSource(db),files=companyViewSnapshotFiles(getStorage().bucket(bucketName));
   let changed=0,records=0,deleted=0;
   try{
   for(const collection of collections){
