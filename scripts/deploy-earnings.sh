@@ -28,6 +28,11 @@ subscription=earnings-worker
 probe_subscription=earnings-delivery-checks
 audit=earnings-dead-letter-audit
 bootstrap="${EARNINGS_BOOTSTRAP_IAM:-0}"
+export EARNINGS_DELIVERY_MODE="${EARNINGS_DELIVERY_MODE:-push}"
+case "$EARNINGS_DELIVERY_MODE" in push|pull) ;; *) echo 'Invalid EARNINGS_DELIVERY_MODE' >&2; exit 1 ;; esac
+if [[ "$EARNINGS_DELIVERY_MODE" == pull && "$bootstrap" == 1 ]]; then
+  echo 'Pull migration requires its separately approved subscription-scoped runtime binding; do not use legacy bootstrap.' >&2; exit 1
+fi
 case "${1:-}" in ''|--check) ;; *) echo 'Usage: deploy-earnings.sh [--check]' >&2; exit 1 ;; esac
 for flag in EARNINGS_PIPELINE_ENABLED EARNINGS_BOOTSTRAP_IAM EARNINGS_COLLECTION_ENABLED EARNINGS_PROCESSING_ENABLED INTELLIGENCE_NEWS_COLLECTOR_ENABLED; do
   case "${!flag:-0}" in 0|1) ;; *) echo "$flag must be 0 or 1" >&2; exit 1 ;; esac
@@ -100,6 +105,9 @@ if [[ "$bootstrap" != 1 ]]; then
   earnings_iam topic "$topic" roles/pubsub.publisher "serviceAccount:$runtime"
   earnings_iam topic "$dead" roles/pubsub.publisher "serviceAccount:$agent"
   earnings_iam subscription "$subscription" roles/pubsub.subscriber "serviceAccount:$agent"
+  if [[ "$EARNINGS_DELIVERY_MODE" == pull ]]; then
+    earnings_iam subscription "$subscription" roles/pubsub.subscriber "serviceAccount:$runtime"
+  fi
   earnings_iam service "$service" roles/run.invoker "serviceAccount:$scheduler"
   earnings_iam job "$job" roles/run.invoker "serviceAccount:$scheduler"
 fi
@@ -132,27 +140,37 @@ if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discove
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"),e=process.env; fs.writeFileSync(process.argv[1],JSON.stringify({CN_DISCOVERY_REQUEST_TOPIC:e.CN_DISCOVERY_QUEUE_ENABLED==="1"?"cn-company-discovery-requests":"",SEC_INCREMENTAL_DOWNLOADS_ENABLED:e.SEC_INCREMENTAL_DOWNLOADS_ENABLED||"0",SEC_DOCUMENT_CACHE_BUCKET:e.SEC_DOCUMENT_CACHE_BUCKET||"",ENTITY_SNAPSHOT_BUCKET:e.ENTITY_SNAPSHOT_BUCKET,GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,EARNINGS_TOPIC:"earnings-sources-discovered",EARNINGS_SUBSCRIPTION:"earnings-worker",EARNINGS_COLLECTION_ENABLED:e.EARNINGS_COLLECTION_ENABLED||"0",EARNINGS_PROCESSING_ENABLED:e.EARNINGS_PROCESSING_ENABLED||"0",EARNINGS_CANARY_ONLY:"0",INTELLIGENCE_NEWS_COLLECTOR_ENABLED:e.INTELLIGENCE_NEWS_COLLECTOR_ENABLED||"0",...(e.CENTRAL_CACHE_URL?{CENTRAL_CACHE_URL:e.CENTRAL_CACHE_URL}:{})}));' "$env_file"
+node -e 'const fs=require("fs"),e=process.env; fs.writeFileSync(process.argv[1],JSON.stringify({CN_DISCOVERY_REQUEST_TOPIC:e.CN_DISCOVERY_QUEUE_ENABLED==="1"?"cn-company-discovery-requests":"",SEC_INCREMENTAL_DOWNLOADS_ENABLED:e.SEC_INCREMENTAL_DOWNLOADS_ENABLED||"0",SEC_DOCUMENT_CACHE_BUCKET:e.SEC_DOCUMENT_CACHE_BUCKET||"",ENTITY_SNAPSHOT_BUCKET:e.ENTITY_SNAPSHOT_BUCKET,EARNINGS_DELIVERY_MODE:e.EARNINGS_DELIVERY_MODE,GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,EARNINGS_TOPIC:"earnings-sources-discovered",EARNINGS_SUBSCRIPTION:"earnings-worker",EARNINGS_COLLECTION_ENABLED:e.EARNINGS_COLLECTION_ENABLED||"0",EARNINGS_PROCESSING_ENABLED:e.EARNINGS_PROCESSING_ENABLED||"0",EARNINGS_CANARY_ONLY:"0",INTELLIGENCE_NEWS_COLLECTOR_ENABLED:e.INTELLIGENCE_NEWS_COLLECTOR_ENABLED||"0",...(e.CENTRAL_CACHE_URL?{CENTRAL_CACHE_URL:e.CENTRAL_CACHE_URL}:{})}));' "$env_file"
 # Admission keeps one source operation active and at most eight waiting,
 # leaving HTTP capacity for provider-free probes and fast overflow responses.
 # CPU headroom keeps Cloud Run's CPU admission target from starving those probes.
+capacity_args=(--min-instances 0 --cpu-throttling)
+if [[ "$EARNINGS_DELIVERY_MODE" == pull ]]; then
+  capacity_args=(--min-instances 1 --no-cpu-throttling)
+fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
-  --command node --args dist/serve-earnings.cjs --min-instances 0 --max-instances 1 \
-  --concurrency 80 --timeout 600 --memory 1Gi --cpu 2 --cpu-throttling --env-vars-file "$env_file" --quiet
+  --command node --args dist/serve-earnings.cjs --max-instances 1 \
+  --concurrency 80 --timeout 600 --memory 1Gi --cpu 2 "${capacity_args[@]}" --env-vars-file "$env_file" --quiet
 if [[ "$bootstrap" == 1 ]]; then
   earnings_iam service "$service" roles/run.invoker "serviceAccount:$scheduler"
 fi
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
 [[ "$url" == https://* ]] || { echo 'Missing earnings subscriber URL' >&2; exit 1; }
-push_args=(--project "$GCP_PROJECT_ID" --push-endpoint "$url/pubsub"
-  --push-auth-service-account "$scheduler" --push-auth-token-audience "$url"
-  --ack-deadline 600 --min-retry-delay 300s --max-retry-delay 600s --dead-letter-topic "$dead"
+push_args=(--project "$GCP_PROJECT_ID" --ack-deadline 600 --min-retry-delay 300s --max-retry-delay 600s --dead-letter-topic "$dead"
   --max-delivery-attempts 100 --message-retention-duration 7d --expiration-period never --quiet)
+if [[ "$EARNINGS_DELIVERY_MODE" == push ]]; then
+  push_args=(--project "$GCP_PROJECT_ID" --push-endpoint "$url/pubsub"
+    --push-auth-service-account "$scheduler" --push-auth-token-audience "$url" "${push_args[@]:2}")
+fi
 if [[ "$bootstrap" == 1 ]] && ! gcloud pubsub subscriptions describe "$subscription" --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then
   gcloud pubsub subscriptions create "$subscription" --topic "$topic" "${push_args[@]}"
 else
   gcloud pubsub subscriptions update "$subscription" "${push_args[@]}"
+fi
+if [[ "$EARNINGS_DELIVERY_MODE" == pull ]]; then
+  # Same subscription, retained backlog, retry policy and dead-letter audit.
+  gcloud pubsub subscriptions modify-push-config "$subscription" --project "$GCP_PROJECT_ID" --push-endpoint='' --quiet
 fi
 bash scripts/setup-earnings-delivery-checks.sh
 if [[ "$bootstrap" == 1 ]]; then
