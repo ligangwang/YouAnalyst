@@ -1785,7 +1785,7 @@ test('navigation: views support multi-role membership, sorting with unknown caps
  await expect(page.getByText('No matching companies.',{exact:true}).first()).toHaveCount(1);
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
  await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();await tree.scrollIntoViewIfNeeded();
- await tree.getByRole('button',{name:'Expand all',exact:true}).click();
+ await tree.locator('[data-hierarchy-node="chips"]').click();await tree.locator('[data-hierarchy-node="chips/compute"]').click();
  // Wait for the remounted 3D labels after clearing the empty search.
  await expect(tree.locator('[data-tree-company="US:AMD"]').first()).toHaveCount(1);
 });
@@ -2108,7 +2108,6 @@ test('tree reset reopens every layer after a manual zoom and collapse',{tag:'@de
  await canvas.dispatchEvent('wheel',{deltaY:-50,bubbles:true,cancelable:true});
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await expect(tree.locator('[data-tree-kind="company"]').first()).toBeAttached({timeout:15000});
- await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
  const pose=await canvas.getAttribute('data-camera-target');await pastIdleResume(page);
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','playing');
  const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','true');

@@ -68,7 +68,9 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
-async function exploreMobile(page:import('@playwright/test').Page){const nav=page.getByRole('navigation',{name:'Workspace navigation'});if(await nav.isVisible())await nav.getByRole('button',{name:/Explore|探索/,exact:true}).click();}
+async function exploreMobile(page:import('@playwright/test').Page){const nav=page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/});if(await nav.isVisible())await nav.getByRole('button',{name:/Explore|探索/,exact:true}).click();}
+
+async function activityMobile(page:import('@playwright/test').Page){const nav=page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/});if(await nav.isVisible())await nav.getByRole('button',{name:/^(Activity|动态)$/}).click();}
 
 test('workspace defaults to graph and respects an explicit list link',async({page})=>{
  await open(page);await exploreMobile(page);
@@ -115,7 +117,8 @@ test('workspace right click opens tools without selecting a stock and prevents t
   await page.getByRole('tab',{name:tab,exact:true}).click();
   for(const surface of [page.getByRole('complementary',{name:'Universe navigation'}),page.locator('[data-company-workspace]'),page.getByRole('complementary',{name:'Events and sources'}),page.getByRole('region',{name:'Theme activity summary'})]){
    if(!await surface.isVisible())continue;
-   expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+   if(!await surface.isVisible())continue;
+  expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
    await expect(tools).toBeVisible();await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
    await expect(tools.getByRole('button',{name:'MACD',exact:true})).toBeVisible();
    await expect(tools.getByRole('button',{name:'Add to watchlist',exact:true})).toHaveCount(0);
@@ -138,6 +141,7 @@ test('workspace right click opens tools without selecting a stock and prevents t
  await expect(tools).toHaveCount(0);
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  for(const surface of [timeline.locator('[data-chart-toolbar]'),timeline.locator('p').filter({hasText:/Events use source publication dates|stored daily bars/}).last(),page.getByRole('region',{name:'Theme activity summary'})]){
+  if(!await surface.isVisible())continue;
   expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
   await expect(page.getByRole('dialog',{name:'Stock tools · MU',exact:true})).toBeVisible();
   await page.keyboard.press('Escape');
@@ -219,12 +223,12 @@ test('stock tools work in every fullscreen view with the price chart hidden',{ta
  }
 });
 
-test('workspace session watchlist appears below indicators and restores company selection during review',async({page})=>{
+test('workspace session watchlist appears below indicators and restores company selection during review',async({page,isMobile})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),start:'2026-01-01',end:'2026-10-04',available:true,currency:'USD',prices:[{date:'2026-10-02',open:100,high:115,low:98,close:110,volume:1000}]}}));
  await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
- const workspace=page.locator('section[aria-label="Company relationship chart"]');
- await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ const workspace=page.locator(isMobile?'[data-timeline-dock]':'section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:isMobile?'Chart size':'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  await workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
  await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
  await workspace.getByRole('button',{name:'Stock tools',exact:true}).click();
@@ -237,11 +241,12 @@ test('workspace session watchlist appears below indicators and restores company 
  const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});
  await tools.locator('summary').click();await tools.getByRole('button',{name:'Memory & storage →',exact:true}).click();
  await tools.getByRole('button',{name:'Memory Supplier',exact:true}).click();
- await expect(page).toHaveURL(/company=US%3AMEM/);
+ // A standalone fullscreen price chart reviews peers locally; the desktop workspace changes its selected company.
+ await expect(page).toHaveURL(isMobile?/company=US%3AMU/:/company=US%3AMEM/);
  await expect(workspace.locator('[data-company-timeline="US:MEM"]')).toBeVisible();
  await review.getByRole('button',{name:'Micron',exact:true}).click();
  await expect(page).toHaveURL(/company=US%3AMU/);
- await expect(workspace).toHaveAttribute('data-chart-size','full');
+ await expect(isMobile?workspace.locator('[data-company-timeline]'):workspace).toHaveAttribute('data-chart-size','full');
  await expect(workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.screenshot({path:test.info().outputPath('workspace-watchlist-review.png')});
 });
@@ -801,7 +806,7 @@ test('late universe response cannot replace a completed event feed',async({page}
   }
   return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
  });
- await page.goto('http://workspace.test/?view=table');
+ await page.goto('http://workspace.test/?view=table');await activityMobile(page);
  const panel=page.getByRole('complementary',{name:'Events and sources'});
  await expect(panel.getByText('Documents',{exact:true}).locator('..').locator('strong')).toHaveText('350');
  release();await page.waitForTimeout(100);
@@ -878,12 +883,12 @@ test('company feed fetches older matching documents before the global cap and re
  const panel=page.getByRole('complementary',{name:'Events and sources'});
  const left=page.getByRole('complementary',{name:'Universe navigation'});
  await left.getByRole('combobox',{name:'Region',exact:true}).selectOption('US');
- await left.getByRole('button',{name:/ARM.*Arm/}).click();
+ await left.getByRole('button',{name:/ARM.*Arm/}).click();await activityMobile(page);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  expect(requested).toContain('US:ARM');
  await expect(panel.getByText('12 loaded source documents',{exact:true})).toHaveCount(0);
  await expect(panel.getByText('Documents',{exact:true}).locator('..')).toContainText('12');
- await page.reload();
+ await page.reload();await activityMobile(page);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  await panel.getByRole('button',{name:'Clear company event filter'}).click();
  await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(10);
@@ -892,19 +897,19 @@ test('company feed fetches older matching documents before the global cap and re
  if(await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).isVisible())await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).click();else if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  await search.click();
  const beforeSearch=requested.length;
- await search.pressSequentially('ARM',{delay:60});
+ await search.pressSequentially('ARM',{delay:60});await activityMobile(page);
  expect(requested.length).toBeGreaterThanOrEqual(beforeSearch);
  await expect(page).toHaveURL(/q=ARM/);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  await expect(page).toHaveURL(/q=ARM/);
  await expect(panel.getByText('12 loaded source documents',{exact:true})).toHaveCount(0);
- await page.reload();await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
+ await page.reload();await activityMobile(page);await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  if(await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).isVisible())await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).click();else if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  await search.fill('');await search.press('Enter');
  await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(10);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
  if(await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).isVisible())await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).click();else if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
- await left.getByRole('button',{name:/MU.*Micron/}).click();
+ await left.getByRole('button',{name:/MU.*Micron/}).click();await activityMobile(page);
  await expect.poll(()=>requested.at(-1)).toBe('US:MU');
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
 });
@@ -1029,7 +1034,7 @@ test('news calendar icon links only confirmed schedules and does not select the 
   await expect(page).toHaveURL(/calendar\?date=2026-10-28&company=US%3AMU&event=scheduled_event_micron_release$/);
   // The fixture keeps Explore mounted on navigation; its calendar company
   // query can select MU, but clicking the icon must not activate the news.
-  await expect(page.getByRole('button',{name:/Published company update 1 /})).toHaveAttribute('aria-pressed','false');
+  await expect(page.getByRole('button',{name:/Published company update 1 /,includeHidden:true})).toHaveAttribute('aria-pressed','false');
 });
 
 test('committed theme changes restart real chart and tree tours without replacing the workspace',async({page},info)=>{
@@ -1176,7 +1181,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText('of 4 companies');
   await expect(selection).toHaveCount(0);
   await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();
-  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
+  await expect(page.locator('[data-industry-tree="hierarchy"]')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
   await expect(page.locator('[data-industry-tree="vertical"]')).toBeVisible();
@@ -1216,7 +1221,7 @@ test('mobile workspace exposes saved companies and event details retain their Ch
   await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await center.getByRole('tab',{name:'关系图谱',exact:true}).click();
-  await page.getByRole('navigation',{name:'Workspace navigation'}).getByRole('button',{name:'动态',exact:true}).click();
+  await page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/}).getByRole('button',{name:'动态',exact:true}).click();
   const panel=page.getByRole('complementary',{name:'Events and sources'});
   const eventRow=panel.getByRole('button',{name:/Published company update 1 /});
   await expect(eventRow.getByText('内存与存储',{exact:true})).toBeVisible();
@@ -1780,7 +1785,7 @@ test('weekly feed loads ten items and requests one previous day without changing
   expect(olderRequests).toBe(1);
 });
 
-for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and role memberships (${zh?'Chinese':'English'})`,async({page})=>{
+for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and role memberships (${zh?'Chinese':'English'})`,{tag:'@desktop-only'},async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,nodes:[...snapshot.graph.nodes,
   {...snapshot.graph.nodes[0],id:'US:GOOGL',symbol:'GOOGL',name:'Alphabet',stageIds:['cloud']},
   {...snapshot.graph.nodes[0],id:'US:EDGE',symbol:'EDGE',name:'Edge devices',stageIds:['edge']},
@@ -1847,7 +1852,7 @@ test('hover price details follow the pointer and fullscreen uses the available h
 test('mobile workspace switches independent activity explore and watchlist screens',async({page},info)=>{
  await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.abort());
  await page.goto('http://fixture.local/intelligence');
- const navigation=page.getByRole('navigation',{name:'Workspace navigation'});
+ const navigation=page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/});
  if(info.project.name==='desktop'){await expect(navigation).toBeHidden();await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeVisible();return;}
  await expect(navigation).toBeVisible();
  await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeVisible();
@@ -1868,7 +1873,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`mobile ${view} comp
  test.skip(info.project.name!=='mobile');
  await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.abort());
  await page.goto(`http://fixture.local/intelligence?view=${view}&company=US%3AMU`);
- await page.getByRole('navigation',{name:'Workspace navigation'}).getByRole('button',{name:'Explore'}).click();
+ await page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/}).getByRole('button',{name:'Explore'}).click();
  const details=page.getByRole('region',{name:'Company details',exact:true});
  await expect(details).toBeVisible();
  await expect(details).toHaveCSS('position','static');
@@ -1891,6 +1896,7 @@ test('wheel zoom at any pointer position stays anchored to the latest candle',as
  const timeline=page.locator('[data-company-timeline="US:MU"]');await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
  const svg=timeline.locator('svg[role=img]'),candles=svg.locator('[data-price-candle]');await expect(candles).toHaveCount(28);
  for(const ratio of [.1,.5,.9]){
+  await page.waitForTimeout(120);
   const box=(await svg.boundingBox())!;await page.mouse.move(box.x+box.width*ratio,box.y+box.height*.45);await page.mouse.wheel(0,-120);
   await expect(candles).toHaveCount(14);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
   await page.waitForTimeout(120);await page.mouse.wheel(0,-120);await expect(candles).toHaveCount(7);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');

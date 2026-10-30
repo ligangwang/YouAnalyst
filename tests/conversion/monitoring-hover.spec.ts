@@ -11,7 +11,7 @@ test.beforeAll(async()=>{
   html=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LineSegments} from 'three';import Graph from './src/components/company-graph-3d';import {LocaleProvider} from './src/components/providers/locale-provider';LineSegments.prototype.onBeforeRender=function(){if(this.geometry.userData.edgeIds){const colors=this.geometry.getAttribute('color');window.hoverEdges=this.geometry.userData.edgeIds.map((id,i)=>({id,alpha:colors.getW(i*2)}));}};createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><Graph graph={${JSON.stringify(graph)}} selected="" onSelect={()=>{}} reset={0} onReset={()=>{}} cameraRequest={0} intelligence={{origin:'',edges:[]}}/></LocaleProvider>);`,{jsx:'automatic',plugins:[tourClockPlugin]},'body{margin:0;background:#07111d;color:white}#root{height:100vh}');
 });
 
-test('monitoring relationships reveal only at the star core and fade out on leave',async({page},info)=>{
+test('monitoring relationships reveal at the star, persist over its label, and fade on leave',async({page},info)=>{
   test.skip(info.project.name==='mobile','Mouse hover is a desktop interaction');
   await accelerateTours(page);
   await page.emulateMedia({reducedMotion:"reduce"});
@@ -23,13 +23,13 @@ test('monitoring relationships reveal only at the star core and fade out on leav
   await expect.poll(async()=> (await edges()).length).toBeGreaterThan(0);
   expect((await edges()).every(e=>e.alpha===0)).toBe(true);
   const label=page.locator('[data-company-id="US:NVDA"]');
-  await expect(label).toBeVisible();
-  await label.hover({force:true});
-  await expect(label).toHaveAttribute('data-highlighted','true');
-  expect((await edges()).every(e=>e.alpha===0)).toBe(true);
+  await expect(label).toBeAttached();
+  await expect(label).toBeHidden();
   const point=await label.evaluate(element=>{const box=element.parentElement!.getBoundingClientRect();return {x:box.x+box.width/2,y:box.y+box.height/2};});
   await page.mouse.move(point.x,point.y);
   await expect(label).toHaveAttribute('data-highlighted','true');
+  await expect.poll(async()=> (await edges()).some(e=>e.alpha>.01)).toBe(true);
+  await expect(label).toBeVisible();await label.hover({force:true});
   await expect.poll(async()=> (await edges()).some(e=>e.alpha>.01)).toBe(true);
   await page.emulateMedia({reducedMotion:'no-preference'});
   await page.screenshot({path:info.outputPath('monitoring-hover-relationships.png')});
