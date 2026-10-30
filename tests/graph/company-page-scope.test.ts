@@ -1,3 +1,4 @@
+import * as demandHelpers from '../../src/lib/peer-comparison/price-demand';
 import test from 'node:test';
 import {isValidElement} from 'react';
 import assert from 'node:assert/strict';
@@ -358,14 +359,14 @@ test('late financial phases are correlated after the HTML shell returns; malform
  assert.equal(await traceCompanyPage('page',malformed,async()=>42,()=>{throw Error('must not log');}),42);
 });
 
-test('peer prices start while financials are blocked, retaining the eight-query bound and complete results',async()=>{
+test('initial peer comparison never starts prices; demand reads only validated visible companies',async()=>{
  const bundled=await build({entryPoints:['src/lib/peer-comparison/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{
   name:'peer-read-fixture',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
  }]});
- const ids=Array.from({length:17},(_,i)=>`US:P${i}`),priceStarts:string[]=[],priceFinishes:(()=>void)[]=[];
- let finishFinancials!:(docs:unknown[])=>void,active=0,maxActive=0,completed=false;
- const financials=new Promise<unknown[]>(resolve=>{finishFinancials=resolve;});
+ const ids=Array.from({length:2000},(_,i)=>`US:P${i}`),priceStarts:string[]=[],priceFinishes:(()=>void)[]=[];
+ let active=0,maxActive=0,financialReads=0;
  const injected=(id:string)=>{
+  if(id.endsWith('/price-demand'))return demandHelpers;
   if(id.endsWith('/company-page-scope'))return {withCompanyPageReads:(work:()=>unknown)=>work()};
   if(id.endsWith('/change-cache'))return {changeCached:(_db:unknown,_key:unknown,_collections:unknown,work:()=>unknown)=>work()};
   if(id.endsWith('/company-page-timing'))return {timeCompanyPhase:(_name:string,work:()=>unknown)=>work()};
@@ -374,26 +375,40 @@ test('peer prices start while financials are blocked, retaining the eight-query 
   if(id.endsWith('/company-themes/catalog'))return {loadThemeCatalog:async()=>({})};
   if(id.endsWith('/company-themes/catalog-model'))return {catalogThemeIds:()=>['ai']};
   if(id.endsWith('/company-themes/graph-service'))return {loadThemeGraphStructure:async()=>{throw Error('fixture selection owns graph');}};
-  if(id.endsWith('/theme-group'))return {findPeerThemeGroup:async()=>({graph:{nodes:ids},group:{companies:ids.map(id=>({id})),market:'US'}})};
-  if(id.endsWith('/company-document-cache'))return {loadCompanyDocuments:(_db:unknown,collection:string,requested:string[])=>{
-   assert.equal(collection,'company_fundamentals');assert.deepEqual(requested,ids);return financials;
+  if(id.endsWith('/theme-group'))return {findPeerThemeGroup:async()=>({graph:{nodes:ids.map(id=>({id}))},group:{companies:ids.map(id=>({id})),market:'US'}})};
+  if(id.endsWith('/company-document-cache'))return {loadCompanyDocuments:async(_db:unknown,collection:string,requested:string[])=>{
+   if(collection==='company_fundamentals')financialReads+=requested.length;
+   return requested.map(id=>({data:()=>({id})}));
   }};
   if(id.endsWith('/price-cache'))return {loadPeerPrices:async(_db:unknown,id:string)=>{
    priceStarts.push(id);active++;maxActive=Math.max(maxActive,active);
    await new Promise<void>(resolve=>{priceFinishes.push(resolve);});active--;return [{id}];
   }};
-  if(id.endsWith('/model'))return {buildPeerComparison:(_id:string,nodes:string[],values:Map<string,unknown>,prices:Map<string,unknown>)=>{
-   assert.deepEqual(nodes,ids);assert.equal(values.size,17);assert.equal(prices.size,17);return {complete:true};
-  }};
+  if(id.endsWith('/model'))return {buildPeerComparison:(_id:string,nodes:{id:string}[],values:Map<string,unknown>,prices:Map<string,unknown>)=>({nodes:nodes.map(n=>n.id),financials:values.size,prices:[...prices.keys()],panels:[]})};
   throw Error(`Unexpected import ${id}`);
  };
  const evaluated={exports:{}};new Function('require','module','exports',bundled.outputFiles[0].text)(injected,evaluated,evaluated.exports);
  const load=(evaluated.exports as {loadPeerComparison:(id:string,options:unknown)=>Promise<unknown>}).loadPeerComparison;
- const pending=load('US:P0',{company:{}}).then(value=>{completed=true;return value;});
- const tick=()=>new Promise<void>(resolve=>setImmediate(resolve));
- await tick();assert.equal(priceStarts.length,8,'first price batch must not await financial documents');
- while(priceStarts.length<17){priceFinishes.splice(0).forEach(finish=>finish());await tick();}
- priceFinishes.splice(0).forEach(finish=>finish());await tick();
- assert.equal(maxActive,8);assert.deepEqual(priceStarts,ids);assert.equal(completed,false,'comparison still waits for financials');
- finishFinancials(ids.map(id=>({data:()=>({id})})));assert.deepEqual(await pending,{complete:true});
+ // The price source never resolves unless explicitly released. Initial SSR must
+ // complete without calling it at all, regardless of the 2,000-company universe.
+ const initial=await load('US:P0',{company:{}}) as {nodes:string[];financials:number;prices:unknown[];pricePeers:{id:string}[]};
+ assert.deepEqual(initial.nodes,ids);assert.equal(initial.financials,2000);assert.deepEqual(initial.prices,[]);assert.equal(initial.pricePeers.length,2000);assert.equal(priceStarts.length,0);
+ assert.equal(await load('US:P0',{priceIds:ids}),null);assert.equal(priceStarts.length,0);
+ assert.equal(await load('US:P0',{priceIds:['US:OUTSIDE']}),null);assert.equal(priceStarts.length,0);
+ assert.equal(await load('US:P0',{priceIds:['XSHE:000001']}),null);assert.equal(priceStarts.length,0);
+ const requested=['US:P4','US:P8','US:P10'];
+ const pending=load('US:P0',{priceIds:requested});
+ await new Promise<void>(resolve=>setImmediate(resolve));
+ assert.deepEqual(priceStarts,['US:P0',...requested]);assert.equal(financialReads,2000,'price demand must not reload sector financials');
+ priceFinishes.splice(0).forEach(finish=>finish());
+ const result=await pending as {nodes:string[];prices:string[]};
+ assert.deepEqual(result.nodes,['US:P0',...requested]);assert.deepEqual(result.prices,['US:P0',...requested]);
+ const page=load('US:P0',{priceIds:ids.slice(1,13)});
+ for(let batch=0;batch<2;batch++){await new Promise<void>(resolve=>setImmediate(resolve));priceFinishes.splice(0).forEach(finish=>finish());}
+ await page;assert.equal(maxActive,8);
+ const controller=new AbortController(),beforeCancel=priceStarts.length;
+ const cancelled=load('US:P0',{priceIds:ids.slice(1,13),signal:controller.signal});
+ await new Promise<void>(resolve=>setImmediate(resolve));assert.equal(priceStarts.length-beforeCancel,8);
+ controller.abort();priceFinishes.splice(0).forEach(finish=>finish());
+ assert.equal(await cancelled,null);assert.equal(priceStarts.length-beforeCancel,8,'abandoned pages do not start another file batch');
 });

@@ -1,3 +1,4 @@
+import {visiblePriceIds} from '../../src/lib/peer-comparison/price-demand';
 import {withCompanyPageReads} from '../../src/lib/local-cache/company-page-scope';
 import {loadPeerPrices} from '../../src/lib/peer-comparison/price-cache';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
@@ -188,4 +189,21 @@ test('retained bytes evict partitions below the listener cap and account for liv
  assert.deepEqual(closed,['price-snapshots/US/P0/2026.sqlite']);
  callbacks.get('price-snapshots/US/P63/2026.sqlite')!({readTime:stamp(4),changes:[{id:'US_P63_2026-01-02',data:{close:2,padding,updatedAt:stamp(4)}}]});
  assert.deepEqual(closed,['price-snapshots/US/P0/2026.sqlite','price-snapshots/US/P1/2026.sqlite']);
+});
+
+
+test('visible peers alone hydrate files and repeated demand shares catch-up listeners',async t=>{
+ const previous=process.env.PRICE_SNAPSHOT_READY;process.env.PRICE_SNAPSHOT_READY='1';
+ t.after(()=>{if(previous===undefined)delete process.env.PRICE_SNAPSHOT_READY;else process.env.PRICE_SNAPSHOT_READY=previous;});
+ const raw={} as Firestore,db=observeFirestore(new Firestore({projectId:'visible-peer-files'}),()=>{}),loads:string[]=[];let listeners=0;
+ enableCompanyDirectory(db,raw,{price:{years:async()=>[2026],file:async part=>{
+  loads.push(part.ticker);const rows:EntityRows=new Map();
+  for(let day=1;day<=20;day++)rows.set(part.prefix+'01-'+String(day).padStart(2,'0'),{close:day,updatedAt:stamp(1)});
+  rows.watermark=stamp(2);return rows;
+ },subscribe:()=> (_since,next)=>{listeners++;queueMicrotask(()=>next({readTime:stamp(3),changes:[]}));return()=>{};}}});
+ const universe=Array.from({length:2000},(_,i)=>({id:`US:P${i}`}));
+ const read=()=>Promise.all(visiblePriceIds('US:P9',universe,false,0).map(id=>withCompanyPageReads(()=>loadPeerPrices(db,id,'US','2026-01-20'))));
+ await Promise.all([read(),read()]);
+ assert.deepEqual(new Set(loads),new Set(['P9','P0','P1','P2']));assert.equal(loads.length,4);assert.equal(listeners,4);
+ assert(!loads.includes('P3'),'hidden peers must not cause file reads');
 });

@@ -8,7 +8,7 @@ export type Observation = { value:number; date:string; start?:string; sourceUrl?
 export type PeerCompany = Pick<GraphNode,'id'|'name'|'names'|'symbol'|'slug'>;
 export type ComparisonRow = PeerCompany & { observation:Observation|null; rank:number|null };
 export type ComparisonPanel = { key:ComparisonMetric; currency:'USD'|'CNY'; date:string; start?:string; annual:boolean; rows:ComparisonRow[]; count:number; mean:number; median:number };
-export type PeerComparison = { companyId:string; sector:{en:string;zh:string}; market:'US'|'CN_A'; total:number; panels:ComparisonPanel[] };
+export type PeerComparison = { companyId:string; sector:{en:string;zh:string}; market:'US'|'CN_A'; total:number; panels:ComparisonPanel[]; pricePeers?:PeerCompany[] };
 const record=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{};
 const finite=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v);
 const date=(v:unknown):v is string=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
