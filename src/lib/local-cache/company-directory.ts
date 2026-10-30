@@ -226,7 +226,7 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
   const docs:ReturnType<typeof document>[]=[];
   for(let i=0;i<result.length;i++){
    if(i&&i%128===0)await yieldToRequests();
-   let [id,data]=result[i];
+   const id=result[i][0];let data=result[i][1];
    if(projection){const selected:DocumentData={};for(const f of projection.args){const name=fieldName(f),v=field(data,name);if(v!==undefined){const parts=name.split('.');let into=selected;for(const part of parts.slice(0,-1))into=into[part]??={};into[parts.at(-1)!]=v;}}data=selected;}
    docs.push(document(db,id,data,spec.collection));
   }
