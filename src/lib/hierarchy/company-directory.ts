@@ -6,6 +6,7 @@ import {companyClassificationPaths} from '../industry-classification/catalog';
 import {companyPageUrl} from '../market-companies/routes';
 import {hierarchyPathLookup,type HierarchyNode} from './model';
 import {companyThemeNodeIds,type CompanyThemeData} from './company-memberships';
+import {catalogThemeIds,isThemeId} from '../company-themes/catalog-model';
 
 export type BrowseKind = 'industries'|'investment-themes';
 export type BrowseCompany = {id:string;name:string;href:string;nodeIds:string[]};
@@ -15,9 +16,9 @@ const COMMON_FIELDS=['name','slug','market','status','isDeleted','supersededByCo
 
 export function hierarchyCompanyFields(kind:BrowseKind,nodes:HierarchyNode[]) {
   if(kind==='industries')return [...COMMON_FIELDS,'taxonomy','classification'];
-  const roots=nodes.filter(node=>node.parentId===null).map(node=>node.id);
-  if(roots.some(id=>!/^[a-z][a-z0-9-]*$/.test(id)))throw Error('Invalid theme root');
-  return [...COMMON_FIELDS,...(roots.includes('ai')?['inGraph.stageIds']:[]),...roots.flatMap(id=>
+  const themes=catalogThemeIds(nodes);
+  if(themes.some(id=>!isThemeId(id)))throw Error('Invalid theme ID');
+  return [...COMMON_FIELDS,...(themes.includes('ai')?['inGraph.stageIds']:[]),...themes.flatMap(id=>
     ['status','primarySector','secondaryRoles','assignments'].map(field=>`themeMemberships.${id}.${field}`))];
 }
 

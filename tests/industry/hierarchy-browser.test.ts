@@ -1,3 +1,5 @@
+import themeCatalog from '../../data/investment-themes/catalog-v1.json';
+import {validateThemeCatalog} from '../../src/lib/company-themes/catalog-model';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { industryHierarchy } from '../../src/lib/hierarchy/industries';
@@ -78,7 +80,7 @@ test('industry refresh reads only classification and link fields, sharing the fi
 });
 
 test('theme refresh selects only published catalog membership placement, not classifications or evidence',async()=>{
- const nodes=['ai','ai.chips'].map((id,order)=>({id,parentId:order?'ai':null,names:{en:id,'zh-CN':id},order}));
+ const nodes=validateThemeCatalog(themeCatalog.nodes);
  const membership=forbidden({status:'PUBLISHED',assignments:[{nodeId:'ai.chips',status:'PUBLISHED'}]},['sources','summaryTranslations']);
  const memberships=forbidden({ai:membership},['unrelated']);
  const row=forbidden(supported({themeMemberships:memberships,inGraph:{stageIds:['chips']}}),['searchPrefixes','classification','description']);
@@ -87,7 +89,11 @@ test('theme refresh selects only published catalog membership placement, not cla
  assert.deepEqual(rows[0].themeMemberships,{ai:{status:'PUBLISHED',assignments:[{nodeId:'ai.chips',status:'PUBLISHED'}]}});
  assert.equal(rows[0].classification,undefined);
  const result=await createHierarchyBrowser((kind,nodes)=>hierarchyCompanyRows(f.db,kind,nodes))('investment-themes',nodes);
- assert.deepEqual(result.items[0].nodeIds,['ai','ai.chips']);
+ assert.deepEqual(result.items[0].nodeIds,['transformative-technologies','ai','ai.chips']);
+ assert(!hierarchyCompanyFields('investment-themes',nodes).some(field=>field.startsWith('themeMemberships.transformative-technologies.')));
+ const legacy=directoryFixture(new Map([['US:B',supported({themeMemberships:{ai:{status:'PUBLISHED'}},inGraph:{stageIds:['chips']}})]]));
+ const old=await createHierarchyBrowser((kind,catalog)=>hierarchyCompanyRows(legacy.db,kind,catalog))('investment-themes',nodes);
+ assert.deepEqual(old.items[0].nodeIds,['transformative-technologies','ai','ai.chips']);
 });
 
 test('Firestore fallback uses a projected supported query and never opens a projected listener',async()=>{
@@ -170,10 +176,10 @@ test('an industry refresh waiting on its source cannot hold up the theme view',a
 });
 
 test('non-AI catalogs skip legacy graph data and safely project field names inherited by plain objects',async()=>{
- const nodes=[{id:'constructor',parentId:null,names:{en:'Constructor','zh-CN':'Constructor'},order:0}];
+ const nodes=[{id:'family',parentId:null,names:{en:'Family','zh-CN':'Family'},order:0},{id:'constructor',parentId:'family',names:{en:'Constructor','zh-CN':'Constructor'},order:0}];
  const row=forbidden(supported({themeMemberships:{constructor:{status:'PUBLISHED',primarySector:'example'}}}),['inGraph','classification','searchPrefixes']);
  const f=directoryFixture(new Map([['US:A',row]]));
  const result=await createHierarchyBrowser((kind,nodes)=>hierarchyCompanyRows(f.db,kind,nodes))('investment-themes',nodes);
- assert.equal(result.unavailable,false);assert.deepEqual(result.items[0].nodeIds,['constructor']);
+ assert.equal(result.unavailable,false);assert.deepEqual(result.items[0].nodeIds,['family','constructor']);
  assert.equal(Object.hasOwn(Object,'status'),false);
 });
