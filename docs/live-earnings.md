@@ -36,6 +36,20 @@ paid subscription or HKEX scraper is introduced.
 
 ## Discovery, delivery and storage
 
+Readiness probes use the `earnings-delivery-checks` subscription on the existing
+`earnings-sources-discovered` topic. Its immutable filter accepts only
+`attributes.type="earnings.delivery.probe"`. It invokes the same private earnings
+subscriber with the existing push identity, but has its own delivery/backoff
+queue so the source backlog cannot starve deployment verification. The handler
+also rejects source-work payloads on this control route.
+
+Before the first rollout, run `GCP_PROJECT_ID=<project> bash
+scripts/setup-earnings-delivery-checks.sh`. This additive setup creates only the
+filtered subscription and leaves the existing source subscription, schedules,
+and IAM unchanged. Routine deployment validates its topic and filter before
+changing a revision. Source processing remains serial; probes make no provider
+requests and use the existing receipt fields in `earnings_collectors`.
+
 US discovery is a pre-filter observer in the **existing SEC collector job**, using
 its existing shared HTTP budget and lease. The four pilot CIKs receive a bounded
 priority pass; the same source instance caches each response for the existing

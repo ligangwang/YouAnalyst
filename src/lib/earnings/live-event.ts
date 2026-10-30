@@ -2,6 +2,7 @@ import { stableId, validTimestamp } from "./model";
 
 export const EARNINGS_TOPIC = "earnings-sources-discovered";
 export const EARNINGS_SUBSCRIPTION = "earnings-worker";
+export const EARNINGS_PROBE_SUBSCRIPTION = "earnings-delivery-checks";
 export type EarningsSourceDiscovered = { version: 1; type: "earnings.source.discovered"; eventId: string; batchId: string; sourceId: string; generation: number };
 export type EarningsDeliveryProbe = { version: 1; type: "earnings.delivery.probe"; batchId: string; createdAt: string };
 export type EarningsJob = EarningsSourceDiscovered | EarningsDeliveryProbe;
@@ -26,4 +27,10 @@ export function parseEarningsJob(value: unknown): EarningsJob {
     return { version: 1, type: v.type, batchId: v.batchId, createdAt: v.createdAt };
   }
   throw new Error("Unsupported earnings event type");
+}
+
+export function parseEarningsDeliveryProbe(value: unknown): EarningsDeliveryProbe {
+  const event = parseEarningsJob(value);
+  if (event.type !== 'earnings.delivery.probe') throw new Error('Readiness subscription accepts only delivery probes');
+  return event;
 }

@@ -28,10 +28,14 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
             done ;;
           "pubsub subscriptions describe"*)
             if [[ "\${NEW_RESOURCES:-0}" == 1 ]]; then return 1; fi
+            if [[ "$*" == *"value(filter)"* ]]; then
+              if [[ "\${WRONG_PROBE_FILTER:-0}" == 1 ]]; then echo 'attributes.type="earnings.source.discovered"'; else echo 'attributes.type="earnings.delivery.probe"'; fi
+              return
+            fi
             if [[ "$*" == *"value(topic)"* ]]; then
               local topic="$4"
               case "$4" in
-                earnings-worker) topic=earnings-sources-discovered ;;
+                earnings-worker|earnings-delivery-checks) topic=earnings-sources-discovered ;;
                 cn-company-discovery-worker) topic=cn-company-discovery-requests ;;
                 sec-filings-fundamentals|company-graph-filings) topic=sec-filings-discovered ;;
                 company-graph-worker) topic=company-graph-requests ;;
@@ -132,6 +136,23 @@ test("routine earnings deployment verifies all scoped IAM before revisions and p
   assert.doesNotMatch(r.calls, /add-iam-policy-binding|iam service-accounts|projects add-iam|(?:topics|subscriptions) create|scheduler jobs (create|pause|resume|delete)|run jobs execute/);
 });
 
+test('readiness setup adds only a filtered control subscription with the existing push identity',()=>{
+  const fresh=run({NEW_RESOURCES:'1'},'scripts/setup-earnings-delivery-checks.sh');
+  assert.equal(fresh.status,0,fresh.stderr);
+  assert.match(fresh.calls,/subscriptions create earnings-delivery-checks .*--topic projects\/demo\/topics\/earnings-sources-discovered .*--message-filter attributes.type="earnings.delivery.probe"/);
+  assert.match(fresh.calls,/--push-auth-service-account directory-sync-scheduler@demo.iam.gserviceaccount.com/);
+  assert.match(fresh.calls,/--min-retry-delay 1s --max-retry-delay 10s/);
+  assert.doesNotMatch(fresh.calls,/scheduler jobs|add-iam-policy-binding|subscriptions (update|delete) earnings-worker|topics create|run deploy|run jobs/);
+  const existing=run({},'scripts/setup-earnings-delivery-checks.sh');
+  assert.equal(existing.status,0,existing.stderr);
+  assert.match(existing.calls,/subscriptions update earnings-delivery-checks/);
+  assert.doesNotMatch(existing.calls,/subscriptions create/);
+  for(const extra of [{WRONG_TOPIC:'other'},{WRONG_PROBE_FILTER:'1'}] as Record<string,string>[]){
+    const invalid=run(extra,'scripts/setup-earnings-delivery-checks.sh');
+    assert.notEqual(invalid.status,0);assert.doesNotMatch(invalid.calls,mutations);
+  }
+});
+
 test('A-share fallback publisher switches only after its private company subscriber is wired',()=>{
   const result=run({CN_DISCOVERY_QUEUE_ENABLED:'1',EARNINGS_COLLECTION_ENABLED:'1'});
   assert.equal(result.status,0,result.stderr);
@@ -148,8 +169,8 @@ test("earnings preflight refuses invalid switches, unapproved setup, wrong topic
     { EARNINGS_BOOTSTRAP_IAM: "1" }, { EARNINGS_BOOTSTRAP_IAM: "1", EARNINGS_SETUP_APPROVED_SHA: "b".repeat(40) },
     { EARNINGS_BOOTSTRAP_IAM: "1", EARNINGS_SETUP_APPROVED_SHA: sha, EARNINGS_COLLECTION_ENABLED: "1" },
     { EARNINGS_BOOTSTRAP_IAM: "1", EARNINGS_SETUP_APPROVED_SHA: sha, EARNINGS_PROCESSING_ENABLED: "1" },
-    { FUNDAMENTALS_IMAGE: "example/image:latest" }, { WRONG_TOPIC: "other-pipeline" }, { MISSING_IAM: "1" },
-    ...["earnings-sources-discovered", "earnings-dead-letter", "earnings-worker", "earnings-dead-letter-audit", "earnings-subscriber", "collect-earnings-production"].map(MISSING_RESOURCE => ({ MISSING_RESOURCE })),
+    { FUNDAMENTALS_IMAGE: "example/image:latest" }, { WRONG_TOPIC: "other-pipeline" }, { WRONG_PROBE_FILTER:'1' }, { MISSING_IAM: "1" },
+    ...["earnings-sources-discovered", "earnings-dead-letter", "earnings-worker", "earnings-delivery-checks", "earnings-dead-letter-audit", "earnings-subscriber", "collect-earnings-production"].map(MISSING_RESOURCE => ({ MISSING_RESOURCE })),
   ] as Record<string, string>[]) {
     const r = run(extra);
     assert.notEqual(r.status, 0, JSON.stringify(extra));

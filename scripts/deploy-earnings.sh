@@ -25,6 +25,7 @@ service=earnings-subscriber
 topic=earnings-sources-discovered
 dead=earnings-dead-letter
 subscription=earnings-worker
+probe_subscription=earnings-delivery-checks
 audit=earnings-dead-letter-audit
 bootstrap="${EARNINGS_BOOTSTRAP_IAM:-0}"
 case "${1:-}" in ''|--check) ;; *) echo 'Usage: deploy-earnings.sh [--check]' >&2; exit 1 ;; esac
@@ -87,6 +88,9 @@ earnings_subscription_topic() {
 earnings_subscription_topic "$subscription" "$topic"
 earnings_subscription_topic "$audit" "$dead"
 if [[ "$bootstrap" != 1 ]]; then
+  earnings_subscription_topic "$probe_subscription" "$topic"
+  probe_filter="$(gcloud pubsub subscriptions describe "$probe_subscription" --project "$GCP_PROJECT_ID" --format='value(filter)')"
+  [[ "${probe_filter//[[:space:]]/}" == 'attributes.type="earnings.delivery.probe"' ]] || { echo 'Run additive setup-earnings-delivery-checks.sh before rollout' >&2; exit 1; }
   for name in "$topic" "$dead"; do
     gcloud pubsub topics describe "$name" --project "$GCP_PROJECT_ID" >/dev/null
   done
@@ -150,6 +154,7 @@ if [[ "$bootstrap" == 1 ]] && ! gcloud pubsub subscriptions describe "$subscript
 else
   gcloud pubsub subscriptions update "$subscription" "${push_args[@]}"
 fi
+bash scripts/setup-earnings-delivery-checks.sh
 if [[ "$bootstrap" == 1 ]]; then
   earnings_iam topic "$topic" roles/pubsub.publisher "serviceAccount:$runtime"
   earnings_iam topic "$dead" roles/pubsub.publisher "serviceAccount:$agent"
