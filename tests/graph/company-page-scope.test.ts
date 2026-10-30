@@ -74,9 +74,9 @@ test('cold company routes and financial documents never download whole snapshots
  assert.equal(f.counts().files,0);
 });
 
-test('cold peer prices share a bounded live query without downloading yearly files',async t=>{
+test('peer prices retain bounded live-query fallback before snapshot readiness',async t=>{
  t.after(closeLocalCaches);const f=fixture(),previous=process.env.PRICE_SNAPSHOT_READY;
- process.env.PRICE_SNAPSHOT_READY='1';t.after(()=>{if(previous===undefined)delete process.env.PRICE_SNAPSHOT_READY;else process.env.PRICE_SNAPSHOT_READY=previous;});
+ process.env.PRICE_SNAPSHOT_READY='0';t.after(()=>{if(previous===undefined)delete process.env.PRICE_SNAPSHOT_READY;else process.env.PRICE_SNAPSHOT_READY=previous;});
  for(let day=1;day<=20;day++)f.rows.set(`eod_prices/US_SMALL_2026-10-${String(day).padStart(2,'0')}`,{close:day});
  f.rows.set('eod_prices/US_OTHER_2026-10-20',{close:999});
  const read=()=>withCompanyPageReads(()=>loadPeerPrices(f.db,'US:SMALL','US','2026-10-19'));
@@ -85,8 +85,8 @@ test('cold peer prices share a bounded live query without downloading yearly fil
  assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
  f.rows.set('eod_prices/US_SMALL_2026-10-19',{close:123});f.push();
  assert.equal((await read())[0].close,123);assert.equal(f.counts().opens,1);
- await assert.rejects(loadPeerPrices(f.db,'US:SMALL','US','2026-10-19'),/price partition requested/);
- assert.equal(f.counts().files,1,'bulk readers retain their yearly partition policy');
+ await loadPeerPrices(f.db,'US:SMALL','US','2026-10-19');
+ assert.equal(f.counts().files,0,'unready snapshots retain the bounded query fallback');
 });
 
 test('public graph HTTP reads retain the targeted cache boundary for cold company charts',async t=>{

@@ -2,8 +2,8 @@ import { FieldPath, type Firestore, type QuerySnapshot } from 'firebase-admin/fi
 import { changeCached } from '../change-cache';
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
 
-/** Shared across peer groups in this process. Only price writes invalidate history;
- * the date bound remains part of the query identity, with no time-based expiry. */
+/** File snapshots plus live corrections are shared across peer groups.
+ * The exact bounded query remains a fallback before snapshot readiness. */
 export function loadPeerPrices(db:Firestore, companyId:string, market:'US'|'CN_A', through:string):Promise<Record<string,unknown>[]> {
  const ticker=market==='US'?companyId.slice(3):companyId;
  const prefix=`${market}_${ticker}_`;
