@@ -30,8 +30,8 @@ async function main() {
   if (!process.env.GCP_PROJECT_ID) throw new Error("GCP_PROJECT_ID is required");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
   const db = getFirestore();
-  // Queue dispatch needs only A-share membership, never US SEC identities.
-  const graph=mode==='collect'&&process.env.CN_DISCOVERY_REQUEST_TOPIC
+  // Delivery probes need only their receipt; other modes retain issuer setup.
+  const graph=mode==='verify-delivery' ? undefined : mode==='collect'&&process.env.CN_DISCOVERY_REQUEST_TOPIC
     ? supportedCompanyUniverse(await readCollectionCompanies(db,[],'CN'))
     : await loadEarningsMap(db);
   if (mode === "dry-run" || mode === "diagnostics") { log.emit("INFO", "run_completed", await inspectLiveEarnings(db)); return; }
@@ -49,6 +49,7 @@ async function main() {
   const cnTopic=process.env.CN_DISCOVERY_REQUEST_TOPIC;
   if(cnTopic&&cnTopic!==CN_DISCOVERY_TOPIC)throw new Error('Unexpected A-share discovery destination');
   if(mode==='collect'&&cnTopic){
+    if(!graph)throw new Error('Earnings company map is unavailable');
     const result=await publishCnDiscoveryTasks(mapListedCompanies(graph).filter(n=>n.market==='CN_A').map(n=>n.id),'earnings-fallback',task=>publishJobMessage(cnTopic,task),{
       execution:process.env.CLOUD_RUN_EXECUTION??log.runId,deadline:Date.now()+8*60000,earningsEnabled:true,readState:(id,kind)=>cnDiscoveryState(db,id,kind),
     });

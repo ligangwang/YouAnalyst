@@ -8,18 +8,20 @@ import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
 import {EARNINGS_SOURCES} from '../src/lib/earnings/live-store';
 import {secCacheOwner,withSecDocumentProcessing} from '../src/lib/sec-filings/document-cache';
 import {publishEarningsIntake} from '../src/lib/sec-filings/intake-routing';
+import {createEarningsAdmission} from '../src/lib/earnings/live-admission';
 
 if (!process.env.GCP_PROJECT_ID || !process.env.SEC_USER_AGENT || process.env.EARNINGS_SUBSCRIPTION !== EARNINGS_SUBSCRIPTION) throw new Error("Missing or invalid earnings subscriber configuration");
 for (const flag of ["EARNINGS_PROCESSING_ENABLED", "EARNINGS_CANARY_ONLY"]) if (!["0", "1"].includes(process.env[flag] ?? "0")) throw new Error(`Invalid ${flag}`);
 initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
 const db = getFirestore();
+const admit = createEarningsAdmission();
 let refreshing: Promise<unknown> | undefined;
 async function refreshIssuers() {
   refreshing ??= loadEarningsMap(db).finally(() => {refreshing=undefined;});
   await refreshing;
 }
 createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: EARNINGS_SUBSCRIPTION, job: "earnings-source", parse: parseEarningsJob,
-  process: async (request, log) => {
+  process: (request, log, signal) => admit(request, async () => {
     if(request.type!=='earnings.delivery.probe')await refreshIssuers();
     const work=()=>processEarningsJob(request, db, log, {
     enabled: process.env.EARNINGS_PROCESSING_ENABLED === "1",
@@ -36,5 +38,5 @@ createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: EARNING
       complete=['extracted','expanded','skipped'].includes((await ref.get()).get('status'));
       return result;
     },()=>complete);
-  },
+  }, signal),
 }).listen(Number(process.env.PORT || 8080), "0.0.0.0");
