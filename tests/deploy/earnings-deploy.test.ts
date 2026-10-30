@@ -94,7 +94,7 @@ test("approved earnings setup grants only five resource bindings and leaves a di
       && line.includes(`--member serviceAccount:${member} --role roles/${role}`)), `${name} exact binding`);
   }
   assert.match(r.calls, /subscriptions create earnings-dead-letter-audit .*--topic earnings-dead-letter.*--message-retention-duration 7d --expiration-period never/);
-  assert.match(r.calls, /run deploy earnings-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-earnings.cjs.*--max-instances 1 --concurrency 1 --timeout 600/);
+  assert.match(r.calls, /run deploy earnings-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-earnings.cjs.*--max-instances 1 --concurrency 10 --timeout 600/);
   assert.match(r.calls, /subscriptions create earnings-worker --topic earnings-sources-discovered.*--push-auth-service-account directory-sync-scheduler@demo.iam.gserviceaccount.com.*--push-auth-token-audience https:\/\/subscriber.example.run.app.*--ack-deadline 600.*--dead-letter-topic earnings-dead-letter.*--max-delivery-attempts 100/);
   assert.match(r.calls, /run jobs deploy collect-earnings-production.*--tasks 1 --parallelism 1.*--args dist\/collect-earnings.cjs,--apply/);
   assert.match(r.calls, /scheduler jobs create http collect-earnings-production.*--schedule \*\/15 \* \* \* \* --time-zone UTC/);
