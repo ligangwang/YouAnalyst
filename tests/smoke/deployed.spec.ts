@@ -128,7 +128,9 @@ test("Investment Intelligence homepage renders real data without Research shortc
     expect(html).toContain(`href="/${prefix}/companies"`);
     expect(html).not.toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
     expect(html).not.toContain(`href="/${prefix}/research/amd-ai-ecosystem"`);
-    await page.goto(`/${prefix}`);
+    // Dense graphs mount only visible labels. Pin the identity under test so
+    // camera position and the growing live universe cannot cull it from the DOM.
+    await page.goto(`/${prefix}?company=US%3ANVDA`);
     await expect(page.getByRole('navigation', { name: 'Research shortcuts', exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Sector color legend", exact: true })).toHaveAttribute("aria-expanded", "false");
@@ -217,6 +219,9 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await page.goto("/?market=US&graphMarkets=US&lang=en");
   await expect(page.getByRole("heading", { name: "Investment Intelligence", exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private|2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
+  // Universe and activity arrive independently; a visible graph is not a signal
+  // that the activity controls have replaced their loading skeleton.
+  await expect(page.getByRole('region',{name:'Theme activity summary'})).toHaveAttribute('aria-busy','false',{timeout:20_000});
   await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
   await expect(page.getByRole("tab", { name: "Relationship graph", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("canvas")).toBeVisible();
