@@ -119,3 +119,50 @@ for(const collection of ['instruments','company_fundamentals','company_relations
   }finally{opened.close();await rm(directory,{recursive:true,force:true});}
  });
 }
+
+test('enrollment index skips unsupported payloads and preserves concurrent membership changes',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'enrollment-index-')),path=join(directory,'companies.sqlite');
+ const builder=entitySqliteBuilder(path);
+ for(let i=0;i<1024;i++)builder.add({id:`US:A${i}`,data:{name:'Company',status:'DIRECTORY',onboarding:{status:i===0?'SUPPORTED':'PROCESSING'}}});
+ builder.finish(new Timestamp(1,0));const opened=openEntitySqlite(path);
+ try{
+  assert.deepEqual([...opened.rows.candidateIds!('onboarding.status','==','SUPPORTED')!],['US:A0']);
+  assert.equal(opened.rows.decodedCount!(),0);
+  const {hierarchyCompanyRows}=await import('../../src/lib/hierarchy/company-directory');
+  const db=observeFirestore(new Firestore({projectId:'enrollment-test'}),()=>{});
+  const raw={collection:()=>({doc:(id:string)=>({id})}),getAll:async(...refs:{id:string}[])=>refs.map(ref=>({id:ref.id,exists:true,data:()=>({name:'Updated',status:'DIRECTORY',onboarding:{status:ref.id==='US:A0'?'PROCESSING':'SUPPORTED'},updatedAt:new Timestamp(2,0)})}))} as unknown as Firestore;
+  enableCompanyDirectory(db,raw,{file:async()=>opened.rows,sync:false});
+  const read=async()=>{const ids=[];for await(const row of hierarchyCompanyRows(db,'industries',[]))ids.push(row.id);return ids.sort();};
+  assert.deepEqual(await read(),['US:A0']);assert.equal(opened.rows.decodedCount!(),1);
+  await refreshCompanyDirectoryIds(db,['US:A0','US:A1','US:NEW']);
+  assert.deepEqual(await read(),['US:A1','US:NEW']);
+  assert.deepEqual([...opened.rows.candidateIds!('onboarding.status','==','SUPPORTED')!],['US:A0']);
+ }finally{opened.close();await rm(directory,{recursive:true,force:true});}
+});
+
+test('older snapshots without enrollment lookups use the compatible scan path',async()=>{
+ const f=await fixture(),opened=openEntitySqlite(f.path);
+ try{assert.equal(opened.rows.candidateIds!('onboarding.status','==','SUPPORTED'),undefined);}
+ finally{opened.close();await rm(f.directory,{recursive:true,force:true});}
+});
+
+test('large snapshot transport retains checksums and pins metadata-selected generations',async()=>{
+ const f=await fixture();
+ try{
+  for(const md5Hash of [undefined,'provided-by-storage']){
+   let fail=false;const seen:unknown[]=[];
+   const bucket={file:(_object:string,options?:{generation:string})=>({
+    getMetadata:async()=>[{generation:'321',md5Hash}],
+    createReadStream:(readOptions:unknown)=>{
+     assert.deepEqual(options,{generation:'321'});seen.push(readOptions);
+     const stream=createReadStream(f.path);
+     if(fail)queueMicrotask(()=>stream.destroy(Object.assign(Error('checksum mismatch'),{code:'CONTENT_DOWNLOAD_MISMATCH'})));
+     return stream;
+    },
+   })} as unknown as Bucket;
+   const rows=await loadEntitySqlite(bucket,'cold',()=>{});assert.equal(rows?.size,2);
+   assert.deepEqual(seen,[{decompress:false,validation:md5Hash?'md5':'crc32c'}]);
+   fail=true;await assert.rejects(loadEntitySqlite(bucket,'cold',()=>{}),/checksum mismatch/);
+  }
+ }finally{await rm(f.directory,{recursive:true,force:true});}
+});

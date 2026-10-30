@@ -3,8 +3,8 @@ import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Collection, RelationshipQuery } from '../central-cache/store';
 import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
-import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader} from './company-directory';
-import { themeIdBatches } from '../company-themes/company-query';
+import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery,withCompanyViewQuery} from './company-directory';
+import { themeIdBatches, GRAPH_COMPANY_FIELDS } from '../company-themes/company-query';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
 type DocumentStore={documents:Map<string,Group>;groups:Set<Group>};
@@ -19,6 +19,12 @@ function watchQuery(query:Query,changed:(docs:DocumentSnapshot[])=>void){return 
   changed(snapshot.docs);next(new Map(snapshot.docs.map(doc=>[doc.id,doc])));
 },error)));}
 export async function localQuery(db:Firestore,key:string,query:Query,collection:string='companies'){
+ // Page scope is for targeted entity reads. Global enrollment/theme selectors
+ // otherwise create thousands-document listeners in every website process.
+ if(collection==='companies'&&(key==='companies:supported'||key.startsWith('companies:themes:'))){
+  const snapshot=await withSharedCompanyQuery(()=>companyDirectoryEnabled(db)?query.get():Promise.resolve(undefined));
+  if(snapshot)return new Map(snapshot.docs.map(doc=>[doc.id,doc]));
+ }
  if(companyDirectoryEnabled(db,collection as import('../entity-snapshots/sync').Collection))return new Map((await query.get()).docs.map(doc=>[doc.id,doc]));
  const s=store(db);let watch=s.queries.get(key);
  if(!watch){
@@ -79,20 +85,25 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
  }
 }
 /** Undefined is reserved for non-listening test adapters, never network failures. */
-export async function localDocuments(db:Firestore,collection:Collection,ids?:string[],query?:RelationshipQuery,_projection?:'marketCap',region?:ExchangeRegion):Promise<DocumentSnapshot[]|undefined>{
+export async function localDocuments(db:Firestore,collection:Collection,ids?:string[],query?:RelationshipQuery,_projection?:'marketCap'|'graph',region?:ExchangeRegion):Promise<DocumentSnapshot[]|undefined>{
  enableCompanyDirectoryForReader(db);
  if(ids&&companyDirectoryEnabled(db,collection as import('../entity-snapshots/sync').Collection))return ids.length?db.getAll(...ids.map(id=>db.collection(collection).doc(id))):[];
  if(typeof db.collection(collection).onSnapshot!=='function')return undefined;
  if(ids)return documents(db,collection,ids);
  if(collection==='companies'){
-  const batches=await themeIdBatches(db),keys=new Set(batches.map(ids=>`companies:themes:${ids.join(',')}`));
+  const batches=await themeIdBatches(db),keys=new Set(batches.flatMap(ids=>[`companies:themes:${ids.join(',')}`,`companies:themes:${ids.join(',')}:graph`]));
   // Catalog edits replace subscriptions; never close an active initial read.
   const cached=store(db);
   for(const [key,watch] of cached.queries)if(key.startsWith('companies:themes:')&&!keys.has(key)&&!cached.queryUsers?.get(key))watch.close();
   const found=new Map<string,DocumentSnapshot>();
+  // Firestore listeners do not support select(). The shared file reader does;
+  // retain unprojected push subscriptions when snapshots are not configured.
+  const projected=_projection==='graph'&&await withSharedCompanyQuery(()=>Promise.resolve(companyDirectoryEnabled(db)));
   for(const ids of batches){
-   const query=db.collection(collection).where('themeIds','array-contains-any',ids);
-   const docs=await localQuery(db,`companies:themes:${ids.join(',')}`,query,collection);
+   const source=db.collection(collection).where('themeIds','array-contains-any',ids);
+   const query=projected?source.select(...GRAPH_COMPANY_FIELDS):source;
+   const read=()=>localQuery(db,`companies:themes:${ids.join(',')}${projected?':graph':''}`,query,collection);
+   const docs=await (projected?withCompanyViewQuery(read):read());
    for(const [id,doc] of docs)if(doc.data()?.isDeleted!==true)found.set(id,doc);
   }
   return [...found.values()].filter(doc=>!region || (typeof doc.get==='function'?doc.get('exchange_region'):doc.data()?.exchange_region)===region);

@@ -93,7 +93,7 @@ test("derived graphs reflect current company snapshots without a metadata docume
  const db = {getAll:async(...refs:unknown[])=>refs.filter(ref=>!(ref as {fieldMask?:unknown}).fieldMask).map(()=>({exists:false,data:()=>undefined})),collection:(collection:string)=>({
   get:async()=>{assert.equal(collection,'company_relationships');return {docs:[]};},
   doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({enabled:true,versions:{companies:revision}})};}}),
-  where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",inGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
+  where:()=>({select(){return this;},get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",inGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
  })};
  const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db:withThemeCatalog(db as unknown as Firestore)});
  const b = await isolatedModule("src/lib/knowledge-graph/service.ts",{db:withThemeCatalog(db as unknown as Firestore)});
@@ -116,7 +116,7 @@ test("graph loader only queries canonical graph memberships", async () => {
  const db = {getAll:async(...refs:unknown[])=>refs.filter(ref=>!(ref as {fieldMask?:unknown}).fieldMask).map(()=>({exists:false,data:()=>undefined})),collection:(name:string)=>({
   get:async()=>{assert.equal(name,'company_relationships');return {docs:[]};},
   doc:()=>({get:async()=>({data:()=>({revision:"generic"})})}),
-  where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "themeIds" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{inGraph:membership}), shared]};}})
+  where:(field:string)=>({select(){return this;},get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "themeIds" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{inGraph:membership}), shared]};}})
  })};
  const server = await isolatedModule("src/lib/knowledge-graph/service.ts",{db:withThemeCatalog(db as unknown as Firestore)});
  const graph = await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>;

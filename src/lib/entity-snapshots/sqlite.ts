@@ -6,7 +6,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pipeline} from 'node:stream/promises';
-import {gzipSync,gunzipSync} from 'node:zlib';
+import {gzipSync,gunzipSync,createGunzip} from 'node:zlib';
 import {performance} from 'node:perf_hooks';
 import {encode,decode} from '../central-cache/codec';
 import type {Row,Collection} from './sync';
@@ -49,6 +49,9 @@ export function entitySqliteBuilder(path:string,collection:Collection='companies
    const projected=Object.fromEntries(['name','slug','status','market','isDeleted','source','sourceLabel'].filter(key=>key in data).map(key=>[key,data[key]]));
    sitemap.run(row.id,JSON.stringify(encode(projected)));
    for(const name of scalarFields)if(typeof data[name]==='string')lookup.run(name,data[name],seq);
+   // Index an existing eligibility field so directory views avoid decoding
+   // every unsupported company on their first read. No payload/schema changes.
+   if(collection==='companies'&&typeof data.onboarding?.status==='string')lookup.run('onboarding.status',data.onboarding.status,seq);
    for(const name of arrayFields)if(Array.isArray(data[name]))for(const value of data[name])if(typeof value==='string')lookup.run(name,value,seq);
    const terms=[row.id,data.symbol,data.name,data.legalName,...(Array.isArray(data.searchTerms)?data.searchTerms:[]),
     ...Object.values(data.names??{}),...(Array.isArray(data.aliases)?data.aliases:[])];
@@ -129,13 +132,15 @@ export function openEntitySqlite(path:string,directory?:string,collection:Collec
   };
   if(String(rows.size)!==meta.get('records'))throw Error('Incomplete entity SQLite directory');
   const lookup=db.prepare('SELECT company_seq FROM lookups WHERE field=? AND value=?');
+  // Older snapshots have no enrollment index; fall back to their full scan.
+  const enrollmentIndexed=collection==='companies'&&Boolean(db.prepare('SELECT 1 FROM lookups WHERE field=? LIMIT 1').get('onboarding.status'));
   const search=db.prepare('SELECT rowid AS company_seq FROM company_search WHERE company_search MATCH ?');
   rows.candidateIds=(field,operator,value)=>{
    if(!lifetime.db.open)throw Error('Entity SQLite reader is closed');
    const array=operator==='array-contains'||operator==='array-contains-any';
    const range=['<','<=','>','>='].includes(operator);
    const scalar=operator==='=='||operator==='in'||range;
-   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&((collection==='eod_prices'?priceScalarFields:scalarFields).includes(field)||field==='__name__')))return undefined;
+   if(!(array&&(arrayFields.includes(field)||field==='searchPrefixes'))&&!(scalar&&((collection==='eod_prices'?priceScalarFields:scalarFields).includes(field)||field==='__name__'||field==='onboarding.status'&&enrollmentIndexed)))return undefined;
    const values=operator==='in'||operator==='array-contains-any'?value:[value];
    if(!Array.isArray(values)||values.some(v=>typeof v!=='string'))return undefined;
    const found=new Set<string>();
@@ -177,27 +182,51 @@ export function inheritEntitySqliteIndex(previous:EntityRows,next:EntityRows,cha
 
 /** Return undefined only for an absent SQLite file, never for an invalid file. */
 export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log:(entry:Record<string,unknown>)=>void=entry=>console.info(JSON.stringify(entry)),collection:Collection='companies',object=`entity-snapshots/${collection}.sqlite`):Promise<EntityRows|undefined>{
- const started=performance.now();let metadataMs=0,downloadMs=0,processingMs=0,bytesDownloaded=0,records=0,status='error',directory:string|undefined;
+ const started=performance.now();let metadataMs=0,downloadMs=0,processingMs=0,bytesDownloaded=0,records=0,decoded=0,status='error',directory:string|undefined;
+ let encoding='identity';
+ let validation:'md5'|'crc32c'='crc32c';
  try{
   const file=bucket.file(object);let generation:string;
-  try{const [meta]=await file.getMetadata();generation=String(meta.generation);}
+  try{
+   const [meta]=await file.getMetadata();generation=String(meta.generation);encoding=meta.contentEncoding??'identity';
+   // Node's native hash avoids the SDK's JavaScript CRC loop on large files.
+   // Composite/legacy objects without MD5 keep CRC32C integrity validation.
+   if(meta.md5Hash)validation='md5';
+  }
   catch(error){if((error as {code?:number}).code===404){status='missing';return undefined;}throw error;}
   finally{metadataMs=performance.now()-started;}
+  if(!['identity','gzip'].includes(encoding))throw Error('Unsupported snapshot content encoding');
   directory=await mkdtemp(join(tmpdir(),'youanalyst-entities-'));const path=join(directory,'companies.sqlite');
   let phase=performance.now();
-  const input=bucket.file(object,{generation}).createReadStream();
+  // Count transfer bytes before asynchronous decompression, keeping memory bounded.
+  const input=bucket.file(object,{generation}).createReadStream({decompress:false,validation});
   input.on('data',(chunk:Buffer)=>{bytesDownloaded+=chunk.length;});
-  try{await pipeline(input,createWriteStream(path,{flags:'wx'}));}finally{downloadMs=performance.now()-phase;}
+  try{
+   // A 16 KiB gunzip buffer produced >10,000 filesystem writes for companies.
+   // Bound each stream to MiB-scale buffers without materializing the file.
+   const output=createWriteStream(path,{flags:'wx',highWaterMark:1024*1024});
+   if(encoding==='gzip')await pipeline(input,createGunzip({chunkSize:1024*1024}),output);
+   else await pipeline(input,output);
+  }finally{downloadMs=performance.now()-phase;}
   phase=performance.now();
   let opened:ReturnType<typeof openEntitySqlite>;
   try{opened=openEntitySqlite(path,directory,collection);}finally{processingMs=performance.now()-phase;}
-  records=opened.rows.size;directory=undefined;status='success';return opened.rows;
+  records=opened.rows.size;
+  if(collection==='eod_prices'){
+   // Price partitions contain one ticker/year. Materialize their small rows so
+   // LRU eviction never relies on GC to release SQLite handles or temp files.
+   try{
+    const rows:EntityRows=new Map([...opened.rows].map(([id,data])=>[id,{...data}]));
+    rows.watermark=opened.watermark;decoded=rows.size;status='success';return rows;
+   }finally{processingMs=performance.now()-phase;opened.close();}
+  }
+  directory=undefined;status='success';return opened.rows;
  }finally{
   if(directory)await rm(directory,{recursive:true,force:true});
   const ms=(n:number)=>Math.round(n*100)/100;
   try{log({event:'entity_snapshot_file_read',format:'sqlite',collection,object,reason,status,
    metadataMs:ms(metadataMs),downloadMs:ms(downloadMs),processingMs:ms(processingMs),totalMs:ms(performance.now()-started),
-   bytesDownloaded,rowsIndexed:records,rowsDecoded:0,timingsOverlap:false,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB});}catch{/* Observability cannot fail a read. */}
+   bytesDownloaded,encoding,validation,rowsIndexed:records,rowsDecoded:decoded,timingsOverlap:false,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB});}catch{/* Observability cannot fail a read. */}
  }
 }
 

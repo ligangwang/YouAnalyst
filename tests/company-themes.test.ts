@@ -86,7 +86,7 @@ test('indexed theme reads reject stale array entries and combined enrollment ded
     { id: 'US:OLD', name: 'Withdrawn company', status: 'DIRECTORY', themeIds: ['robotics'], themeMemberships: { robotics: { ...membership, status: 'WITHDRAWN' } } },
     { id: 'US:HIDDEN', name: 'Hidden company', status: 'DRAFT', themeIds: ['robotics'], themeMemberships: { robotics: membership } },
   ];
-  const db = withThemeCatalog({ collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert(['themeIds','onboarding.status'].includes(field)); return ({ get: async () => ({ docs: rows.filter(row => {
+  const db = withThemeCatalog({ collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert(['themeIds','onboarding.status'].includes(field)); return ({ select(){return this;}, get: async () => ({ docs: rows.filter(row => {
     if(field==='onboarding.status')return row.id==='US:NVDA';
     if (field === 'themeIds') return operator === 'array-contains' ? row.themeIds.includes(String(value)) : row.themeIds.some(theme => value.includes(theme));
     return field === 'inGraph.status' && row.inGraph?.status === value;

@@ -25,7 +25,7 @@ async function readCalendar(from: string, to: string, db: Firestore): Promise<Ca
   const query = db.collection('events').where('type','==','scheduled_event')
     .where('scheduled_date','>=',shift(from,-1)).where('scheduled_date','<=',shift(to,1)).orderBy('scheduled_date');
   const [snapshot,count,universe,companies,collector] = await Promise.all([
-    query.limit(1000).get(),query.count().get(),loadCollectionUniverse(db),loadCollectionCompanies(db),db.collection('collectors').doc('earnings-calendar').get(),
+    query.limit(1000).get(),query.count().get(),loadCollectionUniverse(db),loadCollectionCompanies(db,undefined,'universe'),db.collection('collectors').doc('earnings-calendar').get(),
   ]);
   const nodes = new Map(universe.nodes.filter(node=>node.kind==='COMPANY').map(node=>[node.id,node]));
   const records = new Map(companies.map(doc=>[doc.id,doc.data()]));

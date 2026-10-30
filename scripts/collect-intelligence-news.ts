@@ -1,11 +1,10 @@
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getFirestore} from '../src/lib/firebase/firestore';
-import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
+import {loadNewsCollectionContext} from '../src/lib/intelligence/collectors/source-service';
 import {fetchNews} from '../src/lib/intelligence/collectors/news';
 import {collectNewsSources,NEWS_HISTORY_START} from '../src/lib/intelligence/collectors/collector';
 import {firestoreNewsStore} from '../src/lib/intelligence/collectors/store';
-import {loadCollectionCompanyScope} from '../src/lib/company-themes/service';
 import {collectCnMapDisclosures} from '../src/lib/events/cn-disclosures';
 import {createCnEarningsRequester} from '../src/lib/earnings/live-cn';
 import {createEarningsRequestGate} from '../src/lib/earnings/live-transport';
@@ -28,7 +27,7 @@ async function main(){
   if(!process.env.GCP_PROJECT_ID)throw new Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
   // Collection needs enrolled companies, not graph edges, neighbors or valuations.
-  const db=getFirestore(),graph=await loadCollectionCompanyScope(db),mapped=new Set(graph.nodes.filter(n=>n.kind==='COMPANY').map(n=>n.id)),sources=(await loadNewsSources(db)).filter(source=>mapped.has(source.companyId));
+  const db=getFirestore(),{graph,sources}=await loadNewsCollectionContext(db),mapped=new Set(graph.nodes.filter(n=>n.kind==='COMPANY').map(n=>n.id));
   if(!args.includes('--apply')){
     // Read the production registry, but never write events or checkpoints.
     for(const source of sources){try{

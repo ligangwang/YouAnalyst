@@ -1,3 +1,4 @@
+import {ComparisonCoverageError} from './compare-error';
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { mapTimelinePrice } from "./ui/company-timeline";
 import { loadTimelineSplits } from "./ui/corporate-actions";
@@ -24,7 +25,7 @@ export async function loadStockComparison(db: Firestore, config: CompareConfig) 
         });
         return { companyId: instrument.companyId, start: config.start, end: config.end, currency: instrument.currency, prices, available: true };
       });
-      if (data.prices.length < 2) throw new Error(`Not enough stored price history for ${symbol} in this period. Choose another period or remove this stock.`);
+      if (data.prices.length < 2) throw new ComparisonCoverageError(`Not enough stored price history for ${symbol} in this period. Choose another period or remove this stock.`);
       return { symbol, points: data.prices };
     }));
     return buildComparison(histories, config);

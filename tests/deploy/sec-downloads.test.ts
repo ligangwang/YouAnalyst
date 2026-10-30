@@ -53,7 +53,7 @@ test('SEC download preflight validates private storage, retention and exact queu
 test('SEC downloads and cleanup deploy bounded private workers without nightly bulk work',()=>{
   const result=run();assert.equal(result.status,0,result.stderr);
   assert.match(result.calls,/run deploy sec-filing-download-subscriber .*--no-allow-unauthenticated/);
-  assert.match(result.calls,/--max-instances 2 --concurrency 1 --timeout 180/);
+  assert.match(result.calls,/--max-instances 2 --concurrency 5 --timeout 180/);
   assert.match(result.calls,/--args dist\/serve-sec-downloads.cjs/);
   assert.match(result.calls,/run jobs deploy cleanup-sec-downloads-production .*--args dist\/cleanup-sec-downloads.cjs,--apply/);
   assert.match(result.calls,/scheduler jobs update http cleanup-sec-downloads-production .*--schedule 20 \* \* \* \*/);

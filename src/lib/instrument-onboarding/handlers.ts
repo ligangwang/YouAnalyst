@@ -106,7 +106,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await guard();
       // Bound the aggregate write burst when up to ten workers run in parallel.
-      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
+      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,createFirst:true,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
         afterBatch:async()=>{await guard();await new Promise<void>(resolve=>setTimeout(resolve,1000));}});
       if(result.failures.length)throw Error('Historical price backfill incomplete');
       const {bars}=await priceHistory(request,record),last=bars.at(-1)!;

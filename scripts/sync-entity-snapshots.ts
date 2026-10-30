@@ -5,14 +5,16 @@ import {getStorage} from 'firebase-admin/storage';
 import {getFirestore} from '../src/lib/firebase/firestore';
 import {collections,syncCollection} from '../src/lib/entity-snapshots/sync';
 import {snapshotSource} from '../src/lib/entity-snapshots/firestore-source';
-import {sqliteSnapshotFiles} from '../src/lib/entity-snapshots/sqlite-storage';
+import {companyViewSnapshotFiles} from '../src/lib/entity-snapshots/company-view-storage';
+import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 
 async function main(){
+  const {dispatchInstruments}=snapshotSyncOptions(process.argv.slice(2));
   const projectId=process.env.GCP_PROJECT_ID,bucketName=process.env.ENTITY_SNAPSHOT_BUCKET;
   if(!projectId||!bucketName)throw Error('GCP_PROJECT_ID and ENTITY_SNAPSHOT_BUCKET are required');
   if(process.env.ENTITY_TIMESTAMP_MIGRATION_COMPLETE!=='1')throw Error('Verify entity timestamp migration before enabling snapshot sync');
   initializeApp({credential:applicationDefault(),projectId});
-  const db=getFirestore(),source=snapshotSource(db),files=sqliteSnapshotFiles(getStorage().bucket(bucketName));
+  const db=getFirestore(),source=snapshotSource(db),files=companyViewSnapshotFiles(getStorage().bucket(bucketName));
   let changed=0,records=0,deleted=0;
   try{
   for(const collection of collections){
@@ -24,7 +26,7 @@ async function main(){
       }
       continue;
     }
-    if(collection==='instruments'){
+    if(collection==='instruments'&&dispatchInstruments){
       const companies=(await files.load('companies')).snapshot;
       if(!companies)throw Error('Company snapshot required before instrument sync');
       const synchronized=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`snapshot-${companies.watermark.toMillis()}`,companies.rows.map(row=>row.id),'sec-fundamentals-requests','instruments');
@@ -33,6 +35,8 @@ async function main(){
     const result=await syncCollection(collection,source,files);
     changed+=result.changed;records+=result.records;deleted+=result.deleted;
     console.info(JSON.stringify({job:'sync-entity-snapshots',event:'entity_snapshot_sync',status:'success',...result}));
+    // Release decoded rows before the next collection and price catch-up.
+    await files.close();
 
   }
   }finally{await files.close();}

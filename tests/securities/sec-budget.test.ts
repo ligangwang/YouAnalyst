@@ -11,7 +11,7 @@ test("migration honors the legacy cooldown and writes only operational state", a
   const legacy = { cooldownUntil: f.now() + 60_000 };
   f.documents.set("company_fundamentals/_sec_request_budget", legacy);
   let calls = 0;
-  const budget = createSecBudget(f.db, async ms => { f.advance(ms); });
+  const budget = createSecBudget(f.db, async ms => { f.advance(ms); },f.now);
   await assert.rejects(budget.run(new AbortController().signal, async () => { calls++; }), { code: 429 });
   assert.equal(calls, 0);
   f.advance(60_000);
@@ -107,6 +107,22 @@ test("403/429 cooldowns respect Retry-After seconds and dates", () => {
   assert.equal(secCooldownMs(429, "bad"), 60_000);
   assert.equal(secCooldownMs(429, new Date(300_000).toUTCString(), 100_000), 200_000);
   assert.equal(secCooldownMs(500, "120"), 0);
+});
+
+test('known cooldowns avoid repeated reads but expiry still checks the shared gate',async()=>{
+  const f=sharedFirestore();let reads=0,calls=0;
+  const original=f.db.runTransaction.bind(f.db);
+  f.db.runTransaction=async(...args)=>{reads++;return original(...args);};
+  const budget=createSecBudget(f.db,async ms=>{f.advance(ms);},f.now);
+  f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,cooldownUntil:f.now()+60000});
+  for(let i=0;i<5;i++)await assert.rejects(budget.run(new AbortController().signal,async()=>{calls++;}),{code:429});
+  assert.equal(reads,1);assert.equal(calls,0);
+  f.advance(60000);
+  // Another worker extended the cooldown. Local expiry cannot authorize work.
+  f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,cooldownUntil:f.now()+60000});
+  await assert.rejects(budget.run(new AbortController().signal,async()=>{calls++;}),{code:429});
+  assert.equal(reads,2);assert.equal(calls,0);
+  f.advance(60000);await budget.run(new AbortController().signal,async()=>{calls++;});assert.equal(calls,1);
 });
 
 

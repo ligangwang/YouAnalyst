@@ -18,11 +18,17 @@ export function secCooldownMs(status: number, retryAfter: string | null, now = D
 // A single shared gate serializes outbound requests across all application replicas
 // and jobs. Spacing starts after completion, so slow requests reduce throughput;
 // delayed processes cannot spend old reservations together in a burst.
-export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal })) {
+export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal }),monotonicNow=()=>performance.now()) {
   const ref = db.collection(SEC_COLLECTOR_STATE_COLLECTION).doc("_sec_request_budget");
   const legacyRef = db.collection("company_fundamentals").doc("_sec_request_budget");
+  let localCooldownUntil=0;
+  const cooling=(remaining:number)=>Object.assign(new Error('SEC shared cooldown is active'),{code:429,retryAfterMs:remaining});
   return {
     async run<T>(signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<T>): Promise<T> {
+      signal.throwIfAborted();
+      // Cache only a denial, never permission to send. Expiry must reacquire the
+      // shared gate; monotonic time cannot jump ahead with the wall clock.
+      if(localCooldownUntil>monotonicNow())throw cooling(localCooldownUntil-monotonicNow());
       const owner = randomUUID();
       let cooldownMs = 0;
       let bridge = false;
@@ -37,7 +43,9 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
           // acquisition atomically so both generations serialize on one lock.
           const stored = bridge ? (await tx.get(legacyRef)).data() : snap.data();
           if (Number(stored?.cooldownUntil) > now) {
-            throw Object.assign(new Error("SEC shared cooldown is active"), { code: 429 });
+            const remaining=Number(stored?.cooldownUntil)-now;
+            localCooldownUntil=monotonicNow()+remaining;
+            throw cooling(remaining);
           }
           const remaining = Math.max(Number(stored?.leaseUntil) || 0, Number(stored?.nextAllowedAt) || 0) - now;
           if (remaining > 0) {
@@ -74,6 +82,8 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
           const legacy = bridge ? await tx.get(legacyRef) : undefined;
           if (snap.get("owner") !== owner) return;
           const now = snap.readTime.toMillis();
+          const remaining=Math.max(Number(snap.get('cooldownUntil'))-now||0,cooldownMs);
+          if(remaining>0)localCooldownUntil=monotonicNow()+remaining;
           tx.set(ref, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
             cooldownUntil: Math.max(Number(snap.get("cooldownUntil")) || 0, now + cooldownMs) }, { merge: true });
           if (legacy?.get("owner") === owner) tx.set(legacyRef, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
@@ -89,8 +99,11 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
   };
 }
 
+const budgets=new WeakMap<Firestore,ReturnType<typeof createSecBudget>>();
 export const secBudget = {
   run<T>(signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<T>) {
-    return createSecBudget(getAdminFirestore()).run(signal, work);
+    const db=getAdminFirestore();let budget=budgets.get(db);
+    if(!budget){budget=createSecBudget(db);budgets.set(db,budget);}
+    return budget.run(signal, work);
   },
 };

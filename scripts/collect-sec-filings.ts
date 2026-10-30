@@ -1,10 +1,9 @@
-import type {ThemedCompany} from '../src/lib/company-themes/model';
 import {supportedCompanyUniverse} from '../src/lib/company-support/model';
 import {createSecCompanySync} from '../src/lib/industry-classification/sec-sync';
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore, type DocumentData } from "../src/lib/firebase/firestore";
-import { loadCollectionCompanies } from "../src/lib/company-themes/service";
+import {readCollectionCompanies,SEC_COLLECTION_FIELDS} from '../src/lib/company-support/collection-reader';
 import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
@@ -52,10 +51,9 @@ async function main() {
     if (result.status === "partial") throw new Error("Initial baseline incomplete; retry only the frozen snapshot");
     return;
   }
-  const companyDocs = await loadCollectionCompanies(db, 'US');
-  const companies = supportedCompanyUniverse(
-    companyDocs.map(doc => ({...doc.data(), id: doc.id} as ThemedCompany)));
-  const companySync = createSecCompanySync(db, new Map(companyDocs.map(doc => [doc.id, doc.data() ?? {}])));
+  const companyDocs = await readCollectionCompanies(db,SEC_COLLECTION_FIELDS,'US');
+  const companies = supportedCompanyUniverse(companyDocs);
+  const companySync = createSecCompanySync(db, new Map(companyDocs.map(doc => [doc.id, doc])));
   const companyIds = companies.nodes.map(company => {
     const ticker = usFundamentalsTicker(company.id);
     if (!ticker) throw new Error(`Invalid US listing identity: ${company.id}`);

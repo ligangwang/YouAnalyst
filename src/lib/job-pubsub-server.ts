@@ -45,8 +45,9 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
       log.emit(warning ? "WARNING" : "INFO", "run_completed", { ...context, ...result });
       res.writeHead(204); res.end();
     } catch (error) {
-      log.emit("ERROR", "run_failed", { ...context, batchId, error: maintenanceError(error) });
-      if (!res.destroyed) { res.writeHead(503); res.end("Processing requires retry"); }
+      const deferred=(error as {code?:unknown}|null)?.code===429;
+      log.emit(deferred?'WARNING':"ERROR", deferred?'run_deferred':"run_failed", { ...context, batchId, error: maintenanceError(error) });
+      if (!res.destroyed) { res.writeHead(deferred?429:503); res.end("Processing requires retry"); }
     }
   });
 }

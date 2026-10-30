@@ -1,16 +1,50 @@
 import {parseSecFilingDiscovered,type SecFilingDiscovered,SEC_FILINGS_TOPIC} from './event';
 import {secRequest} from '../sec-request';
-import {configuredSecDocumentCache,readSecDocumentBytes,secCacheOwner,type SecDocumentCache} from './document-cache';
+import {configuredSecDocumentCache,readSecDocumentBytes,secCacheOwner,SecDocumentSizeError,type SecDocumentCache} from './document-cache';
 import {secArchiveIdentity} from './document-cache';
 import type {Firestore} from 'firebase-admin/firestore';
 import {EARNINGS_TOPIC,parseEarningsJob,type EarningsSourceDiscovered} from '../earnings/live-event';
 import {EARNINGS_SOURCES,type EarningsWork} from '../earnings/live-store';
 import {sourceIdentity} from '../earnings/model';
 import {validateSource} from '../earnings/document';
+import {isSupportedCompany} from '../company-support/model';
+import {reviewedEarningsIssuers,type EarningsCompany} from '../earnings/issuers';
+
+/** Intake needs one current issuer, not the graph and identity-directory listeners.
+ * Read afresh so removals and CIK corrections apply to the next delivery. Never
+ * trust the queued source itself to establish its issuer identity.
+ */
+export async function readSecIntakeIdentity(db:Firestore,companyId:string):Promise<EarningsCompany>{
+  if(!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(companyId))throw new Error('Invalid SEC intake company');
+  // Field-mask reads retain SDK semantics in the Firestore adapter instead of
+  // hydrating the shared company snapshot directory and opening its listener.
+  const [companyDoc,identityDoc]=await db.getAll(db.collection('companies').doc(companyId),db.collection('collectors').doc(`sec-identity-${companyId}`),
+    {fieldMask:['name','status','isDeleted','supersededByCompanyId','onboarding.status','companyId','cik']});
+  const company=companyDoc.data(),identity=identityDoc.data();
+  if(!company||!isSupportedCompany(company))throw new Error('SEC intake company is not supported');
+  const cik=identity?.cik;
+  if(identity?.companyId!==companyId||typeof cik!=='string'||!/^\d{10}$/.test(cik)||Number(cik)===0)throw new Error('Unverified SEC intake issuer');
+  const hint=reviewedEarningsIssuers.find(row=>row.companyId===companyId);
+  if(hint?.cik&&hint.cik!==cik)throw new Error('Reviewed issuer CIK changed');
+  return {companyId,cik,issuerId:`sec:${cik}`,name:company.name as string,aliases:[],irHosts:[]};
+}
 
 export const SEC_DOWNLOAD_TOPIC='sec-filing-download-requests';
 export const SEC_DOWNLOAD_SUBSCRIPTION='sec-filing-download-worker';
+export const SEC_DOWNLOAD_DEAD_LETTER_TOPIC='sec-filing-download-dead-letter';
 export type SecIntakeJob=SecFilingDiscovered|EarningsSourceDiscovered;
+
+/** Deterministically oversized originals need operator review, not 100 downloads.
+ * Ack only after the unchanged request reaches the existing retained audit queue. */
+export async function deliverSecIntake(input:unknown,db:Firestore,options:Parameters<typeof prepareSecIntake>[2]){
+  const event=parseSecIntakeJob(input);
+  try{return await prepareSecIntake(event,db,options);}
+  catch(error){
+    if(!(error instanceof SecDocumentSizeError))throw error;
+    await options.publish(SEC_DOWNLOAD_DEAD_LETTER_TOPIC,event);
+    return {status:'needs_admin',batchId:event.batchId,reason:error.message,quarantined:true};
+  }
+}
 export function parseSecIntakeJob(input:unknown):SecIntakeJob{
   if((input as {type?:string}|null)?.type==='sec.filing.discovered')return parseSecFilingDiscovered(input);
   const event=parseEarningsJob(input);
@@ -48,7 +82,7 @@ export async function prepareSecIntake(input:unknown,db:Firestore,options:{enabl
   if(!options.enabled)throw new Error('SEC intake disabled; retain delivery');
   const work=await (options.readWork??(id=>db.collection(EARNINGS_SOURCES).doc(id).get().then(doc=>doc.data() as EarningsWork|undefined)))(event.sourceId);
   if(!work||work.recordType!=='source'||work.sourceId!==event.sourceId||sourceIdentity(work.source)!==event.sourceId)throw new Error('SEC earnings intake has no durable source');
-  validateSource(work.source);
+  validateSource(work.source,await readSecIntakeIdentity(db,work.source.companyId));
   if(work.generation>event.generation)return {status:'ineligible',stale:true};
   if(work.generation!==event.generation)throw new Error('SEC earnings intake generation is not durable');
   if(work.source.provider!=='sec'||!['sec_filing','document'].includes(work.inputKind))throw new Error('Non-SEC work cannot enter SEC intake');

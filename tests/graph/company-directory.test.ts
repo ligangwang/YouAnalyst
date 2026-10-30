@@ -3,9 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore,FieldPath} from 'firebase-admin/firestore';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
-import {enableCompanyDirectory,withLiveCompanyReads,refreshCompanyDirectoryIds} from '../../src/lib/local-cache/company-directory';
+import {enableCompanyDirectory,withLiveCompanyReads,refreshCompanyDirectoryIds,withPageEntityReads,companyDirectoryEnabled} from '../../src/lib/local-cache/company-directory';
 import {readCompanyLookup} from '../../src/lib/company-lookup-cache';
-import {localDocuments} from '../../src/lib/local-cache/entities';
+import {localDocuments,localQuery} from '../../src/lib/local-cache/entities';
 import {loadSitemapPaths} from '../../src/lib/local-cache/sitemaps';
 
 function fixture(file:()=>Promise<Map<string,Record<string,unknown>>|undefined>,now=()=>0){
@@ -21,6 +21,22 @@ const records=()=>new Map([
  ['US:C',{name:'Charlie',themeIds:['ai'],symbolLower:'c',rank:3}],
  ['US:X',{name:'Deleted',isDeleted:true,themeIds:['ai'],symbolLower:'x',rank:4}],
 ]);
+
+test('parallel page scopes share broad company selectors without leaking into targeted reads',async()=>{
+ let loads=0;const f=fixture(async()=>{loads++;return records();});
+ await Promise.all(Array.from({length:8},()=>withPageEntityReads(async()=>{
+  assert.equal(companyDirectoryEnabled(f.db),false);
+  const query=f.db.collection('companies').where('themeIds','array-contains-any',['ai']);
+  const [themes,supported]=await Promise.all([
+   localQuery(f.db,'companies:themes:ai',query),
+   localQuery(f.db,'companies:supported',f.db.collection('companies').where('rank','>=',2)),
+  ]);
+  assert.deepEqual([...themes.keys()],['US:A','US:C']);
+  assert.deepEqual([...supported.keys()],['US:B','US:C']);
+  assert.equal(companyDirectoryEnabled(f.db),false,'the caller still uses targeted page reads');
+ })));
+ assert.equal(loads,1);assert.equal(f.reads(),0);
+});
 test('company page, aliases, search, themes, batches and sitemap share one file load',async()=>{
  let loads=0;const f=fixture(async()=>{loads++;return records();});
  const collection=f.db.collection('companies');
@@ -87,4 +103,78 @@ test('transactions bypass the directory even after a cached read',async()=>{
  assert.equal((await readCompanyLookup(db,db.collection('companies').doc('US:A'))).get('name'),'Alpha');
  const name=await db.runTransaction(async tx=>(await tx.get(db.collection('companies').doc('US:A'))).data()?.name);
  assert.equal(name,'Live');assert.equal(reads,1);
+});
+
+import {companyDirectory,withCompanyViewQuery} from '../../src/lib/local-cache/company-directory';
+import {Timestamp} from 'firebase-admin/firestore';
+
+test('view queries coalesce independently and never serve incomplete search or full documents',async()=>{
+ const loads:boolean[]=[];
+ const sdk=new Firestore({projectId:'test-view-isolation'}),db=observeFirestore(sdk,()=>{});
+ enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async(_collection,view)=>{
+  loads.push(!!view);return new Map([['A',view?{name:'View'}:{name:'Full',searchTerms:['alpha']}]]);
+ }});
+ const c=db.collection('companies');
+ const results=await Promise.all(Array.from({length:8},()=>withCompanyViewQuery(()=>c.select('name').get())));
+ assert.ok(results.every(result=>result.docs[0].get('name')==='View'));assert.deepEqual(loads,[true]);
+ assert.equal((await withCompanyViewQuery(()=>c.doc('A').get())).get('name'),'Full');
+ assert.deepEqual((await withCompanyViewQuery(()=>c.select('searchTerms').get())).docs[0].get('searchTerms'),['alpha']);
+ assert.equal((await withCompanyViewQuery(()=>c.where('searchTerms','array-contains','alpha').select('name').get())).docs[0].get('name'),'Full');
+ assert.deepEqual(loads,[true,false]);
+});
+
+test('concurrent view refresh and committed updates preserve immutable generations without expanding search',async()=>{
+ let now=0,release:(rows:Map<string,Record<string,unknown>>)=>void=()=>{};
+ const sdk=new Firestore({projectId:'test-view-updates'}),db=observeFirestore(sdk,()=>{});
+ let reads=0;
+ const raw={collection:()=>({doc:(id:string)=>({id})}),getAll:async()=>{reads++;return [{id:'A',exists:true,data:()=>({name:'Committed',updatedAt:new Timestamp(30,0),get searchPrefixes(){throw Error('expanded search');}})}];}} as unknown as Firestore;
+ enableCompanyDirectory(db,raw,{sync:false,now:()=>now,file:async()=>now?new Promise(resolve=>{release=resolve;}):new Map([['A',{name:'Old',updatedAt:new Timestamp(10,0)}]])});
+ const old=await companyDirectory(db,'companies',true);
+ now=86_400_001;
+ const pending=companyDirectory(db,'companies',true);await Promise.resolve();
+ await refreshCompanyDirectoryIds(db,['A']);
+ release(new Map([['A',{name:'File',updatedAt:new Timestamp(20,0)}]]));
+ const current=await pending;
+ assert.equal(current.get('A')!.name,'Committed');assert.equal(old.get('A')!.name,'Old');
+ assert.equal(current.get('A')!.searchPrefixes,undefined);assert.equal(reads,1);
+});
+
+test('large unindexed queries yield before completion and retain their original generation',async()=>{
+ const rows=new Map(Array.from({length:1024},(_,i)=>[String(i).padStart(4,'0'),{name:'Old',rank:i,eligible:i%2===0}]));
+ const sdk=new Firestore({projectId:'test-cooperative-scan'}),db=observeFirestore(sdk,()=>{});
+ const raw={collection:()=>({doc:(id:string)=>({id})}),getAll:async()=>[{id:'1000',exists:true,data:()=>({name:'New',rank:1000,eligible:true})}]} as unknown as Firestore;
+ enableCompanyDirectory(db,raw,{sync:false,file:async()=>rows});await companyDirectory(db);
+ let finished=false;
+ const pending=db.collection('companies').where('eligible','==',true).orderBy('rank').select('name','rank').get().then(result=>{finished=true;return result;});
+ await new Promise<void>(resolve=>setImmediate(resolve));
+ assert.equal(finished,false,'an unrelated request runs before the large scan finishes');
+ await refreshCompanyDirectoryIds(db,['1000']);
+ const result=await pending;
+ assert.equal(result.size,512);assert.equal(result.docs.find(doc=>doc.id==='1000')!.get('name'),'Old');
+ assert.deepEqual(result.docs.map(doc=>doc.get('rank')),Array.from({length:512},(_,i)=>i*2));
+ assert.equal((await db.collection('companies').doc('1000').get()).get('name'),'New');
+});
+
+import {loadSupportedCompanyUniverse} from '../../src/lib/company-support/service';
+import {loadCollectionCompanyScope} from '../../src/lib/company-themes/service';
+
+test('supported universes share the lightweight file and never expand search arrays',async()=>{
+ const loads:boolean[]=[];
+ const sdk=new Firestore({projectId:'test-universe-projection'}),db=observeFirestore(sdk,()=>{});
+ const rows=new Map(['US:A','XSHE:000001'].map(id=>[id,{name:id,status:'DIRECTORY',onboarding:{status:'SUPPORTED'},country:'US',listingStatus:'PUBLIC',listings:[{market:'US',exchange:'NASDAQ',symbol:'A'}],names:{en:'Issuer'},aliases:['Alias'],slug:'issuer',inGraph:{status:'PUBLISHED',stageIds:['compute']},get searchPrefixes(){throw Error('Search prefixes expanded');},get searchTerms(){throw Error('Search terms expanded');}}]));
+ enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async(_collection,view)=>{loads.push(!!view);assert.equal(view,true,'universe must not download the complete file');return rows;}});
+ const [all,us]=await Promise.all([loadSupportedCompanyUniverse(db),loadCollectionCompanyScope(db,'US')]);
+ assert.deepEqual(all.nodes.map(node=>node.id),['US:A','XSHE:000001']);assert.deepEqual(us.nodes.map(node=>node.id),['US:A']);
+ assert.deepEqual(us.nodes[0].aliases,['Alias']);assert.deepEqual(us.nodes[0].stageIds,['compute']);assert.equal(us.nodes[0].slug,'issuer');assert.equal(us.nodes[0].country,'US');assert.equal(us.nodes[0].listings![0].exchange,'NASDAQ');assert.deepEqual(loads,[true]);
+});
+
+import {loadNewsSources} from '../../src/lib/intelligence/collectors/source-service';
+import {loadFundamentalsCompanyIds} from '../../src/lib/fundamentals/company-scope';
+
+test('news and fundamentals consumers use projected company data without expanding search',async()=>{
+ const sdk=new Firestore({projectId:'test-consumer-projection'}),db=observeFirestore(sdk,()=>{});const loads:boolean[]=[];
+ const feed={id:'new-company-ir',companyId:'US:NEW',name:'New company IR',url:'https://ir.newcompany.com/rss.xml',allowedHosts:['ir.newcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+ enableCompanyDirectory(db,{} as Firestore,{sync:false,file:async(_collection,view)=>{loads.push(!!view);assert.equal(view,true);return new Map([['US:NEW',{name:'New company',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},newsSources:[feed],get searchPrefixes(){throw Error('Search index expanded');}}]]);}});
+ const [sources,ids]=await Promise.all([loadNewsSources(db),loadFundamentalsCompanyIds(db,'US')]);
+ assert.deepEqual(ids,['US:NEW']);assert.equal(sources.length,1);assert.equal(sources[0].id,feed.id);assert.deepEqual(sources[0].allowedHosts,feed.allowedHosts);assert.deepEqual(loads,[true]);
 });

@@ -15,6 +15,8 @@ import {CN_DISCOVERY_TOPIC,cnDiscoveryState,publishCnDiscoveryTasks} from '../sr
 import {mapListedCompanies} from '../src/lib/events/disclosures';
 import {publishJobMessage} from '../src/lib/job-pubsub';
 import {publishEarningsOutbox} from '../src/lib/earnings/live-store';
+import {readCollectionCompanies} from '../src/lib/company-support/collection-reader';
+import {supportedCompanyUniverse} from '../src/lib/company-support/model';
 
 const log = createMaintenanceLog("collect-earnings");
 async function main() {
@@ -28,7 +30,10 @@ async function main() {
   if (!process.env.GCP_PROJECT_ID) throw new Error("GCP_PROJECT_ID is required");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
   const db = getFirestore();
-  const graph=await loadEarningsMap(db);
+  // Queue dispatch needs only A-share membership, never US SEC identities.
+  const graph=mode==='collect'&&process.env.CN_DISCOVERY_REQUEST_TOPIC
+    ? supportedCompanyUniverse(await readCollectionCompanies(db,[],'CN'))
+    : await loadEarningsMap(db);
   if (mode === "dry-run" || mode === "diagnostics") { log.emit("INFO", "run_completed", await inspectLiveEarnings(db)); return; }
   const revision = process.env.GIT_SHA ?? "";
   if (mode === "check-canary") { log.emit("INFO", "run_completed", await checkEarningsCanary(db, revision)); return; }

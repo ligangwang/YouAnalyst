@@ -1,5 +1,4 @@
 import { loadSupportedCompanies, loadSupportedCompanyUniverse } from '../company-support/service';
-import { supportedCompanyUniverse } from '../company-support/model';
 import { loadThemeEnrolledCompanies } from '../knowledge-graph/company-cache';
 import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -21,7 +20,7 @@ export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFir
 export const loadCollectionCompanies = loadSupportedCompanies;
 
 export async function loadCollectionCompanyScope(db: Firestore, region?: ExchangeRegion): Promise<KnowledgeGraph> {
-  return supportedCompanyUniverse((await loadSupportedCompanies(db, region)).map(doc => ({...doc.data(), id: doc.id} as ThemedCompany)));
+  return loadSupportedCompanyUniverse(db,region);
 }
 
 // The old graph argument is accepted for callers during rollout, but must never

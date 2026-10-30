@@ -9,6 +9,8 @@ import {type EarningsSource,sourceIdentity} from '../../src/lib/earnings/model';
 import type {EarningsWork} from '../../src/lib/earnings/live-store';
 import {publishEarningsIntake} from '../../src/lib/sec-filings/intake-routing';
 import type {Firestore} from 'firebase-admin/firestore';
+import {readSecDocumentBytes,SecDocumentSizeError} from '../../src/lib/sec-filings/document-cache';
+import {deliverSecIntake,SEC_DOWNLOAD_DEAD_LETTER_TOPIC} from '../../src/lib/sec-filings/download-worker';
 
 const url='https://www.sec.gov/Archives/edgar/data/2488/000000248826000001/report.htm';
 const owner=secCacheOwner('fundamentals','filing-1'),graph=secCacheOwner('graph','filing-1');
@@ -97,6 +99,24 @@ test('errors or deferred processing never clear retention holds',async()=>{
 });
 
 const event=createSecFilingDiscovered({companyId:'AMD',cik:'0000002488',accessionNumber:'0000002488-26-000001',form:'10-K',filingDate:'2026-10-22',primaryDocument:'report.htm',isXbrl:true,discoveredAt:'2026-10-23T12:00:00Z'});
+test('oversized originals are retained for review and never acknowledged on quarantine failure',async()=>{
+  const f=fixture(),sent:unknown[]=[];
+  const options={enabled:true,cache:f.cache,download:async()=>{throw new SecDocumentSizeError();},publish:async(topic:string,message:unknown)=>{assert.equal(topic,SEC_DOWNLOAD_DEAD_LETTER_TOPIC);sent.push(message);}};
+  assert.equal((await deliverSecIntake(event,{} as Firestore,options)).status,'needs_admin');
+  assert.deepEqual(sent,[event]);assert.equal(f.objects.size,0);
+  await assert.rejects(deliverSecIntake(event,{} as Firestore,{...options,publish:async()=>{throw Error('Audit publish unavailable');}}),/Audit publish/);
+  await assert.rejects(deliverSecIntake(event,{} as Firestore,{...options,download:async()=>{throw Object.assign(Error('cooldown'),{code:429});}}),{code:429});
+  assert.equal(sent.length,1,'transient failures must remain on the original queue');
+});
+
+test('byte limits cancel streams and distinguish oversized originals from empty responses',async()=>{
+  let cancelled=0;
+  const large=()=>new ReadableStream<Uint8Array>({start(controller){controller.enqueue(new Uint8Array(SEC_MAX_DOCUMENT_BYTES+1));},cancel(){cancelled++;}});
+  await assert.rejects(readSecDocumentBytes(new Response(large(),{headers:{'content-length':String(SEC_MAX_DOCUMENT_BYTES+1)}})),SecDocumentSizeError);
+  await assert.rejects(readSecDocumentBytes(new Response(large())),SecDocumentSizeError);
+  assert.equal(cancelled,2);
+  await assert.rejects(readSecDocumentBytes(new Response(null)),error=>error instanceof Error&&!(error instanceof SecDocumentSizeError));
+});
 test('queued download durably caches before publishing the unchanged SEC filing event',async()=>{
   const f=fixture(),sent:unknown[]=[];
   await prepareSecFiling(event,{enabled:true,cache:f.cache,download:f.download,publish:async(topic,message)=>{assert.equal(topic,SEC_FILINGS_TOPIC);assert.equal(f.objects.size,1);sent.push(message);}});
@@ -115,7 +135,10 @@ const earningsSource:EarningsSource={provider:'sec',companyId:'US:AMD',issuerId:
 function earningsWork(source=earningsSource,inputKind:'sec_filing'|'document'='sec_filing'):EarningsWork{
   return {recordType:'source',source,sourceId:sourceIdentity(source),inputKind,generation:1,status:'queued',publishPending:true,attempts:0,firstSeenAt:source.firstSeenAt,lastObservedAt:source.firstSeenAt,nextCheckAtMs:0};
 }
-const db={} as Firestore;
+const db={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),
+  getAll:async(...args:Array<{path:string}|{fieldMask:string[]}>)=>args.filter((ref):ref is {path:string}=>'path' in ref).map(ref=>({data:()=>ref.path==='companies/US:AMD'
+    ? {name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}}
+    : ref.path==='collectors/sec-identity-US:AMD'?{companyId:'US:AMD',cik:'0000002488'}:undefined}))} as unknown as Firestore;
 test('all SEC earnings producers route through intake, while CN and probes retain the earnings queue',async()=>{
   const work=earningsWork(),request=earningsSourceEvent(work.sourceId,1),sent:Array<{topic:string;event:unknown}>=[];
   const publish=async(topic:string,event:unknown)=>{sent.push({topic,event});return 'message-id';};
@@ -152,4 +175,24 @@ test('intake validates task generations and rejects foreign issuers, probe types
   await assert.rejects(prepareSecIntake(request,db,{...options,readWork:async()=>({...work,source:{...work.source,url:url.replace('/2488/','/9999/')}})}),/issuer/);
   assert.throws(()=>parseSecIntakeJob({version:1,type:'earnings.delivery.probe',batchId:'earnings_probe_abc',createdAt:'2026-10-23T12:00:00Z'}));
   assert.equal(f.downloads(),0);
+});
+
+test('cached raw documents never bypass current company eligibility or SEC identity verification',async()=>{
+  const f=fixture(),source={...earningsSource,companyId:'US:NEW'},work=earningsWork(source);
+  const request=earningsSourceEvent(work.sourceId,1);
+  let supported=true,cik='0000002488',published=0,reads=0;
+  const targetedDb={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),
+    getAll:async(...args:Array<{path:string}|{fieldMask:string[]}>)=>{
+      const refs=args.filter((ref):ref is {path:string}=>'path' in ref);
+      reads++;assert.deepEqual(refs.map(ref=>ref.path),['companies/US:NEW','collectors/sec-identity-US:NEW']);
+      return [{data:()=>({name:'New issuer',status:'DIRECTORY',onboarding:{status:supported?'SUPPORTED':'BLOCKED'}})},
+        {data:()=>({companyId:'US:NEW',cik})}];
+    }} as unknown as Firestore;
+  const options={enabled:true,cache:f.cache,readWork:async()=>work,download:f.download,publish:async()=>{published++;}};
+  await prepareSecIntake(request,targetedDb,options);
+  await prepareSecIntake(request,targetedDb,options);
+  assert.equal(f.downloads(),1);assert.equal(published,2);assert.equal(reads,2);
+  cik='0000001234';await assert.rejects(prepareSecIntake(request,targetedDb,options),/source identity/);
+  cik='0000002488';supported=false;await assert.rejects(prepareSecIntake(request,targetedDb,options),/not supported/);
+  assert.equal(f.downloads(),1);assert.equal(published,2);
 });
