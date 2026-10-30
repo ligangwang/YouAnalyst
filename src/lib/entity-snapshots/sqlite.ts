@@ -177,7 +177,7 @@ export function inheritEntitySqliteIndex(previous:EntityRows,next:EntityRows,cha
 
 /** Return undefined only for an absent SQLite file, never for an invalid file. */
 export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log:(entry:Record<string,unknown>)=>void=entry=>console.info(JSON.stringify(entry)),collection:Collection='companies',object=`entity-snapshots/${collection}.sqlite`):Promise<EntityRows|undefined>{
- const started=performance.now();let metadataMs=0,downloadMs=0,processingMs=0,bytesDownloaded=0,records=0,status='error',directory:string|undefined;
+ const started=performance.now();let metadataMs=0,downloadMs=0,processingMs=0,bytesDownloaded=0,records=0,decoded=0,status='error',directory:string|undefined;
  try{
   const file=bucket.file(object);let generation:string;
   try{const [meta]=await file.getMetadata();generation=String(meta.generation);}
@@ -191,13 +191,22 @@ export async function loadEntitySqlite(bucket:Bucket,reason:'cold'|'refresh',log
   phase=performance.now();
   let opened:ReturnType<typeof openEntitySqlite>;
   try{opened=openEntitySqlite(path,directory,collection);}finally{processingMs=performance.now()-phase;}
-  records=opened.rows.size;directory=undefined;status='success';return opened.rows;
+  records=opened.rows.size;
+  if(collection==='eod_prices'){
+   // Price partitions contain one ticker/year. Materialize their small rows so
+   // LRU eviction never relies on GC to release SQLite handles or temp files.
+   try{
+    const rows:EntityRows=new Map([...opened.rows].map(([id,data])=>[id,{...data}]));
+    rows.watermark=opened.watermark;decoded=rows.size;status='success';return rows;
+   }finally{processingMs=performance.now()-phase;opened.close();}
+  }
+  directory=undefined;status='success';return opened.rows;
  }finally{
   if(directory)await rm(directory,{recursive:true,force:true});
   const ms=(n:number)=>Math.round(n*100)/100;
   try{log({event:'entity_snapshot_file_read',format:'sqlite',collection,object,reason,status,
    metadataMs:ms(metadataMs),downloadMs:ms(downloadMs),processingMs:ms(processingMs),totalMs:ms(performance.now()-started),
-   bytesDownloaded,rowsIndexed:records,rowsDecoded:0,timingsOverlap:false,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB});}catch{/* Observability cannot fail a read. */}
+   bytesDownloaded,rowsIndexed:records,rowsDecoded:decoded,timingsOverlap:false,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB});}catch{/* Observability cannot fail a read. */}
  }
 }
 
