@@ -2,12 +2,40 @@ import {withThemeCatalog} from '../helpers/theme-catalog';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore, Timestamp} from 'firebase-admin/firestore';
-import {loadThemeEnrolledCompanies} from '../../src/lib/knowledge-graph/company-cache';
+import {loadThemeEnrolledCompanies,loadSingleThemeCompanies} from '../../src/lib/knowledge-graph/company-cache';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {enableCompanyDirectory,refreshCompanyDirectoryIds,withPageEntityReads} from '../../src/lib/local-cache/company-directory';
 import {graphFromMarket, type MarketCompany} from '../../src/lib/knowledge-graph/market-store';
 import {themedGraph} from '../../src/lib/company-themes/presentation';
+
+test('single-theme cold reads share only the requested subscription and do not block other themes',async(t)=>{
+ t.after(closeLocalCaches);
+ const pushes=new Map<string,(snapshot:unknown)=>void>();
+ const subscriptions:string[]=[];
+ let files=0;
+ const db={collection:(collection:string)=>{
+  assert.equal(collection,'companies');
+  return {where:(field:string,op:string,theme:string)=>{
+   assert.equal(field,'themeIds');assert.equal(op,'array-contains');
+   return {theme,isEqual:(other:{theme:string})=>other.theme===theme,onSnapshot:(next:(snapshot:unknown)=>void)=>{subscriptions.push(theme);pushes.set(theme,next);return ()=>{};}};
+  }};
+ }} as unknown as Firestore;
+ enableCompanyDirectory(db,db,{file:async()=>{files++;throw Error('Themed graph downloaded the market');}});
+ const pending=Array.from({length:12},()=>loadSingleThemeCompanies(db,'robotics'));
+ const space=loadSingleThemeCompanies(db,'space');
+ const doc=(id:string,data:Record<string,unknown>)=>({id,data:()=>data});
+ pushes.get('space')!({docs:[doc('US:S',{name:'Space'})]});
+ assert.deepEqual((await space).docs.map(row=>row.id),['US:S']);
+ // Robotics is still waiting: an independent request has already completed.
+ pushes.get('robotics')!({docs:[doc('US:R',{name:'Robot'}),doc('US:D',{isDeleted:true})]});
+ for(const snapshot of await Promise.all(pending))assert.deepEqual(snapshot.docs.map(row=>row.id),['US:R']);
+ pushes.get('robotics')!({docs:[doc('US:N',{name:'New member'})]});
+ assert.deepEqual((await loadSingleThemeCompanies(db,'robotics')).docs.map(row=>row.id),['US:N']);
+ pushes.get('robotics')!({docs:[]});
+ assert.equal((await loadSingleThemeCompanies(db,'robotics')).docs.length,0);
+ assert.deepEqual(subscriptions,['robotics','space']);assert.equal(files,0);
+});
 
 test('concurrent graph reads avoid search payloads, preserve presentation, and observe writes during file load',async()=>{
  let prefixes=0,loads=0,start!:()=>void,release!:()=>void;

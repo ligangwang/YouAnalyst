@@ -6,6 +6,15 @@ import { verifyCandidate } from '../../scripts/verify-release-candidate.mjs';
 test('website release validates a pinned candidate before changing traffic', () => {
   const build = readFileSync('cloudbuild.yaml', 'utf8');
   assert.match(build, /--no-traffic/);
+  const probe=build.match(/--startup-probe\s+- ([^\r\n]+)/)?.[1];
+  assert(probe,'Every replacement instance must pass HTTP startup readiness');
+  const fields=Object.fromEntries(probe.split(',').map(field=>field.split('=')));
+  assert.equal(fields['httpGet.path'],'/api/health');
+  assert.equal(fields['httpGet.port'],'8080');
+  assert(!Object.keys(fields).some(key=>key.startsWith('tcpSocket')));
+  assert(Number(fields.timeoutSeconds)<=Number(fields.periodSeconds));
+  assert(Number(fields.periodSeconds)<=2,'Readiness must not wait a long polling interval');
+  assert(Number(fields.failureThreshold)*Number(fields.periodSeconds)>=60,'Allow bounded startup without restarting healthy slow boots');
   assert.match(build, /--update-env-vars/);
   assert.doesNotMatch(build, /--set-env-vars/); // Preserve CACHE_EVENT_AUDIENCE on the pinned candidate.
   assert.match(build, /--tag\s+- candidate/);

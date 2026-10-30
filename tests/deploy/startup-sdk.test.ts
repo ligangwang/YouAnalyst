@@ -34,3 +34,15 @@ test('startup awaits import failures instead of leaving work running behind read
  await assert.rejects(app.register(),error=>error===failure);
 });
 
+test('HTTP startup readiness executes without importing data, authentication or page loaders',async()=>{
+ const result=await build({entryPoints:['src/app/api/health/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external'});
+ const loadedModule={exports:{} as {GET:()=>Response}};
+ new Function('require','module','exports',result.outputFiles[0].text)((name:string)=>{
+  assert.equal(name,'next/server','Readiness must not initialize database, auth, or page data');
+  return {NextResponse:Response};
+ },loadedModule,loadedModule.exports);
+ const response=loadedModule.exports.GET();
+ assert.equal(response.status,200);
+ assert.equal((await response.json()).status,'ok');
+});
+
