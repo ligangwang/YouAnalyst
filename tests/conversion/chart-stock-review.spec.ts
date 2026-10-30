@@ -314,7 +314,7 @@ test('Chinese sector heading and filters stay visible when fullscreen peer rows 
  await expect(market).toHaveAttribute('aria-pressed','true');
 });
 
-for(const chinese of [false,true])test(`indicators expand inline and restore on double click while candles stay fixed (${chinese?'Chinese':'English'})`,async({page})=>{
+for(const chinese of [false,true])test(`indicators expand inline, use fullscreen chart space, and restore on double click (${chinese?'Chinese':'English'})`,async({page})=>{
  await open(page,chinese?'&lang=zh-CN':'',false,false);
  const rows=Array.from({length:60},(_,index)=>({date:new Date(Date.UTC(2026,7,16+index)).toISOString().slice(0,10),open:100+index,high:105+index,low:98+index,close:102+index+Math.sin(index),volume:index===52?null:1000+index*100}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:AMD',start:'2026-09-14',end:'2026-10-14',currency:'USD',available:true,warmupPrices:rows.slice(0,40),prices:rows.slice(40)}}));
@@ -356,11 +356,16 @@ for(const chinese of [false,true])test(`indicators expand inline and restore on 
    await expect(panel).toHaveAttribute('data-expanded','true');
    await expect(timeline.locator('[data-volume-ma]')).toHaveCount(2);
    expect(Number(await hit.getAttribute('height'))).toBe(originalHeight+160);
-   expect(await candleGeometry()).toEqual(geometry);
-   expect(await timeline.locator('svg[role="img"]').getAttribute('data-price-bottom')).toBe(priceBottom);
-   const enlargedCandle=(await timeline.locator('[data-price-candle]').first().boundingBox())!;
-   expect(enlargedCandle.y).toBeCloseTo(firstCandle.y,0);
-   expect(enlargedCandle.height).toBeCloseTo(firstCandle.height,0);
+   if(size==='full'){
+    expect(Number(await timeline.locator('svg[role="img"]').getAttribute('data-price-bottom'))).toBeLessThanOrEqual(Number(priceBottom));
+    await expect(timeline.locator('[data-price-candle]')).toHaveCount(geometry.length);
+   }else{
+    expect(await candleGeometry()).toEqual(geometry);
+    expect(await timeline.locator('svg[role="img"]').getAttribute('data-price-bottom')).toBe(priceBottom);
+    const enlargedCandle=(await timeline.locator('[data-price-candle]').first().boundingBox())!;
+    expect(enlargedCandle.y).toBeCloseTo(firstCandle.y,0);
+    expect(enlargedCandle.height).toBeCloseTo(firstCandle.height,0);
+   }
    await expect(page.getByRole('dialog',{name:/study|研究/})).toHaveCount(0);
    if(size==='full'&&kind==='volume')await timeline.screenshot({path:test.info().outputPath('inline-volume-expanded.png')});
    await doubleClickPanel(kind);

@@ -48,3 +48,9 @@
 .linkedEvent { outline-color:var(--accent-intelligence); }
 @media(max-width:1150px) { .layout { grid-template-columns:minmax(0,1fr) 270px; }.page { padding:24px 20px 48px; }.dayButton span { display:none; } }
 @media(max-width:800px) { .page { padding:24px 16px 48px; }.header { gap:12px; }.zone { padding:0;background:none;white-space:normal; }.layout { grid-template-columns:1fr; }.period h2 { min-width:0; }.toolbar { margin-top:20px; }.filters input:not([type=checkbox]),.filters select,.period button,.switcher button,.filters>button { min-height:44px; }.following { min-height:44px; }.grid:not(.week) .cell { min-height:108px; }.grid:not(.week) .cell .eventHeading strong { font-size:12px; }.dayButton { min-height:36px; }.dayButton small { font-size:12px; }.more { font-size:12px;padding:4px 0; }.week .cell .eventHeading span { font-size:12px; } }
+.mobileAgenda{display:none}
+@media(max-width:800px){
+ .mobileAgenda{display:flex;flex-direction:column;gap:20px}.mobileAgenda h2{font-size:28px;margin:16px 0 0}.mobileAgenda h3{font-size:20px}.mobileAgenda button{min-height:48px;padding:12px;border:1px solid var(--border-control);border-radius:12px;color:var(--text-primary);background:var(--bg-surface)}
+ .page[data-history="false"] .layout{display:none}
+ .agendaEvents{overflow:visible;max-height:none}
+}

@@ -236,7 +236,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   // Expanding a lower panel adds space below the unchanged price plot.
   const volumeHeight=expandedIndicators.includes('volume')&&activity==='volume'?182:22;
   const oscillatorExtra=indicator!=='none'&&expandedIndicators.includes(indicator)&&showOscillator?160:0;
-  const small=width<440,priceTop=24,priceBottom=chartSize==='compact'?(small?164:140):Math.max(160,(chartSize==='full'?(fullChartHeight||viewportHeight-140):Math.floor(viewportHeight*.4))-56-(showOscillator?100:0)),volumeBottom=priceBottom+10+volumeHeight,chartHeight=volumeBottom+24+(showOscillator?100+oscillatorExtra:0);
+  const small=width<440,priceTop=24,priceBottom=chartSize==='compact'?(small?164:140):Math.max(160,(chartSize==='full'?((fullChartHeight||viewportHeight-140)-(volumeHeight-22)-(showOscillator?oscillatorExtra:0)):Math.floor(viewportHeight*.4))-56-(showOscillator?100:0)),volumeBottom=priceBottom+10+volumeHeight,chartHeight=volumeBottom+24+(showOscillator?100+oscillatorExtra:0);
   const selected = events.find(e => e.id === selectedId && e.date >= eventStart && e.date <= eventEnd);
   const activeDate = priceDate ?? (hoverDate && hoverDate >= eventStart && hoverDate <= eventEnd ? hoverDate : selected?.date);
   const candles=prices.filter((price):price is typeof price&{open:number;high:number;low:number}=>price.open!==undefined&&price.high!==undefined&&price.low!==undefined);
@@ -301,15 +301,15 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const bollY=(value:number)=>macdBottom-(value-bollLow)/(bollHigh-bollLow)*(macdBottom-macdTop);
   const toLatest=nearest&&latest&&nearest.close>0?latest.close/nearest.close-1:undefined;
   const totalBars=allPrices.length;
-  const zoomView=useCallback((direction:number,ratio=.5)=>{
+  const zoomView=useCallback((direction:number)=>{
     setViewport(previous=>{
       const old=previous.key===viewKey?previous:{key:viewKey,zoom:1,offset:0},total=totalBars;
       const zoom=Math.max(1,Math.min(16,old.zoom*(direction>0?2:.5)));
       const oldCount=Math.min(total,Math.max(5,Math.ceil(total/old.zoom))),count=Math.min(total,Math.max(5,Math.ceil(total/zoom)));
-      if(count===oldCount)return old;
-      const oldOffset=Math.min(Math.max(0,total-oldCount),old.offset),anchor=total-oldCount-oldOffset+ratio*Math.max(0,oldCount-1);
-      const first=Math.max(0,Math.min(total-count,Math.round(anchor-ratio*Math.max(0,count-1))));
-      return {key:viewKey,zoom,offset:total-count-first};
+      if(count===oldCount&&old.offset===0)return old;
+      // Zoom always retains the latest loaded bar at the right edge.
+      // Historical navigation remains an explicit left/right action.
+      return {key:viewKey,zoom,offset:0};
     });setHoverPrice(null);setPriceSelection(null);setHoverDate(null);setClusterId('');
   },[totalBars,viewKey]);
   useEffect(()=>{
@@ -319,11 +319,10 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
       if(event.ctrlKey||!event.deltaY||!(event.target instanceof Element)||!event.target.closest('svg'))return;
       event.preventDefault();event.stopPropagation();
       if(Date.now()-last<100)return;last=Date.now();
-      const bounds=element.getBoundingClientRect(),ratio=Math.max(0,Math.min(1,(event.clientX-bounds.left-left)/plotWidth));
-      zoomView(event.deltaY<0?1:-1,ratio);
+      zoomView(event.deltaY<0?1:-1);
     };
     element.addEventListener('wheel',wheel,{passive:false});return ()=>element.removeEventListener('wheel',wheel);
-  },[closed,left,plotWidth,zoomView]);
+  },[closed,zoomView]);
   const returnLabel=(value:EventPriceReturn,event:Pick<TimelineEvent,'date'|'publishedAt'>)=>{
     const publicationDate=event.date;
     const days=eventReturnDays(publicationDate,value.latestDate,event.publishedAt,now,value.companyId);

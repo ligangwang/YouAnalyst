@@ -85,7 +85,7 @@ test('server calendar snapshot avoids a duplicate read and range changes still r
   await expect(page.getByRole('status')).toHaveText('8 scheduled events in view');
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(null)))));
   expect(requests).toBe(0);
-  await page.getByRole('button',{name:'Next period'}).click();
+  await page.getByRole('button',{name:'Next period',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('0 scheduled events in view');
   expect(requests).toBe(1);
 });
@@ -142,6 +142,7 @@ test('month and week handle crowded dates, theme overlap, source links and a fai
   await page.goto('http://calendar.test/');
   await expect(page.getByRole('status')).toHaveText('8 scheduled events in view');
   const selectedDayLabel=new Intl.DateTimeFormat('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'}).format(fixtureDate);
+  const history=page.getByRole('button',{name:'Browse dates & history'});if(await history.isVisible())await history.click();
   await page.getByRole('button',{name:selectedDayLabel,exact:true}).click();
   const agenda=page.getByRole('complementary',{name:'Selected day agenda'});
   await expect(agenda.getByRole('article')).toHaveCount(8);
@@ -187,8 +188,18 @@ test('month and week handle crowded dates, theme overlap, source links and a fai
   await expect(agenda).not.toContainText('Results & call');
   await page.getByRole('button',{name:'Week',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('10 scheduled events in view');
-  fail=true;await page.getByRole('button',{name:'Next period'}).click();
+  fail=true;await page.getByRole('button',{name:'Next period',exact:true}).click();
   await expect(page.getByRole('status')).toContainText('Schedules could not be refreshed.');
   await expect(page.getByRole('heading',{name:'Earnings calendar',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Retry',exact:true})).toBeVisible();
+});
+
+test('mobile calendar defaults to upcoming and makes history optional',async({page},info)=>{
+ const now=new Date('2026-11-17T12:00:00Z');await page.clock.install({time:now});
+ await page.route('http://calendar.test/**',route=>{const url=new URL(route.request().url());return url.pathname==='/api/calendar'?route.fulfill({json:{events:[],total:0,truncated:false,from:url.searchParams.get('from'),to:url.searchParams.get('to'),collectionStatus:'complete'}}):route.fulfill({contentType:'text/html',body:html});});
+ await page.goto('http://calendar.test/');
+ const toggle=page.getByRole('button',{name:'Browse dates & history'});
+ const grid=page.getByRole('region',{name:'Earnings calendar',exact:true});
+ if(info.project.name==='desktop'){await expect(toggle).toBeHidden();await expect(grid).toBeVisible();return;}
+ await expect(toggle).toBeVisible();await expect(grid).toBeHidden();await toggle.click();await expect(grid).toBeVisible();
 });

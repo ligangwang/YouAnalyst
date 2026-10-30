@@ -107,3 +107,8 @@
 
 /* Futurist dark: the floating company card becomes a glowing glass panel. */
 :global(:root:not([data-theme="light"])) .companyCard { background:linear-gradient(160deg,#202B3Ff2,#1A2435f7);backdrop-filter:blur(14px);border-color:#49D6E859;box-shadow:0 18px 50px #000a,0 0 28px #49D6E826; }
+
+@media(max-width:850px){
+ .regionWorkspace:has([data-industry-section="hierarchy"]) section[aria-label="Graph universe"],.graphViewport:not([data-chart-size="full"]):has([data-industry-section="hierarchy"]),.graphViewport:not([data-chart-size="full"]):has([data-industry-section="hierarchy"])>.graphStage,.graphViewport:not([data-chart-size="full"]):has([data-industry-section="hierarchy"]) [role="tabpanel"],.themeContents:has([data-industry-section="hierarchy"]){height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;flex:0 0 auto!important}
+ .graphViewport[data-chart-size="full"]:has([data-industry-section="hierarchy"]){overflow:auto}
+}

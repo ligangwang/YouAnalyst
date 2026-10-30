@@ -17,7 +17,7 @@ events[198].summary='交易所上市公司原始公告。';
 events[198].evidence[0].title=events[198].title;
 events[199]={...events[199],origin:'US:LITE',companyIds:['US:LITE'],title:'Lumentum communication update',titleZh:'Lumentum 通信业务最新进展'};
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
-test('workspace locates AMD across tree hierarchy and paginated list without losing selection',async({page})=>{
+test('workspace locates AMD across tree hierarchy and paginated list without losing selection',{tag:'@desktop-only'},async({page})=>{
  test.setTimeout(90000);await page.emulateMedia({reducedMotion:'reduce'});
  const amd={...snapshot.graph.nodes[1],id:'US:AMD',symbol:'AMD',name:'Advanced Micro Devices'};
  const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,nodes:[...Array.from({length:65},(_,i)=>({...amd,id:`US:AAA${i}`,symbol:`AAA${i}`,name:`AAA company ${i}`})),amd]}};
@@ -43,7 +43,7 @@ let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
 async function workspaceFixture(realCharts=false,fixture=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean}={}){
-  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';createRoot(document.getElementById('root')).render(<>${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';createRoot(document.getElementById('root')).render(<>${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence initialEvent={new URLSearchParams(location.search).get('event')??''} initialView={new URLSearchParams(location.search).get('view')??''} initialCompany={new URLSearchParams(location.search).get('company')??''} ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     if(options.scenery===false){
       build.onResolve({filter:/tree-meadow-environment$/},()=>({path:'meadow',namespace:'lifecycle-scenery'}));
       build.onLoad({filter:/.*/,namespace:'lifecycle-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
@@ -68,9 +68,18 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+async function exploreMobile(page:import('@playwright/test').Page){const nav=page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/});if((page.viewportSize()?.width??1280)<=850)await nav.getByRole('button',{name:/Explore|探索/,exact:true}).click();}
+
+async function activityMobile(page:import('@playwright/test').Page){const nav=page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/});if((page.viewportSize()?.width??1280)<=850)await nav.getByRole('button',{name:/^(Activity|动态)$/}).click();}
+
+async function revealWorkspaceFilters(page:import('@playwright/test').Page){
+ if((page.viewportSize()?.width??1280)<=850){const button=page.getByRole('button',{name:/^(Filters|筛选)$/});if(await button.getAttribute('aria-expanded')!=='true')await button.click();}
+ else {const button=page.getByRole('button',{name:'Expand left panel'});if(await button.isVisible())await button.click();}
+}
+
 test('workspace defaults to graph and respects an explicit list link',async({page})=>{
- await open(page);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await open(page);await exploreMobile(page);
+ await revealWorkspaceFilters(page);
  await expect(page.getByRole('complementary',{name:'Universe navigation'}).getByRole('link',{name:'Explore universe',exact:false})).toHaveAttribute('href','/en/investment-themes');
  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
  await page.goto('http://workspace.test/?view=table');
@@ -107,13 +116,14 @@ test('all workspace panels and views open the selected stock tools without dupli
 });
 
 test('workspace right click opens tools without selecting a stock and prevents the browser menu',async({page})=>{
- await open(page);
+ await open(page);await exploreMobile(page);
  const tools=page.getByRole('dialog',{name:'Stock tools',exact:true});
  for(const tab of ['Relationship graph','Industry tree','Company hierarchy','Company list']){
   await page.getByRole('tab',{name:tab,exact:true}).click();
   for(const surface of [page.getByRole('complementary',{name:'Universe navigation'}),page.locator('[data-company-workspace]'),page.getByRole('complementary',{name:'Events and sources'}),page.getByRole('region',{name:'Theme activity summary'})]){
    if(!await surface.isVisible())continue;
-   expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+   if(!await surface.isVisible())continue;
+  expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
    await expect(tools).toBeVisible();await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
    await expect(tools.getByRole('button',{name:'MACD',exact:true})).toBeVisible();
    await expect(tools.getByRole('button',{name:'Add to watchlist',exact:true})).toHaveCount(0);
@@ -136,6 +146,7 @@ test('workspace right click opens tools without selecting a stock and prevents t
  await expect(tools).toHaveCount(0);
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  for(const surface of [timeline.locator('[data-chart-toolbar]'),timeline.locator('p').filter({hasText:/Events use source publication dates|stored daily bars/}).last(),page.getByRole('region',{name:'Theme activity summary'})]){
+  if(!await surface.isVisible())continue;
   expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
   await expect(page.getByRole('dialog',{name:'Stock tools · MU',exact:true})).toBeVisible();
   await page.keyboard.press('Escape');
@@ -162,7 +173,7 @@ test('Explorer loading and connection errors also open custom stock tools',async
  }
 });
 
-test('every visible Explorer table target suppresses the browser menu, with and without a selected stock',async({page})=>{
+test('every visible Explorer table target suppresses the browser menu, with and without a selected stock',{tag:'@desktop-only'},async({page})=>{
  await open(page);
  for(const company of ['', 'US:MU']){
   await page.goto(`http://workspace.test/?view=table${company?'&company='+encodeURIComponent(company):''}`);
@@ -196,7 +207,7 @@ test('Explorer keeps stock tools available while a theme is loading',async({page
  await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
 });
 
-test('stock tools work in every fullscreen view with the price chart hidden',async({page})=>{
+test('stock tools work in every fullscreen view with the price chart hidden',{tag:'@desktop-only'},async({page})=>{
  await open(page);await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none&chartWatchlist=1');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
@@ -217,12 +228,12 @@ test('stock tools work in every fullscreen view with the price chart hidden',asy
  }
 });
 
-test('workspace session watchlist appears below indicators and restores company selection during review',async({page})=>{
+test('workspace session watchlist appears below indicators and restores company selection during review',async({page,isMobile})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),start:'2026-01-01',end:'2026-10-04',available:true,currency:'USD',prices:[{date:'2026-10-02',open:100,high:115,low:98,close:110,volume:1000}]}}));
  await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
- const workspace=page.locator('section[aria-label="Company relationship chart"]');
- await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ const workspace=page.locator(isMobile?'[data-timeline-dock]':'section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:isMobile?'Chart size':'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  await workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
  await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
  await workspace.getByRole('button',{name:'Stock tools',exact:true}).click();
@@ -235,11 +246,12 @@ test('workspace session watchlist appears below indicators and restores company 
  const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});
  await tools.locator('summary').click();await tools.getByRole('button',{name:'Memory & storage →',exact:true}).click();
  await tools.getByRole('button',{name:'Memory Supplier',exact:true}).click();
- await expect(page).toHaveURL(/company=US%3AMEM/);
+ // A standalone fullscreen price chart reviews peers locally; the desktop workspace changes its selected company.
+ await expect(page).toHaveURL(isMobile?/company=US%3AMU/:/company=US%3AMEM/);
  await expect(workspace.locator('[data-company-timeline="US:MEM"]')).toBeVisible();
  await review.getByRole('button',{name:'Micron',exact:true}).click();
  await expect(page).toHaveURL(/company=US%3AMU/);
- await expect(workspace).toHaveAttribute('data-chart-size','full');
+ await expect(isMobile?workspace.locator('[data-company-timeline]'):workspace).toHaveAttribute('data-chart-size','full');
  await expect(workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.screenshot({path:test.info().outputPath('workspace-watchlist-review.png')});
 });
@@ -276,6 +288,7 @@ function bookmarkedQuery(page:import('@playwright/test').Page) {
     for(const [key,item] of Object.entries({q:value,company:id,feedCompany:id,event:'',relationship:''})) { if(item)url.searchParams.set(key,item);else url.searchParams.delete(key); }
     url.searchParams.delete('page');history.replaceState(history.state,'',url);dispatchEvent(new Event('industry-browse-changed'));
   },{value,id:matches.length===1?matches[0].id:''});
+  if(matches.length===1)await exploreMobile(page);
  };
  return {fill,press:async(key:string)=>{if(key!=='Enter')throw new Error('Bookmark helper supports Enter only');},blur:async()=>{},click:async()=>{},pressSequentially:async(value:string,options?:{delay?:number})=>{if(options?.delay)await page.waitForTimeout(options.delay);await fill(value);}};
 }
@@ -291,7 +304,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`shared company dial
 });
 for(const view of ['graph','tree','hierarchy','table'])test(`sector selection replaces bookmarked filters in ${view}`,async({page,isMobile})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);await bookmarkedQuery(page).fill('MULT');
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  await page.getByRole('button',{name:'Expand Chips',exact:true}).click();
  await page.getByRole('navigation',{name:'AI layers',exact:true}).getByRole('button',{name:/^Memory & storage/}).click();
  await expect(page).not.toHaveURL(/company=|q=/);
@@ -300,7 +313,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`sector selection re
  await expect(list.getByRole('button',{name:isMobile?'Micron':'MU Micron',exact:true})).toBeVisible();
 });
 
-for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,async({page})=>{
+for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,{tag:'@desktop-only'},async({page})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);
  await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'},{supportState:'SUPPORTED',id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
@@ -336,7 +349,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} 
  await expect(workspace).toHaveAttribute('data-chart-size','full');
 });
 
-test('fullscreen lookup keeps chart closed until requested while event sources load',async({page})=>{
+test('fullscreen lookup keeps chart closed until requested while event sources load',{tag:'@desktop-only'},async({page})=>{
  const body=await workspaceFixture(false,snapshot,false);
  let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});
  await page.route('**/*',async route=>{
@@ -363,7 +376,7 @@ test('fullscreen lookup keeps chart closed until requested while event sources l
  await expect(page.locator('aside[aria-label="Events and sources"]').getByText('Loading events and sources…')).toHaveCount(0);
 });
 
-for(const view of ['graph','tree','hierarchy','table'])test(`selected company price chart remains usable inside fullscreen ${view}`,async({page})=>{
+for(const view of ['graph','tree','hierarchy','table'])test(`selected company price chart remains usable inside fullscreen ${view}`,{tag:'@desktop-only'},async({page})=>{
  await open(page);
  await page.goto(`http://workspace.test/?view=${view}&company=US%3AMU`);
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
@@ -384,7 +397,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`selected company pr
  await expect(page.locator('[data-company-timeline="US:MU"]').getByLabel('Price history range')).toHaveValue('90');
 });
 
-test('workspace sizing preserves the timeline instance, closed state and loaded prices',async({page})=>{
+test('workspace sizing preserves the timeline instance, closed state and loaded prices',{tag:'@desktop-only'},async({page})=>{
  await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{}}}));
  await open(page);
  let requests=0;
@@ -412,7 +425,7 @@ test('workspace sizing preserves the timeline instance, closed state and loaded 
  expect(requests).toBe(loadedRequests);
 });
 
-test('chart sizes preserve selection and indicators read preceding history',async({page},info)=>{
+test('chart sizes preserve selection and indicators read preceding history',{tag:'@desktop-only'},async({page},info)=>{
  await open(page);
  const bars:import('../../src/lib/ui/company-timeline').TimelinePrice[]=[];
  for(let date=Date.parse('2026-04-01'),index=0;date<=Date.parse('2026-10-09');date+=86_400_000){
@@ -435,7 +448,7 @@ test('chart sizes preserve selection and indicators read preceding history',asyn
  await page.screenshot({path:`output/graph-full-${info.project.name}.png`});
  await page.keyboard.press('Escape');await expect(relationship).toHaveAttribute('data-chart-size','compact');
  await expect(relationship.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true})).toBeFocused();
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);
  for(const period of [5,10,20,60])await expect(timeline.locator(`[data-moving-average="${period}"]`)).toHaveAttribute('d',/^M.+L/);
@@ -582,7 +595,7 @@ test('all six history ranges include YTD and five-year weekly prices with exact 
   const weekly=range==='1826';
   return route.fulfill({json:{companyId:'US:MU',start:range==='ytd'?'2026-01-01':weekly?'2021-10-11':'2026-09-01',end:'2026-10-11',currency:'USD',available:true,interval:weekly?'weekly':'daily',prices:weekly?[{date:'2026-10-02',periodStart:'2026-09-28',open:10,high:15,low:8,close:13,volume:1500},{date:'2026-10-09',periodStart:'2026-10-05',open:13,high:17,low:12,close:14,volume:600}]:[{date:'2026-09-28',open:10,high:12,low:9,close:11,volume:100},{date:'2026-09-30',open:11,high:15,low:8,close:13,volume:200},{date:'2026-10-09',open:13,high:17,low:12,close:14,volume:600}]}});
  });
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]'),range=timeline.getByRole('combobox',{name:'Price history range'});
  await expect(range).toHaveValue('30');await expect(range.locator('option')).toHaveText(['1M','3M','6M','YTD','1Y','5Y']);
@@ -599,19 +612,19 @@ test('all six history ranges include YTD and five-year weekly prices with exact 
 test('a missing weekly candle shows its actual return baseline',async({page})=>{
  await open(page,false,{...snapshot,events:[]});
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2021-10-11',end:'2026-10-11',currency:'USD',available:true,interval:'weekly',prices:[{date:'2026-09-25',periodStart:'2026-09-21',open:100,high:105,low:95,close:100,volume:100},{date:'2026-10-09',periodStart:'2026-10-05',open:100,high:115,low:99,close:110,volume:100}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('1826');await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);
  await timeline.locator('svg[role=img]').press('Enter');const tooltip=timeline.getByRole('group',{name:'Price details'});
  await expect(tooltip).toContainText('Change since 2026-09-25');await expect(tooltip).toContainText('+10.00%');await expect(tooltip).not.toContainText('Weekly change');
 });
 
-test('event windows open beside list items and markers, including fullscreen, without replacing company details',async({page},info)=>{
+test('event windows open beside list items and markers, including fullscreen, without replacing company details',{tag:'@desktop-only'},async({page},info)=>{
  const first={...snapshot.events[0],id:'near-first',title:'Nearby earnings announcement',eventType:'earnings' as const,publication_date:'2026-10-02',evidence:[snapshot.events[0].evidence[0],{id:'extra',url:'https://example.com/extra',title:'Second event reference',sourceDate:'2026-10-02',channel:'SEC' as const}]};
  const second={...snapshot.events[0],id:'near-second',title:'Nearby business announcement',eventType:'product_business' as const,publication_date:'2026-10-01'};
  await open(page,false,{...snapshot,events:[first,second],eventReturns:{'near-first':[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-05',baselineClose:100,latestClose:110,change:.1,dateOnly:true}]}});
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-01',close:100,volume:10},{date:'2026-10-02',close:105,volume:20},{date:'2026-10-05',close:110,volume:30}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]'),card=page.getByRole('region',{name:'Company details',exact:true}),window=page.getByRole('dialog',{name:'Event details',exact:true});
  const row=page.getByRole('complementary',{name:'Events and sources'}).getByRole('button',{name:/Nearby earnings announcement/});
@@ -665,7 +678,7 @@ test('clicked price details show daily changes independently of event markers',a
  const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',published_at:null,eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',published_at:null,eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',published_at:null,eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',published_at:null,eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-30',close:100,volume:10},{date:'2026-10-01',close:104,volume:20},{date:'2026-10-02',close:103,volume:30},{date:'2026-10-05',close:106,volume:40},{date:'2026-10-06',close:106,volume:50}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toContainText('5 stored daily bars');await expect(timeline.locator('[data-latest-close-reference]')).toContainText('Latest close 106');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveCSS('stroke','rgb(201, 184, 121)');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveAttribute('stroke-dasharray','2 4');
@@ -709,7 +722,7 @@ test('clicked price details show daily changes independently of event markers',a
 test('long price gaps connect recorded closes without synthetic bars',async({page})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',close:100,volume:10},{date:'2026-10-08',close:102,volume:20}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toContainText('2 stored daily bars');
@@ -750,6 +763,7 @@ test('graph automatic orbit continues while the shared search input is focused',
  const body=await workspaceFixture(true);
  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({json:{items:[]}}));
  await page.goto('http://workspace.test/?view=graph');
+ await exploreMobile(page);
  const canvas=page.locator('[data-graph-interaction] canvas');await expect(canvas).toHaveAttribute('data-rotation','intro');
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  const input=page.getByRole('combobox',{name:'Search company',exact:true});await expect(input).toBeFocused();
@@ -761,7 +775,7 @@ test('graph automatic orbit continues while the shared search input is focused',
  await input.press('Escape');await expect(canvas).toHaveAttribute('data-rotation','intro');
 });
 
-test('universe is usable before events arrive and pending totals are not zero counts',async({page})=>{
+test('universe is usable before events arrive and pending totals are not zero counts',{tag:'@desktop-only'},async({page})=>{
  const body=await workspaceFixture(false,snapshot,false);
  const bootstrap={...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false};
  let release!:()=>void;const ready=new Promise<void>(resolve=>{release=resolve;});
@@ -797,7 +811,7 @@ test('late universe response cannot replace a completed event feed',async({page}
   }
   return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
  });
- await page.goto('http://workspace.test/?view=table');
+ await page.goto('http://workspace.test/?view=table');await activityMobile(page);
  const panel=page.getByRole('complementary',{name:'Events and sources'});
  await expect(panel.getByText('Documents',{exact:true}).locator('..').locator('strong')).toHaveText('350');
  release();await page.waitForTimeout(100);
@@ -805,7 +819,7 @@ test('late universe response cannot replace a completed event feed',async({page}
  await expect(panel.getByText('Loading events and sources…')).toHaveCount(0);
 });
 
-test('company changes retain the pending unscoped universe instead of the previous company feed',async({page})=>{
+test('company changes retain the pending unscoped universe instead of the previous company feed',{tag:'@desktop-only'},async({page})=>{
  const body=await workspaceFixture(false,snapshot,false);
  let releaseFirst!:()=>void,releaseNext!:()=>void;
  const first=new Promise<void>(resolve=>{releaseFirst=resolve;}),next=new Promise<void>(resolve=>{releaseNext=resolve;});
@@ -852,7 +866,7 @@ for(const zh of [false,true])test('grouped announcement shows one event, two sou
  await expect(card.locator('a[href="https://newsroom.amd.com/release"]')).toHaveCount(1);
  // A bookmark to the former duplicate still opens the grouped announcement.
  await page.goto(`http://workspace.test/?${zh?'lang=zh-CN&':''}event=${b.id}&company=US%3AAMD`);
- await expect(card).toContainText(label);await expect(row).toHaveAttribute('aria-pressed','true');
+ await expect(card).toContainText(label);await expect(page.locator('[aria-label="Events and sources"] button[aria-pressed="true"]').filter({hasText:label})).toHaveCount(1);
 });
 
 test('company feed fetches older matching documents before the global cap and restores the full feed',async({page})=>{
@@ -870,42 +884,42 @@ test('company feed fetches older matching documents before the global cap and re
    return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
  });
  await page.goto('http://workspace.test/');
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const panel=page.getByRole('complementary',{name:'Events and sources'});
  const left=page.getByRole('complementary',{name:'Universe navigation'});
  await left.getByRole('combobox',{name:'Region',exact:true}).selectOption('US');
- await left.getByRole('button',{name:/ARM.*Arm/}).click();
+ await left.getByRole('button',{name:/ARM.*Arm/}).click();await activityMobile(page);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  expect(requested).toContain('US:ARM');
  await expect(panel.getByText('12 loaded source documents',{exact:true})).toHaveCount(0);
  await expect(panel.getByText('Documents',{exact:true}).locator('..')).toContainText('12');
- await page.reload();
+ await page.reload();await activityMobile(page);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  await panel.getByRole('button',{name:'Clear company event filter'}).click();
  await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(10);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
  const search=bookmarkedQuery(page);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  await search.click();
  const beforeSearch=requested.length;
- await search.pressSequentially('ARM',{delay:60});
+ await search.pressSequentially('ARM',{delay:60});await activityMobile(page);
  expect(requested.length).toBeGreaterThanOrEqual(beforeSearch);
  await expect(page).toHaveURL(/q=ARM/);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  await expect(page).toHaveURL(/q=ARM/);
  await expect(panel.getByText('12 loaded source documents',{exact:true})).toHaveCount(0);
- await page.reload();await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await page.reload();await activityMobile(page);await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
+ await revealWorkspaceFilters(page);
  await search.fill('');await search.press('Enter');
  await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(10);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
- await left.getByRole('button',{name:/MU.*Micron/}).click();
+ await revealWorkspaceFilters(page);
+ await left.getByRole('button',{name:/MU.*Micron/}).click();await activityMobile(page);
  await expect.poll(()=>requested.at(-1)).toBe('US:MU');
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
 });
 
-for(const zh of [false,true])test('region filter keeps companies, feed and complete source counts aligned in '+(zh?'Chinese':'English'),async({page})=>{
+for(const zh of [false,true])test('region filter keeps companies, feed and complete source counts aligned in '+(zh?'Chinese':'English'),{tag:'@desktop-only'},async({page})=>{
  const marketNodes=[...companies,{id:'XSHG:688072',symbol:'688072',name:'Piotech',kind:'COMPANY',stageIds:['memory']},{id:'XSHE:300308',symbol:'300308',name:'Innolight',kind:'COMPANY',stageIds:['optics']},{id:'PRIVATE:OPENAI',name:'OpenAI',kind:'COMPANY',stageIds:['compute']}];
  const marketEvents=[['us','US:MU'],['shanghai','XSHG:688072'],['shenzhen','XSHE:300308'],['private','PRIVATE:OPENAI'],['mixed','US:MU']].map(([id,origin],i)=>({...events[0],id,origin,companyIds:id==='mixed'?['US:MU','XSHG:688072']:[origin],title:`Market event ${id}`,titleZh:undefined,titleEn:undefined,calendarEvents:undefined,publication_date:snapshot.session.date,evidence:[{...events[0].evidence[0],id:`market-${i}`,url:`https://investors.example.com/market-${i}`}]}));
  const prior={...marketEvents[0],id:'prior',title:'Prior US event',publication_date:'2026-10-02',evidence:[{...marketEvents[0].evidence[0],id:'prior',url:'https://investors.example.com/prior'}]};
@@ -915,7 +929,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  fixture.eventReturns={mixed:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:110,change:.1,dateOnly:true},{companyId:'XSHG:688072',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:120,change:.2,dateOnly:true}]};
  fixture.events[4].calendarEvents=[{id:'us-calendar',companyId:'US:MU',day:'2026-10-28'},{id:'cn-calendar',companyId:'XSHG:688072',day:'2026-10-28'}];
  await open(page,zh,fixture);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const panel=page.getByRole('complementary',{name:'Events and sources'}),filter=page.getByRole('complementary',{name:'Universe navigation'}).getByRole('combobox',{name:zh?'地区':'Region'});
  const documents=panel.getByText(zh?'文档':'Documents',{exact:true}).locator('..');
  await expect(filter).toHaveValue('');await expect(documents).toContainText('6');
@@ -944,7 +958,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await page.getByRole('tab',{name:zh?'公司列表':'Company list',exact:true}).click();
  await expect(page.locator('[data-list-company]')).toHaveCount(2);
  await panel.getByRole('button',{name:zh?'近 7 天':'7 days',exact:true}).click();await expect(filter).toHaveValue('CN_A');await expect(documents).toContainText('4');
- await page.reload();if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await expect(filter).toHaveValue('CN_A');await expect(page.locator('[data-list-company]')).toHaveCount(2);
+ await page.reload();await revealWorkspaceFilters(page);await expect(filter).toHaveValue('CN_A');await expect(page.locator('[data-list-company]')).toHaveCount(2);
  await filter.selectOption('US');await expect(documents).toContainText('2');
  await panel.getByRole('button',{name:zh?'近 7 天':'7 days',exact:true}).click();await expect(documents).toContainText('3');await expect(panel.getByRole('button',{name:/Prior US event/})).toBeVisible();
  await filter.selectOption('');await expect(page).not.toHaveURL(/region=/);await expect(documents).toContainText('7');await expect(panel.getByRole('button',{name:/Market event private/})).toBeVisible();await expect(page.locator('[data-list-company]')).toHaveCount(marketNodes.length);
@@ -954,20 +968,20 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
 test('source status distinguishes missing regional metadata from an empty regional coverage set',async({page})=>{
  const fixture={...snapshot,graph:{...snapshot.graph,nodes:[...companies,{id:'XSHG:688072',name:'Piotech',kind:'COMPANY',stageIds:['memory']}]},newsCoverage:{total:4,configured:3,healthy:2},warnings:['Verified IR/news feeds cover 3 of 4 US-listed AI Map companies.','Company news collector freshness is unverified: US-only adapter.']} as IntelligenceSnapshot;
  const region=page.getByRole('combobox',{name:'Region',exact:true}),panel=page.getByRole('complementary',{name:'Events and sources'}),indicator=page.getByLabel('Theme activity summary').locator('span[role=img]');
- await open(page,false,fixture);if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await region.selectOption('US');
+ await open(page,false,fixture);await revealWorkspaceFilters(page);await region.selectOption('US');
  await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(1);await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);await expect(indicator).toHaveCount(1);
  fixture.newsCoverage={...fixture.newsCoverage!,companyIds:companies.map(c=>c.id),configuredCompanyIds:companies.slice(0,3).map(c=>c.id),healthyCompanyIds:companies.slice(0,2).map(c=>c.id)};
- await open(page,false,fixture);if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await region.selectOption('CN_A');
+ await open(page,false,fixture);await revealWorkspaceFilters(page);await region.selectOption('CN_A');
  await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(0);await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);await expect(indicator).toHaveCount(0);await expect(page.getByLabel('Company news collector coverage')).toHaveCount(0);
 });
 
-for(const zh of [false,true])test('company selection scopes events and activity through periods and event clicks in '+(zh?'Chinese':'English'),async({page})=>{
+for(const zh of [false,true])test('company selection scopes events and activity through periods and event clicks in '+(zh?'Chinese':'English'),{tag:'@desktop-only'},async({page})=>{
  const nodes=[...companies,{id:'US:AAPL',name:'Apple',symbol:'AAPL',kind:'COMPANY',stageIds:['compute']},{id:'XSHG:688072',name:'Piotech',symbol:'688072',kind:'COMPANY',stageIds:['memory']}];
  const updates=[['apple','US:AAPL'],['micron','US:MU'],['mixed','US:MU'],['china','XSHG:688072'],['prior','US:AAPL']].map(([id,origin])=>({...events[0],id,origin,companyIds:id==='mixed'?['US:MU','US:AAPL']:[origin],title:`Company event ${id}`,publication_date:id==='prior'?'2026-10-02':snapshot.session.date,calendarEvents:undefined,evidence:[{...events[0].evidence[0],url:`https://investors.example.com/company-${id}`}]}));
  const fixture={...snapshot,coverage:[...snapshot.coverage,{channel:'Exchange',status:'connected'}],graph:{...snapshot.graph,nodes},events:updates,sourceDocuments:[...updates.map(e=>({id:e.evidence[0].url,channel:'IR',companyIds:e.companyIds,published_at:null,publication_date:e.publication_date})),{id:'outside-loaded-feed',channel:'IR',companyIds:['US:AAPL'],published_at:null,publication_date:snapshot.session.date}],eventReturns:{mixed:[{companyId:'US:AAPL',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:120,change:.2,dateOnly:true},{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:110,change:.1,dateOnly:true}]}} as IntelligenceSnapshot;
  fixture.events[2].calendarEvents=[{id:'apple-calendar',companyId:'US:AAPL',day:'2026-10-28'},{id:'micron-calendar',companyId:'US:MU',day:'2026-10-28'}];
  await open(page,zh,fixture);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const left=page.getByRole('complementary',{name:'Universe navigation'}),panel=page.getByRole('complementary',{name:'Events and sources'}),region=left.getByRole('combobox',{name:zh?'地区':'Region'});
  const count=panel.getByText(zh?'文档':'Documents',{exact:true}).locator('..').locator('strong');
  await region.selectOption('US');
@@ -980,7 +994,7 @@ for(const zh of [false,true])test('company selection scopes events and activity 
  await panel.getByRole('button',{name:zh?'近 7 天':'7 days',exact:true}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event prior/})).toBeVisible();
  await panel.getByRole('button',{name:/Company event mixed/}).click();const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Apple');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).toContainText('+20.00%');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).not.toContainText('+10.00%');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
  await card.getByRole('button',{name:'Close company details',exact:true}).click();await expect(count).toHaveText('5');await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();await expect(apple).toHaveAttribute('aria-pressed','false');
- await apple.click();await page.reload();if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
+ await apple.click();await page.reload();await revealWorkspaceFilters(page);await expect(apple).toHaveAttribute('aria-pressed','true');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
  await panel.getByRole('button',{name:zh?'清除公司事件筛选':'Clear company event filter'}).click();await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();
  await apple.click();await region.selectOption('CN_A');await expect(panel.getByRole('button',{name:zh?'清除公司事件筛选':'Clear company event filter'})).toHaveCount(0);await expect(panel.getByRole('button',{name:/Company event china/})).toBeVisible();await expect(panel.getByRole('button',{name:/Company event apple/})).toHaveCount(0);
  await region.selectOption('US');await left.getByRole('button',{name:/LITE.*Lumentum/}).click();await expect(page.getByLabel('Theme activity summary').getByRole('button',{name:/Documents|文档/}).locator('strong')).toHaveText('0');await expect(panel.getByRole('button',{name:/Company event /})).toHaveCount(0);
@@ -1003,11 +1017,12 @@ test('region selection rebuilds the real graph with only matching companies',asy
  expect(Math.abs(themeBox.y-regionBox.y)).toBeLessThan(4);expect(themeBox.x+themeBox.width).toBeLessThan(regionBox.x);
 });
 
-test('first phone visit starts in Graph and explicit list choices remain available',async({page})=>{
+test('first phone visit starts in Activity and explicit list links open Explore',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await open(page);
-  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
-  await expect(page.locator('[data-view="graph"]')).toHaveCount(1);
+  await expect(page.locator('main')).toHaveAttribute('data-mobile-screen','activity');
+  await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeVisible();
+  await expect(page.getByRole('region',{name:'Graph universe'})).toBeHidden();
   await page.goto('http://workspace.test/?view=table');
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
 });
@@ -1024,7 +1039,7 @@ test('news calendar icon links only confirmed schedules and does not select the 
   await expect(page).toHaveURL(/calendar\?date=2026-10-28&company=US%3AMU&event=scheduled_event_micron_release$/);
   // The fixture keeps Explore mounted on navigation; its calendar company
   // query can select MU, but clicking the icon must not activate the news.
-  await expect(page.getByRole('button',{name:/Published company update 1 /})).toHaveAttribute('aria-pressed','false');
+  await expect(page.getByRole('button',{name:/Published company update 1 /,includeHidden:true})).toHaveAttribute('aria-pressed','false');
 });
 
 test('committed theme changes restart real chart and tree tours without replacing the workspace',async({page},info)=>{
@@ -1089,7 +1104,7 @@ test('committed theme changes restart real chart and tree tours without replacin
   expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
 });
 for(const chinese of [false,true])test(`workspace view icons keep localized hints and keyboard navigation (${chinese?'Chinese':'English'})`,async({page})=>{
- await open(page,chinese);
+ await open(page,chinese);await exploreMobile(page);
  const tabs=page.getByRole('tablist',{name:chinese?'公司宇宙视图':'Universe views'});
  const names=chinese?['关系图谱','产业树','公司层级图','公司列表']:['Relationship graph','Industry tree','Company hierarchy','Company list'];
  const hints=chinese?['关系图','树状图','层级图','列表']:['Graph','Tree','Hierarchy','List'];
@@ -1171,7 +1186,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText('of 4 companies');
   await expect(selection).toHaveCount(0);
   await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();
-  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
+  await expect(page.locator('[data-industry-tree="hierarchy"]')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
   await expect(page.locator('[data-industry-tree="vertical"]')).toBeVisible();
@@ -1204,13 +1219,14 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await panel.getByRole('button',{name:'Today',exact:true}).click();await expect(panel.getByText('350',{exact:true})).toHaveCount(0);await expect(panel.getByText('No new events in the available records today.')).toBeVisible();
 });
 test('mobile workspace exposes saved companies and event details retain their Chinese labels',async({page},info)=>{
-  test.skip(info.project.name!=='mobile','Mobile workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await open(page,true);
+  test.skip(info.project.name!=='mobile','Mobile workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await open(page,true);await exploreMobile(page);
   const center=page.getByRole('region',{name:'Graph universe'});
   await expect(center.getByRole('combobox',{name:'投资主题',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();
   await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await center.getByRole('tab',{name:'关系图谱',exact:true}).click();
+  await page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/}).getByRole('button',{name:'动态',exact:true}).click();
   const panel=page.getByRole('complementary',{name:'Events and sources'});
   const eventRow=panel.getByRole('button',{name:/Published company update 1 /});
   await expect(eventRow.getByText('内存与存储',{exact:true})).toBeVisible();
@@ -1322,7 +1338,7 @@ test('detail follow confirms beside the click and shows Followed',async({page},i
 });
 
 
-test('graph company details float inside the graph and move independently of the event panel',async({page},info)=>{
+test('graph company details float inside the graph and move independently of the event panel',{tag:'@desktop-only'},async({page},info)=>{
   const mobile=info.project.name==='mobile';
   if(!mobile)await page.setViewportSize({width:1500,height:800});
   await open(page);
@@ -1415,7 +1431,7 @@ for(const chinese of [false,true])test('research connection descriptions follow 
  if(chinese)await expect(page.getByRole('link',{name:/Joint AI networking source|Untranslated English source/})).toHaveCount(0);
 });
 
-for(const view of ['graph','tree','hierarchy','table'])test(view+' event selection opens a separate window by the event row',async({page},info)=>{
+for(const view of ['graph','tree','hierarchy','table'])test(view+' event selection opens a separate window by the event row',{tag:'@desktop-only'},async({page},info)=>{
  await open(page);await page.goto('http://workspace.test/?view='+view);
  const panel=page.getByRole('complementary',{name:'Events and sources'}),row=panel.getByRole('button',{name:/Published company update 1 /}),details=page.getByRole('dialog',{name:'Event details',exact:true});
  await row.click();await expect(details).toBeVisible();await expect(details).toBeFocused();
@@ -1427,7 +1443,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(view+' event selecti
  await row.click();await expect(details).toBeVisible();await details.getByRole('button',{name:'Close event details',exact:true}).click();await expect(details).toHaveCount(0);
 });
 
-for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card at the chart top right',async({page})=>{
+for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card at the chart top right',{tag:'@desktop-only'},async({page})=>{
  await open(page);
  await page.goto('http://workspace.test/?view='+view);
  const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
@@ -1526,7 +1542,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  test('Explore compact timeline uses 1M, overlaid dated events and can close and reopen',async({page})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-01',close:100,volume:0},{date:'2026-10-02',close:102,volume:null}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toBeVisible();await expect(timeline).toContainText('2 stored daily bars');
@@ -1575,7 +1591,7 @@ test('timeline category symbols, count chooser and docked card retain all event 
  classified[0]={...classified[0],evidence:[...classified[0].evidence,{id:'second-reference',url:'https://example.com/second',title:'Second filing reference',sourceDate:'2026-10-02',channel:'SEC'}]};
  await open(page,false,{...snapshot,events:classified});
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]'),card=page.getByRole('region',{name:'Company details',exact:true});
  await expect(timeline.locator('[data-event-type="earnings"]')).toContainText('◆');
@@ -1615,7 +1631,7 @@ test('dense overlay keeps exact dates and every category accessible without grow
  const fixture:IntelligenceSnapshot={...snapshot,events:[...classified,{...classified[3],id:'next-day',title:'Next day event',publication_date:'2026-10-03',evidence:[{id:'next-source',url:'https://example.com/next',title:'Next reference',sourceDate:'2026-10-03',channel:'IR'}]}]};
  await open(page,false,fixture);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:Array.from({length:20},(_,i)=>({date:`2026-09-${String(i+11).padStart(2,'0')}`,close:100+Math.sin(i/4)*10+i,volume:100+i*15}))}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  await page.addStyleTag({content:"button{min-height:32px}"});const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('20 stored daily bars');
  const svg=timeline.locator('svg[role=img]');await expect(svg).toHaveAttribute('data-event-layout','overlay');
@@ -1634,7 +1650,7 @@ test('candles are default, line is optional and missing OHLC never creates candl
  const candleFixture={...snapshot,events:[...snapshot.events,{...snapshot.events[0],id:'wick-clearance',title:'Full wick clearance event',publication_date:'2026-09-29',eventType:'earnings' as const}]};
  await open(page,false,candleFixture);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',open:100,high:110,low:95,close:110,volume:10},{date:'2026-09-29',open:108,high:112,low:99,close:100,volume:20},{date:'2026-09-30',open:101,high:107,low:98,close:101,volume:30},{date:'2026-10-08',close:103,volume:0}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('4 stored daily bars');
  const svg=timeline.locator('svg[role=img]');await expect(svg).toHaveAttribute('data-chart-type','candles');await expect(timeline.getByRole('button',{name:'Candles',exact:true})).toHaveAttribute('aria-pressed','true');
@@ -1729,7 +1745,7 @@ for(const chinese of [false,true])test(`Explore text-to-search is quiet, ignores
  await page.keyboard.press('Enter');await expect(dialog).toHaveCount(0);await expect(page).toHaveURL(/company=US%3AMU/);
 });
 
-test('header and Explore entry points share one dialog and fullscreen gives the nested chart priority',async({page})=>{
+test('header and Explore entry points share one dialog and fullscreen gives the nested chart priority',{tag:'@desktop-only'},async({page})=>{
  const body=await workspaceFixture(false,snapshot,true,true);
  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().url().includes('/api/tickers/search')?route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
  await page.goto('http://workspace.test/?company=US%3AMU');
@@ -1774,14 +1790,14 @@ test('weekly feed loads ten items and requests one previous day without changing
   expect(olderRequests).toBe(1);
 });
 
-for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and role memberships (${zh?'Chinese':'English'})`,async({page})=>{
+for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and role memberships (${zh?'Chinese':'English'})`,{tag:'@desktop-only'},async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,nodes:[...snapshot.graph.nodes,
   {...snapshot.graph.nodes[0],id:'US:GOOGL',symbol:'GOOGL',name:'Alphabet',stageIds:['cloud']},
   {...snapshot.graph.nodes[0],id:'US:EDGE',symbol:'EDGE',name:'Edge devices',stageIds:['edge']},
   {...snapshot.graph.nodes[0],id:'US:ENERGY',symbol:'ENERGY',name:'Energy supplier',stageIds:['energy']},
  ]}};
  await open(page,zh,fixture);
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  await page.getByRole('tab',{name:zh?'公司列表':'Company list',exact:true}).click();
  const nav=page.getByRole('navigation',{name:zh?'AI 产业层级':'AI layers',exact:true});
  const list=page.getByRole('region',{name:zh?'公司列表':'Company list',exact:true});
@@ -1806,13 +1822,15 @@ test('hover price details follow the pointer and fullscreen uses the available h
  await page.setViewportSize({width:1440,height:900});
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',open:100,high:110,low:95,close:108,volume:10},{date:'2026-09-29',open:108,high:112,low:99,close:100,volume:20},{date:'2026-09-30',open:101,high:107,low:98,close:105,volume:30}]}}));
- if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await revealWorkspaceFilters(page);
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toContainText('3 stored daily bars');
  await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
  const svg=timeline.locator('svg[role=img]');
  await expect.poll(async()=>{const r=(await svg.boundingBox())!,sectors=await timeline.locator('[data-chart-sectors]').boundingBox(),controlsLocator=timeline.locator('[data-indicator-study-controls]'),controls=await controlsLocator.count()?await controlsLocator.boundingBox():null;return 900-r.y-r.height-(sectors?.height??0)-(controls?.height??0);}).toBeLessThan(90);
+ await expect.poll(async()=>Math.round((await timeline.locator('[data-chart-sectors]').boundingBox())!.height)).toBe(360);
+ await expect.poll(async()=>{const r=(await timeline.locator('[data-chart-sectors]').boundingBox())!;return r.y+r.height;}).toBeLessThanOrEqual(900);
  const hover=timeline.locator('[data-price-details][data-price-mode="hover"]');
  for(const date of ['2026-09-28','2026-09-30']){
   const candle=svg.locator(`[data-price-candle="${date}"] rect`);
@@ -1834,4 +1852,61 @@ test('hover price details follow the pointer and fullscreen uses the available h
  await expect(timeline.getByRole('button',{name:'Close price details'})).toBeVisible();
  const pinned=(await timeline.locator('[data-price-details]').boundingBox())!,plot=(await svg.boundingBox())!;
  expect(pinned.y-plot.y).toBeCloseTo(4,0);
+});
+
+test('mobile workspace switches independent activity explore and watchlist screens',async({page},info)=>{
+ await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.abort());
+ await page.goto('http://fixture.local/intelligence');
+ const navigation=page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/});
+ if(info.project.name==='desktop'){await expect(navigation).toBeHidden();await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeVisible();return;}
+ await expect(navigation).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeHidden();
+ await navigation.getByRole('button',{name:'Explore'}).click();
+ await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeHidden();
+ await navigation.getByRole('button',{name:'Watchlist'}).click();
+ await expect(page.getByRole('complementary',{name:'Universe navigation'})).toBeVisible();
+ await page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true}).click();
+ await expect(page.getByRole('button',{name:/^(Filters|筛选)$/,exact:true})).toHaveAttribute('aria-expanded','true');
+ await navigation.getByRole('button',{name:'Activity'}).click();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeVisible();
+ await page.screenshot({path:info.outputPath('mobile-activity.png'),fullPage:true});
+});
+
+for(const view of ['graph','tree','hierarchy','table'])test(`mobile ${view} company uses document flow and returns to its view`,async({page},info)=>{
+ test.skip(info.project.name!=='mobile');
+ await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.abort());
+ await page.goto(`http://fixture.local/intelligence?view=${view}&company=US%3AMU`);
+ await page.getByRole('navigation',{name:/^(Workspace navigation|工作区导航)$/}).getByRole('button',{name:'Explore'}).click();
+ const details=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(details).toBeVisible();
+ await expect(details).toHaveCSS('position','static');
+ await expect(details).toHaveCSS('max-height','none');
+ await expect(page.locator('[data-timeline-dock]')).toHaveCSS('max-height','none');
+ await page.locator('[data-company-timeline]').getByRole('button',{name:'Full screen',exact:true}).click();
+ await expect(page.locator('[data-company-timeline]')).toHaveAttribute('data-chart-size','full');
+ await page.keyboard.press('Escape');
+ await page.getByRole('button',{name:'Back to universe'}).click();
+ await expect(details).toBeHidden();
+ await expect(page.locator('[data-company-workspace]')).toHaveAttribute('data-company-view',view);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('wheel zoom at any pointer position stays anchored to the latest candle',async({page},info)=>{
+ test.skip(info.project.name!=='desktop');test.setTimeout(90000);await page.setViewportSize({width:1440,height:900});await open(page);
+ const prices=Array.from({length:28},(_,i)=>({date:`2026-09-${String(i+1).padStart(2,'0')}`,open:100+i,high:110+i,low:95+i,close:105+i,volume:100+i}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-01',end:'2026-10-01',currency:'USD',available:true,prices}}));
+ await page.goto('http://workspace.test/?company=US%3AMU&chartInterval=daily');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
+ const svg=timeline.locator('svg[role=img]'),candles=svg.locator('[data-price-candle]');await expect(candles).toHaveCount(28);
+ for(const ratio of [.1,.5,.9]){
+  await page.waitForTimeout(120);
+  const box=(await svg.boundingBox())!;await page.mouse.move(box.x+box.width*ratio,box.y+box.height*.45);await page.mouse.wheel(0,-120);
+  await expect(candles).toHaveCount(14);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
+  await page.waitForTimeout(120);await page.mouse.wheel(0,-120);await expect(candles).toHaveCount(7);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
+  await page.waitForTimeout(120);await page.mouse.wheel(0,120);await expect(candles).toHaveCount(14);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
+  await page.waitForTimeout(120);await page.mouse.wheel(0,120);await expect(candles).toHaveCount(28);
+ }
+ await svg.focus();await page.keyboard.press('ArrowUp');await expect(candles).toHaveCount(14);await page.keyboard.press('ArrowLeft');await expect(candles.last()).not.toHaveAttribute('data-price-candle','2026-09-28');await page.keyboard.press('ArrowUp');await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
 });
