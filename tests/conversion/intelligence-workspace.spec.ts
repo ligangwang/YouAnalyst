@@ -1813,6 +1813,8 @@ test('hover price details follow the pointer and fullscreen uses the available h
  await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
  const svg=timeline.locator('svg[role=img]');
  await expect.poll(async()=>{const r=(await svg.boundingBox())!,sectors=await timeline.locator('[data-chart-sectors]').boundingBox(),controlsLocator=timeline.locator('[data-indicator-study-controls]'),controls=await controlsLocator.count()?await controlsLocator.boundingBox():null;return 900-r.y-r.height-(sectors?.height??0)-(controls?.height??0);}).toBeLessThan(90);
+ await expect.poll(async()=>Math.round((await timeline.locator('[data-chart-sectors]').boundingBox())!.height)).toBe(360);
+ await expect.poll(async()=>{const r=(await timeline.locator('[data-chart-sectors]').boundingBox())!;return r.y+r.height;}).toBeLessThanOrEqual(900);
  const hover=timeline.locator('[data-price-details][data-price-mode="hover"]');
  for(const date of ['2026-09-28','2026-09-30']){
   const candle=svg.locator(`[data-price-candle="${date}"] rect`);
@@ -1868,4 +1870,21 @@ test('mobile selected company uses document flow instead of covering the univers
  await expect(page.locator('[data-timeline-dock]')).toHaveCSS('max-height','none');
  await page.getByRole('button',{name:'Back to universe'}).click();
  await expect(details).toBeHidden();
+});
+
+test('wheel zoom at any pointer position stays anchored to the latest candle',async({page},info)=>{
+ test.skip(info.project.name!=='desktop');test.setTimeout(90000);await page.setViewportSize({width:1440,height:900});await open(page);
+ const prices=Array.from({length:28},(_,i)=>({date:`2026-09-${String(i+1).padStart(2,'0')}`,open:100+i,high:110+i,low:95+i,close:105+i,volume:100+i}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-01',end:'2026-10-01',currency:'USD',available:true,prices}}));
+ await page.goto('http://workspace.test/?company=US%3AMU&chartInterval=daily');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
+ const svg=timeline.locator('svg[role=img]'),candles=svg.locator('[data-price-candle]');await expect(candles).toHaveCount(28);
+ for(const ratio of [.1,.5,.9]){
+  const box=(await svg.boundingBox())!;await page.mouse.move(box.x+box.width*ratio,box.y+box.height*.45);await page.mouse.wheel(0,-120);
+  await expect(candles).toHaveCount(14);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
+  await page.waitForTimeout(120);await page.mouse.wheel(0,-120);await expect(candles).toHaveCount(7);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
+  await page.waitForTimeout(120);await page.mouse.wheel(0,120);await expect(candles).toHaveCount(14);await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
+  await page.waitForTimeout(120);await page.mouse.wheel(0,120);await expect(candles).toHaveCount(28);
+ }
+ await svg.focus();await page.keyboard.press('ArrowUp');await expect(candles).toHaveCount(14);await page.keyboard.press('ArrowLeft');await expect(candles.last()).not.toHaveAttribute('data-price-candle','2026-09-28');await page.keyboard.press('ArrowUp');await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
 });

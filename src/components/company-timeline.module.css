@@ -91,3 +91,8 @@
 .timeline[data-chart-size=full] [data-chart-sectors]>:not([data-chart-review-rows]){flex-shrink:0}
 .timeline[data-chart-size=full] [data-chart-sectors]>[data-chart-review-rows]{flex:1 1 auto;min-height:0;max-height:none;overflow:auto;overscroll-behavior:contain}
 .timeline[data-chart-size=full] [data-chart-sectors] table thead th{z-index:1}
+
+/* Keep a useful sector overview alongside the full-screen price/volume chart. */
+@media(min-width:851px){
+ .timeline[data-chart-size=full] [data-chart-sectors]{height:clamp(280px,40dvh,460px);max-height:none;flex-shrink:0}
+}

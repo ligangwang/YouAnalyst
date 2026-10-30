@@ -2253,3 +2253,54 @@ test('hierarchy reset fits the available SVG while company details remain open',
  await expect.poll(()=>scene.locator('svg').evaluate(el=>{const box=(el as SVGSVGElement).viewBox.baseVal;return [...el.querySelectorAll('foreignObject')].filter(n=>n.querySelector('button')?.getAttribute('data-exiting')!=='true').every(n=>n.x.baseVal.value>=box.x&&n.y.baseVal.value>=box.y&&n.x.baseVal.value+220<=box.x+box.width&&n.y.baseVal.value+64<=box.y+box.height);})).toBe(true);
  await expect(page.getByRole('dialog',{name:'Company details'})).toBeVisible();
 });
+
+test('wheel zoom resumes tree orbit at the chosen distance',async({page,isMobile})=>{
+ test.skip(isMobile);test.setTimeout(90000);
+ await shortenIdleResume(page);
+ const fixture=treeFixture(['US:CEG','US:NVDA','US:GOOGL','US:AAPL']);
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const canvas=page.getByRole('region',{name:'Vertical tree',exact:true}).locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();await expect(canvas).toHaveAttribute('data-tour','playing');
+ await canvas.dispatchEvent('wheel',{deltaY:450,bubbles:true,cancelable:true});
+ await expect(canvas).toHaveAttribute('data-user-positioned','true');
+ await expect(canvas).toHaveAttribute('data-tour-phase','full-tree',{timeout:15000});
+ await expect(canvas).toHaveAttribute('data-tour','playing');
+ const sample=()=>canvas.evaluate(el=>{const p=el.getAttribute('data-camera-position')!.split(',').map(Number),t=el.getAttribute('data-camera-target')!.split(',').map(Number);return {p,t,r:Math.hypot(...p.map((v,i)=>v-t[i]))};});
+ await page.waitForTimeout(1500);const before=await sample();await page.waitForTimeout(600);const after=await sample();
+ expect(Math.hypot(...after.p.map((v,i)=>v-before.p[i]))).toBeGreaterThan(.01);
+ expect(Math.abs(after.r-before.r)).toBeLessThan(1);expect(after.t).toEqual(before.t);
+});
+
+test('starfield reveals only the hovered neighborhood and clears on exit',async({page,isMobile})=>{
+ test.skip(isMobile);test.setTimeout(90000);await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');const canvas=page.locator('canvas');await canvas.scrollIntoViewIfNeeded();
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+ await expect(page.locator('[data-company-id][data-visible="true"]')).toHaveCount(0);
+ const box=(await canvas.boundingBox())!,camera=new PerspectiveCamera(45,box.width/box.height,1,100000);
+ await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
+ camera.position.fromArray((await canvas.getAttribute('data-camera-position'))!.split(',').map(Number));camera.lookAt(new Vector3().fromArray((await canvas.getAttribute('data-camera-target'))!.split(',').map(Number)));camera.updateMatrixWorld();
+ const layout=layout3D(graph);let hovered='';
+ for(const n of layout.nodes){const p=new Vector3(n.x,n.y,n.z).project(camera);if(Math.abs(p.x)>.8||Math.abs(p.y)>.8)continue;await page.mouse.move(box.x+(p.x+1)*box.width/2,box.y+(1-p.y)*box.height/2);await page.waitForTimeout(150);if(await page.locator(`[data-company-id="${n.id}"][data-visible="true"]`).count()){hovered=n.id;break;}}
+ expect(hovered).not.toBe('');const neighbors=new Set([hovered,...layout.edges.filter(e=>e.source===hovered||e.target===hovered).flatMap(e=>[e.source,e.target])]);
+ const visible=await page.locator('[data-company-id][data-visible="true"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-company-id')!));expect(visible.every(id=>neighbors.has(id))).toBe(true);
+ await expect(page.locator('[data-company-id][data-visible="true"]>span')).toHaveCount(0);
+ await page.mouse.move(0,0);await expect(page.locator('[data-company-id][data-visible="true"]')).toHaveCount(0);
+});
+
+test('hierarchy uses one sector and a full page mobile company list',async({page,isMobile})=>{
+ test.setTimeout(90000);await navigationFixture(page,'hierarchy');
+ const chart=page.locator('[data-industry-section="hierarchy"]');
+ await chart.locator('[data-hierarchy-node="chips"]').click();
+ await expect(chart.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true');
+ await chart.locator('[data-hierarchy-node="chips/compute"]').click();
+ const companies=chart.getByRole('region',{name:'Sector companies'});await expect(companies).toBeVisible();
+ expect(await companies.locator('[data-tree-company]').count()).toBeGreaterThan(0);
+ if(isMobile){await expect(chart.getByRole('navigation',{name:'Industry sectors'})).toBeHidden();await expect(chart).toHaveCSS('overflow','visible');await chart.getByRole('button',{name:'Back',exact:false}).click();await expect(chart.getByRole('navigation',{name:'Sector categories'})).toBeVisible();await chart.getByRole('button',{name:'Back',exact:false}).click();}
+ await chart.locator('[data-hierarchy-node="energy"]').click();
+ await expect(chart.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','false');
+ await expect(chart.locator('[data-hierarchy-node="chips/compute"]')).toHaveCount(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:test.info().outputPath('hierarchy-browser.png'),fullPage:true});
+});

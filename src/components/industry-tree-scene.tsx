@@ -48,6 +48,7 @@ function Scene(props:TreeSceneProps){
   const presentation=useRef<ReturnType<typeof createTreePresentation>|null>(null);
   const controls=useRef<CameraControls>(null);
   const userPositioned=useRef(false);
+  const zoomOrbitPending=useRef(false);
   const overviewOrbit=useRef(false);
   const overviewElapsed=useRef(0);
   const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
@@ -66,10 +67,10 @@ function Scene(props:TreeSceneProps){
     if(!surface)return;
     const pointers=new Set<number>(),keys=new Set<string>(),starts=new Map<number,{x:number;y:number}>();
     const clear=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;resumeReady.current=false;};
-    const pause=()=>{overviewOrbit.current=false;tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
+    const pause=()=>{zoomOrbitPending.current=false;overviewOrbit.current=false;tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
     const schedule=()=>{
       clear();
-      if(pointers.size||keys.size||document.hidden||userPositioned.current)return;
+      if(pointers.size||keys.size||document.hidden||(userPositioned.current&&!zoomOrbitPending.current))return;
       idleTimer.current=setTimeout(()=>{idleTimer.current=null;resumeReady.current=true;invalidate();},TOUR_IDLE_RESUME_MS);
       invalidate();
     };
@@ -77,7 +78,7 @@ function Scene(props:TreeSceneProps){
     const down=(event:Event)=>{const e=event as PointerEvent;pointers.add(e.pointerId);if(e.target===gl.domElement)starts.set(e.pointerId,{x:e.clientX,y:e.clientY});pause();};
     const move=(event:PointerEvent)=>{const start=starts.get(event.pointerId);if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>4)userPositioned.current=true;};
     const up=(event:PointerEvent)=>{starts.delete(event.pointerId);if(pointers.delete(event.pointerId))schedule();};
-    const wheel=(event:Event)=>{if(event.target===gl.domElement)userPositioned.current=true;pause();schedule();};
+    const wheel=(event:Event)=>{const canvasWheel=event.target===gl.domElement;pause();if(canvasWheel){userPositioned.current=true;zoomOrbitPending.current=true;}schedule();};
     const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
     const keyup=(event:KeyboardEvent)=>{if(keys.delete(event.code))schedule();};
     const focus=()=>{pause();schedule();};
@@ -321,6 +322,12 @@ function Scene(props:TreeSceneProps){
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
     const touring=props.tour.current&&plan.length>0&&(!props.vertical||props.open.includes('root'))&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
+    // Wheel zoom chooses an orbit distance, rather than permanently parking the tree.
+    // Resume rotation only: never refit or overwrite the user's camera target/radius.
+    if(zoomOrbitPending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
+      zoomOrbitPending.current=false;resumePending.current=false;resumeReady.current=false;
+      overviewOrbit.current=true;overviewElapsed.current=0;moving=true;
+    }
     if(props.vertical&&props.open.includes('root')&&plan.length&&resumePending.current&&resumeReady.current&&!userPositioned.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
       const start={position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()};
       const previousLayer=flight.current?.destination()?.layer;
@@ -339,7 +346,7 @@ function Scene(props:TreeSceneProps){
     if(orbiting&&controls.current){
       const dt=tourDelta(delta,navigation.speed);overviewElapsed.current+=dt;
       // Fit tree keeps the complete canopy framed while orbiting at the same
-      // gentle pace as the universe. Interaction parks the user's chosen view.
+      // gentle pace as the universe, including a user-chosen wheel zoom distance.
       void controls.current.rotate(TOUR_MOTION.degreesPerSecond*Math.PI/180*dt*tourEase(Math.min(1,overviewElapsed.current/2)),0,false);
       moving=true;
     }

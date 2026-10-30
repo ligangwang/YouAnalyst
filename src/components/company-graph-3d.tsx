@@ -221,6 +221,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const [pointHovered, setPointHovered] = useState("");
   const [labelHovered, setLabelHovered] = useState("");
   const hovered = labelHovered || pointHovered;
+  const focusCompany=selected||hovered;
   const [hoveredEdge, setHoveredEdge] = useState("");
   const crowded=layout.nodes.length>300;
   const [renderedIds,setRenderedIds]=useState<string[]>([]);
@@ -230,7 +231,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // while keeping the star geometry mounted throughout the interaction.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
-  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, selected?"":pointHovered, intelligence)])), [layout, selected, activeEdge, showAllEdges, pointHovered, intelligence]);
+  useEffect(()=>{labelVisibility.current=new WeakMap();labelClearSince.current=new WeakMap();invalidate();},[focusCompany,invalidate]);
+  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, selected?"":hovered, intelligence)])), [layout, selected, activeEdge, showAllEdges, hovered, intelligence]);
   const renderedEdges=useMemo(()=>crowded?layout.edges.filter(edge=>(edgeTargets.get(edge.id)??0)>0 && (edge.id===activeEdge || edge.source===selected || edge.target===selected || edge.source===hovered || edge.target===hovered || intelligence?.edges.includes(edge.id) || renderedSet.has(edge.source) || renderedSet.has(edge.target))):layout.edges,[crowded,layout,edgeTargets,activeEdge,selected,hovered,intelligence,renderedSet]);
   const displayedEdge=((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "")||activeEdge;
   const hoveringEntity=Boolean(hovered || (hoveredEdge && (edgeTargets.get(hoveredEdge) ?? 0) > 0));
@@ -240,13 +242,14 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const sectorMembers = useMemo(() => new Set(layout.nodes.filter(n => companySector(n).id === sectorFocus).map(n => n.id)), [layout, sectorFocus]);
   const sectorConnected = useMemo(() => new Set(layout.edges.filter(e => sectorMembers.has(e.source) || sectorMembers.has(e.target)).flatMap(e => [e.source, e.target])), [layout, sectorMembers]);
   const connected = useMemo(() => new Set(layout.edges.filter(e => e.source === selected || e.target === selected).flatMap(e => [e.source, e.target])), [layout, selected]);
+  const focusNeighbors=useMemo(()=>new Set(layout.edges.filter(edge=>edge.source===focusCompany||edge.target===focusCompany).flatMap(edge=>[edge.source,edge.target])),[layout,focusCompany]);
   const isBackgroundEdge = (edge: { id: string; source: string; target: string }) =>
     edge.id !== displayedEdge && (selected
       ? edge.source !== selected && edge.target !== selected
       : Boolean(sectorFocus) && !sectorMembers.has(edge.source) && !sectorMembers.has(edge.target));
   const focusedCompanies = useMemo(()=>companyFocus ? new Set(companyFocus) : undefined,[companyFocus]);
   useEffect(()=>{densityLast.current=-Infinity;invalidate();},[layout,selected,hovered,sectorFocus,focusedCompanies,edgeEndpoints,invalidate]);
-  const pointTargets = useMemo(() => layout.nodes.map(n => crowded && !renderedSet.has(n.id) && n.id!==selected && n.id!==hovered ? 0 : focusedCompanies && !focusedCompanies.has(n.id) ? .12 : selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints, focusedCompanies,crowded,renderedSet]);
+  const pointTargets = useMemo(() => layout.nodes.map(n => crowded && !renderedSet.has(n.id) && n.id!==selected && n.id!==hovered ? 0 : focusedCompanies && !focusedCompanies.has(n.id) ? .12 : selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : focusCompany ? n.id===focusCompany || edgeEndpoints.has(n.id) ? 2 : focusNeighbors.has(n.id) ? 1 : .12 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, focusCompany, focusNeighbors, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints, focusedCompanies,crowded,renderedSet]);
   useEffect(()=>{invalidate();},[pointTargets,invalidate]);
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
@@ -638,6 +641,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
           }
         } else labelClearSince.current.delete(element);
       }
+      if(!eligible)visible=false;
       if(companyGap!==undefined)labelVisibility.current.set(element,visible);
       // An intentional hover may reveal this name without altering the saved layout.
       // Keep the pointer target present throughout hover, including the initial
@@ -747,7 +751,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       const enlarged=n.id===selected || edgeEndpoints.has(n.id) || (!selected && sectorMembers.has(n.id));
       const pointDiameter=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*(enlarged?1.5:1);
       const gap=pointDiameter/(2*gl.getPixelRatio())+3;
-      if(place(element,n.x,n.y,n.z,true,width,height,gap,n.id===hovered)){shown++;visibleCompanies.add(n.id);}
+      if(place(element,n.x,n.y,n.z,Boolean(focusCompany)&&(n.id===focusCompany||focusNeighbors.has(n.id))||edgeEndpoints.has(n.id),width,height,gap,n.id===focusCompany)){shown++;visibleCompanies.add(n.id);}
       if(shown===1&&!edgesPlaced){placeEdges(true);placeEdges();edgesPlaced=true;}
     }
     placeEdges(true);
@@ -773,7 +777,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     </group>)}
     <Html onOcclude={()=>{}} calculatePosition={overlayPosition} zIndexRange={[20,20]} style={{pointerEvents:"none"}}>
       {edgeLabels.map(edge=><div key={edge.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={el=>registerLabel(edgeElements.current,edge.id,el)} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} data-displayed={edge.id===displayedEdge} data-relationship-id={edge.id} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${relationshipSummary(edge,locale)}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{edge.id===displayedEdge?<><strong>{edge.from} {edge.directional?'→':'↔'} {edge.to} · {text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</strong><small>{relationshipSummary(edge,locale)}</small></>:text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></div></div>)}
-      {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n=><div key={n.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={element=>registerLabel(labelElements.current,n.id,element)} className={styles.label3d} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></button></div></div>)}
+      {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n=><div key={n.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={element=>registerLabel(labelElements.current,n.id,element)} className={styles.label3d} data-visible="false" aria-hidden="true" tabIndex={-1} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong>{n.id===selected&&<><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></>}</button></div></div>)}
     </Html>
   </>;
 }
