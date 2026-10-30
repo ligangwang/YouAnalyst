@@ -128,3 +128,20 @@ test("loads only stored prices/actions and uses the same chart mapper", async ()
   assert.ok(Math.abs(data.series[0].values[1]-10)<1e-10);
   assert.deepEqual([...new Set(collections)].sort(),["corporate_actions","eod_prices"]);
 });
+
+test('coverage errors return 422 while infrastructure errors remain redacted 503 responses', async()=>{
+ const {ComparisonCoverageError,comparisonErrorResponse}=await import('../src/lib/compare-error');
+ let coverage:unknown;
+ try{buildComparison([{symbol:'YPF',points:[]}],config);}catch(error){coverage=error;}
+ assert(coverage instanceof ComparisonCoverageError);
+ const response=comparisonErrorResponse(coverage);
+ assert.equal(response.status,422);assert.match((await response.json()).error,/two shared trading days/);
+ for(const failure of [new Error('private project token'),new Error('Not enough stored price history private details'),null]){
+  const result=comparisonErrorResponse(failure);assert.equal(result.status,503);
+  assert.deepEqual(await result.json(),{error:'Unable to load stored price history. Please try again.'});
+ }
+ const db={collection(){const query={where(){return query;},orderBy(){return query;},limit(){return query;},get:async()=>({docs:[]})};return query;}} as unknown as Firestore;
+ await assert.rejects(loadStockComparison(db,{...config,symbols:['YPF']}),error=>{
+  assert(error instanceof ComparisonCoverageError);assert.equal(comparisonErrorResponse(error).status,422);return true;
+ });
+});

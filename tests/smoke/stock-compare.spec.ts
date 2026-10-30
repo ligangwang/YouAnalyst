@@ -88,7 +88,7 @@ test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({
   await expect(page.getByRole("img",{name:"Animated stock price return comparison"})).not.toContainText("INTC");
 });
 test("coverage failures can be retried and no chart is fabricated", async ({ page }) => {
-  await page.route("**/api/compare?*",route=>route.fulfill({status:503,json:{error:"Not enough stored price history for NVDA in this period."}}));
+  await page.route("**/api/compare?*",route=>route.fulfill({status:422,json:{error:"Not enough stored price history for NVDA in this period."}}));
   await page.goto("/en/compare?"+query);
   await expect(page.locator("main").getByRole("alert")).toContainText("Not enough stored price history");
   await expect(page.getByRole("button",{name:"Share",exact:true})).toBeDisabled();

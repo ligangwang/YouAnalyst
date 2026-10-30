@@ -4,22 +4,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {Readable} from 'node:stream';
+import {gzipSync,gunzipSync} from 'node:zlib';
 import {Timestamp} from 'firebase-admin/firestore';
 import type {Bucket} from '@google-cloud/storage';
 import {sqliteSnapshotFiles} from '../../src/lib/entity-snapshots/sqlite-storage';
 import {collections,syncCollection,type Source,type Row} from '../../src/lib/entity-snapshots/sync';
 function bucketFixture(){
- const objects=new Map<string,{generation:string;bytes:Buffer}>();let sequence=0,fail=false;
+ const objects=new Map<string,{generation:string;bytes:Buffer;gzip?:boolean}>();let sequence=0,fail=false;
  const names:string[]=[];
  const bucket={file:(name:string,options?:{generation:string})=>{
   names.push(name);const selected=objects.get(name);
-  return {name,download:async()=>[selected!.bytes],save:async(bytes:string,opts:{preconditionOpts:{ifGenerationMatch:string}})=>{if((objects.get(name)?.generation??'0')!==opts.preconditionOpts.ifGenerationMatch)throw Error('precondition');objects.set(name,{generation:String(++sequence),bytes:Buffer.from(bytes)});},getMetadata:async()=>{if(!selected)throw Object.assign(Error('missing'),{code:404});return [{generation:selected.generation}];},
-   createReadStream:()=>{assert.equal(options?.generation,selected?.generation);return Readable.from(selected!.bytes);}};
- },upload:async(path:string,options:{destination:string;preconditionOpts:{ifGenerationMatch:string}})=>{
+  return {name,download:async()=>[selected!.bytes],save:async(bytes:string,opts:{preconditionOpts:{ifGenerationMatch:string}})=>{if((objects.get(name)?.generation??'0')!==opts.preconditionOpts.ifGenerationMatch)throw Error('precondition');objects.set(name,{generation:String(++sequence),bytes:Buffer.from(bytes)});},getMetadata:async()=>{if(!selected)throw Object.assign(Error('missing'),{code:404});return [{generation:selected.generation,contentEncoding:selected.gzip?'gzip':undefined}];},
+   createReadStream:(readOptions?:{decompress?:boolean})=>{assert.equal(options?.generation,selected?.generation);return Readable.from(selected!.gzip&&readOptions?.decompress!==false?gunzipSync(selected!.bytes):selected!.bytes);}};
+ },upload:async(path:string,options:{destination:string;gzip?:boolean;preconditionOpts:{ifGenerationMatch:string}})=>{
   if(fail)throw Error('upload failed');
   const previous=objects.get(options.destination);
   if((previous?.generation??'0')!==options.preconditionOpts.ifGenerationMatch)throw Object.assign(Error('precondition'),{code:412});
-  objects.set(options.destination,{generation:String(++sequence),bytes:await readFile(path)});
+  const bytes=await readFile(path);
+  objects.set(options.destination,{generation:String(++sequence),bytes:options.gzip?gzipSync(bytes):bytes,gzip:options.gzip});
  }} as unknown as Bucket;
  return {bucket,objects,names,fail:(value=true)=>{fail=value;}};
 }
@@ -30,6 +32,7 @@ for(const collection of collections)test(`${collection}: SQLite-only initial, in
  const source:Source={boundary:async()=>new Timestamp(time,0),rows:async(name,since)=>{assert.equal(name,collection);boundaries.push(since?.seconds);return changes;}};
  try{
   assert.equal((await syncCollection(collection,source,files)).initial,true);
+  assert.equal(fixture.objects.get(`entity-snapshots/${collection}.sqlite`)?.gzip,true);
   await files.close();files=sqliteSnapshotFiles(fixture.bucket);
   time=20;changes=[{id:'one',data:{name:'Updated',updatedAt:new Timestamp(19,0)}},{id:'three',data:{name:'Added',updatedAt:new Timestamp(19,0)}}];
   await syncCollection(collection,source,files);
@@ -125,4 +128,18 @@ test('price file loads remain readable after their SQLite reader is closed',asyn
  assert.equal(rows!.get('US_AMD_2026-01-02')!.updatedAt.nanoseconds,345);
  assert.equal(rows!.watermark!.nanoseconds,345);assert.equal(logs[0].rowsDecoded,1);
  await files.close();
+});
+
+test('compressed snapshots stream into readers with exact transfer accounting and reject truncated gzip',async()=>{
+ const f=bucketFixture(),files=sqliteSnapshotFiles(f.bucket);
+ try{
+  await files.save('companies',{version:1,collection:'companies',watermark:new Timestamp(10,123),rows:[{id:'US:A',data:{name:'Alpha',onboarding:{status:'SUPPORTED'}}}]},'0');
+  const object=f.objects.get('entity-snapshots/companies.sqlite')!;
+  const logs:Record<string,unknown>[]=[];
+  const rows=await loadEntitySqlite(f.bucket,'cold',entry=>logs.push(entry));
+  assert.equal(rows?.get('US:A')?.name,'Alpha');assert.equal(rows?.watermark?.nanoseconds,123);
+  assert.equal(logs[0].bytesDownloaded,object.bytes.length);assert.equal(logs[0].encoding,'gzip');
+  object.bytes=object.bytes.subarray(0,object.bytes.length-8);
+  await assert.rejects(loadEntitySqlite(f.bucket,'cold',()=>{}));
+ }finally{await files.close();}
 });

@@ -41,7 +41,9 @@ export function sqliteSnapshotFiles(bucket:Bucket,objectFor:(collection:Collecti
     builder=entitySqliteBuilder(path,collection);
     for(const row of snapshot.rows)builder.add(row);
     builder.finish(snapshot.watermark);
-    await bucket.upload(path,{destination:objectFor(collection),resumable:false,
+    // GCS streams transparently decompress this representation for old readers.
+    // Keep the same object, generation precondition, bytes and SQLite watermark.
+    await bucket.upload(path,{destination:objectFor(collection),resumable:false,gzip:true,
      metadata:{contentType:'application/vnd.sqlite3',cacheControl:'private, no-cache'},preconditionOpts:{ifGenerationMatch:generation}});
     await release(collection);
    }finally{builder?.close();await rm(directory,{recursive:true,force:true});}

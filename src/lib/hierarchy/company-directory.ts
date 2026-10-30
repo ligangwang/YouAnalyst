@@ -44,7 +44,9 @@ export async function* hierarchyCompanyRows(db:Firestore,kind:BrowseKind,nodes:H
     // Yield even while scanning unsupported rows, retaining a consistent shared
     // directory generation while updates publish a replacement map.
     let count=0;
-    for(const [id,row] of rows){
+    const candidates=rows.candidateIds?.('onboarding.status','==','SUPPORTED');
+    const selected=candidates?function*(){for(const id of candidates){const row=rows.get(id);if(row)yield [id,row] as const;}}():rows;
+    for(const [id,row] of selected){
       if(count++%BATCH_SIZE===0)await pause();
       if(isSupportedCompany(row))yield project(id,row,fields);
     }

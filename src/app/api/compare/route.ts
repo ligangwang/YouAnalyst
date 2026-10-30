@@ -3,6 +3,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { type CompareConfig } from "@/lib/compare";
 import { validatePlaybackConfig } from "@/lib/ui/compare-range";
 import { loadStockComparison } from "@/lib/compare-service";
+import { comparisonErrorResponse } from "@/lib/compare-error";
 
 export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
@@ -16,9 +17,6 @@ export async function GET(request: NextRequest) {
   try {
     return Response.json(await loadStockComparison(getAdminFirestore(), config), { headers: { "Cache-Control": "no-cache" } });
   } catch (error) {
-    // Infrastructure errors may contain project details; only expose known coverage errors.
-    const message = error instanceof Error && /^(Not enough stored price history|These stocks need)/.test(error.message)
-      ? error.message : "Unable to load stored price history. Please try again.";
-    return Response.json({ error: message }, { status: 503 });
+    return comparisonErrorResponse(error);
   }
 }
