@@ -16,7 +16,6 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CompanyFundamentalsLoader } from "@/components/company-fundamentals-loader";
 import { CompanyPeerComparisonLoader } from '@/components/company-peer-comparison-loader';
-import { loadPeerComparison } from '@/lib/peer-comparison/service';
 import { TickerPage } from "@/components/ticker-page";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -122,8 +121,6 @@ export async function CompanyTickerContent({ params, resolved, pendingFundamenta
   // Observe rejection while the financial component waits for its boundary.
   void fundamentals.catch(()=>undefined);
   const company = await loadCompanyResearch(ticker,resolved);
-  const comparison=timeCompanyPhase('peer_comparison',()=>loadPeerComparison(`US:${ticker}`,{company:resolved?.data,aiEligible:company.graphAvailable ? company.inMap : undefined}));
-  void comparison.catch(()=>undefined);
   const [canonicalPath,earningsSummary,announcements]=await Promise.all([
     resolved?.path ?? canonicalCompanyPath(`US:${ticker}`),company.inMap?loadCompanyEarnings(`US:${ticker}`):null,
     company.inMap?loadCompanyAnnouncements(`US:${ticker}`):[],
@@ -148,7 +145,7 @@ export async function CompanyTickerContent({ params, resolved, pendingFundamenta
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} pending={fundamentals} />
       </Suspense>
-    } comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={`US:${ticker}`} pending={comparison}/></Suspense>} />} />
+    } comparison={<CompanyPeerComparisonLoader companyId={`US:${ticker}`}/>} />} />
   </>;
 }
 

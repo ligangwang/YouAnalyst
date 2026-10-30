@@ -51,6 +51,10 @@ if [[ "$target" == production ]]; then
   fi
 fi
 build_started=$SECONDS
+# Carry forward immutable browser assets before building the replacement. Never
+# remove old chunks while an open page can still request them; no runtime proxy.
+previous_web_images="$(node scripts/previous-web-image.mjs "$project_id" "$region" "$service_name")"
+read -r previous_web_image retained_web_image <<< "$previous_web_images"
 image_tag="${region}-docker.pkg.dev/${project_id}/ifindata/ifindata-web:${GIT_SHA:-local}"
 dockerfile="Dockerfile"
 source_dir="."
@@ -90,7 +94,7 @@ build_submit_args=(
 )
 
 # Keep the existing source-build path for manual deployments.
-build_submit_args[5]+=",_DOCKERFILE=$dockerfile"
+build_submit_args[5]+=",_DOCKERFILE=$dockerfile,_PREVIOUS_WEB_IMAGE=$previous_web_image,_RETAINED_WEB_IMAGE=$retained_web_image"
 
 if [[ -n "${CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR:-}" ]]; then
   build_submit_args+=(--default-buckets-behavior "$CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR")

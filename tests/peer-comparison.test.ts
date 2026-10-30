@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {PeerStructureCache} from '../src/lib/peer-comparison/structure-cache';
 import {buildPeerComparison,peerGroup} from '../src/lib/peer-comparison/model';
 import type {GraphNode} from '../src/lib/knowledge-graph/model';
 import {findPeerThemeGroup} from '../src/lib/peer-comparison/theme-group';
@@ -144,4 +145,64 @@ test('price endpoint rejects oversized requests before loading and never publicl
  assert.equal((await GET(new Request('https://example.test/api?company=US:A&'+Array.from({length:14},(_,i)=>`peer=US:P${i}`).join('&')))).status,400);assert.equal(calls,0);
  const response=await GET(new Request('https://example.test/api?company=US:A&peer=US:B'));
  assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');assert.deepEqual(await response.json(),{panel:null});assert.equal(calls,1);
+});
+
+test('peer structures coalesce readers and reject stale completion after a source update',async()=>{
+ const cache=new PeerStructureCache<number>();let version='1',builds=0,release!:(value:number)=>void;
+ const first=()=>cache.load('ai',()=>version,()=>{builds++;return new Promise<number>(resolve=>{release=resolve;});});
+ const a=first(),b=first();assert.equal(a,b);await Promise.resolve();assert.equal(builds,1);
+ version='2';assert.equal(await cache.load('ai',()=>version,async()=>2),2);
+ release(1);assert.equal(await a,1);assert.equal(await b,1);
+ assert.equal(await cache.load('ai',()=>version,async()=>99),2,'older completion cannot overwrite newer generation');
+ version='3';assert.equal(await cache.load('ai',()=>version,async()=>3),3);
+});
+
+test('peer cache retries failed/mid-build generations, expires deterministically and bounds retained data',async()=>{
+ let version='a',time=0,builds=0;
+ const cache=new PeerStructureCache<number>(2,100,()=>time);
+ await assert.rejects(cache.load('ai',()=>version,async()=>{throw Error('unavailable');}));
+ assert.equal(await cache.load('ai',()=>version,async()=>{version='b';return 1;}),1);
+ assert.equal(await cache.load('ai',()=>version,async()=>{builds++;return 2;}),2);
+ assert.equal(await cache.load('ai',()=>version,async()=>99),2);
+ time=60000;assert.equal(await cache.load('ai',()=>version,async()=>{builds++;return 3;}),3);assert.equal(builds,2);
+ await cache.load('space',()=>version,async()=>4);await cache.load('robotics',()=>version,async()=>5);
+ assert.equal(await cache.load('ai',()=>version,async()=>6),6,'least recently used graph is evicted');
+ const tiny=new PeerStructureCache<string>(8,5);
+ await tiny.load('ai',()=>version,async()=>'oversized');
+ assert.equal(await tiny.load('ai',()=>version,async()=>'new'),'new','oversized graphs are not retained');
+});
+
+test('financial comparison endpoint validates before work, requests no prices, and redacts failures',async()=>{
+ const {build}=await import('esbuild');let calls=0,fail=false;
+ const bundle=await build({entryPoints:['src/app/api/company-peer-comparison/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'mock',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}}]});
+ const evaluated={exports:{}};
+ new Function('require','module','exports',bundle.outputFiles[0].text)(()=>({loadPeerComparison:async(company:string,options:{signal:AbortSignal;strict:boolean;priceIds?:string[]})=>{
+  calls++;assert.equal(company,'US:A');assert.equal(options.priceIds,undefined);assert.equal(options.strict,true);assert(options.signal instanceof AbortSignal);if(fail)throw Error('private backend details');return null;
+ }}),evaluated,evaluated.exports);
+ const {GET}=evaluated.exports as {GET:(request:Request)=>Promise<Response>};
+ assert.equal((await GET(new Request('https://test/api?company=bad'))).status,400);assert.equal(calls,0);
+ const response=await GET(new Request('https://test/api?company=US:A'));
+ assert.equal(response.headers.get('Cache-Control'),'no-store');assert.deepEqual(await response.json(),{data:null});
+ fail=true;const error=await GET(new Request('https://test/api?company=US:A'));
+ assert.equal(error.status,503);assert.equal(error.headers.get('Cache-Control'),'no-store');assert(!JSON.stringify(await error.json()).includes('private'));
+});
+
+test('peer structure integration reuses graph work and invalidates both push and projected-file generations',async()=>{
+ const {build}=await import('esbuild');
+ const bundle=await build({entryPoints:['src/lib/peer-comparison/structure.ts'],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'sources',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}}]});
+ let push=1,file=1,builds=0,name='Before';const db={};
+ const evaluated={exports:{}};
+ new Function('require','module','exports',bundle.outputFiles[0].text)((id:string)=>{
+  if(id==='./structure-cache')return {PeerStructureCache};
+  if(id.endsWith('/entities'))return {localEntityVersions:()=>({companies:push,company_relationships:push})};
+  if(id.endsWith('/company-directory'))return {companyDirectoryVersion:()=>file};
+  if(id.endsWith('/graph-service'))return {loadThemeGraphStructure:async()=>{builds++;return {nodes:[{...node('US:A'),name}],relationships:[{large:'unused'}],sources:[{large:'unused'}],asOf:''};}};
+  throw Error(id);
+ },evaluated,evaluated.exports);
+ const {loadPeerStructure}=evaluated.exports as {loadPeerStructure:(db:object,theme:string)=>Promise<{nodes:GraphNode[];relationships:unknown[];sources:unknown[]}>};
+ const first=await Promise.all(Array.from({length:100},()=>loadPeerStructure(db,'ai')));
+ assert.equal(builds,1);assert.equal(first[0],first[99]);assert.deepEqual(first[0].relationships,[]);assert.deepEqual(first[0].sources,[]);
+ name='Push correction';push++;assert.equal((await loadPeerStructure(db,'ai')).nodes[0].name,name);assert.equal(builds,2);
+ name='File correction';file++;assert.equal((await loadPeerStructure(db,'ai')).nodes[0].name,name);assert.equal(builds,3);
+ assert.equal(first[0].nodes[0].name,'Before','existing readers keep their immutable generation');
 });

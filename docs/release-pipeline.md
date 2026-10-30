@@ -23,6 +23,23 @@ unauthenticated private API. The manifest is written only after these checks
 pass. The deployment script rejects a missing, stale, or wrong-environment
 manifest. Cloud Build receives only this runtime directory and packages it
 using `Dockerfile.release`; it does not install dependencies or compile again.
+
+Before building a replacement, `deploy-cloud-run.sh` pins the serving image by
+digest and finds the most recent older revision with a retention tag. Both Docker
+paths copy those images' `.next/static` directories before overlaying the new
+release's assets. This bootstraps pages open from the preceding rollout and carries
+the asset history forward in subsequent images, so delayed JavaScript/CSS requests
+continue to work after traffic moves. Only static browser assets are inherited;
+old server code, public files, and credentials are not copied. Current assets win
+on a matching path. The commit is also Next.js's deployment ID so navigation across
+versions can reload consistently.
+
+Direct Cloud Build invocations against an existing service must supply
+`_PREVIOUS_WEB_IMAGE` and `_RETAINED_WEB_IMAGE` from `previous-web-image.mjs`.
+The `empty-assets` defaults are only for a first deployment with no predecessor.
+Do not prune inherited chunks without a separate policy for old open pages.
+This deliberately trades growing image storage for continued asset availability.
+CI runs the actual runner-layer retention test with `TEST_ASSET_IMAGES=1`.
 The existing full source Dockerfile remains available for manual deployments.
 
 Both the builder and runtime use Linux x64 Node 20 with glibc. Changes to Node,

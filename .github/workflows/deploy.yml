@@ -122,6 +122,8 @@ jobs:
 
       - name: Verify app
         if: steps.application-coverage.outputs.covered != 'true'
+        env:
+          TEST_ASSET_IMAGES: '1'
         run: |
           node scripts/check-build-secret-isolation.mjs
           npm run verify:checks

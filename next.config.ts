@@ -15,6 +15,7 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
+  deploymentId: process.env.GIT_SHA,
   // Loading every API/page entry after readiness competes with the first
   // visitors on Cloud Run. Load only the entries those visitors actually use.
   experimental: { preloadEntriesOnStart: false },
