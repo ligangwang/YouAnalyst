@@ -10,7 +10,7 @@ test.beforeAll(async()=>{
    `const themes=['ai','robotics'];export function useThemeCatalog(){return {themes,nodes:[]}}`}));
  }};
  prediction=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CreatePredictionPage} from './src/components/create-prediction-page';function App(){const [signed,setSigned]=React.useState(false);window.signedIn=signed;return <><button onClick={()=>setSigned(!signed)}>Toggle sign in</button><CreatePredictionPage requestedTicker='AMD'/></>}createRoot(document.getElementById('root')).render(<App/>);`,{plugins:[mocks],alias:{'next/link':path.resolve('tests/industry/link.tsx'),'next/navigation':path.resolve('tests/conversion/fixtures/mocks.tsx')}});
- timeline=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';createRoot(document.getElementById('root')).render(<><h1>Overview</h1><div style={{height:3000}}/><CompanyTimeline companyId='US:AMD'/></>);`,{plugins:[mocks],alias:{'next/link':path.resolve('tests/industry/link.tsx'),'next/navigation':path.resolve('tests/conversion/fixtures/mocks.tsx')}});
+ timeline=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';function App(){const [closed,setClosed]=React.useState(false);return <><h1>Overview</h1><button onClick={()=>setClosed(!closed)}>Toggle chart</button><div style={{height:3000}}/><CompanyTimeline companyId='US:AMD' closed={closed}/></>}createRoot(document.getElementById('root')).render(<App/>);`,{plugins:[mocks],alias:{'next/link':path.resolve('tests/industry/link.tsx'),'next/navigation':path.resolve('tests/conversion/fixtures/mocks.tsx')}});
 });
 test('anonymous publishing does not fetch graphs; signed-in coverage is sequential and stops on sign out',async({page})=>{
  const calls:string[]=[];let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
@@ -34,7 +34,10 @@ test('company timeline requests the full graph only when the chart is visible',a
   return route.fulfill({contentType:'text/html',body:timeline});
  });
  await page.goto('http://demand.test');await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();expect(graphs).toEqual([]);
+ await page.getByRole('button',{name:'Toggle chart',exact:true}).click();await expect(page.getByRole('button',{name:'Show timeline',exact:true})).toBeAttached();
+ await page.getByRole('button',{name:'Toggle chart',exact:true}).click();expect(graphs).toEqual([]);
  await page.getByLabel('Price history range').scrollIntoViewIfNeeded();await expect.poll(()=>graphs.length).toBe(1);
  await page.getByRole('heading',{name:'Overview'}).scrollIntoViewIfNeeded();await page.getByLabel('Price history range').scrollIntoViewIfNeeded();expect(graphs).toHaveLength(1);
 });
+
 

@@ -112,7 +112,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const hoverOnly=priceSelection?.companyId!==companyId&&hoverPrice?.companyId===companyId;
   const [width, setWidth] = useState(600);
   const chart=useRef<HTMLDivElement>(null);
-  const chartVisible=useVisibleDemand(chart);
+  const chartVisible=useVisibleDemand(chart,!closed);
   const priceTooltip = useRef<HTMLDivElement>(null);
   const hoverPoint = useRef<{x:number;y:number}|null>(null);
   const [fullChartHeight,setFullChartHeight] = useState(0);
@@ -508,4 +508,5 @@ export function CompanyResearchTimeline({ company, graph, initialPrices }: { com
   const onPriceHistoryChange = useCallback((available: boolean) => setHistory({ companyId: company.id, available }), [company.id]);
   return <div className={styles.pageResearch} hidden={history.companyId !== company.id || !history.available}><CompanySnapshot company={company} profileLink={false} showHeading={false} /><CompanyTimeline companyId={company.id} graph={graph} initialPrices={initialPrices} onPriceHistoryChange={onPriceHistoryChange} /></div>;
 }
+
 
