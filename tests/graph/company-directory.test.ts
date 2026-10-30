@@ -138,3 +138,19 @@ test('concurrent view refresh and committed updates preserve immutable generatio
  assert.equal(current.get('A')!.name,'Committed');assert.equal(old.get('A')!.name,'Old');
  assert.equal(current.get('A')!.searchPrefixes,undefined);assert.equal(reads,1);
 });
+
+test('large unindexed queries yield before completion and retain their original generation',async()=>{
+ const rows=new Map(Array.from({length:1024},(_,i)=>[String(i).padStart(4,'0'),{name:'Old',rank:i,eligible:i%2===0}]));
+ const sdk=new Firestore({projectId:'test-cooperative-scan'}),db=observeFirestore(sdk,()=>{});
+ const raw={collection:()=>({doc:(id:string)=>({id})}),getAll:async()=>[{id:'1000',exists:true,data:()=>({name:'New',rank:1000,eligible:true})}]} as unknown as Firestore;
+ enableCompanyDirectory(db,raw,{sync:false,file:async()=>rows});await companyDirectory(db);
+ let finished=false;
+ const pending=db.collection('companies').where('eligible','==',true).orderBy('rank').select('name','rank').get().then(result=>{finished=true;return result;});
+ await new Promise<void>(resolve=>setImmediate(resolve));
+ assert.equal(finished,false,'an unrelated request runs before the large scan finishes');
+ await refreshCompanyDirectoryIds(db,['1000']);
+ const result=await pending;
+ assert.equal(result.size,512);assert.equal(result.docs.find(doc=>doc.id==='1000')!.get('name'),'Old');
+ assert.deepEqual(result.docs.map(doc=>doc.get('rank')),Array.from({length:512},(_,i)=>i*2));
+ assert.equal((await db.collection('companies').doc('1000').get()).get('name'),'New');
+});

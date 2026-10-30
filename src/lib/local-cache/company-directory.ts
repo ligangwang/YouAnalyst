@@ -1,3 +1,4 @@
+import {setImmediate as yieldToRequests} from 'node:timers/promises';
 import {COMPANY_VIEW_OBJECT,companyViewData,isCompanyViewField} from '../entity-snapshots/company-view';
 import {pricePlan,priceRows,refreshPriceIds,type PriceOptions} from './price-directory';
 import {syncEntityChanges,type EntitySync,type EntityChange} from './entity-sync';
@@ -187,7 +188,7 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
   &&projection.args.every(arg=>isCompanyViewField(fieldName(arg)))
   &&spec.steps.filter(step=>['where','orderBy'].includes(step.method)).every(step=>isCompanyViewField(fieldName(step.args[0])));
  // Small peer comparisons share the same file + watermark delta path as charts.
- return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection,view)).then(rows=>{
+ return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection,view)).then(async rows=>{
   if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data,spec.collection);}
   const filters=spec.steps.filter(s=>s.method==='where');
   let candidates:Set<string>|undefined;
@@ -195,15 +196,23 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
    const indexed=rows.candidateIds?.(fieldName(step.args[0]),String(step.args[1]),step.args[2]);
    if(indexed)candidates=candidates?new Set([...candidates].filter(id=>indexed.has(id))):indexed;
   }
-  let result=(candidates?[...candidates].flatMap(id=>{const data=rows.get(id);return data?[[id,data] as [string,DocumentData]]:[];}):[...rows]).filter(([id,data])=>!(rows.isDeleted?rows.isDeleted(id):data.isDeleted===true));
   const value=(row:[string,DocumentData],name:string)=>name==='__name__'?row[0]:field(row[1],name);
-  for(const step of filters){const [name,op,wanted]=step.args;result=result.filter(row=>matches(value(row,fieldName(name)),op,wanted));}
   const order=spec.steps.filter(s=>s.method==='orderBy').map(s=>({name:fieldName(s.args[0]),direction:s.args[1]==='desc'?-1:1}));
   // Firestore implicitly orders inequality fields, then document ID.
   for(const name of [...new Set(filters.filter(s=>['<','<=','>','>=','!=','not-in'].includes(String(s.args[1]))).map(s=>fieldName(s.args[0])))].sort())
    if(!order.some(o=>o.name===name))order.push({name,direction:order.at(-1)?.direction??1});
   if(!order.some(o=>o.name==='__name__'))order.push({name:'__name__',direction:order.at(-1)?.direction??1});
-  result=result.filter(row=>order.every(o=>value(row,o.name)!==undefined));
+  // Keep this immutable generation across yields; a committed update publishes
+  // a replacement map. Decode/filter/order keys in bounded batches, including
+  // rejected rows, so a cold full-snapshot scan cannot monopolize the event loop.
+  const sourceRows=candidates?function*(){for(const id of candidates){const data=rows.get(id);if(data)yield [id,data] as [string,DocumentData];}}():rows;
+  let result:[string,DocumentData][]=[];let scanned=0;
+  for(const row of sourceRows){
+   if(scanned++&&scanned%128===0)await yieldToRequests();
+   if(rows.isDeleted?rows.isDeleted(row[0]):row[1].isDeleted===true)continue;
+   if(!filters.every(step=>matches(value(row,fieldName(step.args[0])),step.args[1],step.args[2])))continue;
+   if(order.every(o=>value(row,o.name)!==undefined))result.push(row);
+  }
   result.sort((a,b)=>{for(const o of order){const c=compare(value(a,o.name),value(b,o.name))*o.direction;if(c)return c;}return 0;});
   for(const step of spec.steps.filter(s=>['startAt','startAfter','endAt','endBefore'].includes(s.method))){
    const first=step.args[0] as {id?:string;get?:(name:string)=>unknown}|undefined;
@@ -214,10 +223,13 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
   const offset=spec.steps.find(s=>s.method==='offset');if(offset)result=result.slice(Number(offset.args[0]));
   const limit=spec.steps.find(s=>s.method==='limit'||s.method==='limitToLast');if(limit)result=limit.method==='limit'?result.slice(0,Number(limit.args[0])):result.slice(-Number(limit.args[0]));
   const projection=spec.steps.find(s=>s.method==='select');
-  const docs=result.map(([id,data])=>{
+  const docs:ReturnType<typeof document>[]=[];
+  for(let i=0;i<result.length;i++){
+   if(i&&i%128===0)await yieldToRequests();
+   const id=result[i][0];let data=result[i][1];
    if(projection){const selected:DocumentData={};for(const f of projection.args){const name=fieldName(f),v=field(data,name);if(v!==undefined){const parts=name.split('.');let into=selected;for(const part of parts.slice(0,-1))into=into[part]??={};into[parts.at(-1)!]=v;}}data=selected;}
-   return document(db,id,data,spec.collection);
-  });
+   docs.push(document(db,id,data,spec.collection));
+  }
   for(const step of spec.steps)if(!['where','orderBy','startAt','startAfter','endAt','endBefore','limit','limitToLast','offset','select'].includes(step.method))throw Error(`Unsupported cached company query: ${step.method}`);
   return {docs,size:docs.length,empty:docs.length===0,forEach:(fn:(doc:typeof docs[number])=>void,thisArg?:unknown)=>docs.forEach(doc=>fn.call(thisArg,doc))};
  });
