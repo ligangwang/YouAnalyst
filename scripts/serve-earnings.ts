@@ -1,7 +1,7 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
 import { createJobSubscriber } from "../src/lib/job-pubsub-server";
-import { EARNINGS_SUBSCRIPTION, parseEarningsJob } from "../src/lib/earnings/live-event";
+import { EARNINGS_SUBSCRIPTION, EARNINGS_PROBE_SUBSCRIPTION, parseEarningsJob, parseEarningsDeliveryProbe } from "../src/lib/earnings/live-event";
 import { processEarningsJob } from "../src/lib/earnings/live-worker";
 import { createEarningsDownloader } from "../src/lib/earnings/live-transport";
 import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
@@ -21,6 +21,7 @@ async function refreshIssuers() {
   await refreshing;
 }
 createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: EARNINGS_SUBSCRIPTION, job: "earnings-source", parse: parseEarningsJob,
+  additionalSubscriptions: [{ subscription: EARNINGS_PROBE_SUBSCRIPTION, parse: parseEarningsDeliveryProbe }],
   process: (request, log, signal) => admit(request, async () => {
     if(request.type!=='earnings.delivery.probe')await refreshIssuers();
     const work=()=>processEarningsJob(request, db, log, {
