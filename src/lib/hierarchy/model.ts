@@ -34,14 +34,24 @@ export function validateHierarchy(nodes: HierarchyNode[]): HierarchyNode[] {
 }
 
 export function hierarchyPath(nodes: HierarchyNode[], id: string): HierarchyNode[] {
+  return hierarchyPathLookup(nodes)(id);
+}
+
+/** Reuse one index and ancestor path per category during bulk projections. */
+export function hierarchyPathLookup(nodes: HierarchyNode[]) {
   const index = new Map(nodes.map(node => [node.id, node]));
-  const path: HierarchyNode[] = [], seen = new Set<string>();
-  let node = index.get(id);
-  while (node && !seen.has(node.id)) {
-    path.unshift(node); seen.add(node.id);
-    node = node.parentId === null ? undefined : index.get(node.parentId);
-  }
-  return path;
+  const paths = new Map<string, HierarchyNode[]>();
+  return (id: string): HierarchyNode[] => {
+    const cached = paths.get(id); if (cached) return cached;
+    const path: HierarchyNode[] = [], seen = new Set<string>();
+    let node = index.get(id);
+    while (node && !seen.has(node.id)) {
+      path.unshift(node); seen.add(node.id);
+      node = node.parentId === null ? undefined : index.get(node.parentId);
+    }
+    paths.set(id, path);
+    return path;
+  };
 }
 
 export function hierarchyHref(kind: 'industries' | 'investment-themes', id: string) {
