@@ -1,5 +1,6 @@
 import {taggedReleaseRequest} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {pathToFileURL} from 'node:url';
@@ -21,8 +22,12 @@ export async function promoteRelease({service,project,region,revision,commit,
   assert(previous&&previous!==revision,'Candidate must differ from the serving revision');
   const candidate=initial.status.traffic.find(item=>item.tag==='candidate');
   assert(candidate?.revisionName===revision&&candidate.url,'Pinned candidate changed');
-  const tag=`retain-${previous}`;
-  assert(tag.length<64,'Retention tag too long');
+  const readableTag=`retain-${previous}`;
+  // Cloud Run limits the combined tag + service name to 46 characters.
+  // Keep existing readable tags when valid; hash long revision names stably.
+  const tag=readableTag.length+service.length<=46?readableTag:
+    `retain-${createHash('sha256').update(previous).digest('hex').slice(0,16)}`;
+  assert(tag.length+service.length<=46,'Service name leaves no room for predecessor retention tag');
   if(!initial.status.traffic.some(item=>item.tag===tag&&item.revisionName===previous)) {
     update(['--update-tags',`${tag}=${previous}`]);
   }
