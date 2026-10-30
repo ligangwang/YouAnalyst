@@ -8,10 +8,10 @@ import type { ThemedCompany } from '../company-themes/model';
 import { isSupportedCompany, supportedCompanyUniverse } from './model';
 
 /** One single-field Firestore index; region filtering cannot require a composite index. */
-export async function loadSupportedCompanies(db: Firestore, region?: ExchangeRegion, projection?:'universe') {
-  const projected=projection==='universe'&&await withSharedCompanyQuery(()=>Promise.resolve(companyDirectoryEnabled(db)));
+export async function loadSupportedCompanies(db: Firestore, region?: ExchangeRegion, projection?:'universe'|'news') {
+  const projected=projection!==undefined&&await withSharedCompanyQuery(()=>Promise.resolve(companyDirectoryEnabled(db)));
   const source = db.collection('companies').where('onboarding.status', '==', 'SUPPORTED');
-  const query=projected?source.select(...COLLECTION_COMPANY_FIELDS):source;
+  const query=projected?source.select(...COLLECTION_COMPANY_FIELDS,...(projection==='news'?['newsSources']:[])):source;
   const docs = typeof db.collection('companies').onSnapshot === 'function'
     ? [...(await (projected?withCompanyViewQuery(()=>localQuery(db,'companies:supported',query)):localQuery(db,'companies:supported',query))).values()]
     : (await query.get()).docs;

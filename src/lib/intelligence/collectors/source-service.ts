@@ -14,7 +14,7 @@ export async function loadNewsCollectionContext(db:Firestore){
 /** The canonical company record owns membership and approved publisher configuration. */
 export async function loadNewsSources(db:Firestore):Promise<NewsSource[]>{
   return changeCached(db,'news-sources',['companies'],async()=>{
-    const docs=await loadCollectionCompanies(db),sources=approvedCompanyNewsSources(docs.map(doc=>({...doc.data(),id:doc.id})));
+    const docs=await loadCollectionCompanies(db,undefined,'news'),sources=approvedCompanyNewsSources(docs.map(doc=>({...doc.data(),id:doc.id})));
     return sources;
   });
 }
