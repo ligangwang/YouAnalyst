@@ -16,5 +16,3 @@ export function useVisibleDemand<T extends HTMLElement>(ref:RefObject<T|null>,mo
  },[ref,mounted,visible]);
  return visible;
 }
-
-

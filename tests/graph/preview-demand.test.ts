@@ -18,4 +18,3 @@ test('preview images read structure inside page scope without valuations or full
  assert.match(JSON.stringify(resultImage.tree),/AMD/);
  assert.match(JSON.stringify(resultImage.tree),/2026-10-30/);
 });
-

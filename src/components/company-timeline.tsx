@@ -508,5 +508,3 @@ export function CompanyResearchTimeline({ company, graph, initialPrices }: { com
   const onPriceHistoryChange = useCallback((available: boolean) => setHistory({ companyId: company.id, available }), [company.id]);
   return <div className={styles.pageResearch} hidden={history.companyId !== company.id || !history.available}><CompanySnapshot company={company} profileLink={false} showHeading={false} /><CompanyTimeline companyId={company.id} graph={graph} initialPrices={initialPrices} onPriceHistoryChange={onPriceHistoryChange} /></div>;
 }
-
-

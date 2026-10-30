@@ -39,5 +39,3 @@ test('company timeline requests the full graph only when the chart is visible',a
  await page.getByLabel('Price history range').scrollIntoViewIfNeeded();await expect.poll(()=>graphs.length).toBe(1);
  await page.getByRole('heading',{name:'Overview'}).scrollIntoViewIfNeeded();await page.getByLabel('Price history range').scrollIntoViewIfNeeded();expect(graphs).toHaveLength(1);
 });
-
-
