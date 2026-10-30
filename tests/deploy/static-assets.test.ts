@@ -15,6 +15,14 @@ test('static retention pins current and newest retained predecessor, ignoring ca
  assert.throws(()=>previousWebImages(fixture(true)),/stable serving/);
  assert.throws(()=>previousWebImages(fixture(false,true)),/immutable image/);
 });
+
+test('predecessor discovery projects routing and image identity instead of full runtime records',()=>{
+ const input=fixture(),calls:string[][]=[];
+ assert.deepEqual(previousWebImages({...input,command:(args:string[])=>{calls.push(args);return input.command(args);}}),{previous:digest('a'),retained:digest('b')});
+ assert.equal(calls[0].at(-1),'--format=json(status.traffic)');
+ assert.equal(calls[1].at(-1),'--format=json(metadata.name,metadata.creationTimestamp,status.imageDigest)');
+ assert.equal(calls[2].at(-1),'--format=json(metadata.name,metadata.creationTimestamp,status.imageDigest)');
+});
 test('both image paths preserve predecessor assets before overlaying the new release',()=>{
  for(const file of ['Dockerfile','Dockerfile.release']){
   const docker=readFileSync(file,'utf8');
