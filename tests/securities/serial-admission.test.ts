@@ -22,8 +22,8 @@ test('full or expired waiters never execute work', async () => {
   const first = admit(async () => { await new Promise<void>(resolve => { finish = resolve; }); });
   await new Promise(resolve => setImmediate(resolve));
   const second = admit(async () => { ran = true; });
-  await assert.rejects(admit(async () => {}), /queue full/);
-  await assert.rejects(second, /wait expired/);
+  await assert.rejects(admit(async () => {}), { message: 'Subscriber admission queue full; retry', code: 429 });
+  await assert.rejects(second, { message: 'Subscriber admission wait expired; retry', code: 429 });
   finish(); await first;
   assert.equal(ran, false);
   assert.equal(await admit(async () => 42), 42);

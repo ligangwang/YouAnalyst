@@ -1,7 +1,7 @@
 /** Bound in-flight push deliveries without increasing provider concurrency.
  * Timed-out waiters are removed and never start work after their response fails. */
 export function createSerialAdmission(options: { maxWaiting: number; waitMs: number }) {
-  if (!Number.isInteger(options.maxWaiting) || options.maxWaiting < 1 || options.maxWaiting > 20
+  if (!Number.isInteger(options.maxWaiting) || options.maxWaiting < 1 || options.maxWaiting > 79
     || !Number.isInteger(options.waitMs) || options.waitMs < 1 || options.waitMs > 120_000) throw new Error('Invalid admission bounds');
   type Waiter = { grant: () => void; timer: ReturnType<typeof setTimeout> };
   const waiting: Waiter[] = [];
@@ -9,7 +9,7 @@ export function createSerialAdmission(options: { maxWaiting: number; waitMs: num
   async function acquire(signal?: AbortSignal) {
     if (signal?.aborted) throw new Error('Subscriber delivery disconnected; retry');
     if (!busy) { busy = true; return; }
-    if (waiting.length >= options.maxWaiting) throw new Error('Subscriber admission queue full; retry');
+    if (waiting.length >= options.maxWaiting) throw Object.assign(new Error('Subscriber admission queue full; retry'), { code: 429 });
     await new Promise<void>((resolve, reject) => {
       const remove = () => {
         const index = waiting.indexOf(waiter);
@@ -19,7 +19,7 @@ export function createSerialAdmission(options: { maxWaiting: number; waitMs: num
       };
       const disconnected = () => { remove(); reject(new Error('Subscriber delivery disconnected; retry')); };
       const waiter: Waiter = { grant: () => { signal?.removeEventListener('abort', disconnected); resolve(); }, timer: setTimeout(() => {
-        remove(); reject(new Error('Subscriber admission wait expired; retry'));
+        remove(); reject(Object.assign(new Error('Subscriber admission wait expired; retry'), { code: 429 }));
       }, options.waitMs) };
       waiting.push(waiter);
       signal?.addEventListener('abort', disconnected, { once: true });

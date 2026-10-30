@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { createJobSubscriber } from '../../src/lib/job-pubsub-server';
-import { createEarningsAdmission } from '../../src/lib/earnings/live-admission';
+import { createEarningsAdmission, EARNINGS_HTTP_CONCURRENCY, EARNINGS_ADMISSION_WAIT_MS } from '../../src/lib/earnings/live-admission';
+import {readFileSync} from 'node:fs';
 import { earningsSourceEvent, parseEarningsJob, parseEarningsDeliveryProbe, EARNINGS_PROBE_SUBSCRIPTION, type EarningsJob } from '../../src/lib/earnings/live-event';
 
 test('earnings probes pass a full source admission queue while provider work stays serial', { timeout: 5000 }, async t => {
@@ -16,7 +17,7 @@ test('earnings probes pass a full source admission queue while provider work sta
   const server = createJobSubscriber({ project: 'demo', subscription: 'earnings-worker', job: 'fixture', parse: parseEarningsJob,
     additionalSubscriptions: [{ subscription: EARNINGS_PROBE_SUBSCRIPTION, parse: parseEarningsDeliveryProbe }],
     process: (request, _log, signal) => {
-      if (request.type === 'earnings.source.discovered' && ++received === 9) ready();
+      if (request.type === 'earnings.source.discovered' && ++received === EARNINGS_HTTP_CONCURRENCY) ready();
       return admit(request, async () => {
         if (request.type === 'earnings.delivery.probe') { probes++; return { status: 'verified' }; }
         active++; maximum = Math.max(maximum, active); sources++;
@@ -29,10 +30,10 @@ test('earnings probes pass a full source admission queue while provider work sta
   const post = (request: EarningsJob, subscription='earnings-worker') => fetch(`${url}/pubsub`, { method: 'POST', body: JSON.stringify({
     subscription: `projects/demo/subscriptions/${subscription}`, message: { data: Buffer.from(JSON.stringify(request)).toString('base64') },
   }) });
-  const pending = Array.from({ length: 9 }, (_, i) => post(earningsSourceEvent(`earnings_source_${'a'.repeat(64)}`, i + 1)));
+  const pending = Array.from({ length: EARNINGS_HTTP_CONCURRENCY }, (_, i) => post(earningsSourceEvent(`earnings_source_${'a'.repeat(64)}`, i + 1)));
   await filled;
   const excess = await post(earningsSourceEvent(`earnings_source_${'b'.repeat(64)}`, 1));
-  assert.equal(excess.status, 503, 'excess source delivery remains unacknowledged');
+  assert.equal(excess.status, 429, 'excess source delivery remains unacknowledged as backpressure');
   const probe = { version: 1, type: 'earnings.delivery.probe', batchId: `earnings_probe_${'a'.repeat(32)}`, createdAt: new Date().toISOString() } as const;
   assert.equal((await post(earningsSourceEvent(`earnings_source_${'c'.repeat(64)}`, 1), EARNINGS_PROBE_SUBSCRIPTION)).status, 503, 'source work cannot enter the control route');
   assert.equal((await post(probe, EARNINGS_PROBE_SUBSCRIPTION)).status, 204);
@@ -41,7 +42,15 @@ test('earnings probes pass a full source admission queue while provider work sta
   assert.equal(probes, 2); assert.equal(sources, 1); assert.equal(maximum, 1);
   release();
   assert((await Promise.all(pending)).every(response => response.status === 204));
-  assert.equal(sources, 9); assert.equal(maximum, 1);
+  assert.equal(sources, EARNINGS_HTTP_CONCURRENCY); assert.equal(maximum, 1);
+});
+
+test('source admission matches deployed burst capacity and leaves time for processing before ack expiry',()=>{
+  const deployment=readFileSync('scripts/deploy-earnings.sh','utf8');
+  assert.equal(Number(/--concurrency (\d+)/.exec(deployment)![1]),EARNINGS_HTTP_CONCURRENCY);
+  const timeoutMs=Number(/--timeout (\d+)/.exec(deployment)![1])*1000;
+  const ackMs=Number(/--ack-deadline (\d+)/.exec(deployment)![1])*1000;
+  assert(EARNINGS_ADMISSION_WAIT_MS+7*60_000+60_000<=Math.min(timeoutMs,ackMs));
 });
 
 test('a disconnected earnings probe cannot run work', async () => {
