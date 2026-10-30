@@ -4,7 +4,7 @@ import { createJobSubscriber } from "../src/lib/job-pubsub-server";
 import { EARNINGS_SUBSCRIPTION, EARNINGS_PROBE_SUBSCRIPTION, parseEarningsJob, parseEarningsDeliveryProbe } from "../src/lib/earnings/live-event";
 import { processEarningsJob } from "../src/lib/earnings/live-worker";
 import { createEarningsDownloader } from "../src/lib/earnings/live-transport";
-import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
+import {withDeliveryIssuer} from '../src/lib/earnings/delivery-issuer';
 import {EARNINGS_SOURCES} from '../src/lib/earnings/live-store';
 import {secCacheOwner,withSecDocumentProcessing} from '../src/lib/sec-filings/document-cache';
 import {publishEarningsIntake} from '../src/lib/sec-filings/intake-routing';
@@ -15,15 +15,9 @@ for (const flag of ["EARNINGS_PROCESSING_ENABLED", "EARNINGS_CANARY_ONLY"]) if (
 initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
 const db = getFirestore();
 const admit = createEarningsAdmission();
-let refreshing: Promise<unknown> | undefined;
-async function refreshIssuers() {
-  refreshing ??= loadEarningsMap(db).finally(() => {refreshing=undefined;});
-  await refreshing;
-}
 createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: EARNINGS_SUBSCRIPTION, job: "earnings-source", parse: parseEarningsJob,
   additionalSubscriptions: [{ subscription: EARNINGS_PROBE_SUBSCRIPTION, parse: parseEarningsDeliveryProbe }],
   process: (request, log, signal) => admit(request, async () => {
-    if(request.type!=='earnings.delivery.probe')await refreshIssuers();
     const work=()=>processEarningsJob(request, db, log, {
     enabled: process.env.EARNINGS_PROCESSING_ENABLED === "1",
     canaryOnly: process.env.EARNINGS_CANARY_ONLY === "1",
@@ -32,12 +26,14 @@ createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: EARNING
     });
     if(request.type!=='earnings.source.discovered')return work();
     const ref=db.collection(EARNINGS_SOURCES).doc(request.sourceId),source=(await ref.get()).get('source');
-    if(source?.provider!=='sec')return work();
-    let complete=false;
-    return withSecDocumentProcessing(secCacheOwner('earnings',request.batchId),source.url,async()=>{
-      const result=await work();
-      complete=['extracted','expanded','skipped'].includes((await ref.get()).get('status'));
-      return result;
-    },()=>complete);
+    return withDeliveryIssuer(db,source?.companyId,async()=>{
+      if(source?.provider!=='sec')return work();
+      let complete=false;
+      return withSecDocumentProcessing(secCacheOwner('earnings',request.batchId),source.url,async()=>{
+        const result=await work();
+        complete=['extracted','expanded','skipped'].includes((await ref.get()).get('status'));
+        return result;
+      },()=>complete);
+    });
   }, signal),
 }).listen(Number(process.env.PORT || 8080), "0.0.0.0");

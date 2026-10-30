@@ -1,5 +1,6 @@
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import { mapListedCompanies } from '../events/disclosures';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 // Reviewed adapter hints and fixture identities, never the production universe.
 export const reviewedEarningsIssuers = [
@@ -13,13 +14,18 @@ export const reviewedEarningsIssuers = [
   { companyId: "XSHE:300308", issuerId: "cn:300308", cik: null, name: "Zhongji Innolight", aliases: ["中际旭创", "Zhongji", "Innolight"], irHosts: ["www.zj-innolight.com", "www.zj-innolight.cn"] },
 ] as const;
 export type EarningsCompany = { companyId: string; issuerId: string; cik: string | null; name: string; aliases: readonly string[]; irHosts: readonly string[] };
-let companies = new Map<string, EarningsCompany>(reviewedEarningsIssuers.map(company => [company.companyId, company]));
-let mapped: KnowledgeGraph | undefined;
-export function earningsCompanies() { return [...companies.values()]; }
-export function restoreEarningsFixtures() { mapped = undefined; companies = new Map(reviewedEarningsIssuers.map(company => [company.companyId, company])); }
+type IssuerState = { companies: Map<string, EarningsCompany>; mapped?: KnowledgeGraph };
+const issuerScope = new AsyncLocalStorage<IssuerState>();
+const defaults: IssuerState = { companies: new Map(reviewedEarningsIssuers.map(company => [company.companyId, company])) };
+const state = () => issuerScope.getStore() ?? defaults;
+/** Concurrent deliveries must not replace each other's verified issuer map. */
+export const withEarningsIssuerScope = <T>(work: () => Promise<T>): Promise<T> =>
+  issuerScope.run({companies: new Map()}, work);
+export function earningsCompanies() { return [...state().companies.values()]; }
+export function restoreEarningsFixtures() { defaults.mapped = undefined; defaults.companies = new Map(reviewedEarningsIssuers.map(company => [company.companyId, company])); }
 export function configureEarningsMap(graph: KnowledgeGraph, ciks: ReadonlyMap<string, string>) {
-  mapped = graph;
-  companies = new Map();
+  state().mapped = graph;
+  state().companies = new Map();
   for (const node of mapListedCompanies(graph)) {
     const cik = node.market === 'US' ? ciks.get(node.id) : null;
     if (node.market === 'US' && !cik) continue;
@@ -27,6 +33,7 @@ export function configureEarningsMap(graph: KnowledgeGraph, ciks: ReadonlyMap<st
   }
 }
 export function registerEarningsIssuer(companyId: string, cik: string | null) {
+  const {mapped, companies} = state();
   const node = mapped && mapListedCompanies(mapped).find(node => node.id === companyId);
   if (!node || (node.market === 'US' ? !cik || !/^\d{10}$/.test(cik) || Number(cik) === 0 : cik !== null)) throw new Error('Unverified map earnings issuer');
   const hint = reviewedEarningsIssuers.find(company => company.companyId === companyId);
@@ -36,7 +43,7 @@ export function registerEarningsIssuer(companyId: string, cik: string | null) {
   companies.set(companyId, { companyId, cik, issuerId: cik ? `sec:${cik}` : `cn:${companyId.split(':')[1]}`, name: node.names?.en ?? node.name ?? aliases[0], aliases, irHosts: hint?.irHosts ?? [] });
 }
 export function earningsCompany(companyId: string) {
-  const company = companies.get(companyId);
+  const company = state().companies.get(companyId);
   if (!company) throw new Error("Company has no verified map earnings identity");
   return company;
 }

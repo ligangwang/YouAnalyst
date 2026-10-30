@@ -1,4 +1,4 @@
-import {companyDirectoryEnabled,withSharedCompanyQuery,withCompanyViewQuery} from '../local-cache/company-directory';
+import {companyDirectoryEnabled,enableCompanyDirectoryForReader,withSharedCompanyQuery,withCompanyViewQuery} from '../local-cache/company-directory';
 import {COLLECTION_COMPANY_FIELDS} from './collection-reader';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../firebase/admin';
@@ -9,6 +9,13 @@ import { isSupportedCompany, supportedCompanyUniverse } from './model';
 
 /** One single-field Firestore index; region filtering cannot require a composite index. */
 export async function loadSupportedCompanies(db: Firestore, region?: ExchangeRegion, projection?:'universe'|'news') {
+  // Pub/Sub clients use the observed SDK entry point rather than getAdminFirestore.
+  // Opt these directory readers into the existing file + live delta cache too.
+  // Without a snapshot bucket, retain the supported-only listener instead of
+  // falling back to a scan of the entire companies collection.
+  if (process.env.ENTITY_SNAPSHOT_BUCKET?.trim() || process.env.EODHD_BULK_EOD_BUCKET?.trim()) {
+    enableCompanyDirectoryForReader(db,['companies']);
+  }
   const projected=projection!==undefined&&await withSharedCompanyQuery(()=>Promise.resolve(companyDirectoryEnabled(db)));
   const source = db.collection('companies').where('onboarding.status', '==', 'SUPPORTED');
   const query=projected?source.select(...COLLECTION_COMPANY_FIELDS,...(projection==='news'?['newsSources']:[])):source;
