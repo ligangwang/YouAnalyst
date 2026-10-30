@@ -1,7 +1,9 @@
 import {loadThemeCatalog} from '@/lib/company-themes/catalog';
-import {catalogThemeName} from '@/lib/company-themes/catalog-model';
+import {catalogThemeName,catalogThemeIds} from '@/lib/company-themes/catalog-model';
 import { ImageResponse } from "next/og";
-import { loadThemeGraphStructure } from "@/lib/company-themes/graph-service";
+import {loadCompanyNeighborhood} from '@/lib/knowledge-graph/company-neighborhood';
+import {loadCompanyDocuments} from '@/lib/company-document-cache';
+import {getAdminFirestore} from '@/lib/firebase/admin';
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
 import { parseCompanyTheme } from "@/lib/company-themes/model";
 import { companyName } from "@/lib/knowledge-graph/model";
@@ -9,10 +11,13 @@ import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 
 export async function GET(request: Request) {
   const q = new URL(request.url).searchParams;
-  const theme=parseCompanyTheme(q.get('theme')),title=catalogThemeName(await loadThemeCatalog(),theme);
+  const theme=parseCompanyTheme(q.get('theme')),catalog=await loadThemeCatalog(),title=catalogThemeName(catalog,theme);
   const raw = q.get("company") ?? "", id = raw.includes(":") ? raw.toUpperCase() : `US:${raw.toUpperCase()}`;
   // Preview text uses identities and relationships, never market valuations.
-  const graph = /^[A-Z_]+:[A-Z0-9.-]{1,80}$/.test(id) ? await withCompanyPageReads(()=>loadThemeGraphStructure(theme)).catch(()=>null) : null;
+  const graph = catalogThemeIds(catalog).includes(theme)&&/^[A-Z_]+:[A-Z0-9.-]{1,80}$/.test(id) ? await withCompanyPageReads(async()=>{
+    const db=getAdminFirestore(),[company]=await loadCompanyDocuments(db,'companies',[id]);
+    return loadCompanyNeighborhood(db,id,company.data(),{theme,catalog});
+  }).catch(()=>null) : null;
   const company = graph?.nodes.find(n=>n.kind==="COMPANY"&&n.id===id);
   const edges = company ? graph!.relationships.filter(e=>e.type!=="PARTICIPATES_IN"&&(e.source===id||e.target===id)&&(!q.get("relationship")||e.id===q.get("relationship"))).slice(0,3) : [];
   const name = (nodeId:string) => {const n=graph?.nodes.find(n=>n.id===nodeId);return n?companyName(n,"en"):nodeId;};

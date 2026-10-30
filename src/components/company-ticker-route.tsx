@@ -156,7 +156,7 @@ export async function companyTickerMetadata(...args: Parameters<typeof buildPage
 async function CompanyGraph({companyId,neighborhood}:{companyId:string;neighborhood?:KnowledgeGraph}) {
  // This panel shows direct relationships only. Chart/stock switching still
  // hydrates the complete client graph independently, including sector peers.
- const graph=neighborhood ?? await loadCompanyPageGraph().catch(()=>undefined);
+ const graph=neighborhood ?? await loadCompanyPageGraph(companyId).catch(()=>undefined);
  return <CompanyResearchPanel companyId={companyId} initialGraph={graph}/>;
 }
 

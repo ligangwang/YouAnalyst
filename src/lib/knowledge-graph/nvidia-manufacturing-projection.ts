@@ -4,20 +4,22 @@ import { loadCompanyRelationships } from './relationship-cache';
 import { graphMembership, relationshipId, type MarketCompany, type MarketRelationship } from "./market-store";
 import { NVIDIA_EDITORIAL_COMPANIES, NVIDIA_MANUFACTURING_FACTS, NVIDIA_MANUFACTURING_REVIEWED, NVIDIA_MANUFACTURING_SOURCE } from "../research/nvidia-manufacturing";
 
-const publicCompany = (company: MarketCompany | undefined) => company && ["PUBLISHED", "DIRECTORY"].includes(String(company.status)) &&
+const publicCompany = (company: MarketCompany | undefined) => company && company.isDeleted!==true && ["PUBLISHED", "DIRECTORY"].includes(String(company.status)) &&
   company.name && (!graphMembership(company) || graphMembership(company)?.status === "PUBLISHED");
 const canonical = (row: MarketRelationship) => row.type === "CUSTOMER_OF"
   ? relationshipId(row.target, row.source, "SUPPLIER_OF") : relationshipId(row.source, row.target, row.type);
 
 /** Inputs include all statuses for NVIDIA relationships and both exact directory IDs, even hidden rows. */
-export function projectNvidiaManufacturing(companies: MarketCompany[], records: MarketRelationship[]) {
+export function projectNvidiaManufacturing(companies: MarketCompany[], records: MarketRelationship[], sourceIds?:readonly string[]) {
   if (!publicCompany(companies.find(company => company.id === "US:NVDA"))) return { companies, records };
   const projectedCompanies = [...companies];
   for (const company of NVIDIA_EDITORIAL_COMPANIES) {
+    if(sourceIds&&!sourceIds.includes(company.id))continue;
     if (!projectedCompanies.some(remote => remote.id === company.id)) projectedCompanies.push(structuredClone(company));
   }
   const projectedRecords = [...records];
   for (const { source, fact } of NVIDIA_MANUFACTURING_FACTS) {
+    if(sourceIds&&!sourceIds.includes(source))continue;
     if (!publicCompany(projectedCompanies.find(company => company.id === source))) continue;
     const id = relationshipId(source, "US:NVDA", "SUPPLIER_OF");
     const matches = records.filter(row => row.id === id || canonical(row) === id);
