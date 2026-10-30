@@ -1835,3 +1835,37 @@ test('hover price details follow the pointer and fullscreen uses the available h
  const pinned=(await timeline.locator('[data-price-details]').boundingBox())!,plot=(await svg.boundingBox())!;
  expect(pinned.y-plot.y).toBeCloseTo(4,0);
 });
+
+test('mobile workspace switches independent activity explore and watchlist screens',async({page},info)=>{
+ await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.abort());
+ await page.goto('http://fixture.local/intelligence');
+ const navigation=page.getByRole('navigation',{name:'Workspace navigation'});
+ if(info.project.name==='desktop'){await expect(navigation).toBeHidden();await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeVisible();return;}
+ await expect(navigation).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeHidden();
+ await navigation.getByRole('button',{name:'Explore'}).click();
+ await expect(page.getByRole('region',{name:'Graph universe',exact:true})).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeHidden();
+ await navigation.getByRole('button',{name:'Watchlist'}).click();
+ await expect(page.getByRole('complementary',{name:'Universe navigation'})).toBeVisible();
+ await page.getByRole('button',{name:'Filters',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Filters',exact:true})).toHaveAttribute('aria-expanded','true');
+ await navigation.getByRole('button',{name:'Activity'}).click();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toBeVisible();
+ await page.screenshot({path:info.outputPath('mobile-activity.png'),fullPage:true});
+});
+
+test('mobile selected company uses document flow instead of covering the universe',async({page},info)=>{
+ test.skip(info.project.name!=='mobile');
+ await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.abort());
+ await page.goto('http://fixture.local/intelligence?company=US%3AMU');
+ await page.getByRole('navigation',{name:'Workspace navigation'}).getByRole('button',{name:'Explore'}).click();
+ const details=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(details).toBeVisible();
+ await expect(details).toHaveCSS('position','static');
+ await expect(details).toHaveCSS('max-height','none');
+ await expect(page.locator('[data-timeline-dock]')).toHaveCSS('max-height','none');
+ await page.getByRole('button',{name:'Back to universe'}).click();
+ await expect(details).toBeHidden();
+});
