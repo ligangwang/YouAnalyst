@@ -15,7 +15,8 @@ import {CN_DISCOVERY_TOPIC,cnDiscoveryState,publishCnDiscoveryTasks} from '../sr
 import {mapListedCompanies} from '../src/lib/events/disclosures';
 import {publishJobMessage} from '../src/lib/job-pubsub';
 import {publishEarningsOutbox} from '../src/lib/earnings/live-store';
-import {loadSupportedCompanyUniverse} from '../src/lib/company-support/service';
+import {readEarningsScheduleCompanies} from '../src/lib/earnings/scheduler-scope';
+import {supportedCompanyUniverse} from '../src/lib/company-support/model';
 
 const log = createMaintenanceLog("collect-earnings");
 async function main() {
@@ -31,10 +32,8 @@ async function main() {
   const db = getFirestore();
   // Delivery probes need only their receipt; other modes retain issuer setup.
   const graph=mode==='verify-delivery' ? undefined : mode==='collect'&&process.env.CN_DISCOVERY_REQUEST_TOPIC
-    // Scheduling needs the current candidate directory, not another full scan.
-    // The shared snapshot catches up its live changes before returning; the
-    // discovery worker separately rechecks each dispatched company's eligibility.
-    ? await loadSupportedCompanyUniverse(db,'CN')
+    // Catch up only CN candidates; workers recheck each dispatched company.
+    ? supportedCompanyUniverse(await readEarningsScheduleCompanies(db))
     : await loadEarningsMap(db);
   if (mode === "dry-run" || mode === "diagnostics") { log.emit("INFO", "run_completed", await inspectLiveEarnings(db)); return; }
   const revision = process.env.GIT_SHA ?? "";

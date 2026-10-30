@@ -1,47 +1,48 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Firestore,Timestamp} from 'firebase-admin/firestore';
-import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
-import {enableCompanyDirectory} from '../../src/lib/local-cache/company-directory';
-import {EntitySync,type ChangeBatch} from '../../src/lib/local-cache/entity-sync';
+import {FieldPath,Timestamp,type Firestore} from 'firebase-admin/firestore';
 import type {EntityRows} from '../../src/lib/entity-snapshots/sqlite';
-import {loadSupportedCompanyUniverse} from '../../src/lib/company-support/service';
-import {loadCnDiscoveryCompany} from '../../src/lib/events/cn-discovery-queue';
+import {readEarningsScheduleCompanies} from '../../src/lib/earnings/scheduler-scope';
 
-test('earnings scheduling awaits snapshot catch-up and workers still read live eligibility',async()=>{
-  const supported={name:'Issuer',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}};
+const supported={name:'Issuer',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}};
+const doc=(id:string,data:Record<string,unknown>)=>({id,data:()=>data});
+function fixture(pages:ReturnType<typeof doc>[][]){
+  const filters:unknown[][]=[];let reads=0,cursor:unknown;
+  const query={where:(...args:unknown[])=>{filters.push(args);return query;},orderBy:()=>query,select:()=>query,
+    startAfter:(value:unknown)=>{assert.equal(value,pages[reads-1].at(-1));cursor=value;return query;},
+    limit:(n:number)=>{assert.equal(n,250);return query;},
+    get:async()=>{const docs=pages[reads++];return {docs,size:docs.length};},
+    onSnapshot:()=>assert.fail('One-shot scheduling must not attach listeners'),
+  };
+  const db={collection:(name:string)=>{assert.equal(name,'companies');return query;}} as unknown as Firestore;
+  return {db,filters,get reads(){return reads;},get cursor(){return cursor;}};
+}
+test('snapshot CN scope applies enrollment additions, blocks and removals before scheduling',async()=>{
   const rows:EntityRows=new Map([
-    ['XSHG:600001',supported],['XSHG:600002',supported],['US:A',supported],
-  ]);
-  rows.watermark=new Timestamp(100,0);
-  const sdk=new Firestore({projectId:'earnings-scheduler-test'});
-  const db=observeFirestore(sdk,()=>{});
-  let next!:(batch:ChangeBatch)=>void,sync!:EntitySync,loads=0;
-  let connected!:()=>void;const connection=new Promise<void>(resolve=>{connected=resolve;});
-  enableCompanyDirectory(db,{} as Firestore,{
-    file:async(_collection,view)=>{loads++;assert.equal(view,true);return rows;},
-    sync:(_db,_collection,since,apply)=>{
-      assert.equal(since.seconds,100);
-      sync=new EntitySync((_since,callback)=>{next=callback;connected();return()=>{};},since,apply);
-      return sync;
-    },
-  });
-  try{
-    let returned=false;
-    const scope=loadSupportedCompanyUniverse(db,'CN').then(value=>{returned=true;return value;});
-    await connection;assert.equal(returned,false,'must await current changes before dispatch');
-    next({readTime:new Timestamp(101,0),changes:[
-      {id:'XSHG:600001',data:{...supported,onboarding:{status:'BLOCKED'}}},
-      {id:'XSHG:600002',data:{isDeleted:true}},
-      {id:'XSHE:000001',data:supported},
-    ]});
-    assert.deepEqual((await scope).nodes.map(n=>n.id),['XSHE:000001']);
-    assert.equal(loads,1);
-    let liveReads=0;
-    const live={collection:()=>({doc:(id:string)=>({get:async()=>{
-      liveReads++;return {id,exists:true,data:()=>({...supported,onboarding:{status:'BLOCKED'}})};
-    }})})} as unknown as Firestore;
-    assert.equal((await loadCnDiscoveryCompany(live,'XSHE:000001')).nodes.length,0);
-    assert.equal(liveReads,1,'worker must not trust the scheduler snapshot');
-  }finally{sync?.close();}
+    ['XSHG:600001',supported],['XSHG:600002',supported],['XSHG:600003',supported],['US:A',supported],
+  ]);rows.watermark=new Timestamp(100,0);
+  const f=fixture([[doc('XSHG:600001',{...supported,onboarding:{status:'BLOCKED'}}),
+    doc('XSHG:600002',{isDeleted:true}),doc('XSHE:000001',supported)]]);
+  const result=await readEarningsScheduleCompanies(f.db,async()=>rows);
+  assert.deepEqual(result.map(n=>n.id),['XSHE:000001','XSHG:600003']);
+  assert.equal(f.reads,1);
+  assert.equal(f.filters[0][0],'updatedAt');assert.equal(f.filters[0][2],rows.watermark);
+  assert((f.filters[1][0] as FieldPath).isEqual(FieldPath.documentId()));
+  assert.deepEqual(f.filters.slice(1).map(f=>f.slice(1)),[['>=','XSHE:'],['<','XSHG;']]);
+});
+test('CN delta catch-up paginates without losing companies sharing a timestamp',async()=>{
+  const rows:EntityRows=new Map();rows.watermark=new Timestamp(100,0);
+  const first=Array.from({length:250},(_,i)=>doc(`XSHG:${600000+i}`,{...supported,updatedAt:rows.watermark}));
+  const f=fixture([first,[doc('XSHG:600250',supported)]]);
+  assert.equal((await readEarningsScheduleCompanies(f.db,async()=>rows)).length,251);
+  assert.equal(f.reads,2);assert(f.cursor);
+});
+test('an absent snapshot falls back to supported CN reads; invalid snapshots fail closed',async()=>{
+  const f=fixture([[doc('XSHE:000001',supported)]]);
+  assert.equal((await readEarningsScheduleCompanies(f.db,async()=>undefined)).length,1);
+  assert.deepEqual(f.filters[0],['onboarding.status','==','SUPPORTED']);
+  assert.deepEqual(f.filters.slice(1).map(f=>f.slice(1)),[['>=','XSHE:'],['<','XSHG;']]);
+  await assert.rejects(readEarningsScheduleCompanies(f.db,async()=>new Map()),/freshness boundary/);
+  await assert.rejects(readEarningsScheduleCompanies(f.db,async()=>{throw Error('corrupt file');}),/corrupt file/);
+  assert.equal(f.reads,1);
 });
