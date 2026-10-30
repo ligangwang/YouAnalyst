@@ -13,6 +13,8 @@ const datasets=Object.fromEntries(['US','CN_A'].map(market=>{
  }));
  return [market,buildPeerComparison(ids[3],nodes,docs,new Map(),'2026-10-14')!];
 }));
+datasets.LARGE={...datasets.US,total:35,panels:datasets.US.panels.map(panel=>({...panel,rows:[...panel.rows,...Array.from({length:30},(_,i)=>({...panel.rows[0],id:`US:X${i}`,name:`Extra ${i}`,names:undefined,observation:null,rank:null}))]}))};
+datasets.PRICES_ONLY={...datasets.US,panels:[],pricePeers:datasets.US.panels[0].rows};
 let html:string;
 test.beforeAll(async()=>{html=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyPeerComparison} from './src/components/company-peer-comparison';import {LocaleProvider} from './src/components/providers/locale-provider';const params=new URLSearchParams(location.search);const datasets=${JSON.stringify(datasets)};createRoot(document.getElementById('root')).render(<LocaleProvider locale={params.get('lang')==='zh-CN'?'zh-CN':'en'}><main><CompanyPeerComparison data={params.has('empty')?{...datasets.US,panels:[]}:datasets[params.get('market')??'US']}/></main></LocaleProvider>);`,{alias:{'next/link':path.resolve('tests/industry/link.tsx')}},'body{margin:0;background:#07131d;color:#e2f1f8;font-family:Arial}main{max-width:900px;margin:auto;padding:16px}*{box-sizing:border-box}button{color:inherit}a{color:inherit}');});
 for(const chinese of [false,true])for(const market of ['US','CN_A'])test(`${market} peer comparison shows partial coverage, losses, missing values and full list in ${chinese?'Chinese':'English'}`,async({page},info)=>{
@@ -35,3 +37,84 @@ for(const chinese of [false,true])for(const market of ['US','CN_A'])test(`${mark
  await section.screenshot({path:`output/peer-comparison-${market}-${chinese?'zh':'en'}-${info.project.name}.png`});
 });
 test('companies without comparable data do not render an empty comparison section',async({page})=>{await page.route('**/*',route=>route.fulfill({contentType:'text/html',body:html}));await page.goto('http://peers.test/?empty=1');await expect(page.getByRole('heading',{name:'Peer comparison'})).toHaveCount(0);});
+
+
+test('prices are requested only after selection and slow prices never block financial tabs',async({page})=>{
+ const requests:string[][]=[];let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/company-peer-prices')){
+   requests.push(new URL(route.request().url()).searchParams.getAll('peer'));
+   await held;await route.fulfill({json:{panel:null}}).catch(()=>{});return;
+  }
+  await route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://peers.test/');
+ await expect(page.getByRole('heading',{name:'Peer comparison'})).toBeVisible();expect(requests).toHaveLength(0);
+ await page.getByRole('button',{name:'Annual net income',exact:true}).click();
+ await expect(page.locator('ol > li')).toHaveCount(4);expect(requests).toHaveLength(0);
+ await page.getByRole('button',{name:'5-session return',exact:true}).click();
+ await expect(page.getByRole('status')).toHaveText('Loading displayed companies…');
+ expect(requests).toEqual([['US:D','US:B','US:A','US:C']]);
+ await page.getByRole('button',{name:'Market cap',exact:true}).click();
+ await expect(page.getByText('Sample coverage 3/5')).toBeVisible();
+ release();await expect(page.getByRole('button',{name:'Market cap',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(page.getByText('No comparable prices for these companies.')).toHaveCount(0);
+});
+
+test('price paging fetches only the visible page, retains the current company, and reuses completed requests',async({page})=>{
+ const requests:string[][]=[];
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/company-peer-prices')){
+   const ids=new URL(route.request().url()).searchParams.getAll('peer');requests.push(ids);
+   const rows=ids.map((id,i)=>({...datasets.LARGE.panels[0].rows.find(row=>row.id===id)!,observation:{value:i,date:'2026-10-14',start:'2026-10-07'},rank:i+1}));
+   await route.fulfill({json:{panel:{key:'fiveDayReturn',currency:'USD',date:'2026-10-14',start:'2026-10-07',annual:false,rows,count:rows.length,mean:1,median:1}}});return;
+  }
+  await route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://peers.test/?market=LARGE');
+ expect(requests).toHaveLength(0);
+ await page.getByRole('button',{name:'5-session return',exact:true}).click();
+ await expect(page.locator('ol > li')).toHaveCount(4);
+ expect(requests).toEqual([['US:D','US:A','US:B','US:C']]);
+ await page.getByRole('button',{name:'View more peers',exact:true}).click();
+ await expect(page.locator('ol > li')).toHaveCount(13);
+ expect(requests[1]).toHaveLength(13);expect(requests[1]).toContain('US:D');expect(requests[1]).not.toContain('US:X8');
+ await page.getByRole('button',{name:'Next peers',exact:true}).click();
+ await expect(page.getByRole('link',{name:'Extra 8',exact:true})).toBeVisible();
+ expect(requests[2]).toHaveLength(13);expect(requests[2]).toContain('US:D');expect(requests[2]).not.toContain('US:A');
+ await page.getByRole('button',{name:'Previous peers',exact:true}).click();
+ await expect(page.getByRole('link',{name:'Alpha',exact:true})).toBeVisible();expect(requests).toHaveLength(3);
+ await expect(page.getByText(/Returns, ranks and averages cover only/)).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:`output/peer-demand-${test.info().project.name}.png`});
+});
+
+test('failed price requests are retryable and do not replace existing financial data',async({page})=>{
+ let calls=0;
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/company-peer-prices')){
+   calls++;await route.fulfill(calls===1?{status:503,json:{error:'unavailable'}}:{json:{panel:null}});return;
+  }
+  await route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://peers.test/');
+ await page.getByRole('button',{name:'5-session return',exact:true}).click();
+ await expect(page.getByRole('status')).toContainText('Prices could not be loaded.');
+ await page.getByRole('button',{name:'Retry',exact:true}).click();
+ await expect(page.getByRole('status')).toHaveText('No comparable prices for these companies.');expect(calls).toBe(2);
+ await page.getByRole('button',{name:'Market cap',exact:true}).click();
+ await expect(page.getByText('Sample coverage 3/5')).toBeVisible();
+});
+
+
+test('companies with no financial observations can request prices without eager reads',async({page})=>{
+ let requests=0;
+ await page.route('**/*',route=>{
+  if(route.request().url().includes('/api/company-peer-prices')){requests++;return route.fulfill({json:{panel:null}});}
+  return route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://peers.test/?market=PRICES_ONLY');
+ await expect(page.getByText('Select 5-session return to compare prices.')).toBeVisible();expect(requests).toBe(0);
+ await page.getByRole('button',{name:'5-session return',exact:true}).click();
+ await expect(page.getByRole('status')).toHaveText('No comparable prices for these companies.');expect(requests).toBe(1);
+});

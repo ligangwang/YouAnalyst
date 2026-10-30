@@ -117,3 +117,31 @@ test('peer price history watches the exact bounded query and pushes corrections'
  value=3;for(const next of listeners.values())next(snapshot());
  assert.equal((await load())[0].rawClose,3,'reopened subscription still applies corrections');
 });
+
+
+test('visible price demand deduplicates the selected company and bounds expanded pages',async()=>{
+ const {normalizePriceDemand,visiblePriceIds}=await import('../src/lib/peer-comparison/price-demand');
+ const peers=Array.from({length:2000},(_,i)=>({id:`US:P${i}`}));
+ assert.deepEqual(visiblePriceIds('US:P1',peers,false,0),['US:P1','US:P0','US:P2']);
+ const first=visiblePriceIds('US:P1999',peers,true,0),second=visiblePriceIds('US:P1999',peers,true,1);
+ assert.equal(first.length,13);assert.equal(second.length,13);assert.deepEqual(first.filter(id=>second.includes(id)),['US:P1999']);
+ assert.deepEqual(normalizePriceDemand('US:P1',['US:P1','US:P2','US:P2']),['US:P1','US:P2']);
+ assert.equal(normalizePriceDemand('US:P1',peers.map(p=>p.id)),null);
+ assert.equal(normalizePriceDemand('US:P1',['../companies']),null);
+});
+
+test('price endpoint rejects oversized requests before loading and never publicly caches responses',async()=>{
+ const {build}=await import('esbuild'),helpers=await import('../src/lib/peer-comparison/price-demand');
+ const bundle=await build({entryPoints:['src/app/api/company-peer-prices/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',plugins:[{name:'endpoint-fixture',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}}]});
+ let calls=0;
+ const evaluated={exports:{}};
+ new Function('require','module','exports',bundle.outputFiles[0].text)((id:string)=>{
+  if(id.endsWith('/price-demand'))return helpers;
+  if(id.endsWith('/service'))return {loadPeerComparison:async(company:string,options:{priceIds:string[];signal:AbortSignal})=>{calls++;assert.equal(company,'US:A');assert.deepEqual(options.priceIds,['US:A','US:B']);assert(options.signal instanceof AbortSignal);return {panels:[]};}};
+  throw Error(id);
+ },evaluated,evaluated.exports);
+ const {GET}=evaluated.exports as {GET:(request:Request)=>Promise<Response>};
+ assert.equal((await GET(new Request('https://example.test/api?company=US:A&'+Array.from({length:14},(_,i)=>`peer=US:P${i}`).join('&')))).status,400);assert.equal(calls,0);
+ const response=await GET(new Request('https://example.test/api?company=US:A&peer=US:B'));
+ assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');assert.deepEqual(await response.json(),{panel:null});assert.equal(calls,1);
+});
