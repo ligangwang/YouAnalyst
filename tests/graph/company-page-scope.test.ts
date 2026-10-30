@@ -20,15 +20,16 @@ import {buildCompanyResearch} from '../../src/lib/company-research';
 import {legacyCatalog} from '../helpers/theme-catalog';
 import {traceCompanyPage,timeCompanyPhase,timeCompanyPhaseSync} from '../../src/lib/company-page-timing';
 
-function fixture(){
+function fixture(hold?:(collection:string,steps:{method:string;args:unknown[]}[])=>boolean){
  const rows=new Map<string,Record<string,unknown>>([
   ['companies/US:SMALL',{slug:'small-example',name:'Small',symbol:'SMALL'}],
   ['company_fundamentals/US:SMALL',{value:{fetchedAt:'2026-10-24',revenue:17}}],
  ]);
  const listeners=new Set<()=>void>();let files=0,opens=0,gets=0;
+ const pending=new Set<()=>void>(),readDocs=new Set<string>();
  function source(collection:string,id?:string,steps:{method:string;args:unknown[]}[]=[]){
   const key=JSON.stringify([collection,id,steps.map(s=>({...s,args:s.args.map(a=>a instanceof FieldPath?'__name__':a)}))]);
-  const snapshot=(docId:string)=>({id:docId,ref:source(collection,docId),exists:rows.has(collection+'/'+docId),data:()=>structuredClone(rows.get(collection+'/'+docId)),get:(field:string)=>rows.get(collection+'/'+docId)?.[field]});
+  const snapshot=(docId:string)=>({id:docId,ref:source(collection,docId),exists:rows.has(collection+'/'+docId),data:()=>{readDocs.add(collection+'/'+docId);return structuredClone(rows.get(collection+'/'+docId));},get:(field:string)=>rows.get(collection+'/'+docId)?.[field]});
   const read=()=>{
    if(id!==undefined)return snapshot(id);
    let ids=[...rows.keys()].filter(k=>k.startsWith(collection+'/')).map(k=>k.slice(collection.length+1));
@@ -49,13 +50,13 @@ function fixture(){
    orderBy:(...args:unknown[])=>source(collection,undefined,[...steps,{method:'orderBy',args}]),
    select:(...args:unknown[])=>source(collection,undefined,[...steps,{method:'select',args}]),
    get:async()=>{gets++;return read();},
-   onSnapshot:(next:(snapshot:unknown)=>void)=>{opens++;const push=()=>next(read());listeners.add(push);queueMicrotask(push);return ()=>{listeners.delete(push);};},
+   onSnapshot:(next:(snapshot:unknown)=>void)=>{opens++;const push=()=>next(read());listeners.add(push);if(hold?.(collection,steps))pending.add(push);else queueMicrotask(push);return ()=>{listeners.delete(push);pending.delete(push);};},
   };
   registerCompanySource(value,id,steps,collection as 'companies');return value;
  }
  const db={collection:(name:string)=>source(name)} as unknown as Firestore;
  enableCompanyDirectory(db,db,{file:async collection=>{files++;return new Map([...rows].filter(([key])=>key.startsWith(collection+'/')).map(([key,value])=>[key.split('/')[1],value]));},price:{years:async()=>[2026],file:async()=>{files++;throw Error('price partition requested');}},sync:false});
- return {db,rows,push:()=>listeners.forEach(push=>push()),counts:()=>({files,opens,gets})};
+ return {db,rows,readDocs,release:()=>{for(const push of pending)push();pending.clear();},push:()=>listeners.forEach(push=>push()),counts:()=>({files,opens,gets})};
 }
 
 test('cold company routes and financial documents never download whole snapshots, and visitors share push subscriptions',async t=>{
@@ -233,6 +234,68 @@ test('an uncovered company does not read global graph, neighbors or valuations',
  const graph=await withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:SMALL',company));
  assert.deepEqual(graph.nodes,[]);assert.deepEqual(graph.relationships,[]);
  assert.deepEqual(f.counts(),{files:0,opens:2,gets:0});
+});
+
+test('cold NVIDIA reads only its neighborhood and preserves exact-key editorial withdrawals',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const member={status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:0,asOf:'2026-10-24'};
+ const company={name:'NVIDIA',symbol:'NVDA',status:'PUBLISHED',inGraph:member};
+ f.rows.set('companies/US:NVDA',company);
+ for(const id of ['TSM','MU'])f.rows.set(`companies/US:${id}`,{name:id,status:'DIRECTORY'});
+ for(let i=0;i<1000;i++)f.rows.set(`companies/US:UNRELATED${i}`,{name:'Unrelated',status:'PUBLISHED',inGraph:member});
+ const read=()=>withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:NVDA',company));
+ const graphs=await Promise.all(Array.from({length:20},read));
+ assert.deepEqual(graphs[0].relationships.filter(edge=>edge.type==='SUPPLIER_OF').map(edge=>edge.source).sort(),['ORG:SAMSUNG-ELECTRONICS','US:MU','US:SKHY','US:TSM']);
+ assert.deepEqual(f.counts(),{files:0,opens:5,gets:0},'endpoint queries, exact editorial keys, bounded neighbors and editorial identity batches');
+ assert(![...f.readDocs].some(path=>path.includes('UNRELATED')||path.startsWith('company_fundamentals/')));
+ f.rows.set('company_relationships/US:TSM__SUPPLIER_OF__US:NVDA',{source:'US:OTHER',target:'US:ELSEWHERE',type:'SUPPLIER_OF',status:'WITHDRAWN'});
+ f.rows.set('companies/US:SKHY',{name:'Hidden SK hynix',status:'DRAFT'});f.push();
+ const updated=await read();
+ assert(!updated.relationships.some(edge=>edge.source==='US:TSM'||edge.source==='US:SKHY'));
+ assert(!updated.nodes.some(node=>['US:OTHER','US:ELSEWHERE','US:SKHY'].includes(node.id)));
+ assert.equal(f.counts().opens,5,'corrections reuse existing listeners');
+ f.rows.set('companies/ORG:SAMSUNG-ELECTRONICS',{name:'Samsung',status:'DIRECTORY',isDeleted:true});f.push();
+ const deleted=await read();assert(!deleted.nodes.some(node=>node.id==='ORG:SAMSUNG-ELECTRONICS'));
+ assert(!deleted.relationships.some(edge=>edge.source==='ORG:SAMSUNG-ELECTRONICS'),'tombstones cannot resurrect synthetic suppliers');
+});
+
+test('an editorial supplier does not load the other NVIDIA suppliers and respects inverse withdrawals',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const member={status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:0,asOf:'2026-10-24'};
+ const company={name:'TSMC',status:'DIRECTORY'};
+ f.rows.set('companies/US:NVDA',{name:'NVIDIA',status:'PUBLISHED',inGraph:member});
+ const read=()=>withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:TSM',company));
+ const graph=await read();assert.equal(graph.relationships.filter(edge=>edge.type==='SUPPLIER_OF').length,1);
+ assert.deepEqual([...f.readDocs].filter(path=>path.startsWith('companies/')),['companies/US:NVDA']);
+ assert.deepEqual(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id).sort(),['US:NVDA','US:TSM']);
+ f.rows.set('company_relationships/inverse',{source:'US:NVDA',target:'US:TSM',type:'CUSTOMER_OF',status:'WITHDRAWN'});f.push();
+ assert.equal((await read()).relationships.length,0);assert.equal(f.counts().files,0);
+});
+
+test('a held cold NVIDIA read does not block an unrelated company page',async t=>{
+ const f=fixture((collection,steps)=>collection==='company_relationships'&&steps.some(step=>step.args[2]==='US:NVDA'));
+ t.after(()=>{f.release();closeLocalCaches();});
+ const nvidia={name:'NVIDIA',status:'DIRECTORY'},small={name:'Small',status:'DIRECTORY'};
+ let completed=false;
+ const cold=withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:NVDA',nvidia)).then(value=>{completed=true;return value;});
+ const other=withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:SMALL',small));
+ assert.equal(await Promise.race([other.then(()=>true),new Promise(resolve=>setImmediate(()=>resolve(false)))]),true);
+ assert.equal(completed,false,'the other page finished while NVIDIA remained held');
+ assert.equal(f.counts().files,0);f.release();await cold;
+});
+
+test('theme preview neighborhoods exclude other themes and withdrawn memberships without a directory scan',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const member={status:'PUBLISHED',primarySector:'sensors-vision',reviewedAt:'2026-10-24',sources:[]};
+ const company={name:'Small',status:'DIRECTORY',themeIds:['robotics'],themeMemberships:{robotics:member}};
+ f.rows.set('companies/US:NEIGHBOR',{...company,name:'Neighbor'});
+ f.rows.set('companies/US:HIDDEN',{...company,name:'Hidden',themeMemberships:{robotics:{...member,status:'WITHDRAWN'}}});
+ for(const [id,target,theme] of [['one','US:NEIGHBOR','robotics'],['hidden','US:HIDDEN','robotics'],['other','US:OTHER','space']])
+  f.rows.set('company_relationships/'+id,{source:'US:SMALL',target,type:'SUPPLIER_OF',themeIds:[theme],status:'PUBLISHED',evidence:[{id:'source',title:'Source',url:'https://example.com/source'}]});
+ const graph=await withCompanyPageReads(()=>loadCompanyNeighborhood(f.db,'US:SMALL',company,{theme:'robotics',catalog:legacyCatalog}));
+ assert.equal(graph.relationships.filter(edge=>edge.type==='SUPPLIER_OF').length,1);
+ assert(!graph.nodes.some(node=>node.id==='US:HIDDEN'||node.id==='US:OTHER'));
+ assert(!f.readDocs.has('companies/US:OTHER'));assert.equal(f.counts().files,0);
 });
 
 test('a connected company batches all neighbors and reuses live corrections without one stream per neighbor',async t=>{

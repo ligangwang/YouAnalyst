@@ -1,16 +1,18 @@
 import {withCompanyPageReads} from './local-cache/company-page-scope';
 import { cache } from "react";
 import { getAdminFirestore } from "./firebase/admin";
-import { loadKnowledgeGraphStructure,loadGraphValuations } from "./knowledge-graph/service";
+import {loadCompanyDocuments} from './company-document-cache';
 import { companyResearchGraph } from "./knowledge-graph/company-research-projection";
 import { buildCompanyResearch } from "./company-research";
 import { loadCompanyNeighborhood } from "./knowledge-graph/company-neighborhood";
 import { readCompanyLookup } from "./company-lookup-cache";
 import {timeCompanyPhase} from './company-page-timing';
 
-// Metadata needs identities/relationships; valuation I/O starts independently.
-const loadCompanyStructure=cache(()=>withCompanyPageReads(()=>loadKnowledgeGraphStructure()));
-export const loadCompanyPageGraph=cache(()=>withCompanyPageReads(async()=>loadGraphValuations(getAdminFirestore(),await loadCompanyStructure())));
+// A retry must retain the same company scope as the initial read.
+export const loadCompanyPageGraph=cache((id:string)=>withCompanyPageReads(async()=>{
+ const db=getAdminFirestore(),[company]=await loadCompanyDocuments(db,'companies',[id]);
+ return loadCompanyNeighborhood(db,id,company.data());
+}));
 
 export type ResolvedCompany = {id:string; data:Record<string,unknown>|undefined; path:string|null};
 const loadTickerRecord=cache(async(ticker:string)=>{
@@ -23,6 +25,6 @@ const loadTickerRecord=cache(async(ticker:string)=>{
 export const loadCompanyResearch = cache((ticker:string,resolved?:ResolvedCompany)=>withCompanyPageReads(async()=>{
  const db=getAdminFirestore(), id=`US:${ticker}`;
  const data=resolved?.id===id?resolved.data:await loadTickerRecord(ticker);
- const neighborhood=await timeCompanyPhase('relationships',()=>loadCompanyNeighborhood(db,id,data,loadCompanyStructure)).catch(()=>null);
+ const neighborhood=await timeCompanyPhase('relationships',()=>loadCompanyNeighborhood(db,id,data)).catch(()=>null);
  return {...buildCompanyResearch(ticker,data?[data]:[],neighborhood?companyResearchGraph(neighborhood):null),neighborhood};
 }));
