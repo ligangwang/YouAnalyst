@@ -7,7 +7,7 @@ import {verticalJitter as jitter,verticalTreeCrownCap,VERTICAL_SOIL_Y} from '@/l
 import {leafClusterTexture,meadowTexture} from '@/lib/ui/knowledge-graph/leaf-texture';
 import {createMeadowClock,meadowMaterial} from '@/lib/ui/knowledge-graph/tree-cinematic-material';
 import {TreeCinematicAtmosphere} from './tree-cinematic-atmosphere';
-import {TreeGalaxies} from './tree-galaxies';
+import {DeepSpaceClouds} from './deep-space-clouds';
 
 const noHit=()=>{};
 type Plant={position:[number,number,number];scale:[number,number,number];rotation:[number,number,number];color:string};
@@ -157,7 +157,7 @@ export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{no
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-60,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#26421f" roughness={1}/></mesh>
   <mesh geometry={terrain} raycast={noHit}><meshStandardMaterial vertexColors map={turf} roughness={1}/></mesh>
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}
-  <TreeGalaxies height={Number.isFinite(high)?high:2400}/>
+  <DeepSpaceClouds height={Number.isFinite(high)?high:2400}/>
   <Plants items={flowers} flower material={flowerMaterial}/>{limbs.map(node=><Canopy key={node.id} node={node} crown={crown} map={leaves} material={foliage}/>)}
   {crownCap&&<Canopy node={crownCap} crown={crown} map={leaves} material={foliage} crownCap/>}
   <TreeCinematicAtmosphere clock={clock} paused={paused} top={Number.isFinite(high)?high:2400}/>
