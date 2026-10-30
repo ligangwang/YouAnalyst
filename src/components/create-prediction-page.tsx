@@ -18,18 +18,27 @@ import { isCoveredCompany, MAX_VIEW_EVIDENCE, mergeCoverageGraphs, relationshipL
 const key = (ref: ViewEvidenceRef) => `${ref.kind}:${ref.id}`;
 
 /** Published thematic maps, loaded once: they decide which companies can receive views and what a view can cite. */
-function useCoverageGraph() {
+function useCoverageGraph(enabled:boolean) {
   const {themes}=useThemeCatalog();
   const [graph, setGraph] = useState<CoverageGraph | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    if(!themes.length)return;
+    if(!enabled||!themes.length)return;
     const controller = new AbortController();
-    Promise.all(themes.map(theme => fetch(`/api/knowledge-graph?theme=${encodeURIComponent(theme)}`, { signal: controller.signal })
-      .then(response => { if (!response.ok) throw new Error(); return response.json().then(graph => ({ theme: theme as CompanyThemeId, graph })); })))
-      .then(graphs => setGraph(mergeCoverageGraphs(graphs))).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    // A signed-out visitor needs no coverage. For a publisher, serialize the
+    // theme reads instead of flooding one server with every graph at once.
+    void (async()=>{
+      const graphs=[];
+      for(const theme of themes){
+        controller.signal.throwIfAborted();
+        const response=await fetch(`/api/knowledge-graph?theme=${encodeURIComponent(theme)}`,{signal:controller.signal});
+        if(!response.ok)throw Error('Coverage unavailable');
+        graphs.push({theme:theme as CompanyThemeId,graph:await response.json()});
+      }
+      if(!controller.signal.aborted)setGraph(mergeCoverageGraphs(graphs));
+    })().catch(()=>{if(!controller.signal.aborted)setFailed(true);});
     return () => controller.abort();
-  }, [themes]);
+  }, [themes,enabled]);
   return { graph, failed };
 }
 
@@ -46,7 +55,7 @@ export function CreatePredictionPage({ requestedTicker = "", requestedDirection,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const request = useRef<{ payload: string; id: string } | null>(null);
-  const { graph, failed } = useCoverageGraph();
+  const { graph, failed } = useCoverageGraph(Boolean(user)&&!loading);
   const companyId = predictionInstrument(ticker)?.companyId ?? "";
   const covered = !graph || !companyId ? null : isCoveredCompany(graph, companyId);
   const options = useMemo(() => {
