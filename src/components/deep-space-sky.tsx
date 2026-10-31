@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo } from 'react';
-import { useThree } from '@react-three/fiber';
 import { BackSide, BufferGeometry, Float32BufferAttribute, Vector2 } from 'three';
 
 const SKY_RADIUS = 60000;
@@ -93,9 +92,7 @@ const bandFragment = `varying vec3 starColor;
   void main() { float r = length(gl_PointCoord - 0.5); float alpha = 1.0 - smoothstep(0.1, 0.5, r); if (alpha < 0.02) discard; gl_FragColor = vec4(starColor, alpha); }`;
 
 export function DeepSpaceSky({ height }: { height: number }) {
-  const { gl, size } = useThree();
   const uniforms = useMemo(() => ({ plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) }, resolution: { value: new Vector2(1, 1) } }), []);
-  useEffect(() => { gl.getDrawingBufferSize(uniforms.resolution.value); }, [gl, size, uniforms]);
   // Fine stars crowd the galactic band and thin out toward its edges.
   const bandStars = useMemo(() => {
     const plane = normalize(PLANE), bulge = normalize(BULGE);
@@ -120,7 +117,8 @@ export function DeepSpaceSky({ height }: { height: number }) {
   }, []);
   useEffect(() => () => bandStars.dispose(), [bandStars]);
   return <group name="deep-space-sky" position={[0, height / 2, 0]}>
-    <mesh renderOrder={-3} raycast={() => {}} frustumCulled={false}>
+    {/* Read the drawing buffer at draw time so DPR changes keep the calm area centered. */}
+    <mesh renderOrder={-3} raycast={() => {}} frustumCulled={false} onBeforeRender={renderer => renderer.getDrawingBufferSize(uniforms.resolution.value)}>
       <sphereGeometry args={[SKY_RADIUS, 64, 32]}/>
       <shaderMaterial side={BackSide} depthWrite={false} toneMapped={false} uniforms={uniforms} vertexShader={skyVertex} fragmentShader={skyFragment}/>
     </mesh>
