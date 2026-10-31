@@ -38,8 +38,8 @@ export async function loadKnowledgeGraphStructure(options: GraphOptions = {}): P
 
 async function attachUsMarketCaps(db:Firestore,graph:KnowledgeGraph){
   const usCompanies = graph.nodes.filter(n => n.kind === "COMPANY" && n.id.startsWith("US:"));
-  for (let i = 0; i < usCompanies.length; i += 100) {
-    const batch = usCompanies.slice(i, i + 100);
+  for (let i = 0; i < usCompanies.length; i += 1000) {
+    const batch = usCompanies.slice(i, i + 1000);
     const values = await loadCompanyDocuments(db, 'company_fundamentals', batch.map(n => n.id), 'marketCap');
     values.forEach((doc, index) => {
       const cap = doc.data()?.marketCap;

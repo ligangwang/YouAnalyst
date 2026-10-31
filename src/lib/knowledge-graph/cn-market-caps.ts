@@ -10,8 +10,8 @@ const positive = (value: unknown): value is number => typeof value === "number" 
 // Nodes are sized by USD; the CNY value and FX rate date travel with it.
 export async function attachCnMarketCaps(db: Firestore, graph: Pick<KnowledgeGraph, "nodes">) {
   const companies = graph.nodes.filter(n => n.kind === "COMPANY" && CN_COMPANY_ID.test(n.id));
-  for (let i = 0; i < companies.length; i += 100) {
-    const batch = companies.slice(i, i + 100);
+  for (let i = 0; i < companies.length; i += 1000) {
+    const batch = companies.slice(i, i + 1000);
     const docs = await loadCompanyDocuments(db, 'company_fundamentals', batch.map(n => n.id), 'marketCap');
     docs.forEach((doc, index) => {
       const cap = doc.data()?.marketCap;
