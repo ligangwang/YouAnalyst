@@ -66,6 +66,11 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     if(!upgraded)return processEodMaintenance(message,db,log);
     await publish(upgraded);return {batchId:message.batchId,upgraded:true};
   }
+  if(prior?.completed){
+    const parentRequest=prior.result?.parentRequest;
+    if(parentRequest)await publish(parseEodMessage(parentRequest));
+    return {batchId:message.batchId,duplicate:true,...(prior.status==='FAILED'?{status:'FAILED'}:{})};
+  }
   if(message.input.rollForward)return processEodReplay(message,db,log,publish);
   const active=(await state.get()).get('activeRequest');
   if(active&&active.batchId!==message.batchId){

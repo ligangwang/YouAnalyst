@@ -36,6 +36,9 @@ test('expired incomplete EOD retires visibly failed, preserves receipts, and all
   const next=messages.shift()!;
   await processEodCompanyMessage(next,f.db,f.log,publish,{plan:async()=>['US:AMD'],prepare:async()=>({})});
   assert.equal((f.rows.get(f.state.path)?.activeRequest as EodMessage).batchId,next.batchId);
+  const duplicate=await processEodCompanyMessage(f.request,f.db,f.log,async()=>{throw Error('Retired duplicate must not wake or block another run');});
+  assert.ok('status' in duplicate&&duplicate.status==='FAILED');
+  assert.equal((f.rows.get(f.state.path)?.activeRequest as EodMessage).batchId,next.batchId);
 });
 
 test('recovery preserves retry window and never retires active children, parent, or maintenance',async()=>{
