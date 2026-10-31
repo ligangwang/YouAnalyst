@@ -14,8 +14,14 @@ export async function retireExpiredEodRun(db:Firestore,now=Date.now()):Promise<s
     if(!request||Number(pipeline.get('leaseExpiresAtMs'))>now)return null;
     const ref=db.collection('eod_runs').doc(`_request_${request.batchId}`);
     const saved=await tx.get(ref),run=saved.data() as CompanyRun<EodCompanyRunRequest>|undefined;
-    const startedAt=Date.parse(saved.get('startedAt')??request.requestedAt);
-    if(!run||digest(run.request)!==digest(request)||run.completed||run.phase!=='waiting'
+    if(!run||digest(run.request)!==digest(request)||run.completed)return null;
+    // Adopt pre-deployment runs without counting days spent queued against their
+    // retry budget. Never expire a catch-up run merely because its request is old.
+    if(run.companyIds&&!saved.get('startedAt')){
+      tx.set(ref,{startedAt:new Date(now).toISOString()},{merge:true});return null;
+    }
+    const startedAt=Date.parse(saved.get('startedAt'));
+    if(run.phase!=='waiting'
       ||!run.companyIds||run.dispatchCursor!==run.companyIds.length
       ||!Number.isFinite(startedAt)||now-startedAt<EOD_COMPANY_RECOVERY_MS
       ||Number(saved.get('leaseExpiresAtMs'))>now)return null;

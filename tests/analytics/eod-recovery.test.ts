@@ -13,7 +13,7 @@ function fixture(){
   const parent=f.db.collection('eod_runs').doc('_request_old'),state=f.db.collection('eod_runs').doc('_company_pipeline');
   const tasks=['US:AMD','US:AGNPF'].map(id=>companyWorkRequest('eod',request,id));
   f.rows.set(state.path,{activeRequest:request});
-  f.rows.set(parent.path,{request,companyIds:tasks.map(t=>t.companyId),phase:'waiting',dispatchCursor:2,completedCompanies:1});
+  f.rows.set(parent.path,{request,startedAt:request.requestedAt,companyIds:tasks.map(t=>t.companyId),phase:'waiting',dispatchCursor:2,completedCompanies:1});
   tasks.forEach((task,index)=>f.rows.set(companyWorkRef(f.db,'eod_runs',task.batchId).path,{request:task,result:{},completed:index===0}));
   const dispatch=`eod_runs/_dispatch_${digest(request.input)}`;
   f.rows.set(dispatch,{activeRequest:request});
@@ -43,7 +43,7 @@ test('recovery preserves retry window and never retires active children, parent,
   assert.equal(await retireExpiredEodRun(f.db,f.now-2),null);
   f.rows.get(f.parent.path)!.startedAt=new Date(f.now).toISOString();
   assert.equal(await retireExpiredEodRun(f.db,f.now),null,'old queued requests get a full budget after starting');
-  delete f.rows.get(f.parent.path)!.startedAt;
+  f.rows.get(f.parent.path)!.startedAt=f.request.requestedAt;
   const child=f.rows.get(companyWorkRef(f.db,'eod_runs',f.tasks[1].batchId).path)!;
   child.leaseExpiresAtMs=f.now+1000;
   assert.equal(await retireExpiredEodRun(f.db,f.now),null);
@@ -54,6 +54,13 @@ test('recovery preserves retry window and never retires active children, parent,
   f.rows.get(f.state.path)!.leaseExpiresAtMs=f.now+1000;
   assert.equal(await retireExpiredEodRun(f.db,f.now),null);
   assert.equal(f.rows.get(f.parent.path)?.completed,undefined);
+});
+
+test('pre-deployment runs get a fresh recovery window instead of expiring based on queued age',async()=>{
+  const f=fixture();delete f.rows.get(f.parent.path)!.startedAt;
+  assert.equal(await retireExpiredEodRun(f.db,f.now),null);
+  assert.equal(f.rows.get(f.parent.path)?.startedAt,new Date(f.now).toISOString());
+  assert.equal(await retireExpiredEodRun(f.db,f.now+EOD_COMPANY_RECOVERY_MS),'old');
 });
 
 test('recovery does not discard undispatched work or a successful run awaiting finalization',async()=>{
