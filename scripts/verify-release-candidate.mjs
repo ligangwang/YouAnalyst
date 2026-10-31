@@ -40,10 +40,26 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
   const preferences = await request(`${url}/api/preferences/compare`, {signal:AbortSignal.timeout(60000)});
   assert.equal(preferences.status, 401, 'Candidate comparison preferences must require sign-in');
   // Exercise the data path before promotion, not only an HTML shell/health check.
-  const graphResponse=await request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)});
+  const refreshStarted=performance.now();
+  const [graphResponse,feed,relationships]=await Promise.all([
+    request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)}),
+    request(`${url}/api/intelligence?theme=ai`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
+      assert.equal(response.status,200,'Candidate refresh failed; existing traffic stays unchanged');
+      const data=await response.json();
+      assert(Array.isArray(data.events)&&data.eventsPending!==true&&data.session?.startAt,'Candidate refresh is incomplete');
+      assert(performance.now()-refreshStarted<15000,'Candidate refresh exceeds the browser timeout; existing traffic stays unchanged');
+      return data;
+    }),
+    request(`${url}/api/company-relationships?company=US%3ANVDA`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
+      assert.equal(response.status,200,'Candidate company relationships failed');
+      return response.json();
+    }),
+  ]);
   assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
   const graph=await graphResponse.json();
   assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
+  assert(Array.isArray(feed.graph?.nodes)&&feed.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate feed has no companies');
+  assert(Array.isArray(relationships.nodes)&&relationships.nodes.some(node=>node.id==='US:NVDA')&&Array.isArray(relationships.relationships),'Candidate relationship graph is invalid');
   for (const [path, text] of [
     ['/en/industries?taxonomy=SIC&code=3674', 'Semiconductors &amp; Related Devices'],
     ['/zh-cn/industries?taxonomy=CNI&code=C08030101', '集成电路'],
