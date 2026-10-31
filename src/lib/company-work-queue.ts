@@ -31,6 +31,7 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
   plan:()=>Promise<string[]>;prepare:(ids:string[])=>Promise<Record<string,Record<string,unknown>>>;
   publish:(message:R|CompanyWorkRequest)=>Promise<unknown>;
   finalize:(cursor:string|null)=>Promise<string|null>;
+  onVerified?:(statuses:Record<string,number>)=>Promise<void>;
 }){
   const {db,ref,state,owner}=options;
   if(!await acquireMaintenanceLease(ref,owner))throw Error('Company run is busy');
@@ -53,8 +54,10 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
     }
     if(run.phase==='companies'){
       const ids=run.companyIds!.slice(run.dispatchCursor??0,(run.dispatchCursor??0)+25);
-      const prepared=await options.prepare(ids);
-      for(const companyId of ids){
+      const existing=ids.length?await db.getAll(...ids.map(id=>companyWorkRef(db,options.collection,companyWorkRequest(options.kind,request,id).batchId))):[];
+      const pending=ids.filter((_,index)=>existing[index].get('completed')!==true);
+      const prepared=await options.prepare(ids.filter((_,index)=>!existing[index].exists));
+      for(const companyId of pending){
         const child=companyWorkRequest(options.kind,request,companyId),childRef=companyWorkRef(db,options.collection,child.batchId);
         await db.runTransaction(async tx=>{
           if(!(await tx.get(childRef)).exists)tx.create(childRef,{request:child,result:prepared[companyId]??{},completed:false});
@@ -74,11 +77,14 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
     if(run.phase==='waiting'){
       if(run.completedCompanies!==run.companyIds!.length)return {batchId:request.batchId,phase:'waiting',completed:run.completedCompanies,required:run.companyIds!.length};
       // Independently verify every receipt, not just the completion counter.
+      const statuses:Record<string,number>={};
       for(let i=0;i<run.companyIds!.length;i+=100){
         const tasks=run.companyIds!.slice(i,i+100).map(id=>companyWorkRequest(options.kind,request,id));
         const receipts=await db.getAll(...tasks.map(task=>companyWorkRef(db,options.collection,task.batchId)));
         if(receipts.some((receipt,index)=>receipt.get('completed')!==true||!receipt.get('request')||digest(receipt.get('request'))!==digest(tasks[index])))throw Error('Company completion barrier is incomplete');
+        for(const receipt of receipts){const status=String(receipt.get('status')??'COMPLETED');statuses[status]=(statuses[status]??0)+1;}
       }
+      await options.onVerified?.(statuses);
       await ref.set({phase:'finalizing'},{merge:true});
       run={...run,phase:'finalizing'};
     }

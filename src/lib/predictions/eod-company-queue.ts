@@ -1,6 +1,6 @@
 import type {Firestore} from 'firebase-admin/firestore';
 import {parseCompanyWorkRequest,processCompanyRun,processCompanyWork,type CompanyWorkRequest} from '../company-work-queue';
-import {publishJobMessage} from '../job-pubsub';
+import {publishEodMessage} from './eod-publisher';
 import {digest} from '../fundamentals/pubsub';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
 import type {MaintenanceLog} from '../maintenance-log';
@@ -20,7 +20,7 @@ export function parseEodMessage(value:unknown):EodMessage {
 }
 const parentRef=(db:Firestore,id:string)=>db.collection('eod_runs').doc(`_request_${id}`);
 export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log:MaintenanceLog,
-  publish:(message:EodMessage)=>Promise<unknown>=message=>publishJobMessage(process.env.EOD_REQUEST_TOPIC||'eod-maintenance-requests',message),
+  publish:(message:EodMessage)=>Promise<unknown>=publishEodMessage,
   dependencies:{plan?:typeof planEodCompanyWork;prepare?:typeof prepareEodCompanyPrices;run?:typeof runDailyEodMaintenance;finalize?:typeof finalizeEodCompanyScores}={}){
   const message=parseEodMessage(value),state=db.collection('eod_runs').doc('_company_pipeline');
   if(message.type==='company.work.requested'){
@@ -35,13 +35,30 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       const input={...parent.input,...(replay?{skipHistoryBackfill:true}:{})},market=input.market,ticker=market==='US'?message.companyId.slice(3):message.companyId;
       const result=await (dependencies.run??runDailyEodMaintenance)({...input,rollForward:false,tickers:[ticker],afterPredictionId:cursor??undefined},
         {taskId:message.batchId,...(prepared.price?{price:prepared.price as EodPrice}:{})});
-      if(result.priceLoad.failed||result.marking.missingPrice||result.corporateActions?.failures.length||result.corporateActions?.deferred)throw Error('Company EOD processing remains incomplete');
+      // An empty dated response is an explicit data gap, not a new price. It
+      // need not hold unrelated portfolios when the entire issuer scan found
+      // no predictions. Transport errors and required valuations still retry.
+      if(result.priceLoad.failed>0&&result.priceLoad.failures?.length===result.priceLoad.failed
+        &&result.priceLoad.failures.every(failure=>failure.reason==='eodhd_no_dated_bar')
+        &&result.candidatePredictions===0&&result.marking.checked===0&&result.marking.missingPrice===0
+        &&!result.hasMoreCandidatePredictions&&!result.fx?.failed
+        &&!result.corporateActions?.failures.length&&!result.corporateActions?.deferred){
+        const receipt=db.collection('eod_runs').doc(`_company_${message.batchId}`);
+        await db.runTransaction(async tx=>{
+          const saved=await tx.get(receipt);
+          if(saved.get('leaseOwner')!==log.runId||Number(saved.get('leaseExpiresAtMs'))<=Date.now())throw Error('Company work lease expired');
+          tx.set(receipt,{status:'NO_DATA',error:'Provider returned no dated bar; no predictions require valuation'},{merge:true});
+        });
+        log.emit('WARNING','company_no_dated_bar',{company:message.companyId,runDate:input.runDate});
+        return null;
+      }
+      if(result.priceLoad.failed||result.marking.missingPrice||result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred)throw Error('Company EOD processing remains incomplete');
       if(result.hasMoreCandidatePredictions&&(!result.nextPredictionId||result.nextPredictionId===cursor))throw Error('Company prediction cursor did not advance');
       return result.hasMoreCandidatePredictions?result.nextPredictionId!:null;
     },
     });
   }
-  const retired=await retireExpiredEodRun(db);
+  const retired=await retireExpiredEodRun(db,Date.now(),publish);
   if(retired)log.emit('ERROR','company_run_retired',{batchId:retired,status:'FAILED',reason:'Company recovery window expired; receipts retained'});
   const ref=parentRef(db,message.batchId),prior=(await ref.get()).data();
   // Finish already checkpointed old requests through their original path.
@@ -93,10 +110,13 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       return ids;
     },
     prepare:ids=>(dependencies.prepare??prepareEodCompanyPrices)(input,ids),
+    onVerified:async statuses=>{await ref.set({error:statuses.NO_DATA?`${statuses.NO_DATA} companies have no provider bar and no predictions requiring valuation`:null},{merge:true});},
     finalize:async cursor=>{
       const next=await (dependencies.finalize??finalizeEodCompanyScores)(input,cursor,db);
       if(next===null){
-        await db.collection('eod_runs').doc(`${input.market}_${input.runDate}`).set({status:'COMPLETED',completedAt:new Date().toISOString(),error:null},{merge:true});
+        const error=(await ref.get()).get('error')??null,status=error?'COMPLETED_WITH_ERRORS':'COMPLETED';
+        await ref.set({status},{merge:true});
+        await db.collection('eod_runs').doc(`${input.market}_${input.runDate}`).set({status,completedAt:new Date().toISOString(),error},{merge:true});
         const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(message.input)}`);
         await db.runTransaction(async tx=>{
           if((await tx.get(dispatch)).get('activeRequest')?.batchId===message.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});

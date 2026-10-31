@@ -3,18 +3,19 @@ import {test} from 'node:test';
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
 import {companyWorkRequest,companyWorkRef} from '../../src/lib/company-work-queue';
 import {digest} from '../../src/lib/fundamentals/pubsub';
-import {EOD_COMPANY_RECOVERY_MS,retireExpiredEodRun} from '../../src/lib/predictions/eod-recovery';
+import {EOD_COMPANY_RECOVERY_MS,retireExpiredEodRun,reopenFailedEodRun} from '../../src/lib/predictions/eod-recovery';
 import {processEodCompanyMessage,type EodCompanyRunRequest,type EodMessage} from '../../src/lib/predictions/eod-company-queue';
+import type {DailyEodMaintenanceResult} from '../../src/lib/predictions/eod-prices';
 import {queueEodMaintenance} from '../../src/lib/predictions/eod-pubsub';
 
 function fixture(){
   const f=pubsubFirestore(),now=Date.now();
-  const request:EodCompanyRunRequest={version:2,type:'eod.company-run.requested',batchId:'old',requestedAt:new Date(now-EOD_COMPANY_RECOVERY_MS-1).toISOString(),input:{market:'US',runDate:'2026-10-26'}};
+  const request:EodCompanyRunRequest={version:2,type:'eod.company-run.requested',batchId:'old',requestedAt:new Date(now-EOD_COMPANY_RECOVERY_MS-1).toISOString(),input:{market:'US',runDate:'2026-10-26',limit:50,rollForwardBatchSize:5}};
   const parent=f.db.collection('eod_runs').doc('_request_old'),state=f.db.collection('eod_runs').doc('_company_pipeline');
   const tasks=['US:AMD','US:AGNPF'].map(id=>companyWorkRequest('eod',request,id));
   f.rows.set(state.path,{activeRequest:request});
   f.rows.set(parent.path,{request,startedAt:request.requestedAt,companyIds:tasks.map(t=>t.companyId),phase:'waiting',dispatchCursor:2,completedCompanies:1});
-  tasks.forEach((task,index)=>f.rows.set(companyWorkRef(f.db,'eod_runs',task.batchId).path,{request:task,result:{},completed:index===0}));
+  tasks.forEach((task,index)=>f.rows.set(companyWorkRef(f.db,'eod_runs',task.batchId).path,{request:task,result:{},startedAt:request.requestedAt,completed:index===0}));
   const dispatch=`eod_runs/_dispatch_${digest(request.input)}`;
   f.rows.set(dispatch,{activeRequest:request});
   return {...f,now,request,parent,state,tasks,dispatch};
@@ -93,4 +94,45 @@ test('historical replay fails visibly instead of advancing across a retired inco
   const outcome=await processEodCompanyMessage(replay,f.db,f.log,async()=>{throw Error('Must not advance');});
   assert.ok('status' in outcome&&outcome.status==='FAILED');
   assert.equal(f.rows.get(ref)?.dateIndex,0);
+});
+
+test('unstarted receipts are republished instead of being retired as company failures',async()=>{
+  const f=fixture(),sent:unknown[]=[];
+  delete f.rows.get(companyWorkRef(f.db,'eod_runs',f.tasks[1].batchId).path)!.startedAt;
+  assert.equal(await retireExpiredEodRun(f.db,f.now,async task=>{sent.push(task);}),null);
+  assert.deepEqual(sent,[f.tasks[1]]);
+  assert.equal(f.rows.get(f.parent.path)?.completed,undefined);
+  await assert.rejects(retireExpiredEodRun(f.db,f.now,async()=>{throw Error('publish failed');}),/publish failed/);
+  assert.equal(f.rows.get(f.parent.path)?.completed,undefined);
+});
+
+test('explicit repair preserves completed receipts and executes only missing work',async()=>{
+  const f=fixture();await retireExpiredEodRun(f.db,f.now);
+  const good=structuredClone(f.rows.get(companyWorkRef(f.db,'eod_runs',f.tasks[0].batchId).path));
+  const request=await reopenFailedEodRun(f.db,'old',f.now+1);
+  assert.equal(f.rows.get(f.parent.path)?.completedCompanies,1);
+  assert.deepEqual(f.rows.get(companyWorkRef(f.db,'eod_runs',f.tasks[0].batchId).path),good);
+  const messages:EodMessage[]=[],prepared:string[][]=[];
+  await processEodCompanyMessage(request,f.db,f.log,async m=>{messages.push(m);},{
+    plan:async()=>{throw Error('Must retain frozen scope');},prepare:async (_input,ids)=>{prepared.push(ids);return {};},
+  });
+  assert.deepEqual(messages.filter(m=>m.type==='company.work.requested'),[f.tasks[1]]);
+  assert.deepEqual(prepared,[[]],'existing prepared data must not be refetched');
+  assert.equal(f.rows.get(f.parent.path)?.dispatchCursor,2);
+  await processEodCompanyMessage(f.tasks[1],f.db,f.log,async()=>{}, {run:async()=>({priceLoad:{failed:0},marking:{missingPrice:0},hasMoreCandidatePredictions:false} as DailyEodMaintenanceResult)});
+  assert.equal(f.rows.get(f.parent.path)?.completedCompanies,2);
+  await processEodCompanyMessage(request,f.db,f.log,async()=>{}, {finalize:async()=>null});
+  assert.equal(f.rows.get(f.parent.path)?.status,'COMPLETED');
+  assert.equal(f.rows.get(f.parent.path)?.completed,true);
+  assert.equal(f.rows.get(f.state.path)?.activeRequest,null);
+});
+
+test('repair cannot reopen under another run or an active child lease',async()=>{
+  const f=fixture();await retireExpiredEodRun(f.db,f.now);
+  f.rows.get(f.state.path)!.activeRequest={batchId:'other'};
+  await assert.rejects(reopenFailedEodRun(f.db,'old',f.now),/pipeline is active/);
+  f.rows.get(f.state.path)!.activeRequest=null;
+  f.rows.get(companyWorkRef(f.db,'eod_runs',f.tasks[1].batchId).path)!.leaseExpiresAtMs=f.now+1000;
+  await assert.rejects(reopenFailedEodRun(f.db,'old',f.now),/child lease/);
+  assert.equal(f.rows.get(f.parent.path)?.completed,true);
 });
