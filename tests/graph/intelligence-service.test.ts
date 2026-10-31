@@ -37,6 +37,33 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
   return evaluated.exports as typeof import('../../src/lib/intelligence/service');
 }
 
+test('feed starts graph work without waiting for source data and shares it with bootstrap',async()=>{
+  let releaseFeed!:(value:CachedFeed)=>void,releaseGraph!:(value:KnowledgeGraph)=>void,graphCalls=0;
+  const feedGate=new Promise<CachedFeed>(resolve=>{releaseFeed=resolve;});
+  const graphGate=new Promise<KnowledgeGraph>(resolve=>{releaseGraph=resolve;});
+  const service=await isolated(()=>feedGate,{graph:async()=>{graphCalls++;return graphGate;}});
+  const full=service.loadIntelligenceSnapshot(now);
+  assert.equal(graphCalls,1,'source I/O must not delay graph I/O');
+  const bootstrap=service.loadIntelligenceUniverse(now);
+  assert.equal(graphCalls,1,'concurrent bootstrap must not repeat graph/valuation work');
+  releaseGraph(graph);assert.equal((await bootstrap).eventsPending,true);
+  releaseFeed(feed([filing(1)]));assert.equal((await full).events.length,1);
+  await service.loadIntelligenceUniverse(now);assert.equal(graphCalls,2,'completed work is not a stale result cache');
+});
+
+test('a failed shared graph can retry and a pending theme does not block another theme',async()=>{
+  let rejectGraph!:(error:Error)=>void,calls=0;
+  const blocked=new Promise<KnowledgeGraph>((_resolve,reject)=>{rejectGraph=reject;});
+  const service=await isolated(async()=>feed(),{graph:async()=>++calls===1?blocked:graph});
+  const first=service.loadIntelligenceUniverse(now,'ai');
+  const second=service.loadIntelligenceUniverse(now,'ai');
+  const failures=Promise.all([assert.rejects(first,/offline/),assert.rejects(second,/offline/)]);
+  assert.equal(calls,1);
+  const other=await service.loadIntelligenceUniverse(now,'quantum');assert.equal(other.theme,'quantum');
+  rejectGraph(Error('offline'));await failures;
+  assert.equal((await service.loadIntelligenceUniverse(now,'ai')).theme,'ai');assert.equal(calls,3);
+});
+
 test('unchanged feed revision reuses the projected feed past one minute; new arrivals invalidate it',async()=>{
   let current=feed([filing(1)]);
   const service=await isolated(async()=>current);
