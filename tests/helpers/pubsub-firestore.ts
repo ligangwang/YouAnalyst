@@ -15,6 +15,7 @@ export function pubsubFirestore() {
   });
   type Ref = ReturnType<typeof ref>;
   const db = { collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
+    getAll:(...refs:Ref[])=>Promise.all(refs.map(r=>r.get())),
     runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
       const pending: (() => void)[] = [];
       let failed = false;
