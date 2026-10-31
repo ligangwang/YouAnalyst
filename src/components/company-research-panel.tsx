@@ -2,7 +2,7 @@
 import { relationshipTrust, trustLabel, type RelationshipTrust } from "@/lib/knowledge-graph/relationship-status";
 import { trackEvent } from "@/lib/analytics";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LocalizedLink as Link } from "./localized-link";
 import { useLocale } from "./providers/locale-provider";
 import { CompanyFollowButton } from "./company-follow-button";
@@ -30,7 +30,12 @@ export function RelationshipEvidence({ edge, graph }: { edge: GraphEdge; graph: 
 }
 
 export function CompanyResearchPanel({ companyId, initialGraph }: { companyId: string; initialGraph?: KnowledgeGraph }) {
+  return <CompanyResearchPanelContent key={companyId} companyId={companyId} initialGraph={initialGraph}/>;
+}
+function CompanyResearchPanelContent({ companyId, initialGraph }: { companyId: string; initialGraph?: KnowledgeGraph }) {
   const { text, chinese, locale } = useLocale();
+  const container=useRef<HTMLElement>(null);
+  const [demand,setDemand]=useState(Boolean(initialGraph));
   const [graph, setGraph] = useState<KnowledgeGraph | null>(initialGraph ?? null);
   const [error, setError] = useState(false), [retry, setRetry] = useState(0);
   const [product, setProduct] = useState("All");
@@ -42,17 +47,32 @@ export function CompanyResearchPanel({ companyId, initialGraph }: { companyId: s
     return () => window.removeEventListener("hashchange", read);
   }, []);
   useEffect(() => {
-    if (initialGraph) return;
+    if(initialGraph)return;
+    const activate=()=>setDemand(true);
+    const hash=()=>{if(window.location.hash==='#company-relationships'||window.location.hash.startsWith('#relationship-'))activate();};
+    hash();window.addEventListener('hashchange',hash);
+    const observer=typeof IntersectionObserver==='undefined'?undefined:new IntersectionObserver(entries=>{
+      if(entries.some(entry=>entry.isIntersecting)){activate();observer?.disconnect();}
+    });
+    if(container.current)observer?.observe(container.current);
+    return()=>{observer?.disconnect();window.removeEventListener('hashchange',hash);};
+  },[initialGraph]);
+  useEffect(() => {
+    if (initialGraph || !demand) return;
+    let active=true;
     const controller = new AbortController();
-    fetch("/api/knowledge-graph", { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(setGraph).catch(() => { if (!controller.signal.aborted) setError(true); });
-    return () => controller.abort();
-  }, [initialGraph, retry]);
+    fetch(`/api/company-relationships?${new URLSearchParams({company:companyId})}`, { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(value=>{if(active)setGraph(value);}).catch(() => { if (active) setError(true); });
+    return () => {active=false;controller.abort();};
+  }, [companyId, initialGraph, demand, retry]);
   useEffect(() => {
     if (!graph || !target) return;
     const frame = requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
     return () => cancelAnimationFrame(frame);
   }, [graph, target]);
-  if (!graph) return <section className="my-6 text-sm text-slate-400" role="status">{error ? <>{text("Company relationships are unavailable.", "公司关系暂时无法加载。 ")}<button className="text-cyan-200 underline" onClick={() => { setError(false); setRetry(v => v + 1); }}>{text("Retry", "重试")}</button></> : text("Loading company research…", "正在加载公司研究…")}</section>;
+  if (!graph) return <section ref={container} id="company-relationships" data-relationship-demand className="my-6 scroll-mt-24 text-sm text-slate-400">
+    {!demand?<button type="button" className="text-cyan-200 underline" onClick={()=>setDemand(true)}>{text('Load company relationships','加载公司关系')}</button>
+      :<div role="status">{error ? <>{text("Company relationships are unavailable.", "公司关系暂时无法加载。 ")}<button className="text-cyan-200 underline" onClick={() => { setError(false); setRetry(v => v + 1); }}>{text("Retry", "重试")}</button></> : text("Loading company research…", "正在加载公司研究…")}</div>}
+  </section>;
   const node = graph.nodes.find(n => n.kind === "COMPANY" && n.id === companyId);
   if (!node) return <section className="my-6 text-sm text-slate-400"><CompanyFollowButton companyId={companyId} /><p className="mt-3">{text("AI relationship research has not yet been verified for this company.", "该公司的 AI 产业关系尚待核实。")}</p></section>;
   const edges = graph.relationships.filter(e => e.type !== "PARTICIPATES_IN" && (e.source === companyId || e.target === companyId));
