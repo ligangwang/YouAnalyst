@@ -130,3 +130,13 @@ test('missing dated bars get one cleanup attempt before settling explicit NO_DAT
   assert.equal(calls,2);assert.equal(f.rows.get(receipt.path)?.status,'NO_DATA');
   assert.equal(f.rows.get(receipt.path)?.completed,true);assert.equal(f.scores(),1);
 });
+
+test('repair skips successful receipts without writing their leases', async () => {
+  const f=fixture(2);await f.deliver(f.root);
+  const task=companyWorkRequest('eod',f.root,f.ids[0]),receipt=companyWorkRef(f.db,'eod_runs',task.batchId);
+  f.rows.set(receipt.path,{request:task,result:{},completed:true,status:'COMPLETED'});
+  f.rows.set(f.ref.path,{...f.rows.get(f.ref.path),completedCompanies:1});
+  await f.drain();
+  assert.equal(f.writes.filter(path=>path===receipt.path).length,0);
+  assert.equal(f.attempts.has(f.ids[0]),false);assert.equal(f.scores(),1);
+});

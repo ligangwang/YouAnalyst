@@ -163,6 +163,10 @@ export async function processEodCompanyBatch(message: EodBatchRequest, options: 
     const prepared = await options.prepare(tasks.filter((_, i) => !receipts[i].exists).map(t => t.companyId));
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i], childRef = companyWorkRef(db, 'eod_runs', task.batchId);
+      if (receipts[i].exists && digest(receipts[i].get('request')) !== digest(task)) throw Error('EOD company identity mismatch');
+      // Successful receipts are immutable under this parent lease. Recovery
+      // must not rewrite their leases or re-read them one company at a time.
+      if (receipts[i].get('completed') === true) continue;
       if (Date.now() >= deadline) { wake = message; return {batchId: message.batchId, continued: true}; }
       await db.runTransaction(async tx => {
         if (!(await tx.get(childRef)).exists) tx.create(childRef, {request: task, result: prepared[task.companyId] ?? {}, completed: false});
