@@ -132,3 +132,40 @@ test('a failed completion transaction cannot acknowledge a company or release th
   f.reject(()=>false);await f.child('US:AMD');
   assert.equal(f.rows.get(f.ref.path)?.completedCompanies,1);
 });
+
+
+test('immediate parent continuation delivery starts after dispatch lease release',async()=>{
+  const ids=Array.from({length:26},(_,i)=>`US:T${i}`),f=fixture(ids);
+  let deliveries=0,children=0;
+  const deliver=()=>processCompanyRun(f.root,{db:f.db,ref:f.ref,state:f.state,collection:'eod_runs',kind:'eod',owner:`page-${++deliveries}`,
+    plan:async()=>ids,prepare:async()=>({}),finalize:async()=>null,
+    publish:async message=>{if('companyId' in message){children++;return;}await deliver();},
+  });
+  await deliver();
+  assert.equal(children,26);assert.equal(deliveries,3);
+  assert.equal(f.rows.get(f.ref.path)?.dispatchCursor,26);
+  assert.equal(f.rows.get(f.ref.path)?.phase,'waiting');
+});
+
+test('immediate finalizer continuation delivery starts after lease release',async()=>{
+  const f=fixture();await f.parent();await f.child('US:AMD');await f.child('US:MSFT');
+  let deliveries=0;
+  const cursors:(string|null)[]=[];
+  const deliver=()=>processCompanyRun(f.root,{db:f.db,ref:f.ref,state:f.state,collection:'eod_runs',kind:'eod',owner:`finalize-${++deliveries}`,
+    plan:async()=>[],prepare:async()=>({}),finalize:async cursor=>{cursors.push(cursor);return cursor===null?'next':null;},
+    publish:async()=>{await deliver();},
+  });
+  await deliver();assert.deepEqual(cursors,[null,'next']);
+  assert.equal(f.rows.get(f.ref.path)?.completed,true);
+});
+
+test('failed continuation publication releases lease and preserves dispatch checkpoint for retry',async()=>{
+  const ids=Array.from({length:26},(_,i)=>`US:T${i}`),f=fixture(ids);
+  await assert.rejects(processCompanyRun(f.root,{db:f.db,ref:f.ref,state:f.state,collection:'eod_runs',kind:'eod',owner:'first',
+    plan:async()=>ids,prepare:async()=>({}),finalize:async()=>null,
+    publish:async message=>{if(!('companyId' in message))throw Error('continuation unavailable');},
+  }),/continuation unavailable/);
+  assert.equal(f.rows.get(f.ref.path)?.dispatchCursor,25);
+  await f.parent();assert.equal(f.rows.get(f.ref.path)?.dispatchCursor,26);
+  assert.equal(f.published.filter(m=>'companyId' in m).length,1);
+});
