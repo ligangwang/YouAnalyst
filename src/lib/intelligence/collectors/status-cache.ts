@@ -15,6 +15,6 @@ export function loadNewsCollectorStatuses(db: Firestore, ids: string[]) {
     }));
     // Preserve caller order and missing-status semantics without individual
     // missing-document reads. Push snapshots include additions and withdrawals.
-    return ids.map(id=>found.get(`news-health-${id}`)??{data:()=>undefined});
+    return ids.map(id=>found.get(`news-health-${id}`)??{data:():undefined=>undefined});
   });
 }
