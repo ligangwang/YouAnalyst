@@ -42,7 +42,7 @@ export function CompanyResearchOverview({ company, classifications, fundamentals
       </div>}
 
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 rounded-xl border border-white/10 bg-slate-950/40 p-3 text-sm text-cyan-200">
-        {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
+        {(company.inMap || graphContent) && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
         {fundamentals && <a href="#company-fundamentals"><UiText text={"Business and financials"} /></a>}
         {company.listingStatus !== "PRIVATE" && <a href="#analyst-views"><UiText text={"Analyst views"} /></a>}
       </nav>

@@ -1,10 +1,10 @@
 import {loadPriceCache} from './price-cache';
 import {changeCached,withCacheReadScope} from '../change-cache';
-import {loadCachedFeed,type CachedFeed} from './feed-cache-store';
+import {loadCachedFeed} from './feed-cache-store';
 import { createHash } from 'node:crypto';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadKnowledgeGraph } from '../knowledge-graph/service';
-import { loadThemeGraph } from '../company-themes/graph-service';
+import { loadThemeGraph,loadThemeGraphStructure } from '../company-themes/graph-service';
 import { type CompanyThemeId } from '../company-themes/model';
 import { curatedEvents } from '../knowledge-graph/curated-events';
 import { secCollectorFreshness } from '../sec-filings/store';
@@ -25,6 +25,10 @@ const requests=new Map<string,Promise<IntelligenceSnapshot>>();
 // Retain the full period privately; company feeds reuse the same database read.
 const periods=new WeakMap<IntelligenceSnapshot,IntelligenceSnapshot['events']>();
 const companyRequests=new WeakMap<IntelligenceSnapshot,Map<string,Promise<IntelligenceSnapshot>>>();
+// Bootstrap and the feed request arrive together. Share only active graph work;
+// completed results must not hide live corrections on the next refresh.
+type UniverseGraph=Awaited<ReturnType<typeof loadThemeGraph>>;
+const universeRequests=new Map<CompanyThemeId,{structure:Promise<UniverseGraph>;complete:Promise<UniverseGraph>}>();
 
 /** The directory can render without waiting for source reads or price enrichment. */
 export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
@@ -32,11 +36,20 @@ export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyTheme
   return {theme,graph,graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
 }
 
-async function loadUniverseGraph(theme:CompanyThemeId){
-  return process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'
-    ?await fetch(`https://youanalyst.com/api/knowledge-graph?theme=${theme}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
-    :await loadThemeGraph(theme);
+function universeWork(theme:CompanyThemeId){
+  const pending=universeRequests.get(theme);if(pending)return pending;
+  const preview=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
+  const structure=preview
+    ?fetch(`https://youanalyst.com/api/knowledge-graph?theme=${theme}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
+    :loadThemeGraphStructure(theme);
+  const complete=preview?structure:structure.then(graph=>loadThemeGraph(theme,graph));
+  const request={structure,complete};
+  universeRequests.set(theme,request);
+  // Observe errors immediately, including when the feed has not reached pricing.
+  void complete.finally(()=>{if(universeRequests.get(theme)===request)universeRequests.delete(theme);}).catch(()=>{});
+  return request;
 }
+async function loadUniverseGraph(theme:CompanyThemeId){return universeWork(theme).complete;}
 
 export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
   const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh,before);
@@ -75,10 +88,13 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
 async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:string):Promise<IntelligenceSnapshot>{
   const session=intelligenceSession(now);
   const preview=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
-  let feed:CachedFeed|undefined,feedError:unknown;
-  if(!preview)try{feed=await loadCachedFeed(getAdminFirestore(),now,before);}catch(error){feedError=error;}
-  const priceView=preview?undefined:await loadPriceCache(getAdminFirestore());
-  const graph=await loadUniverseGraph(theme);
+  const universe=universeWork(theme);
+  let feedError:unknown;
+  const [feed,priceView,graph]=await Promise.all([
+    preview?undefined:loadCachedFeed(getAdminFirestore(),now,before).catch(error=>{feedError=error;return undefined;}),
+    preview?undefined:loadPriceCache(getAdminFirestore()),
+    universe.structure,
+  ]);
   // Re-evaluate clock-dependent coverage on reads; source data has no timer expiry.
   const key=[session.date,feed?.revision??'unavailable',priceView?.version??'',createHash('sha256').update(JSON.stringify(graph)).digest('hex'),now.getTime()].join(':');
   const requestKey=`${theme}:${key}`;
@@ -145,7 +161,7 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     const events=ordered;
     let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
-      priced=await attachPricePerformance(getAdminFirestore(),graph,events,now,priceView);
+      priced=await attachPricePerformance(getAdminFirestore(),await universe.complete,events,now,priceView);
     }
     // Price changes must reach clients that retain the graph on unchanged polls.
     const graphVersion=createHash('sha256').update(JSON.stringify(priced.graph)).digest('hex');

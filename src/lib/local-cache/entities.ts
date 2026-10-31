@@ -5,10 +5,11 @@ import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
 import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery,withCompanyViewQuery} from './company-directory';
 import { themeIdBatches, GRAPH_COMPANY_FIELDS } from '../company-themes/company-query';
+import {MARKET_CAP_BATCH_SIZE,readMarketCapBatch} from './market-cap-batch';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
 type DocumentStore={documents:Map<string,Group>;groups:Set<Group>};
-type Store={versions:Map<string,number>;queries:Map<string,Watch<Map<string,DocumentSnapshot>>>; queryUsers?:Map<string,number>; documentStores:Map<Collection,DocumentStore>};
+type Store={versions:Map<string,number>;queries:Map<string,Watch<Map<string,DocumentSnapshot>>>; queryUsers?:Map<string,number>; documentStores:Map<string,DocumentStore>};
 // Next server bundles can evaluate this module more than once in one process.
 declare global { var __youAnalystEntityStoresV2: WeakMap<Firestore,Store> | undefined; }
 const stores=globalThis.__youAnalystEntityStoresV2 ??= new WeakMap<Firestore,Store>();
@@ -37,15 +38,56 @@ export async function localQuery(db:Firestore,key:string,query:Query,collection:
  try{return await watch.read();}finally{const count=(users.get(key)??1)-1;if(count)users.set(key,count);else users.delete(key);}
 }
 
-async function documents(db:Firestore,collection:Collection,ids:string[]){
+function watchMarketCaps(db:Firestore,ids:string[],changed:(docs:DocumentSnapshot[])=>void){
+ return track(new Watch<Map<string,DocumentSnapshot>>((next,error)=>{
+  let stopped=false;
+  const subscriptions:Array<()=>void>=[];
+  const values=new Map<string,DocumentSnapshot>();
+  const times=new Map<string,DocumentSnapshot['readTime']>();
+  const publish=()=>{changed([...values.values()]);next(new Map(values));};
+  const stop=()=>{stopped=true;for(const unsubscribe of subscriptions)unsubscribe();};
+  const fail=(reason:Error)=>{stop();error(reason);};
+  void readMarketCapBatch(db,ids).then(docs=>{
+   if(stopped)return;
+   for(const doc of docs){times.set(doc.id,doc.readTime);if(doc.exists&&doc.get('isDeleted')!==true)values.set(doc.id,doc);}
+   publish();
+   // Bulk fetch unblocks the reader. Only these IDs are watched thereafter;
+   // initial listener snapshots catch writes between the bulk read and handoff.
+   for(let start=0;start<ids.length;start+=30){
+    const batch=ids.slice(start,start+30);
+    const unsubscribe=db.collection('company_fundamentals').where(FieldPath.documentId(),'in',batch).onSnapshot(snapshot=>{
+     if(stopped)return;
+     const incoming=new Map(snapshot.docs.map(doc=>[doc.id,doc]));
+     for(const id of batch){
+      const previous=times.get(id),time=snapshot.readTime;
+      if(previous&&(previous.seconds>time.seconds||previous.seconds===time.seconds&&previous.nanoseconds>time.nanoseconds))continue;
+      times.set(id,time);
+      const doc=incoming.get(id);
+      if(!doc||doc.get('isDeleted')===true){values.delete(id);continue;}
+      // Do not retain full fundamentals delivered by the live listener.
+      const data={marketCap:doc.get('marketCap')};
+      values.set(id,{id,exists:true,ref:doc.ref,readTime:time,
+       data:()=>structuredClone(data),get:(field:string)=>field==='marketCap'?structuredClone(data.marketCap):undefined} as unknown as DocumentSnapshot);
+     }
+     publish();
+    },fail);
+    if(stopped){unsubscribe();break;}subscriptions.push(unsubscribe);
+   }
+  }).catch(fail);
+  return stop;
+ }));
+}
+
+async function documents(db:Firestore,collection:Collection,ids:string[],marketCaps=false){
  const entityStore=store(db);
- let s=entityStore.documentStores.get(collection);
- if(!s){s={documents:new Map(),groups:new Set()};entityStore.documentStores.set(collection,s);}
+ const storeKey=marketCaps?'company_fundamentals:marketCap':collection;
+ let s=entityStore.documentStores.get(storeKey);
+ if(!s){s={documents:new Map(),groups:new Set()};entityStore.documentStores.set(storeKey,s);}
  const cache=s;
  // One-company requests create one group each. Keep fundamentals independently
  // of company traffic, with both ID and estimated payload limits for larger batches.
  const maxGroups=256;
- const maxBytes=16*1024*1024, maxDocuments=960;
+ const maxBytes=16*1024*1024, maxDocuments=marketCaps?2000:960;
  const evict=()=>{
   let bytes=[...cache.groups].reduce((sum,group)=>sum+group.bytes,0);
   for(const group of cache.groups){
@@ -55,14 +97,16 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
   }
  };
  const missing=[...new Set(ids)].filter(id=>!cache.documents.has(`${collection}/${id}`));
- for(let i=0;i<missing.length;i+=30){
-  const batch=missing.slice(i,i+30);
+ const batchSize=marketCaps?MARKET_CAP_BATCH_SIZE:30;
+ for(let i=0;i<missing.length;i+=batchSize){
+  const batch=missing.slice(i,i+batchSize);
   const group:Group={users:0,ids:batch.map(id=>`${collection}/${id}`),bytes:0,watch:undefined as unknown as Group['watch']};
-  group.watch=watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),docs=>{
+  const changed=(docs:DocumentSnapshot[])=>{
    entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
    group.bytes=docs.reduce((sum,doc)=>sum+dataBytes(doc.data(),maxBytes),0);
    queueMicrotask(evict);
-  });
+  };
+  group.watch=marketCaps?watchMarketCaps(db,batch,changed):watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),changed);
   const close=group.watch.close.bind(group.watch);
   group.watch.close=()=>{
    if(cache.groups.has(group))entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
@@ -87,6 +131,10 @@ async function documents(db:Firestore,collection:Collection,ids:string[]){
 }
 /** Undefined is reserved for non-listening test adapters, never network failures. */
 export async function localDocuments(db:Firestore,collection:Collection,ids?:string[],query?:RelationshipQuery,_projection?:'marketCap'|'graph',region?:ExchangeRegion):Promise<DocumentSnapshot[]|undefined>{
+ // Market-cap requests must never hydrate the full fundamentals snapshot file.
+ if(ids&&collection==='company_fundamentals'&&_projection==='marketCap'){
+  return typeof db.collection(collection).onSnapshot==='function'?documents(db,collection,ids,true):readMarketCapBatch(db,ids);
+ }
  enableCompanyDirectoryForReader(db);
  if(ids&&companyDirectoryEnabled(db,collection as import('../entity-snapshots/sync').Collection))return ids.length?db.getAll(...ids.map(id=>db.collection(collection).doc(id))):[];
  if(typeof db.collection(collection).onSnapshot!=='function')return undefined;

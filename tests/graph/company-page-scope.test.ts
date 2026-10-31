@@ -338,7 +338,40 @@ test('theme membership lookup avoids valuation enrichment while the complete pub
  }finally{[root.__structureReads,root.__valuationReads]=before;}
 });
 
+test('company overview performs no relationship I/O; demand endpoint reads only its neighborhood and applies withdrawals',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const root=globalThis as typeof globalThis&{__relationshipDemandDb?:Firestore};
+ root.__relationshipDemandDb=f.db;t.after(()=>{delete root.__relationshipDemandDb;});
+ const compile=async(entry:string)=>{
+  const bundle=await build({entryPoints:[entry],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{
+   name:'demand-db',setup(plugin){plugin.onLoad({filter:/firebase[\\/]admin\.ts$/},()=>({contents:'export const getAdminFirestore=()=>globalThis.__relationshipDemandDb;',loader:'js'}));}
+  }]});
+  const evaluated={exports:{}};new Function('require','module','exports',bundle.outputFiles[0].text)(createRequire(import.meta.url),evaluated,evaluated.exports);return evaluated.exports;
+ };
+ const service=await compile('src/lib/company-research-service.ts') as {loadCompanyResearch:(ticker:string,resolved:unknown)=>Promise<{name:string;connections:unknown[];hasCompanyContent:boolean}>};
+ const company={name:'Small',symbol:'SMALL',active:true,predictionSupported:true,status:'PUBLISHED',inGraph:{status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:0,asOf:'2026-10-24'}};
+ f.rows.set('companies/US:SMALL',company);
+ const overview=await service.loadCompanyResearch('SMALL',{id:'US:SMALL',data:company,path:'/company/small'});
+ assert.equal(overview.name,'Small');assert.deepEqual(overview.connections,[]);assert(overview.hasCompanyContent);
+ assert.deepEqual(f.counts(),{files:0,opens:0,gets:0},'even a cold overview cannot start relationship or neighbor reads');
+ const relatedOnly=await service.loadCompanyResearch('OTHER',{id:'US:OTHER',data:{...company,inGraph:undefined},path:'/company/other'});
+ assert(relatedOnly.hasCompanyContent,'own earnings remain available without proving relationship membership');
+ const {GET}=await compile('src/app/api/company-relationships/route.ts') as {GET:(request:Request)=>Promise<Response>};
+ assert.equal((await GET(new Request('http://test/api/company-relationships?company=invalid'))).status,400);
+ assert.deepEqual(f.counts(),{files:0,opens:0,gets:0});
+ f.rows.set('companies/US:NEIGHBOR',{name:'Neighbor',symbol:'NEIGHBOR',status:'DIRECTORY'});
+ f.rows.set('company_relationships/edge',{source:'US:SMALL',target:'US:NEIGHBOR',type:'SUPPLIER_OF',status:'PUBLISHED',evidence:[{id:'source',title:'Evidence',url:'https://example.com/source'}]});
+ const read=()=>GET(new Request('http://test/api/company-relationships?company=US%3ASMALL'));
+ const response=await read();assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');
+ assert.equal((await response.json()).relationships.filter((r:{id:string})=>r.id.includes('SUPPLIER_OF')).length,1);
+ const before=f.counts();assert.equal(before.files,0);assert(!f.readDocs.has('companies/US:OTHER'));
+ f.rows.set('company_relationships/edge',{isDeleted:true});f.push();
+ assert.equal((await (await read()).json()).relationships.filter((r:{type:string})=>r.type==='SUPPLIER_OF').length,0);
+ assert.deepEqual(f.counts(),before,'subsequent demand uses the push-updated cache');
+});
+
 test('company financial reads start before relationship resolution and the page does not await them or the global graph',async()=>{
+ const sections=await import('../../src/lib/company-page-sections');
  const bundle=await build({entryPoints:['src/components/company-ticker-route.tsx'],bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',plugins:[{
   name:'page-dependencies',setup(plugin){plugin.onResolve({filter:/.*/},args=>args.importer?{path:args.path,external:true}:undefined);}
  }]});
@@ -352,6 +385,7 @@ test('company financial reads start before relationship resolution and the page 
   if(id==='react'||id==='react/jsx-runtime')return require(id);
   if(id==='next/headers')return {headers:async()=>new Headers()};
   if(id.endsWith('/company-page-timing'))return {timeCompanyPhase:(_name:string,work:()=>unknown)=>work()};
+  if(id.endsWith('/company-page-sections'))return sections;
   if(id.endsWith('/predictions/types'))return {normalizeTicker:(s:string)=>s};
   if(id.endsWith('/company-research-service'))return {
    loadCompanyResearch:async(ticker:string,record:unknown)=>{assert.equal(record,resolved);researchReads++;await researchGate;return {ticker,name:'Small',known:true,inMap,graphAvailable:true,neighborhood:inMap?neighborhood:null};},
@@ -392,8 +426,9 @@ test('company financial reads start before relationship resolution and the page 
  const peerLoader=props(mappedOverview).comparison;
  assert.equal(props(peerLoader).companyId,'US:SMALL');
  assert.equal(props(peerLoader).pending,undefined,'only company identity is sent to the demand-loaded panel');
- const panel=props(props(mappedOverview).graphContent).children as {type:(props:unknown)=>Promise<unknown>;props:unknown};
- assert.equal(props(await panel.type(panel.props)).initialGraph,neighborhood);
+ const panel=props(mappedOverview).graphContent;
+ assert.equal(props(panel).companyId,'US:SMALL');
+ assert.equal(props(panel).initialGraph,undefined,'relationship data is fetched only by the visible client panel');
  assert.equal(graphReads,0,'direct relationship panel must not fetch unrelated global valuations');
 });
 

@@ -753,6 +753,12 @@ export async function fetchEodhdDailyPrices(tickers: string[], requestedDate: st
           return;
         }
         const rows: unknown = await response.json();
+        if(!Array.isArray(rows)){
+          result.failures.push({ticker,reason:'eodhd_invalid_response'});return;
+        }
+        if(rows.length===0){
+          result.failures.push({ticker,reason:'eodhd_no_dated_bar'});return;
+        }
         const row = Array.isArray(rows) ? rows.find(r => r && r.date === requestedDate) : undefined;
         const parsed = parseEodhdBulkPrice(ticker, requestedDate, loadedAt, row);
         if ("reason" in parsed) result.failures.push(parsed);
@@ -2073,7 +2079,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         runDate,
         logRunId: log.runId,
         fx: fx ?? null,
-        status: fx?.failed||corporateActions?.failures.length||corporateActions?.deferred ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
+        status: priceLoad.failed||marking.missingPrice||fx?.failed||corporateActions?.failures.length||corporateActions?.deferred ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
         completedAt: new Date().toISOString(),
         error: null,
         recompute,

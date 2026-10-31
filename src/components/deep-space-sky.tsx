@@ -11,7 +11,7 @@ const SKY_FACE = 256;
 // The galactic plane crosses the default view diagonally; its bright bulge sits
 // off to one side so the company cluster stays over darker sky.
 const PLANE = [.45, .89, .08];
-const BULGE = [-.71, .36, -.6];
+const BULGE = [-.38, .27, -.88];
 
 function skyRandom(index: number) {
   let value = Math.imul(index + 1931, 2654435761);
@@ -67,9 +67,22 @@ const bakeFragment = `
     float filaments = ridge * ridge * ridge * ridge;
 
     vec3 light = vec3(0.0);
-    vec3 milky = mix(vec3(0.34, 0.46, 0.86), vec3(0.92, 0.8, 0.68), bulge);
+    vec3 milky = mix(vec3(0.28, 0.37, 0.64), vec3(0.52, 0.46, 0.68), bulge);
     light += milky * band * (0.16 + 0.42 * detail * detail) * (1.0 - lanes * 0.85);
-    light += vec3(0.92, 0.78, 0.64) * bulge * (band * 0.18 + haze * 0.05) * (1.0 - lanes * 0.7);
+    light += vec3(0.48, 0.44, 0.66) * bulge * (band * 0.08 + haze * 0.03) * (1.0 - lanes * 0.7);
+
+    // Offset, tilted spiral with irregular dust lanes and a restrained core.
+    vec3 across = normalize(cross(plane, bulgeDirection));
+    vec2 p = vec2(dot(d, across), dot(d, plane) / 0.58);
+    float r = length(p);
+    float angle = atan(p.y, p.x);
+    float winding = angle * 2.0 - log(r + 0.09) * 5.2 + (detail - 0.5) * 3.0;
+    float arms = pow(0.5 + 0.5 * cos(winding), 3.0);
+    float envelope = exp(-r * 3.4) * smoothstep(0.15, 0.65, dot(d, bulgeDirection));
+    float core = exp(-r * r * 65.0);
+    vec3 spiral = mix(vec3(0.22, 0.36, 0.65), vec3(0.48, 0.30, 0.62), detail);
+    light += spiral * envelope * (0.10 + arms * 0.55) * (0.5 + detail) * (1.0 - lanes * 0.65);
+    light += vec3(0.48, 0.52, 0.67) * core * envelope * 0.10;
 
     float cyan = smoothstep(0.5, 0.82, fbm(d * 1.9 + vec3(11.0, 3.0, -2.0)));
     float magenta = smoothstep(0.52, 0.84, fbm(d * 2.3 + vec3(-5.0, 2.0, 8.0)));
@@ -85,6 +98,7 @@ const skyFragment = `
   uniform samplerCube light;
   uniform vec3 plane;
   uniform vec2 resolution;
+  uniform float intensity;
   float hash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);
     p *= 17.0;
@@ -101,19 +115,19 @@ const skyFragment = `
     vec3 sky = mix(vec3(0.012, 0.02, 0.05), vec3(0.03, 0.04, 0.095), haze) + textureCube(light, d).rgb * mix(0.28, 1.0, calm);
     // A small dither keeps the dark gradients from banding on 8-bit displays.
     sky += (hash(d * 4000.0) - 0.5) / 255.0;
-    gl_FragColor = vec4(sky, 1.0);
+    gl_FragColor = vec4(mix(vec3(0.012, 0.02, 0.05), sky, intensity), 1.0);
   }
 `;
 
 const bandVertex = `attribute float size; varying vec3 starColor;
   void main() { starColor = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = size; }`;
-const bandFragment = `varying vec3 starColor;
-  void main() { float r = length(gl_PointCoord - 0.5); float alpha = 1.0 - smoothstep(0.1, 0.5, r); if (alpha < 0.02) discard; gl_FragColor = vec4(starColor, alpha); }`;
+const bandFragment = `varying vec3 starColor; uniform float intensity;
+  void main() { float r = length(gl_PointCoord - 0.5); float alpha = (1.0 - smoothstep(0.1, 0.5, r)) * intensity; if (alpha < 0.02) discard; gl_FragColor = vec4(starColor, alpha); }`;
 
-export function DeepSpaceSky({ height }: { height: number }) {
+export function DeepSpaceSky({ height, focused = false }: { height: number; focused?: boolean }) {
   const { gl, invalidate } = useThree();
   const target = useMemo(() => new WebGLCubeRenderTarget(SKY_FACE), []);
-  const uniforms = useMemo(() => ({ light: { value: target.texture }, plane: { value: normalize(PLANE) }, resolution: { value: new Vector2(1, 1) } }), [target]);
+  const uniforms = useMemo(() => ({ light: { value: target.texture }, plane: { value: normalize(PLANE) }, resolution: { value: new Vector2(1, 1) }, intensity: { value: focused ? 0.45 : 1 } }), [target, focused]);
   useEffect(() => () => target.dispose(), [target]);
   const [baked, setBaked] = useState(false);
   // Bake one face per animation frame so no single task blocks input on software
@@ -147,16 +161,16 @@ export function DeepSpaceSky({ height }: { height: number }) {
     const plane = normalize(PLANE), bulge = normalize(BULGE);
     const across = normalize([plane[1] * bulge[2] - plane[2] * bulge[1], plane[2] * bulge[0] - plane[0] * bulge[2], plane[0] * bulge[1] - plane[1] * bulge[0]]);
     const positions: number[] = [], colors: number[] = [], sizes: number[] = [];
-    for (let i = 0; i < 3200; i++) {
+    for (let i = 0; i < 1800; i++) {
       const angle = skyRandom(i * 5) * Math.PI * 2;
       const spread = (skyRandom(i * 5 + 1) + skyRandom(i * 5 + 2) + skyRandom(i * 5 + 3) - 1.5) * .34;
       const direction = normalize([0, 1, 2].map(axis => Math.cos(angle) * bulge[axis] + Math.sin(angle) * across[axis] + spread * plane[axis]));
       const radius = SKY_RADIUS * .92;
       positions.push(direction[0] * radius, direction[1] * radius, direction[2] * radius);
-      const tone = skyRandom(i * 5 + 4), brightness = .45 + skyRandom(i + 90000) * .55;
+      const tone = skyRandom(i * 5 + 4), brightness = .32 + skyRandom(i + 90000) * .38;
       const [r, g, b] = tone > .9 ? [1, .78, .55] : tone > .78 ? [.62, .86, 1] : [.82, .86, 1];
       colors.push(r * brightness, g * brightness, b * brightness);
-      sizes.push(1.4 + skyRandom(i + 70000) * 1.6);
+      sizes.push(1.2 + skyRandom(i + 70000) * 1.2);
     }
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
@@ -172,7 +186,7 @@ export function DeepSpaceSky({ height }: { height: number }) {
       <shaderMaterial side={BackSide} depthWrite={false} toneMapped={false} uniforms={uniforms} vertexShader={skyVertex} fragmentShader={skyFragment}/>
     </mesh>
     <points geometry={bandStars} renderOrder={-2} raycast={() => {}} frustumCulled={false}>
-      <shaderMaterial transparent depthWrite={false} vertexColors toneMapped={false} vertexShader={bandVertex} fragmentShader={bandFragment}/>
+      <shaderMaterial transparent depthWrite={false} vertexColors toneMapped={false} uniforms={uniforms} vertexShader={bandVertex} fragmentShader={bandFragment}/>
     </points>
   </group>;
 }
