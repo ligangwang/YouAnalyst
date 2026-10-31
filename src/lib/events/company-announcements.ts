@@ -33,8 +33,8 @@ export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:s
 export async function loadCompanyAnnouncements(companyId:string){
   if(!/^(?:US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId))return [];
   try{
-    const db=getAdminFirestore(),sources=await loadCompanyAnnouncementSources(db,companyId);
-    const page=await loadCompanyEventSnapshot(db,companyId);
+    const db=getAdminFirestore();
+    const [sources,page]=await Promise.all([loadCompanyAnnouncementSources(db,companyId),loadCompanyEventSnapshot(db,companyId)]);
     const today=new Date().toISOString().slice(0,10);
     return newsArticles(page.docs.map(doc=>doc.data()),sources).map(row=>publicCompanyAnnouncement(row,companyId,sources)).filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today)).slice(0,12);
   }catch(error){console.error('Company announcement sources unavailable',companyId,error);return [];}

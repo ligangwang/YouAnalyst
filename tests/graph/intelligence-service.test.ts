@@ -16,7 +16,7 @@ function filing(index:number,day='2026-10-02',companyId='AMD'):FeedRecord{
   return {collection:'sec_filings',id:accessionNumber,data:{filingDate:day,published_at:null,discoveryEvents:{[event.eventId]:{event,state:'published'}}}};
 }
 function feed(records:FeedRecord[]=[],revision='one',loadedFrom='2026-10-02'):CachedFeed{return {days:{[loadedFrom]:records},revision,loadedFrom,hasMore:true};}
-async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>string;graph?:()=>Promise<KnowledgeGraph>;collector?:Record<string,unknown>}={}){
+async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>string;graph?:()=>Promise<KnowledgeGraph>;valuations?:(graph:KnowledgeGraph)=>Promise<KnowledgeGraph>;calendar?:()=>void;collector?:Record<string,unknown>}={}){
   const external=['../change-cache','./price-cache','./feed-cache-store','./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service','../calendar/intelligence-links'];
   const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
@@ -24,10 +24,10 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
     if(name==='./price-cache')return {loadPriceCache:async()=>({version:options.priceVersion?.()??'prices',entries:{}})};
     if(name==='./feed-cache-store')return {loadCachedFeed:load};
     if(name==='./price-performance-service')return {attachPricePerformance:async(_db:unknown,graph:KnowledgeGraph)=>({graph,eventReturns:{}})};
-    if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:unknown)=>events};
+    if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:unknown)=>{options.calendar?.();return events;}};
     if(name==='../firebase/admin')return {getAdminFirestore:()=>({})};
     if(name==='../change-cache')return {withCacheReadScope:(load:()=>Promise<unknown>)=>load(),changeCached:async(_db:unknown,_key:string,_scopes:string[],load:()=>Promise<unknown>)=>load()};
-    if(name==='../company-themes/graph-service')return {loadThemeGraph:options.graph??(async()=>graph)};
+    if(name==='../company-themes/graph-service')return {loadThemeGraphStructure:options.graph??(async()=>graph),loadThemeGraph:async(_theme:string,structure:KnowledgeGraph)=>options.valuations?options.valuations(structure):structure};
     if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:options.graph??(async()=>graph)};
     if(name==='../knowledge-graph/curated-events')return {curatedEvents:[]};
     if(name==='../sec-filings/store')return {secCollectorFreshness:()=>({get:async()=>({get:(key:string)=>key==='lastRunAt'?now.toISOString():key==='result'?(options.collector??{failed:0,partial:0,remaining:0,outboxIncomplete:false}):undefined})})};
@@ -36,6 +36,44 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
   new Function('require','module','exports',result.outputFiles[0].text)(injected,evaluated,evaluated.exports);
   return evaluated.exports as typeof import('../../src/lib/intelligence/service');
 }
+
+test('feed starts graph work without waiting for source data and shares it with bootstrap',async()=>{
+  let releaseFeed!:(value:CachedFeed)=>void,releaseGraph!:(value:KnowledgeGraph)=>void,graphCalls=0;
+  const feedGate=new Promise<CachedFeed>(resolve=>{releaseFeed=resolve;});
+  const graphGate=new Promise<KnowledgeGraph>(resolve=>{releaseGraph=resolve;});
+  const service=await isolated(()=>feedGate,{graph:async()=>{graphCalls++;return graphGate;}});
+  const full=service.loadIntelligenceSnapshot(now);
+  assert.equal(graphCalls,1,'source I/O must not delay graph I/O');
+  const bootstrap=service.loadIntelligenceUniverse(now);
+  assert.equal(graphCalls,1,'concurrent bootstrap must not repeat graph/valuation work');
+  releaseGraph(graph);assert.equal((await bootstrap).eventsPending,true);
+  releaseFeed(feed([filing(1)]));assert.equal((await full).events.length,1);
+  await service.loadIntelligenceUniverse(now);assert.equal(graphCalls,2,'completed work is not a stale result cache');
+});
+
+test('a failed shared graph can retry and a pending theme does not block another theme',async()=>{
+  let rejectGraph!:(error:Error)=>void,calls=0;
+  const blocked=new Promise<KnowledgeGraph>((_resolve,reject)=>{rejectGraph=reject;});
+  const service=await isolated(async()=>feed(),{graph:async()=>++calls===1?blocked:graph});
+  const first=service.loadIntelligenceUniverse(now,'ai');
+  const second=service.loadIntelligenceUniverse(now,'ai');
+  const failures=Promise.all([assert.rejects(first,/offline/),assert.rejects(second,/offline/)]);
+  assert.equal(calls,1);
+  const other=await service.loadIntelligenceUniverse(now,'quantum');assert.equal(other.theme,'quantum');
+  rejectGraph(Error('offline'));await failures;
+  assert.equal((await service.loadIntelligenceUniverse(now,'ai')).theme,'ai');assert.equal(calls,3);
+});
+
+test('event and calendar work overlaps valuation loading without dropping market caps',async()=>{
+  let release!:(graph:KnowledgeGraph)=>void,calendarStarted!:()=>void,finished=false;
+  const valuations=new Promise<KnowledgeGraph>(resolve=>{release=resolve;});
+  const calendar=new Promise<void>(resolve=>{calendarStarted=resolve;});
+  const service=await isolated(async()=>feed([filing(1)]),{valuations:()=>valuations,calendar:calendarStarted});
+  const pending=service.loadIntelligenceSnapshot(now);void pending.then(()=>{finished=true;});
+  await calendar;assert.equal(finished,false,'calendar must run while valuations are pending');
+  const enriched={...graph,nodes:graph.nodes.map(node=>({...node,marketCap:{value:123,currency:'USD' as const,priceDate:'2026-10-01'}}))};
+  release(enriched);const result=await pending;assert.equal(result.graph.nodes[0].marketCap?.value,123);assert.equal(result.events.length,1);
+});
 
 test('unchanged feed revision reuses the projected feed past one minute; new arrivals invalidate it',async()=>{
   let current=feed([filing(1)]);

@@ -6,7 +6,7 @@ import { companyResearchGraph } from "./knowledge-graph/company-research-project
 import { buildCompanyResearch } from "./company-research";
 import { loadCompanyNeighborhood } from "./knowledge-graph/company-neighborhood";
 import { readCompanyLookup } from "./company-lookup-cache";
-import {timeCompanyPhase} from './company-page-timing';
+import {graphFromMarket,type MarketCompany} from './knowledge-graph/market-store';
 
 // A retry must retain the same company scope as the initial read.
 export const loadCompanyPageGraph=cache((id:string)=>withCompanyPageReads(async()=>{
@@ -23,8 +23,13 @@ const loadTickerRecord=cache(async(ticker:string)=>{
 // Reuse the route's exact identity. A company page never needs the directory or
 // global valuations to determine its name, publication status or direct sources.
 export const loadCompanyResearch = cache((ticker:string,resolved?:ResolvedCompany)=>withCompanyPageReads(async()=>{
- const db=getAdminFirestore(), id=`US:${ticker}`;
+ const id=`US:${ticker}`;
  const data=resolved?.id===id?resolved.data:await loadTickerRecord(ticker);
- const neighborhood=await timeCompanyPhase('relationships',()=>loadCompanyNeighborhood(db,id,data)).catch(()=>null);
- return {...buildCompanyResearch(ticker,data?[data]:[],neighborhood?companyResearchGraph(neighborhood):null),neighborhood};
+ // Only project the identity already requested by this page. Relationship
+ // membership, sources and neighbors are resolved by the visible panel's API.
+ const identity=data&&data.isDeleted!==true?graphFromMarket([{...data,id} as MarketCompany],[]):null;
+ return {...buildCompanyResearch(ticker,data?[data]:[],identity?companyResearchGraph(identity):null),
+   // Earnings and announcements belong to the public company, including a
+   // related-only company. Their visibility must not require relationship I/O.
+   hasCompanyContent:!!data&&data.isDeleted!==true&&['PUBLISHED','DIRECTORY'].includes(String(data.status))&&typeof data.name==='string'&&Boolean(data.name)};
 }));
