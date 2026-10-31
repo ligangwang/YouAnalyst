@@ -258,6 +258,28 @@ test('unresolved article dates fail without advancing the checkpoint and are ret
   const event=[...records.entries()].find(([key])=>key.startsWith('events/'))![1];assert.equal(event.publication_date,'2026-10-02');assert.equal(event.published_at,null);
 });
 
+test('news health reads batch exact IDs, share concurrent subscriptions and retain updates and missing records',async t=>{
+ const {loadNewsCollectorStatuses}=await import('../../src/lib/intelligence/collectors/status-cache');
+ const {closeLocalCaches}=await import('../../src/lib/local-cache/watch');t.after(closeLocalCaches);
+ const rows=new Map<string,Record<string,unknown>>(),listeners=new Set<()=>void>();let opens=0;
+ const ids=Array.from({length:75},(_,i)=>`source-${i}`);
+ rows.set('news-health-source-0',{failures:0});rows.set('unrelated',{failures:999});
+ const db={collection:(name:string)=>{assert.equal(name,'collectors');return {where:(_field:unknown,op:string,keys:string[])=>{
+  assert.equal(op,'in');assert(keys.length<=30);assert(keys.every(id=>id.startsWith('news-health-source-')));
+  const key=JSON.stringify(keys);
+  return {key,isEqual:(other:{key:string})=>key===other.key,onSnapshot:(next:(value:unknown)=>void)=>{
+   opens++;const push=()=>next({docs:keys.filter(id=>rows.has(id)).map(id=>({id,data:()=>rows.get(id)}))});
+   listeners.add(push);queueMicrotask(push);return()=>{listeners.delete(push);};
+  }};
+ }}}} as unknown as import('firebase-admin/firestore').Firestore;
+ const results=await Promise.all(Array.from({length:10},()=>loadNewsCollectorStatuses(db,ids)));
+ assert.equal(opens,3);assert.equal(results[0][0].data()?.failures,0);assert.equal(results[0][1].data(),undefined);
+ rows.delete('news-health-source-0');rows.set('news-health-source-1',{failures:2});for(const push of listeners)push();
+ const updated=await loadNewsCollectorStatuses(db,[...ids].reverse());
+ assert.equal(updated[74].data(),undefined);assert.equal(updated[73].data()?.failures,2);assert.equal(opens,3);
+ assert.deepEqual(await loadNewsCollectorStatuses(db,[]),[]);assert.equal(opens,3);
+});
+
 test('news health summary changes on outcome, not lease acquisition',async()=>{
  const {db,records}=memoryDb(),store=firestoreNewsStore(db),key=`collectors/news-health-${source.id}`;
  const first=await store.acquire(source,at,'first');assert.ok(first);assert.equal(records.has(key),false);
