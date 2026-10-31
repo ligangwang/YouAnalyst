@@ -29,8 +29,8 @@ export async function loadThemeGraphStructure(theme: CompanyThemeId): Promise<Kn
   });
 }
 
-export async function loadThemeGraph(theme: CompanyThemeId): Promise<KnowledgeGraph> {
-  const structure=await loadThemeGraphStructure(theme),db=getAdminFirestore();
+export async function loadThemeGraph(theme: CompanyThemeId, loadedStructure?:KnowledgeGraph): Promise<KnowledgeGraph> {
+  const structure=loadedStructure??await loadThemeGraphStructure(theme),db=getAdminFirestore();
   if(theme==='ai')return loadGraphValuations(db,structure);
   const graph=structuredClone(structure);
   const us = graph.nodes.filter(node => node.kind === 'COMPANY' && node.market === 'US');
