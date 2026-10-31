@@ -23,6 +23,7 @@ import { safeGraphOrbitStep } from "./graph-orbit-step";
 import { TreeStarField } from './tree-star-field';
 import { DeepSpaceClouds } from './deep-space-clouds';
 import { DeepSpaceSky } from './deep-space-sky';
+import { GalaxyDisc, galaxyOpeningDistance } from './galaxy-disc';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import styles from "./ai-knowledge-graph.module.css";
 
@@ -426,7 +427,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
-    const distance = opening && !reduced ? d * 1.4 : d;
+    // Open on the whole galaxy; the introduction then flies in to the graph.
+    const distance = opening && !reduced ? Math.max(d * 1.4, light ? 0 : galaxyOpeningDistance(size.width / Math.max(1, size.height))) : d;
     const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
     // The detail card changes the viewport in this commit. Fiber's resize
     // observer reports that size later; framing against its previous size would
@@ -441,7 +443,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     // for sector navigation and the automatic tour.
     void c.setLookAt(...position.toArray(),...target.toArray(),!n&&!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl, light]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
@@ -762,8 +764,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)}/><TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
-    <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/><GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/><TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
+    <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={light ? fitDistance*3 : Math.max(fitDistance*3, galaxyOpeningDistance(size.width/Math.max(1,size.height))*1.05)} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
       // point remains under the pointer. Only clear the exiting company.
