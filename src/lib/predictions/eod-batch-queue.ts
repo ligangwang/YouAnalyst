@@ -197,10 +197,13 @@ export async function processEodCompanyBatch(message: EodBatchRequest, options: 
             const saved = await tx.get(childRef), parent = await tx.get(ref);
             assertOwner(saved, owner); assertOwner(parent, owner);
             if (saved.get('completed')) return;
+            // A missing dated bar gets the same single cleanup opportunity as
+            // other failures. Only the retry pass may settle it as NO_DATA.
+            const deferNoData = next === null && message.pass === 0 && saved.get('status') === 'NO_DATA';
             tx.set(childRef, {cursor: next, eodAttempt: {pass: message.pass, state: next === null ? 'settled' : 'ready'},
-              ...(next === null ? {completed: true, completedAt: new Date().toISOString(),
+              ...(next === null && !deferNoData ? {completed: true, completedAt: new Date().toISOString(),
                 ...(saved.get('status') === 'NO_DATA' ? {} : {status: 'COMPLETED', error: null})} : {})}, {merge: true});
-            if (next === null) tx.set(ref, {completedCompanies: Number(parent.get('completedCompanies') ?? 0) + 1}, {merge: true});
+            if (next === null && !deferNoData) tx.set(ref, {completedCompanies: Number(parent.get('completedCompanies') ?? 0) + 1}, {merge: true});
           });
           if (next === null) break;
           cursor = next;

@@ -116,3 +116,17 @@ test('immediate batch continuation delivery happens after the parent lease relea
   await f.deliver(f.root);
   assert.equal(f.attempts.size, 102); assert.equal(f.scores(), 1);
 });
+
+test('missing dated bars get one cleanup attempt before settling explicit NO_DATA', async () => {
+  const f=fixture(1);
+  const task=companyWorkRequest('eod',f.root,f.ids[0]),receipt=companyWorkRef(f.db,'eod_runs',task.batchId);
+  let calls=0;
+  f.options.work=async()=>{
+    calls++;
+    await receipt.set({status:'NO_DATA'},{merge:true});
+    return null;
+  };
+  await f.deliver(f.root);await f.drain();
+  assert.equal(calls,2);assert.equal(f.rows.get(receipt.path)?.status,'NO_DATA');
+  assert.equal(f.rows.get(receipt.path)?.completed,true);assert.equal(f.scores(),1);
+});
