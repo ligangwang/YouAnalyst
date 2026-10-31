@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useMemo } from 'react';
-import { BackSide, BufferGeometry, Float32BufferAttribute, Vector2 } from 'three';
+import { useEffect, useMemo, useState } from 'react';
+import { useThree } from '@react-three/fiber';
+import { BackSide, BufferGeometry, CubeCamera, Float32BufferAttribute, Mesh, Scene, ShaderMaterial, SphereGeometry, Vector2, WebGLCubeRenderTarget, type PerspectiveCamera } from 'three';
 
 const SKY_RADIUS = 60000;
+// The sky is soft, so a modest cubemap keeps detail while the per-frame cost
+// stays a single texture lookup instead of thirty noise evaluations per pixel.
+const SKY_FACE = 256;
 // The galactic plane crosses the default view diagonally; its bright bulge sits
 // off to one side so the company cluster stays over darker sky.
 const PLANE = [.45, .89, .08];
@@ -22,13 +26,12 @@ function normalize([x, y, z]: number[]) {
 
 const skyVertex = `varying vec3 skyDirection; void main() { skyDirection = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
-// A static, full-sphere sky: a luminous galactic band with dust lanes and two
-// faint emission nebulae. It has no time uniform, so the demand frameloop stays asleep.
-const skyFragment = `
+// Galaxy and nebula light, baked once into a cubemap: a luminous galactic band
+// with dust lanes and two faint emission nebulae.
+const bakeFragment = `
   varying vec3 skyDirection;
   uniform vec3 plane;
   uniform vec3 bulgeDirection;
-  uniform vec2 resolution;
   float hash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);
     p *= 17.0;
@@ -73,13 +76,29 @@ const skyFragment = `
     light += vec3(0.04, 0.48, 0.7) * cyan * (0.12 + filaments * 0.5);
     light += vec3(0.5, 0.12, 0.66) * magenta * (0.08 + filaments * 0.36);
     light += vec3(0.85, 0.3, 0.55) * cyan * magenta * filaments * 0.2;
+    gl_FragColor = vec4(light, 1.0);
+  }
+`;
 
+const skyFragment = `
+  varying vec3 skyDirection;
+  uniform samplerCube light;
+  uniform vec3 plane;
+  uniform vec2 resolution;
+  float hash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  void main() {
+    vec3 d = normalize(skyDirection);
+    float latitude = dot(d, plane);
+    float haze = exp(-latitude * latitude / 0.16);
     // Keep the sky calm behind the company cluster so sector colors keep their
     // contrast; the galaxy and nebulae stay vivid toward the frame edges.
     vec2 screen = (gl_FragCoord.xy / resolution - 0.5) * vec2(resolution.x / resolution.y, 1.0);
     float calm = smoothstep(0.12, 0.62, length(screen * vec2(0.8, 1.0)));
-    vec3 sky = mix(vec3(0.012, 0.02, 0.05), vec3(0.03, 0.04, 0.095), haze) + light * mix(0.28, 1.0, calm);
-
+    vec3 sky = mix(vec3(0.012, 0.02, 0.05), vec3(0.03, 0.04, 0.095), haze) + textureCube(light, d).rgb * mix(0.28, 1.0, calm);
     // A small dither keeps the dark gradients from banding on 8-bit displays.
     sky += (hash(d * 4000.0) - 0.5) / 255.0;
     gl_FragColor = vec4(sky, 1.0);
@@ -92,7 +111,37 @@ const bandFragment = `varying vec3 starColor;
   void main() { float r = length(gl_PointCoord - 0.5); float alpha = 1.0 - smoothstep(0.1, 0.5, r); if (alpha < 0.02) discard; gl_FragColor = vec4(starColor, alpha); }`;
 
 export function DeepSpaceSky({ height }: { height: number }) {
-  const uniforms = useMemo(() => ({ plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) }, resolution: { value: new Vector2(1, 1) } }), []);
+  const { gl, invalidate } = useThree();
+  const target = useMemo(() => new WebGLCubeRenderTarget(SKY_FACE), []);
+  const uniforms = useMemo(() => ({ light: { value: target.texture }, plane: { value: normalize(PLANE) }, resolution: { value: new Vector2(1, 1) } }), [target]);
+  useEffect(() => () => target.dispose(), [target]);
+  const [baked, setBaked] = useState(false);
+  // Bake one face per animation frame so no single task blocks input on software
+  // renderers; rebake after a restored context drops the cubemap.
+  useEffect(() => {
+    const geometry = new SphereGeometry(10, 64, 32);
+    const material = new ShaderMaterial({ side: BackSide, depthTest: false, depthWrite: false, toneMapped: false,
+      uniforms: { plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) } }, vertexShader: skyVertex, fragmentShader: bakeFragment });
+    const scene = new Scene().add(new Mesh(geometry, material));
+    const camera = new CubeCamera(1, 100, target);
+    camera.coordinateSystem = gl.coordinateSystem;
+    camera.updateCoordinateSystem();
+    camera.updateMatrixWorld();
+    let frame = 0;
+    const bakeFace = (face: number) => {
+      if (gl.getContext().isContextLost()) return;
+      const previous = gl.getRenderTarget(), previousFace = gl.getActiveCubeFace(), previousLevel = gl.getActiveMipmapLevel();
+      gl.setRenderTarget(target, face);
+      gl.render(scene, camera.children[face] as PerspectiveCamera);
+      gl.setRenderTarget(previous, previousFace, previousLevel);
+      if (face < 5) frame = requestAnimationFrame(() => bakeFace(face + 1));
+      else { setBaked(true); invalidate(); }
+    };
+    const bake = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => bakeFace(0)); };
+    bake();
+    gl.domElement.addEventListener('webglcontextrestored', bake);
+    return () => { cancelAnimationFrame(frame); gl.domElement.removeEventListener('webglcontextrestored', bake); geometry.dispose(); material.dispose(); };
+  }, [gl, invalidate, target]);
   // Fine stars crowd the galactic band and thin out toward its edges.
   const bandStars = useMemo(() => {
     const plane = normalize(PLANE), bulge = normalize(BULGE);
@@ -118,7 +167,7 @@ export function DeepSpaceSky({ height }: { height: number }) {
   useEffect(() => () => bandStars.dispose(), [bandStars]);
   return <group name="deep-space-sky" position={[0, height / 2, 0]}>
     {/* Read the drawing buffer at draw time so DPR changes keep the calm area centered. */}
-    <mesh renderOrder={-3} raycast={() => {}} frustumCulled={false} onBeforeRender={renderer => renderer.getDrawingBufferSize(uniforms.resolution.value)}>
+    <mesh visible={baked} renderOrder={-3} raycast={() => {}} frustumCulled={false} onBeforeRender={renderer => renderer.getDrawingBufferSize(uniforms.resolution.value)}>
       <sphereGeometry args={[SKY_RADIUS, 64, 32]}/>
       <shaderMaterial side={BackSide} depthWrite={false} toneMapped={false} uniforms={uniforms} vertexShader={skyVertex} fragmentShader={skyFragment}/>
     </mesh>
