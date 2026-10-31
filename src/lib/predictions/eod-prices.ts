@@ -2073,7 +2073,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         runDate,
         logRunId: log.runId,
         fx: fx ?? null,
-        status: fx?.failed||corporateActions?.failures.length||corporateActions?.deferred ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
+        status: priceLoad.failed||marking.missingPrice||fx?.failed||corporateActions?.failures.length||corporateActions?.deferred ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
         completedAt: new Date().toISOString(),
         error: null,
         recompute,

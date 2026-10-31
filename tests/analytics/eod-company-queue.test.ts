@@ -22,7 +22,11 @@ test('historical replay orders dates and finishes each company barrier before ad
       work.push(`${input.runDate}:${input.tickers![0]}`);
       return {priceLoad:{failed:0},marking:{missingPrice:0},hasMoreCandidatePredictions:false} as DailyEodMaintenanceResult;
     },finalize:async(input:{runDate?:string})=>{assert.equal(work.filter(item=>item.startsWith(input.runDate!)).length,2);scores.push(input.runDate!);return null;}};
-  for(let i=0;messages.length;i++){assert.ok(i<30);await processEodCompanyMessage(messages.shift()!,f.db,f.log,publish,deps);}
+  for(let i=0;messages.length;i++){
+    assert.ok(i<60);const message=messages.shift()!;
+    try{await processEodCompanyMessage(message,f.db,f.log,publish,deps);}
+    catch(error){assert.match(String(error),/waiting for company receipts/);messages.push(message);}
+  }
   assert.deepEqual(scores,['2026-01-02','2026-01-05']);
   assert.deepEqual(work,['2026-01-02:AMD','2026-01-02:MSFT','2026-01-05:AMD','2026-01-05:MSFT']);
   assert.equal(f.rows.get(`eod_runs/_request_${original.batchId}`)?.completed,true);
@@ -55,7 +59,7 @@ test('daily EOD routes one company and its prepared price per task, then finaliz
   const tasks=published.filter((message):message is CompanyWorkRequest=>message.type==='company.work.requested').sort((a,b)=>a.companyId==='XSHG:600000'?-1:b.companyId==='XSHG:600000'?1:0);
   assert.equal(tasks.length,2);
   await deliver(tasks[0]);await assert.rejects(deliver(tasks[1]),/incomplete/);
-  await deliver(root);assert.equal(scores,0);
+  await assert.rejects(deliver(root),/waiting for company receipts/);assert.equal(scores,0);
   assert.notEqual(f.rows.get('eod_runs/CN_A_2026-01-02')?.status,'COMPLETED');
   fail=false;await deliver(tasks[1]);await deliver(root);
   assert.equal(scores,1);

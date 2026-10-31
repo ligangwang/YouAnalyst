@@ -6,6 +6,7 @@ import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-le
 import type {MaintenanceLog} from '../maintenance-log';
 import {parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsub';
 import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,readRollForwardDates,type EodPrice} from './eod-prices';
+import {retireExpiredEodRun} from './eod-recovery';
 
 export type EodCompanyRunRequest=Omit<EodRequest,'version'|'type'>&{version:2;type:'eod.company-run.requested'};
 export type EodMessage=EodRequest|EodCompanyRunRequest|CompanyWorkRequest;
@@ -22,7 +23,12 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
   publish:(message:EodMessage)=>Promise<unknown>=message=>publishJobMessage(process.env.EOD_REQUEST_TOPIC||'eod-maintenance-requests',message),
   dependencies:{plan?:typeof planEodCompanyWork;prepare?:typeof prepareEodCompanyPrices;run?:typeof runDailyEodMaintenance;finalize?:typeof finalizeEodCompanyScores}={}){
   const message=parseEodMessage(value),state=db.collection('eod_runs').doc('_company_pipeline');
-  if(message.type==='company.work.requested')return processCompanyWork<EodCompanyRunRequest>(message,{
+  if(message.type==='company.work.requested'){
+    // Retired failed runs retain incomplete receipts; late deliveries must not
+    // mutate predictions after a later date has started or loop in Pub/Sub.
+    const retired=await parentRef(db,message.parentBatchId).get();
+    if(retired.get('completed')===true&&retired.get('status')==='FAILED')return {batchId:message.batchId,status:'FAILED',retired:true};
+    return processCompanyWork<EodCompanyRunRequest>(message,{
     db,parent:parentRef(db,message.parentBatchId),state,collection:'eod_runs',owner:log.runId,publish,
     work:async(parent,prepared,cursor)=>{
       const replay=(await parentRef(db,parent.batchId).get()).get('result')?.parentRequest;
@@ -33,7 +39,10 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       if(result.hasMoreCandidatePredictions&&(!result.nextPredictionId||result.nextPredictionId===cursor))throw Error('Company prediction cursor did not advance');
       return result.hasMoreCandidatePredictions?result.nextPredictionId!:null;
     },
-  });
+    });
+  }
+  const retired=await retireExpiredEodRun(db);
+  if(retired)log.emit('ERROR','company_run_retired',{batchId:retired,status:'FAILED',reason:'Company recovery window expired; receipts retained'});
   const ref=parentRef(db,message.batchId),prior=(await ref.get()).data();
   // Finish already checkpointed old requests through their original path.
   // New daily requests and historical replays use company receipts.
@@ -58,6 +67,13 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     await publish(upgraded);return {batchId:message.batchId,upgraded:true};
   }
   if(message.input.rollForward)return processEodReplay(message,db,log,publish);
+  const active=(await state.get()).get('activeRequest');
+  if(active&&active.batchId!==message.batchId){
+    // Repair a lost parent/finalizer wakeup as later scheduled work arrives.
+    // Publishing is idempotent; the existing leases and receipts fence duplicates.
+    await publish(parseEodMessage(active));
+    throw Error('Previous company run is unfinished; recovery requested');
+  }
   const input={...message.input,...(prior?.result?.parentRequest?{skipHistoryBackfill:true}:{})};
   const outcome=await processCompanyRun(message,{
     db,ref,state,collection:'eod_runs',kind:'eod',owner:log.runId,publish,
@@ -65,6 +81,9 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       for(const key of [`_active_${input.market}`,`_queue_${input.market}`])
         if(Number((await db.collection('eod_runs').doc(key).get()).get('leaseExpiresAtMs'))>Date.now())throw Error('Legacy EOD delivery is still active');
       const ids=await (dependencies.plan??planEodCompanyWork)(input,db);
+      // Start the recovery window when work begins, not when an old queued date
+      // was requested. Catch-up runs deserve the same retry budget as new runs.
+      await ref.set({startedAt:new Date().toISOString()},{merge:true});
       await db.collection('eod_runs').doc(`${input.market}_${input.runDate}`).set({status:'STARTED',market:input.market,runDate:input.runDate},{merge:true});
       return ids;
     },
@@ -81,9 +100,15 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       return next;
     },
   });
+  // Keep a durable Pub/Sub wakeup until either all receipts finish or recovery
+  // retires the run. A child exhausted into the DLQ must not orphan its parent.
+  if(outcome.phase==='waiting'&&'completed' in outcome&&outcome.completed!==outcome.required)
+    throw Error('EOD is waiting for company receipts; retry recovery wakeup');
   if(outcome.phase==='completed'||outcome.duplicate){
-    const parentRequest=(await ref.get()).get('result')?.parentRequest;
+    const finished=await ref.get();
+    const parentRequest=finished.get('result')?.parentRequest;
     if(parentRequest)await publish(parseEodMessage(parentRequest));
+    if(finished.get('status')==='FAILED')return {...outcome,status:'FAILED'};
   }
   return outcome;
 }
@@ -110,7 +135,18 @@ async function processEodReplay(request:EodCompanyRunRequest,db:Firestore,log:Ma
       });return {completed:true,batchId:request.batchId};
     }
     const date=saved.dates[saved.dateIndex],batchId=digest({replay:request.batchId,date}),child=parentRef(db,batchId);
-    if((await child.get()).get('completed')===true){
+    const childRun=await child.get();
+    if(childRun.get('completed')===true&&childRun.get('status')==='FAILED'){
+      // A failed historical date must not masquerade as a successful replay.
+      const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(request.input)}`);
+      await db.runTransaction(async tx=>{
+        const active=(await tx.get(dispatch)).get('activeRequest');
+        tx.set(ref,{completed:true,status:'FAILED',error:`EOD replay stopped at incomplete date ${date}`,failedAt:new Date().toISOString()},{merge:true});
+        if(active?.batchId===request.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});
+      });
+      return {batchId:request.batchId,status:'FAILED'};
+    }
+    if(childRun.get('completed')===true){
       await ref.set({dateIndex:saved.dateIndex+1},{merge:true});await publish(request);return {advanced:true,batchId:request.batchId};
     }
     const daily:EodCompanyRunRequest={...request,batchId,input:{...request.input,runDate:date,rollForward:false}};
