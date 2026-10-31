@@ -15,7 +15,7 @@ import {CN_DISCOVERY_TOPIC,cnDiscoveryState,publishCnDiscoveryTasks} from '../sr
 import {mapListedCompanies} from '../src/lib/events/disclosures';
 import {publishJobMessage} from '../src/lib/job-pubsub';
 import {publishEarningsOutbox} from '../src/lib/earnings/live-store';
-import {readCollectionCompanies} from '../src/lib/company-support/collection-reader';
+import {readEarningsScheduleCompanies} from '../src/lib/earnings/scheduler-scope';
 import {supportedCompanyUniverse} from '../src/lib/company-support/model';
 
 const log = createMaintenanceLog("collect-earnings");
@@ -32,7 +32,8 @@ async function main() {
   const db = getFirestore();
   // Delivery probes need only their receipt; other modes retain issuer setup.
   const graph=mode==='verify-delivery' ? undefined : mode==='collect'&&process.env.CN_DISCOVERY_REQUEST_TOPIC
-    ? supportedCompanyUniverse(await readCollectionCompanies(db,[],'CN'))
+    // Catch up only CN candidates; workers recheck each dispatched company.
+    ? supportedCompanyUniverse(await readEarningsScheduleCompanies(db))
     : await loadEarningsMap(db);
   if (mode === "dry-run" || mode === "diagnostics") { log.emit("INFO", "run_completed", await inspectLiveEarnings(db)); return; }
   const revision = process.env.GIT_SHA ?? "";
@@ -50,12 +51,13 @@ async function main() {
   if(cnTopic&&cnTopic!==CN_DISCOVERY_TOPIC)throw new Error('Unexpected A-share discovery destination');
   if(mode==='collect'&&cnTopic){
     if(!graph)throw new Error('Earnings company map is unavailable');
-    const result=await publishCnDiscoveryTasks(mapListedCompanies(graph).filter(n=>n.market==='CN_A').map(n=>n.id),'earnings-fallback',task=>publishJobMessage(cnTopic,task),{
+    const companyIds=mapListedCompanies(graph).filter(n=>n.market==='CN_A').map(n=>n.id);
+    const result=await publishCnDiscoveryTasks(companyIds,'earnings-fallback',task=>publishJobMessage(cnTopic,task),{
       execution:process.env.CLOUD_RUN_EXECUTION??log.runId,deadline:Date.now()+8*60000,earningsEnabled:true,readState:(id,kind)=>cnDiscoveryState(db,id,kind),
     });
     // Repair pending publication independently of individual company discovery.
     const outbox=await publishEarningsOutbox(db,publish,50);
-    log.emit(result.failed?'WARNING':'INFO','run_completed',{...result,outbox});
+    log.emit(result.failed?'WARNING':'INFO','run_completed',{...result,outbox,eligibleCompanies:companyIds.length});
     if(result.failed)throw new Error('A-share discovery publication incomplete; checkpoints retained');
     return;
   }
