@@ -29,6 +29,8 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
   const message=batchMessage?parseEodMessage((await parentRef(db,batchMessage.parentBatchId).get()).get('request')):parsed;
   if(message.type==='eod.company-batch.requested')throw Error('Invalid EOD batch parent');
   const work=(message:CompanyWorkRequest)=>async(parent:EodCompanyRunRequest,prepared:Record<string,unknown>,cursor:string|null)=>{
+      const receipt=db.collection('eod_runs').doc(`_company_${message.batchId}`);
+      await receipt.set({startedAt:new Date().toISOString()},{merge:true});
       const replay=(await parentRef(db,parent.batchId).get()).get('result')?.parentRequest;
       const input={...parent.input,...(replay?{skipHistoryBackfill:true}:{})},market=input.market,ticker=market==='US'?message.companyId.slice(3):message.companyId;
       const result=await (dependencies.run??runDailyEodMaintenance)({...input,rollForward:false,tickers:[ticker],afterPredictionId:cursor??undefined},
@@ -38,10 +40,9 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       // no predictions. Transport errors and required valuations still retry.
       if(result.priceLoad.failed>0&&result.priceLoad.failures?.length===result.priceLoad.failed
         &&result.priceLoad.failures.every(failure=>failure.reason==='eodhd_no_dated_bar')
-        &&result.candidatePredictions===0&&result.marking.checked===0&&result.marking.missingPrice===0
+        &&cursor===null&&result.candidatePredictions===0&&result.marking.checked===0&&result.marking.missingPrice===0
         &&!result.hasMoreCandidatePredictions&&!result.fx?.failed
         &&!result.corporateActions?.failures.length&&!result.corporateActions?.deferred){
-        const receipt=db.collection('eod_runs').doc(`_company_${message.batchId}`);
         await db.runTransaction(async tx=>{
           const saved=await tx.get(receipt);
           if(saved.get('leaseOwner')!==log.runId||Number(saved.get('leaseExpiresAtMs'))<=Date.now())throw Error('Company work lease expired');
@@ -52,6 +53,12 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       }
       if(result.priceLoad.failed||result.marking.missingPrice||result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred)throw Error('Company EOD processing remains incomplete');
       if(result.hasMoreCandidatePredictions&&(!result.nextPredictionId||result.nextPredictionId===cursor))throw Error('Company prediction cursor did not advance');
+      // A retry with a real bar supersedes the previous pass's explicit gap.
+      await db.runTransaction(async tx=>{
+        const saved=await tx.get(receipt);
+        if(saved.get('leaseOwner')!==log.runId||Number(saved.get('leaseExpiresAtMs'))<=Date.now())throw Error('Company work lease expired');
+        if(saved.get('status')==='NO_DATA')tx.set(receipt,{status:'STARTED',error:null},{merge:true});
+      });
       return result.hasMoreCandidatePredictions?result.nextPredictionId!:null;
   };
   if(message.type==='company.work.requested'){
@@ -156,6 +163,7 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
 async function processEodReplay(request:EodCompanyRunRequest,db:Firestore,log:MaintenanceLog,publish:(message:EodMessage)=>Promise<unknown>){
   const ref=parentRef(db,request.batchId);
   if(!await acquireMaintenanceLease(ref,log.runId))throw Error('EOD replay is busy');
+  let wake:EodCompanyRunRequest|undefined;
   try{
     let saved=(await ref.get()).data();
     if(!saved?.request||digest(saved.request)!==digest(request))throw Error('Unknown EOD replay');
@@ -186,10 +194,10 @@ async function processEodReplay(request:EodCompanyRunRequest,db:Firestore,log:Ma
       return {batchId:request.batchId,status:'FAILED'};
     }
     if(childRun.get('completed')===true){
-      await ref.set({dateIndex:saved.dateIndex+1},{merge:true});await publish(request);return {advanced:true,batchId:request.batchId};
+      await ref.set({dateIndex:saved.dateIndex+1},{merge:true});wake=request;return {advanced:true,batchId:request.batchId};
     }
     const daily:EodCompanyRunRequest={...request,batchId,input:{...request.input,runDate:date,rollForward:false}};
     await db.runTransaction(async tx=>{if(!(await tx.get(child)).exists)tx.create(child,{request:daily,result:{parentRequest:request}});});
-    await publish(daily);return {waiting:true,batchId:request.batchId};
-  }finally{await releaseMaintenanceLease(ref,log.runId);}
+    wake=daily;return {waiting:true,batchId:request.batchId};
+  }finally{await releaseMaintenanceLease(ref,log.runId);if(wake)await publish(wake);}
 }

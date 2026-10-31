@@ -51,6 +51,24 @@ test('daily provider distinguishes empty arrays from malformed responses and wro
   payload={error:'quota'};assert.equal((await load()).failures[0].reason,'eodhd_invalid_response');
   payload=[{date:'2026-10-29',close:1}];assert.notEqual((await load()).failures[0].reason,'eodhd_no_dated_bar');
 });
+test('failed legacy work records its attempt so recovery can retire it',async()=>{
+  const f=await fixture();
+  await assert.rejects(processEodCompanyMessage(f.child,f.db,f.log,f.publish,{run:async()=>{throw Error('provider unavailable');}}),/provider unavailable/);
+  assert.ok(Number.isFinite(Date.parse(String(f.rows.get(`eod_runs/_company_${f.child.batchId}`)?.startedAt))));
+});
+test('a continuation page cannot establish an empty full-company scan',async()=>{
+  const f=await fixture();
+  f.rows.get(`eod_runs/_company_${f.child.batchId}`)!.cursor='previous-page';
+  await assert.rejects(processEodCompanyMessage(f.child,f.db,f.log,f.publish,{run:async()=>f.result}),/incomplete/);
+  assert.notEqual(f.rows.get(`eod_runs/_company_${f.child.batchId}`)?.status,'NO_DATA');
+});
+test('a successful retry clears the earlier NO_DATA classification',async()=>{
+  const f=await fixture(),receipt=f.rows.get(`eod_runs/_company_${f.child.batchId}`)!;
+  receipt.status='NO_DATA';receipt.error='previous gap';
+  await processEodCompanyMessage(f.child,f.db,f.log,f.publish,{run:async()=>({...f.result,priceLoad:{...f.result.priceLoad,failed:0,failures:[]}})});
+  assert.notEqual(f.rows.get(`eod_runs/_company_${f.child.batchId}`)?.status,'NO_DATA');
+  assert.equal(f.rows.get(`eod_runs/_company_${f.child.batchId}`)?.error,null);
+});
 test('only company publications are paced and failed publication is not treated as successful',async()=>{
   const f=await fixture(),pauses:number[]=[],sent:EodMessage[]=[];
   const publish=pacedEodPublisher(async m=>{sent.push(m);},async ms=>{pauses.push(ms);});

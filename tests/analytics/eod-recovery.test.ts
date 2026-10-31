@@ -105,6 +105,17 @@ test('unstarted receipts are republished instead of being retired as company fai
   await assert.rejects(retireExpiredEodRun(f.db,f.now,async()=>{throw Error('publish failed');}),/publish failed/);
   assert.equal(f.rows.get(f.parent.path)?.completed,undefined);
 });
+test('historical replay releases its lease before immediate next-date delivery',async()=>{
+  const f=fixture(),messages:EodMessage[]=[];
+  await queueEodMaintenance({market:'US',runDate:'2026-10-26',rollForward:true},f.db,async m=>{messages.push(m);});
+  await processEodCompanyMessage(messages.shift()!,f.db,f.log,async m=>{messages.push(m);});
+  const replay=messages.shift()! as EodCompanyRunRequest;
+  const path=`eod_runs/_request_${replay.batchId}`;
+  Object.assign(f.rows.get(path)!,{dates:['2026-10-26'],dateIndex:0});
+  f.rows.set(`eod_runs/_request_${digest({replay:replay.batchId,date:'2026-10-26'})}`,{completed:true,status:'COMPLETED'});
+  await processEodCompanyMessage(replay,f.db,f.log,async m=>{await processEodCompanyMessage(m,f.db,f.log,async()=>{});});
+  assert.equal(f.rows.get(path)?.completed,true);
+});
 
 test('explicit repair preserves completed receipts and executes only missing work',async()=>{
   const f=fixture();await retireExpiredEodRun(f.db,f.now);
