@@ -31,9 +31,11 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
   plan:()=>Promise<string[]>;prepare:(ids:string[])=>Promise<Record<string,Record<string,unknown>>>;
   publish:(message:R|CompanyWorkRequest)=>Promise<unknown>;
   finalize:(cursor:string|null)=>Promise<string|null>;
+  onVerified?:(statuses:Record<string,number>)=>Promise<void>;
 }){
   const {db,ref,state,owner}=options;
   if(!await acquireMaintenanceLease(ref,owner))throw Error('Company run is busy');
+  let wakeNextPage=false;
   try{
     let run=(await ref.get()).data() as CompanyRun<R>;
     if(!run?.request||digest(run.request)!==digest(request))throw Error('Unknown company run');
@@ -53,8 +55,10 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
     }
     if(run.phase==='companies'){
       const ids=run.companyIds!.slice(run.dispatchCursor??0,(run.dispatchCursor??0)+25);
-      const prepared=await options.prepare(ids);
-      for(const companyId of ids){
+      const existing=ids.length?await db.getAll(...ids.map(id=>companyWorkRef(db,options.collection,companyWorkRequest(options.kind,request,id).batchId))):[];
+      const pending=ids.filter((_,index)=>existing[index].get('completed')!==true);
+      const prepared=await options.prepare(ids.filter((_,index)=>!existing[index].exists));
+      for(const companyId of pending){
         const child=companyWorkRequest(options.kind,request,companyId),childRef=companyWorkRef(db,options.collection,child.batchId);
         await db.runTransaction(async tx=>{
           if(!(await tx.get(childRef)).exists)tx.create(childRef,{request:child,result:prepared[companyId]??{},completed:false});
@@ -67,18 +71,23 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
         assertOwner(await tx.get(ref),owner);
         tx.set(ref,{dispatchCursor,phase},{merge:true});
       });
-      // Also wake after the final dispatch: children may finish before phase=waiting.
-      await options.publish(request);
+      // Publish only after releasing this lease: immediate push delivery must
+      // not reject our own continuation and incur the subscription retry delay.
+      // Also wake after final dispatch, since children may finish before waiting.
+      wakeNextPage=true;
       return {batchId:request.batchId,phase,dispatched:dispatchCursor,required:run.companyIds!.length};
     }
     if(run.phase==='waiting'){
       if(run.completedCompanies!==run.companyIds!.length)return {batchId:request.batchId,phase:'waiting',completed:run.completedCompanies,required:run.companyIds!.length};
       // Independently verify every receipt, not just the completion counter.
+      const statuses:Record<string,number>={};
       for(let i=0;i<run.companyIds!.length;i+=100){
         const tasks=run.companyIds!.slice(i,i+100).map(id=>companyWorkRequest(options.kind,request,id));
         const receipts=await db.getAll(...tasks.map(task=>companyWorkRef(db,options.collection,task.batchId)));
         if(receipts.some((receipt,index)=>receipt.get('completed')!==true||!receipt.get('request')||digest(receipt.get('request'))!==digest(tasks[index])))throw Error('Company completion barrier is incomplete');
+        for(const receipt of receipts){const status=String(receipt.get('status')??'COMPLETED');statuses[status]=(statuses[status]??0)+1;}
       }
+      await options.onVerified?.(statuses);
       await ref.set({phase:'finalizing'},{merge:true});
       run={...run,phase:'finalizing'};
     }
@@ -91,9 +100,12 @@ export async function processCompanyRun<R extends RunMessage>(request:R,options:
       tx.set(ref,{finalizeCursor:cursor,...(cursor===null?{completed:true,phase:'completed',completedAt:new Date().toISOString()}: {})},{merge:true});
       if(cursor===null)tx.set(state,{activeRequest:null},{merge:true});
     });
-    if(cursor!==null)await options.publish(request);
+    if(cursor!==null)wakeNextPage=true;
     return {batchId:request.batchId,phase:cursor===null?'completed':'finalizing'};
-  }finally{await releaseMaintenanceLease(ref,owner);}
+  }finally{
+    await releaseMaintenanceLease(ref,owner);
+    if(wakeNextPage)await options.publish(request);
+  }
 }
 
 export async function processCompanyWork<R extends RunMessage>(request:CompanyWorkRequest,options:{
