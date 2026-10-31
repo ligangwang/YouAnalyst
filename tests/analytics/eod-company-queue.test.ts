@@ -109,3 +109,29 @@ test('an interrupted protocol upgrade republishes the same new request without r
   assert.deepEqual(messages.at(-1),saved);
   assert.equal(f.rows.get(`eod_runs/_request_${original.batchId}`)?.companyIds,undefined);
 });
+
+test('enabled batching routes 100-company messages and retries failed companies only once',async()=>{
+  const f=pubsubFirestore(),messages:EodMessage[]=[],attempts=new Map<string,number>();
+  const publish=async(message:EodMessage)=>{messages.push(message);};
+  await queueEodMaintenance({market:'US',runDate:'2026-01-02'},f.db,publish);
+  let finalized=0;
+  const deps={batching:true,pause:async()=>{},
+    plan:async()=>Array.from({length:101},(_,i)=>'US:T'+i),
+    prepare:async()=>({}),
+    run:async(input:{tickers?:string[]}={})=>{
+      const ticker=input.tickers![0],n=(attempts.get(ticker)??0)+1;attempts.set(ticker,n);
+      return {priceLoad:{failed:ticker==='T0'&&n===1?1:0},marking:{missingPrice:0},hasMoreCandidatePredictions:false} as DailyEodMaintenanceResult;
+    },
+    finalize:async()=>{finalized++;return null;},
+  };
+  const batches:Extract<EodMessage,{type:'eod.company-batch.requested'}>[]=[];
+  for(let i=0;messages.length;i++){
+    assert.ok(i<30);const message=messages.shift()!;
+    assert.notEqual(message.type,'company.work.requested');
+    if(message.type==='eod.company-batch.requested')batches.push(message);
+    await processEodCompanyMessage(message,f.db,f.log,publish,deps);
+  }
+  assert.deepEqual(batches.map(b=>[b.pass,b.companyIds.length]),[[0,100],[0,1],[1,1]]);
+  assert.equal(attempts.get('T0'),2);assert.equal(finalized,1);
+  assert.equal(f.rows.get('eod_runs/US_2026-01-02')?.status,'COMPLETED');
+});

@@ -7,10 +7,12 @@ import type {MaintenanceLog} from '../maintenance-log';
 import {parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsub';
 import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,readRollForwardDates,type EodPrice} from './eod-prices';
 import {retireExpiredEodRun} from './eod-recovery';
+import {parseEodBatchRequest,processEodBatchedRun,processEodCompanyBatch,type EodBatchRequest} from './eod-batch-queue';
 
 export type EodCompanyRunRequest=Omit<EodRequest,'version'|'type'>&{version:2;type:'eod.company-run.requested'};
-export type EodMessage=EodRequest|EodCompanyRunRequest|CompanyWorkRequest;
+export type EodMessage=EodRequest|EodCompanyRunRequest|CompanyWorkRequest|EodBatchRequest;
 export function parseEodMessage(value:unknown):EodMessage {
+  if((value as {type?:string})?.type==='eod.company-batch.requested')return parseEodBatchRequest(value);
   if((value as {type?:string})?.type==='company.work.requested')return parseCompanyWorkRequest(value,'eod');
   if((value as {type?:string})?.type==='eod.company-run.requested'){
     if((value as {version?:number}).version!==2)throw Error('Invalid company EOD protocol');
@@ -21,16 +23,12 @@ export function parseEodMessage(value:unknown):EodMessage {
 const parentRef=(db:Firestore,id:string)=>db.collection('eod_runs').doc(`_request_${id}`);
 export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log:MaintenanceLog,
   publish:(message:EodMessage)=>Promise<unknown>=publishEodMessage,
-  dependencies:{plan?:typeof planEodCompanyWork;prepare?:typeof prepareEodCompanyPrices;run?:typeof runDailyEodMaintenance;finalize?:typeof finalizeEodCompanyScores}={}){
-  const message=parseEodMessage(value),state=db.collection('eod_runs').doc('_company_pipeline');
-  if(message.type==='company.work.requested'){
-    // Retired failed runs retain incomplete receipts; late deliveries must not
-    // mutate predictions after a later date has started or loop in Pub/Sub.
-    const retired=await parentRef(db,message.parentBatchId).get();
-    if(retired.get('completed')===true&&retired.get('status')==='FAILED')return {batchId:message.batchId,status:'FAILED',retired:true};
-    return processCompanyWork<EodCompanyRunRequest>(message,{
-    db,parent:parentRef(db,message.parentBatchId),state,collection:'eod_runs',owner:log.runId,publish,
-    work:async(parent,prepared,cursor)=>{
+  dependencies:{plan?:typeof planEodCompanyWork;prepare?:typeof prepareEodCompanyPrices;run?:typeof runDailyEodMaintenance;finalize?:typeof finalizeEodCompanyScores;batching?:boolean;pause?:(ms:number)=>Promise<unknown>;budgetMs?:number}={}){
+  const parsed=parseEodMessage(value),state=db.collection('eod_runs').doc('_company_pipeline');
+  const batchMessage=parsed.type==='eod.company-batch.requested'?parsed:undefined;
+  const message=batchMessage?parseEodMessage((await parentRef(db,batchMessage.parentBatchId).get()).get('request')):parsed;
+  if(message.type==='eod.company-batch.requested')throw Error('Invalid EOD batch parent');
+  const work=(message:CompanyWorkRequest)=>async(parent:EodCompanyRunRequest,prepared:Record<string,unknown>,cursor:string|null)=>{
       const replay=(await parentRef(db,parent.batchId).get()).get('result')?.parentRequest;
       const input={...parent.input,...(replay?{skipHistoryBackfill:true}:{})},market=input.market,ticker=market==='US'?message.companyId.slice(3):message.companyId;
       const result=await (dependencies.run??runDailyEodMaintenance)({...input,rollForward:false,tickers:[ticker],afterPredictionId:cursor??undefined},
@@ -55,7 +53,13 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       if(result.priceLoad.failed||result.marking.missingPrice||result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred)throw Error('Company EOD processing remains incomplete');
       if(result.hasMoreCandidatePredictions&&(!result.nextPredictionId||result.nextPredictionId===cursor))throw Error('Company prediction cursor did not advance');
       return result.hasMoreCandidatePredictions?result.nextPredictionId!:null;
-    },
+  };
+  if(message.type==='company.work.requested'){
+    const retired=await parentRef(db,message.parentBatchId).get();
+    if(retired.get('batchVersion')===1)return {batchId:message.batchId,duplicate:true};
+    if(retired.get('completed')===true&&retired.get('status')==='FAILED')return {batchId:message.batchId,status:'FAILED',retired:true};
+    return processCompanyWork<EodCompanyRunRequest>(message,{
+      db,parent:parentRef(db,message.parentBatchId),state,collection:'eod_runs',owner:log.runId,publish,work:work(message),
     });
   }
   const retired=await retireExpiredEodRun(db,Date.now(),publish);
@@ -97,8 +101,8 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     throw Error('Previous company run is unfinished; recovery requested');
   }
   const input={...message.input,...(prior?.result?.parentRequest?{skipHistoryBackfill:true}:{})};
-  const outcome=await processCompanyRun(message,{
-    db,ref,state,collection:'eod_runs',kind:'eod',owner:log.runId,publish,
+  const options={
+    db,ref,state,collection:'eod_runs',kind:'eod' as const,owner:log.runId,publish,
     plan:async()=>{
       for(const key of [`_active_${input.market}`,`_queue_${input.market}`])
         if(Number((await db.collection('eod_runs').doc(key).get()).get('leaseExpiresAtMs'))>Date.now())throw Error('Legacy EOD delivery is still active');
@@ -109,9 +113,9 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       await db.collection('eod_runs').doc(`${input.market}_${input.runDate}`).set({status:'STARTED',market:input.market,runDate:input.runDate},{merge:true});
       return ids;
     },
-    prepare:ids=>(dependencies.prepare??prepareEodCompanyPrices)(input,ids),
-    onVerified:async statuses=>{await ref.set({error:statuses.NO_DATA?`${statuses.NO_DATA} companies have no provider bar and no predictions requiring valuation`:null},{merge:true});},
-    finalize:async cursor=>{
+    prepare:(ids:string[])=>(dependencies.prepare??prepareEodCompanyPrices)(input,ids),
+    onVerified:async(statuses:Record<string,number>)=>{await ref.set({error:statuses.NO_DATA?`${statuses.NO_DATA} companies have no provider bar and no predictions requiring valuation`:null},{merge:true});},
+    finalize:async(cursor:string|null)=>{
       const next=await (dependencies.finalize??finalizeEodCompanyScores)(input,cursor,db);
       if(next===null){
         const error=(await ref.get()).get('error')??null,status=error?'COMPLETED_WITH_ERRORS':'COMPLETED';
@@ -124,12 +128,22 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       }
       return next;
     },
+  };
+  const batched=prior?.batchVersion===1||(!prior?.companyIds&&(dependencies.batching??process.env.EOD_COMPANY_BATCHES==='100'));
+  const batchOptions={...options,
+    work:(task:CompanyWorkRequest,parent:EodCompanyRunRequest,prepared:Record<string,unknown>,cursor:string|null)=>work(task)(parent,prepared,cursor),
+    pause:dependencies.pause,budgetMs:dependencies.budgetMs};
+  const outcome=batchMessage
+    ? await processEodCompanyBatch(batchMessage,batchOptions)
+    : batched?await processEodBatchedRun(message,batchOptions):await processCompanyRun(message,options);
+  if(batched||batchMessage)log.emit('INFO','eod_batch_progress',{
+    parentBatchId:message.batchId,...(batchMessage?{pass:batchMessage.pass,companies:batchMessage.companyIds.length}:{}),...outcome,
   });
   // Keep a durable Pub/Sub wakeup until either all receipts finish or recovery
   // retires the run. A child exhausted into the DLQ must not orphan its parent.
-  if(outcome.phase==='waiting'&&'completed' in outcome&&outcome.completed!==outcome.required)
+  if('phase' in outcome&&outcome.phase==='waiting'&&'completed' in outcome&&outcome.completed!==outcome.required)
     throw Error('EOD is waiting for company receipts; retry recovery wakeup');
-  if(outcome.phase==='completed'||outcome.duplicate){
+  if(('phase' in outcome&&outcome.phase==='completed')||('duplicate' in outcome&&outcome.duplicate)){
     const finished=await ref.get();
     const parentRequest=finished.get('result')?.parentRequest;
     if(parentRequest)await publish(parseEodMessage(parentRequest));

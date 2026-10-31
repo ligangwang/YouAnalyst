@@ -73,6 +73,7 @@ export async function reopenFailedEodRun(db:Firestore,batchId:string,now=Date.no
     const pipeline=await tx.get(state),saved=await tx.get(ref),run=saved.data() as CompanyRun<EodCompanyRunRequest>|undefined;
     if(pipeline.get('activeRequest')||Number(pipeline.get('leaseExpiresAtMs'))>now)throw Error('EOD pipeline is active');
     if(!run?.completed||saved.get('status')!=='FAILED'||!run.companyIds||run.request.batchId!==batchId||run.request.type!=='eod.company-run.requested')throw Error('EOD run is not a repairable failed company run');
+    if(saved.get('batchVersion')===1)throw Error('Batched EOD run exhausted its single retry pass; create a new explicit repair request instead');
     if(Number(saved.get('leaseExpiresAtMs'))>now)throw Error('EOD parent lease is active');
     let completedCompanies=0;
     for(let i=0;i<run.companyIds.length;i+=100){
