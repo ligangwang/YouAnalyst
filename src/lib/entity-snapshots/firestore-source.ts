@@ -19,6 +19,24 @@ export function snapshotSource(db: Firestore): Source {
   return {
     boundary:async()=>withLiveCompanyReads(async()=>(await db.collection('companies').limit(1).get()).readTime),
     pages,
+    pricePage:async(since,through,cursor,limit)=>{
+      if(!Number.isInteger(limit)||limit<1||limit>5000)throw Error('Invalid price page limit');
+      let query:Query=db.collection('eod_prices');
+      // Keep the initial ID scan so legacy prices are validated too. Changes
+      // after this fixed boundary are picked up by the next incremental scan.
+      query=since?query.where('updatedAt','>=',since).where('updatedAt','<=',through).orderBy('updatedAt').orderBy(FieldPath.documentId()):query.orderBy(FieldPath.documentId());
+      if(cursor)query=query.startAfter(...(since?[cursor.updatedAt,cursor.id]:[cursor.id]));
+      const page=await withLiveCompanyReads(()=>query.limit(limit).get());
+      const last=page.docs.at(-1);
+      return {
+        rows:page.docs.filter(doc=>!doc.id.startsWith('_')).map(doc=>({id:doc.id,data:doc.data()})),
+        cursor:last?{id:last.id,...(since?{updatedAt:last.get('updatedAt')}: {})}:cursor,
+        done:page.size<limit,
+        // Empty queries still consume a document read. Count operational IDs
+        // even though they are excluded from the published snapshot.
+        reads:Math.max(1,page.size),
+      };
+    },
     rows:async(collection,since,through)=>{
       const rows:Row[]=[];
       for await(const page of pages(collection,since,through))rows.push(...page);

@@ -9,6 +9,8 @@ export function imageBuildTasks(env, targets) {
     args: ['scripts/build-fundamentals.sh', `${registry}/sec-fundamentals:${env.GIT_SHA}`] });
   if (targets.includes('directory')) tasks.push({ id: 'directory-image', command: 'bash',
     args: ['scripts/build-fundamentals.sh', `${registry}/directory-sync:${env.GIT_SHA}`, 'cloudbuild.directory-sync.yaml'] });
+  if (env.PRICE_TIMESTAMP_MIGRATION_COMPLETE === '1' && targets.some(target => target !== 'directory')) tasks.push({ id: 'price-sync-image', command: 'bash',
+    args: ['scripts/build-fundamentals.sh', `${registry}/price-sync:${env.GIT_SHA}`, 'cloudbuild.price-sync.yaml'] });
   return tasks;
 }
 

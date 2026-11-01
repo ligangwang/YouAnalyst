@@ -103,6 +103,13 @@ if [[ "$1" != directory ]]; then
   export FUNDAMENTALS_IMAGE
   # Opt in only after the timestamp migration and private bucket are configured.
   if [[ "${ENTITY_TIMESTAMP_MIGRATION_COMPLETE:-0}" == 1 ]]; then
+    if [[ "${PRICE_TIMESTAMP_MIGRATION_COMPLETE:-0}" == 1 ]]; then
+      price_tag="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/price-sync:$GIT_SHA"
+      PRICE_SYNC_IMAGE="$(gcloud artifacts docker images describe "$price_tag" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
+      export PRICE_SYNC_IMAGE
+      bash scripts/deploy-price-snapshots.sh
+      export PRICE_SYNC_SEPARATE_JOB=1
+    fi
     bash scripts/deploy-entity-snapshots.sh
   fi
 fi

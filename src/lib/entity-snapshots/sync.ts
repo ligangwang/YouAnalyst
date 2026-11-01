@@ -3,7 +3,10 @@ export const collections = ['companies', 'instruments', 'company_fundamentals', 
 export type Collection = typeof collections[number];
 export type Row = { id: string; data: DocumentData };
 export type Snapshot = { version: 1; collection: Collection; watermark: Timestamp; rows: Row[] };
+export type PriceCursor = {id: string; updatedAt?: Timestamp};
+export type PricePage = {rows: Row[]; cursor?: PriceCursor; done: boolean; reads: number};
 export interface Source {
+  pricePage?(since: Timestamp | undefined, through: Timestamp, cursor: PriceCursor | undefined, limit: number): Promise<PricePage>;
   boundary(): Promise<Timestamp>;
   pages?(collection: Collection, since: Timestamp | undefined, through: Timestamp): AsyncIterable<Row[]>;
   rows(collection: Collection, since: Timestamp | undefined, through: Timestamp): Promise<Row[]>;

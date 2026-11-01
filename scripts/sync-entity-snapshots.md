@@ -49,3 +49,77 @@ Soft deletion retains final documents, not all historical versions. Complete
 timeline playback and version history are not implemented by this job.
 
 Before publishing the instruments file, the job compares company-derived instrument identity against the previous instrument file in memory. Only changed entries are transactionally synchronized; unchanged entries cause no extra Firestore lookup. The initial run reads existing instruments into a file first. Legacy company aliases and provider history keys remain available during the gradual consumer cutover.
+
+
+## Bounded, resumable price sync
+
+Prices use `price-snapshots/<market>/<ticker>/<year>.sqlite`, independently of
+entity snapshots. `PRICE_TIMESTAMP_MIGRATION_COMPLETE=1` enables this phase.
+The defaults are 50,000 price document reads, 500 partition publications, and
+20 minutes per invocation. Configure `PRICE_SYNC_MAX_READS`,
+`PRICE_SYNC_MAX_PARTITIONS`, and `PRICE_SYNC_MAX_DURATION_MS` on the job.
+The read cap includes empty queries and operational documents. The single
+company boundary lookup and index-entry billing are outside this price-document
+budget. The runtime deadline is checked between operations; the Cloud Run task
+retains its hard 30-minute limit. Keep that hard timeout below the 35-minute lease.
+
+`price-snapshots/progress.json` stores a fixed scan boundary, the timestamp/ID
+cursor (including timestamp nanoseconds), page count, and publication progress.
+Compressed pages under `price-snapshots/staging/<scan-id>/` are saved before the
+cursor advances. On restart an already uploaded page is reused even if its cursor
+save failed. Only the in-flight page can need rereading if killed before upload.
+No Firestore collection or document fields are added.
+
+A partial scan does not publish any price partitions or advance the completed
+`price-snapshots/checkpoint.json` watermark. After scanning finishes, complete
+changed ticker/year partitions publish conditionally in bounded batches. Publication
+can span runs and resumes using saved pages without Firestore rereads. The global
+watermark advances only after all partitions publish. Cleanup is resumable too;
+staged pages are deleted after completion. The previous complete partition stays
+available until its replacement is ready. Partitions publish independently, not
+as one cross-partition transaction.
+
+A generation-checked lease prevents overlapping workers from spending the same
+read budget. Clean exits release it; killed executions expire after 35 minutes.
+Logs report `status: partial`, `complete`, or `busy`, and per-invocation `reads`,
+`changed`, and `partitions`. Partial is successful saved progress, not a failure.
+Invalid storage or missing journal pages fail closed rather than restart a scan.
+
+The existing daily schedule is unchanged. A large backlog now takes multiple
+bounded executions: 3.5 million documents need about 70 scanning runs at the
+50,000 default, plus publication runs. Operators can execute additional runs
+sequentially or tune the budget/cadence after observing usage; this change does
+not automatically launch catch-up runs. Do not run an older unbounded image
+concurrently or roll back to it while saved progress is pending.
+
+
+## Dedicated price job
+
+`sync-price-snapshots-production` runs `dist/sync-price-snapshots.cjs` from the
+Node-only `Dockerfile.price-sync` image. Build with `cloudbuild.price-sync.yaml`
+and deploy the immutable digest with `scripts/deploy-price-snapshots.sh`.
+Entity maintenance uses `--entities-only`; an older entity image can be isolated
+by setting its `PRICE_TIMESTAMP_MIGRATION_COMPLETE=0` until its next release.
+This leaves the entity schedule and instrument dispatch running normally.
+
+The dedicated job shares the existing price checkpoint, page journal, and lease.
+Default scheduled operation retains 50,000 reads, 500 publications, and a
+20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1-5,000 (the dedicated
+job uses 5,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1-8 (the dedicated job
+uses 4). Neither setting increases the per-execution read budget.
+
+After scanning, an immutable `staging/<scan-id>/changes.sqlite` index groups the
+saved pages once. If indexing reaches its deadline, `partial.sqlite` preserves
+the completed pages and their cursor for the next execution. Later publishing
+runs download the completed index instead of fetching
+and decoding all pages again. A failed concurrent publication batch waits for
+all uploads before releasing the lease and retries that batch idempotently.
+The index is removed with the journal after checkpoint publication.
+
+For an explicitly approved backlog catch-up, execute the dedicated job
+sequentially with execution-only overrides such as `PRICE_SYNC_MAX_READS=500000`
+and `PRICE_SYNC_MAX_PARTITIONS=10000`. Do not change the saved routine limit.
+Check each successful execution, the saved scan ID/cursor, and phase logs before
+starting the next. Stop when the fixed scan's completed checkpoint is published;
+then run one normal bounded pass to capture later changes. Never reset the
+checkpoint or delete pending progress to force a restart.
