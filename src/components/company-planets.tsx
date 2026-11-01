@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import type { Mesh } from 'three';
 import { InstancedBufferAttribute, InstancedBufferGeometry, SphereGeometry, type BufferAttribute, type BufferGeometry, type Vector2 } from 'three';
 
 // Up close, each company in the galaxy universe becomes a small planet in its
@@ -45,7 +46,8 @@ const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight;
 
 export function CompanyPlanets({ geometry, range, galaxyRadius }: { geometry: BufferGeometry; range: Vector2; galaxyRadius: number }) {
   const planets = useMemo(() => {
-    const sphere = new SphereGeometry(1, 28, 18);
+    // Planets are only ever a few dozen pixels wide: a light sphere keeps vertex cost low.
+    const sphere = new SphereGeometry(1, 16, 10);
     const result = new InstancedBufferGeometry();
     result.index = sphere.index;
     result.setAttribute('position', sphere.getAttribute('position'));
@@ -63,15 +65,18 @@ export function CompanyPlanets({ geometry, range, galaxyRadius }: { geometry: Bu
   useEffect(() => () => planets.dispose(), [planets]);
   const uniforms = useMemo(() => ({ range: { value: range }, baseRadius: { value: galaxyRadius * .011 } }), [range, galaxyRadius]);
   const copiedVersion = useRef(-1);
+  const mesh = useRef<Mesh>(null);
   // Follow the stars' hover and selection emphasis, which the graph animates per frame.
-  useFrame(() => {
+  useFrame(({ camera }) => {
+    // Beyond the planet range every planet has faded out: skip the whole draw.
+    if (mesh.current) mesh.current.visible = camera.position.length() < range.y + galaxyRadius * 1.1;
     const source = geometry.getAttribute('emphasis') as BufferAttribute, target = planets.getAttribute('emphasis');
     if (source.version === copiedVersion.current) return;
     (target.array as Float32Array).set(source.array as Float32Array);
     copiedVersion.current = source.version;
     target.needsUpdate = true;
   });
-  return <mesh geometry={planets} frustumCulled={false} raycast={() => {}}>
+  return <mesh ref={mesh} geometry={planets} frustumCulled={false} raycast={() => {}}>
     <shaderMaterial uniforms={uniforms} vertexShader={vertex} fragmentShader={fragment} transparent toneMapped={false}/>
   </mesh>;
 }

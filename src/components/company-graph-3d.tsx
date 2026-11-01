@@ -393,7 +393,9 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
   const introClose=galaxyRadius ? galaxyRadius*1.05 : Math.max(layout.radius*1.3,fitDistance*.9);
   const openingDistance=galaxyRadius ? galaxyRadius*3.4/Math.min(1,size.width/Math.max(1,size.height)) : galaxyOpeningDistance(size.width/Math.max(1,size.height));
-  useEffect(()=>{openingFrame.current={far:galaxyRadius ? galaxyRadius*2.5 : fitDistance*3,close:introClose};},[fitDistance,galaxyRadius,introClose]);
+  // Only views beyond the normal fitted view count as the far opening: on narrow
+  // screens (and for reduced motion) the fitted view itself must stay clickable.
+  useEffect(()=>{openingFrame.current={far:galaxyRadius ? Math.max(galaxyRadius*2.5,fitDistance*1.2) : fitDistance*3,close:introClose};},[fitDistance,galaxyRadius,introClose]);
   const savedView=useRef<{position:Vector3;target:Vector3}|null>(null);
   const lastSelected=useRef("");
   const restoredView=useRef(false);
@@ -585,6 +587,8 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
     gl.domElement.dataset.visibleRelationships=renderedEdges.filter(edge=>(edgeTargets.get(edge.id)??0)>0).map(edge=>edge.id).join(',');
     gl.domElement.dataset.hoveredRelationship=displayedEdge;
     gl.domElement.dataset.ballRadius=String(layout.radius);
+    // The closest the camera may come to the graph's centre (the whole ball, or the galaxy core).
+    gl.domElement.dataset.cameraClearance=String(clearance);
     gl.domElement.dataset.cameraPosition=camera.position.toArray().join(',');
     if (focused) introOrbitRef.current = false;
     let rotation='paused';

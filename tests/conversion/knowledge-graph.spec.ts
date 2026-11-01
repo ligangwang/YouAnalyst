@@ -8,6 +8,7 @@ import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
+import { layoutGalaxy } from "../../src/lib/knowledge-graph/layout-galaxy";
 import { marketCapScale } from "../../src/lib/knowledge-graph/market-cap";
 
 test('crowded universe bounds rendered labels and retains company search',async({page})=>{
@@ -345,6 +346,20 @@ test('tree manual views remain parked through release, tab changes and company d
  await tree.getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
 });
+// Companies fill the frame in the galaxy universe, so a fixed corner can land on
+// one. Pick the canvas point farthest from every projected company instead.
+async function emptyCanvasPoint(page: Page) {
+ return page.locator('canvas').evaluate(canvas=>{
+  const box=canvas.getBoundingClientRect();
+  const stars=[...document.querySelectorAll('[data-company-id]')].map(el=>{const r=el.parentElement!.getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2];});
+  let best={x:box.x+10,y:box.y+10,clear:-1};
+  for(let x=box.x+12;x<box.right-12;x+=16)for(let y=box.y+12;y<box.bottom-12;y+=16){
+   const clear=Math.min(...stars.map(([sx,sy])=>Math.hypot(x-sx,y-sy)));
+   if(clear>best.clear)best={x,y,clear};
+  }
+  return {x:best.x,y:best.y};
+ });
+}
 async function projectedGraphPositions(page: Page) {
  // Drei's outer Html wrapper holds the projected node position. Label bounds also
  // include font-size easing and collision offsets, which can settle after camera sleep.
@@ -556,13 +571,15 @@ test('graph resumes gently from the user view after release and respects reduced
  expect(Number(await canvas.getAttribute('data-camera-distance'))).toBeCloseTo(zoomed,5);
  expect(await canvas.getAttribute('data-camera-target')).toBe(panned);
  // Real touch and mouse input both stop a resumed orbit and can restart it again.
- if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
- else await page.mouse.click(bounds.x+10,bounds.y+10);
+ const empty=await emptyCanvasPoint(page);
+ if(isMobile) await page.touchscreen.tap(empty.x,empty.y);
+ else await page.mouse.click(empty.x,empty.y);
  await expect(canvas).toHaveAttribute('data-rotation','waiting');
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
  await page.emulateMedia({reducedMotion:'reduce'});
- if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
- else await page.mouse.click(bounds.x+10,bounds.y+10);
+ const stillEmpty=await emptyCanvasPoint(page);
+ if(isMobile) await page.touchscreen.tap(stillEmpty.x,stillEmpty.y);
+ else await page.mouse.click(stillEmpty.x,stillEmpty.y);
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
  const reduced=await positions();
  await page.waitForTimeout(2300);
@@ -816,14 +833,14 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
   await allConnections.click();
   await expect(allConnections).toHaveAttribute("aria-pressed","true");
   const box=(await canvas.boundingBox())!;
-  const layout=layout3D(fixture);
-  const camera=new PerspectiveCamera(45,box.width/box.height,1,10000);
+  const layout=layoutGalaxy(fixture);
+  const camera=new PerspectiveCamera(45,box.width/box.height,1,100000);
   camera.position.fromArray((await canvas.getAttribute('data-camera-position'))!.split(',').map(Number));
   camera.lookAt(new Vector3().fromArray((await canvas.getAttribute('data-camera-target'))!.split(',').map(Number)));camera.updateMatrixWorld();
   let hit:{x:number;y:number}|undefined;
   const dpr=await page.evaluate(()=>Math.max(1,Math.min(1.5,devicePixelRatio)));
   const stars=layout.nodes.map(n=>{const world=new Vector3(n.x,n.y,n.z),p=world.clone().project(camera),depth=-world.applyMatrix4(camera.matrixWorldInverse).z;
-    return {x:box.x+(p.x+1)*box.width/2,y:box.y+(1-p.y)*box.height/2,radius:Math.max(18,Math.max(18,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(n.marketCap)*1.5*.5/dpr+6)};});
+    return {x:box.x+(p.x+1)*box.width/2,y:box.y+(1-p.y)*box.height/2,radius:Math.max(18,Math.max(3,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(n.marketCap)*1.5*.5/dpr+6)};});
   scan:for(const edge of layout.edges)for(const fraction of [.25,.4,.55,.7,.85]){
     const a=layout.nodes.find(n=>n.id===edge.source)!,b=layout.nodes.find(n=>n.id===edge.target)!;
     const p=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),fraction).project(camera);
@@ -1791,12 +1808,13 @@ test('navigation: views support multi-role membership, sorting with unknown caps
 });
 
 
-test('navigation: manual zoom stays outside the graph ball',async({page})=>{
- await navigationFixture(page);const canvas=page.locator('canvas');await expect(canvas).toHaveAttribute('data-ball-radius',/.+/);
+test('navigation: manual zoom stops at the camera clearance',async({page})=>{
+ await navigationFixture(page);const canvas=page.locator('canvas');await expect(canvas).toHaveAttribute('data-camera-clearance',/.+/);
  const box=(await canvas.boundingBox())!;await page.mouse.move(box.x+box.width/2,Math.max(10,box.y)+100);
  await page.mouse.wheel(0,-20000);
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
- const ratio=await canvas.evaluate(el=>Math.hypot(...el.dataset.cameraPosition!.split(',').map(Number))/Number(el.dataset.ballRadius));expect(ratio).toBeGreaterThan(1.1);
+ // The galaxy universe lets the camera travel inside the nebula, but never into its core.
+ const ratio=await canvas.evaluate(el=>Math.hypot(...el.dataset.cameraPosition!.split(',').map(Number))/Number(el.dataset.cameraClearance));expect(ratio).toBeGreaterThan(1.1);
 });
 
 test('navigation: touch can drag a company card',async({page,isMobile})=>{
@@ -2164,7 +2182,7 @@ test('starfield reveals only the hovered neighborhood and clears on exit',async(
  const box=(await canvas.boundingBox())!,camera=new PerspectiveCamera(45,box.width/box.height,1,100000);
  await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
  camera.position.fromArray((await canvas.getAttribute('data-camera-position'))!.split(',').map(Number));camera.lookAt(new Vector3().fromArray((await canvas.getAttribute('data-camera-target'))!.split(',').map(Number)));camera.updateMatrixWorld();
- const layout=layout3D(graph);let hovered='';
+ const layout=layoutGalaxy(graph);let hovered='';
  for(const n of layout.nodes){const p=new Vector3(n.x,n.y,n.z).project(camera);if(Math.abs(p.x)>.8||Math.abs(p.y)>.8)continue;await page.mouse.move(box.x+(p.x+1)*box.width/2,box.y+(1-p.y)*box.height/2);await page.waitForTimeout(150);if(await page.locator(`[data-company-id="${n.id}"][data-visible="true"]`).count()){hovered=n.id;break;}}
  expect(hovered).not.toBe('');const neighbors=new Set([hovered,...layout.edges.filter(e=>e.source===hovered||e.target===hovered).flatMap(e=>[e.source,e.target])]);
  const visible=await page.locator('[data-company-id][data-visible="true"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-company-id')!));expect(visible.every(id=>neighbors.has(id))).toBe(true);

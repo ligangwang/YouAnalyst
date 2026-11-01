@@ -35,7 +35,7 @@ const dustVertex = `attribute float size; uniform float intensity; uniform float
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = clamp(size * 620. / max(1., -mv.z), 2., 90.);
+    gl_PointSize = clamp(size * 620. / max(1., -mv.z), 2., 60.);
     tint = color;
     // Clouds right beside the camera would read as smudges on the lens.
     alpha = intensity * smoothstep(nearFade * .4, nearFade, -mv.z);
@@ -67,6 +67,13 @@ export function CompanyNebula({ nodes, arms, galaxyRadius, introRef, focused }: 
   const starMaterial = useRef<ShaderMaterial>(null);
   const dustPoints = useRef<Points>(null);
   const blend = useRef(1.2);
+  const reduced = useRef(false);
+  useEffect(() => {
+    const media = matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => { reduced.current = media.matches; invalidate(); };
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [invalidate]);
   const R = galaxyRadius;
   const uniforms = useMemo(() => ({ intensity: { value: 1.2 }, nearFade: { value: R * .3 } }), [R]);
   const core = useMemo(() => ({ ...uniforms, glowSize: { value: R * .5 }, glowColor: { value: new Vector3(1, .82, .92).multiplyScalar(.38) } }), [uniforms, R]);
@@ -90,7 +97,7 @@ export function CompanyNebula({ nodes, arms, galaxyRadius, introRef, focused }: 
     };
     // Each sector arm: a continuous lane of stars and dust from the core outwards.
     arms.forEach((arm, a) => {
-      for (let i = 0; i < 1100; i++) {
+      for (let i = 0; i < 700; i++) {
         const t = Math.pow(random(seed++), .8), r = R * (.12 + .92 * t);
         const angle = galaxyArmPoint(r, arm.angle, R) + gauss(seed++) * .3 * (1 - .3 * t);
         const p = disc(Math.cos(angle) * r, gauss(seed++) * R * .025 * (1 - .5 * t), Math.sin(angle) * r);
@@ -106,7 +113,7 @@ export function CompanyNebula({ nodes, arms, galaxyRadius, introRef, focused }: 
     // Each company: a bright knot of its own stars and dust inside the arm.
     for (const node of nodes) {
       const color = armColors[node.galaxyArm] ?? new Color('#b6c3d2');
-      for (let i = 0; i < 70; i++) {
+      for (let i = 0; i < 45; i++) {
         const offset = disc(gauss(seed++) * R * .035, gauss(seed++) * R * .012, gauss(seed++) * R * .035);
         star({ x: node.x + offset.x, y: node.y + offset.y, z: node.z + offset.z }, color, .5 + random(seed++) * .5, 3 + random(seed++) * 4);
       }
@@ -117,7 +124,7 @@ export function CompanyNebula({ nodes, arms, galaxyRadius, introRef, focused }: 
     }
     // The core: a warm bulge where the arms meet.
     const warm = new Color(1, .86, .8);
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 800; i++) {
       const r = Math.abs(gauss(seed++)) * R * .08, a = random(seed++) * Math.PI * 2;
       star(disc(Math.cos(a) * r, gauss(seed++) * r * .4, Math.sin(a) * r), warm, .35 + random(seed++) * .4, 3 + random(seed++) * 3);
     }
@@ -129,12 +136,14 @@ export function CompanyNebula({ nodes, arms, galaxyRadius, introRef, focused }: 
     const shared = starMaterial.current?.uniforms;
     if (!shared) return;
     const target = introRef.current ? 1.2 : focused ? .35 : .75;
-    blend.current += (target - blend.current) * (1 - Math.exp(-Math.min(delta, .1) * 1.4));
+    // Each easing frame redraws the whole graph: keep it short, and skip it for reduced motion.
+    blend.current = reduced.current ? target : blend.current + (target - blend.current) * (1 - Math.exp(-Math.min(delta, .1) * 4));
+    if (Math.abs(target - blend.current) < .01) blend.current = target;
     shared.intensity.value = blend.current;
-    if (Math.abs(target - blend.current) > .005) invalidate();
+    if (blend.current !== target) invalidate();
     // Up close, large dust sprites dominate the frame cost: draw a thinned subset.
     const wide = Math.min(1, Math.max(0, (camera.position.length() - R * 1.2) / (R * 3)));
-    dustPoints.current?.geometry.setDrawRange(0, Math.round(dustCount * (.35 + .65 * wide)));
+    dustPoints.current?.geometry.setDrawRange(0, Math.round(dustCount * (.2 + .8 * wide)));
   });
 
   return <group name="company-nebula">
