@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { GRAPH_COMPANY_FIELDS, queryThemeCompanies,themeIdBatches } from '../company-themes/company-query';
 import { withCompanyPageReads } from '../local-cache/company-page-scope';
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
+import {loadPublishedGraphCompanies} from '../local-cache/graph-companies';
 
 /** A themed graph needs only its own members. Share its live subscription across
  * callers without downloading the market directory or subscribing to all themes. */
@@ -16,11 +17,8 @@ export async function loadSingleThemeCompanies(db: Firestore, theme: string) {
 }
 export async function loadThemeEnrolledCompanies(db: Firestore,targeted=false) {
   if(targeted)return withCompanyPageReads(async()=>{
-    const pages=await Promise.all((await themeIdBatches(db)).map(async ids=>{
-      const query=db.collection('companies').where('themeIds','array-contains-any',ids);
-      return (await collectionSourceSnapshot(db,query,'companies')??await query.select(...GRAPH_COMPANY_FIELDS,'newsSources','onboarding','supersededByCompanyId').get()) as Awaited<ReturnType<typeof query.get>>;
-    }));
-    return {docs:[...new Map(pages.flatMap(page=>page.docs.map((doc:import('firebase-admin/firestore').QueryDocumentSnapshot)=>[doc.id,doc] as const))).values()].filter(doc=>doc.data()?.isDeleted!==true)};
+    const [batches,docs]=await Promise.all([themeIdBatches(db),loadPublishedGraphCompanies(db)]),themes=new Set(batches.flat());
+    return {docs:docs.filter(doc=>{const ids=doc.get('themeIds');return Array.isArray(ids)&&ids.some(id=>themes.has(id));})};
   });
   const local = await localDocuments(db, 'companies', undefined, undefined, 'graph');
   return local ? {docs:local} : queryThemeCompanies(db,undefined,true);

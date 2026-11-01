@@ -413,7 +413,7 @@
 {"collectionGroup":"companies","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
 {"collectionGroup":"company_fundamentals","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
 {"collectionGroup":"company_relationships","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
-  {"collectionGroup":"companies","fieldPath":"inGraph.status","indexes":[]},
+  {"collectionGroup":"companies","fieldPath":"inGraph.status","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"}]},
   {"collectionGroup":"companies","fieldPath":"aiGraph","indexes":[]},
   {"collectionGroup":"companies","fieldPath":"aiGraph.status","indexes":[]},
   {"collectionGroup":"collectors","fieldPath":"payload","indexes":[]},
