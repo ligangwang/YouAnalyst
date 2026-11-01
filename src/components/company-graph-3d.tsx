@@ -26,6 +26,7 @@ import { DeepSpaceClouds } from './deep-space-clouds';
 import { DeepSpaceSky } from './deep-space-sky';
 import { GalaxyDisc, galaxyOpeningDistance } from './galaxy-disc';
 import { CompanyNebula } from './company-nebula';
+import { CompanyPlanets } from './company-planets';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import styles from "./ai-knowledge-graph.module.css";
 
@@ -59,10 +60,10 @@ class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNod
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; uniform float lightMode; uniform float minPointSize; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),minPointSize,72.)*capScale*mix(1.,1.5,emphasisBlend)*mix(1.,.65,lightMode);}`;
-const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis; uniform float lightMode;
-void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.65;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float disk=1.-smoothstep(.09,.12,r);float ring=smoothstep(.15,.17,r)*(1.-smoothstep(.19,.21,r));float a=mix(glow+core+rays*.15,disk+ring*.75,lightMode)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(mix(vColor,vec3(1.),core*.8),vColor*.45,lightMode),a);}`;
+const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; uniform float lightMode; uniform float minPointSize; uniform vec2 planetRange; varying float vDepth; varying vec3 vColor; varying float vEmphasis; varying float vPlanet;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);vPlanet=planetRange.y>0.?1.-smoothstep(planetRange.x,planetRange.y,-p.z):0.;float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),minPointSize,72.)*capScale*mix(1.,1.5,emphasisBlend)*mix(1.,.65,lightMode);}`;
+const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis; varying float vPlanet; uniform float lightMode;
+void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.65;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float disk=1.-smoothstep(.09,.12,r);float ring=smoothstep(.15,.17,r)*(1.-smoothstep(.19,.21,r));float a=mix(glow+core+rays*.15,disk+ring*.75,lightMode)*min(1.,vEmphasis)*vDepth*mix(1.,.3,vPlanet);if(a<.015)discard;gl_FragColor=vec4(mix(mix(vColor,vec3(1.),core*.8),vColor*.45,lightMode),a);}`;
 
 function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef, onHoverChange }: Props & { light: boolean; introOrbitRef: { current: boolean }; onHoverChange: (hovered: boolean) => void }) {
   const { text, locale } = useLocale();
@@ -79,7 +80,9 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   const galaxyRadius = galaxyLayout?.galaxyRadius ?? 0;
   const clearance = galaxyRadius ? galaxyRadius * .25 : layout.radius;
   const minPointSize = galaxyRadius ? 3 : 18;
-  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius},lightMode:{value:0},minPointSize:{value:minPointSize}}), [layout.radius, minPointSize]);
+  // Up close in the galaxy universe, companies become small planets; their star glow fades to a halo.
+  const planetRange = useMemo(() => new Vector2(galaxyRadius*1.5, galaxyRadius*2.3), [galaxyRadius]);
+  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius},lightMode:{value:0},minPointSize:{value:minPointSize},planetRange:{value:galaxyRadius ? planetRange : new Vector2()}}), [layout.radius, minPointSize, galaxyRadius, planetRange]);
   const pointMaterial = useRef<ShaderMaterial>(null);
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
@@ -789,7 +792,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>{galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>}<TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
+    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>{galaxyLayout && <CompanyPlanets geometry={geometry} range={planetRange} galaxyRadius={galaxyRadius}/>}{galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>}<TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
     <CameraControls ref={controls} makeDefault minDistance={clearance*1.15} maxDistance={light ? fitDistance*3 : Math.max(fitDistance*3, openingDistance*1.05)} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
