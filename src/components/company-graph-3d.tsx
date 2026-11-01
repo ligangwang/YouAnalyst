@@ -81,6 +81,9 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const resumeAt = useRef<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleResume=useRef<()=>void>(()=>{});
+  // The galaxy opening starts far beyond normal zoom; touching it skips straight to the graph.
+  const openingFrame=useRef({far:Infinity,close:0});
+  const skippedOpeningPress=useRef(false);
   const returningView=useRef(false);
   const returnRequest=useRef(0);
   const preserveLabelPlacements = useRef(false);
@@ -99,8 +102,16 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     if(!surface)return;
     const pointers=new Set<number>(),keys=new Set<string>();
     const clearTimer=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;};
-    const pause=()=>{
+    const pause=(press=false)=>{
       returningView.current=false;returnRequest.current++;
+      const c=controls.current;
+      // Each new press decides afresh; focus or wheel events within a press keep its decision.
+      if(press)skippedOpeningPress.current=false;
+      if(introOrbitRef.current&&c&&c.distance>openingFrame.current.far){
+        // Companies are an unclickable speck this far out: fly in instead of selecting.
+        skippedOpeningPress.current=press;
+        c.smoothTime=.45;void c.dollyTo(openingFrame.current.close,true);
+      }
       introOrbitRef.current=false;
       resumedOrbit.current=null;resumeElapsed.current=0;resumeAt.current=null;
       preserveLabelPlacements.current=true;
@@ -118,7 +129,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       },TOUR_IDLE_RESUME_MS);
       invalidate();
     };
-    const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause();};
+    const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause(true);};
     scheduleResume.current=schedule;
     const up=(event:PointerEvent)=>{if(pointers.delete(event.pointerId))schedule();};
     const wheel=()=>{pause();schedule();};
@@ -326,6 +337,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     const canvas=gl.domElement,ray=new Raycaster();
     const down=(event:PointerEvent)=>{
       starPress.current=null;relationshipPress.current=null;
+      if(skippedOpeningPress.current)return;
       if(event.button!==0 || !event.isPrimary)return;
       const rect=canvas.getBoundingClientRect();
       ray.setFromCamera(new Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
@@ -336,8 +348,10 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       if(hit)starPress.current={id:layout.nodes[hit.index].id,x:event.clientX,y:event.clientY,pointer:event.pointerId,dragged:false};
     };
     const move=(event:PointerEvent)=>{const press=relationshipPress.current??starPress.current;if(press && event.pointerId===press.pointer && Math.hypot(event.clientX-press.x,event.clientY-press.y)>5)press.dragged=true;};
-    const cancel=()=>{starPress.current=null;relationshipPress.current=null;};
+    const cancel=()=>{starPress.current=null;relationshipPress.current=null;skippedOpeningPress.current=false;};
     const click=(event:MouseEvent)=>{
+      // The press that skipped the opening neither selects nor clears a selection.
+      if(skippedOpeningPress.current){skippedOpeningPress.current=false;event.stopImmediatePropagation();return;}
       const edge=relationshipPress.current,press=edge??starPress.current;starPress.current=null;relationshipPress.current=null;
       if(!press || event.button!==0)return;
       if(press.dragged || Math.hypot(event.clientX-press.x,event.clientY-press.y)>5){event.stopImmediatePropagation();return;}
@@ -366,6 +380,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:members.reduce((v,n)=>v+n.y,0)/members.length, z:members.reduce((v,n)=>v+n.z,0)/members.length };
   }),[layout]);
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
+  useEffect(()=>{openingFrame.current={far:fitDistance*3,close:Math.max(layout.radius*1.3,fitDistance*.9)};},[fitDistance,layout.radius]);
   const savedView=useRef<{position:Vector3;target:Vector3}|null>(null);
   const lastSelected=useRef("");
   const restoredView=useRef(false);

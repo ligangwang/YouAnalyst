@@ -1505,6 +1505,14 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  const collapseLeft=page.getByRole('button',{name:'Collapse left panel',exact:true});if(await collapseLeft.isVisible())await collapseLeft.click();
  await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
  const card=page.getByRole('region',{name:'Company details',exact:true});
+ if(!reduced){
+  // The galaxy opening starts far out, where companies are a speck: the first
+  // press flies in to the graph instead of selecting or clearing a company.
+  const canvas=page.locator('canvas'),bounds=(await canvas.boundingBox())!;
+  await page.mouse.click(bounds.x+bounds.width-30,bounds.y+bounds.height-30);
+  await expect.poll(()=>canvas.evaluate(el=>Number(el.dataset.cameraDistance)/Number(el.dataset.ballRadius)),{timeout:15000}).toBeLessThan(4);
+  await expect(page).not.toHaveURL(/company=/);await expect(card).toHaveCount(0);
+ }
  let previous='',clicks=0;
  // HTML labels share the star's projected center; click exposed canvas pixels
  // near the halo with slight pointer drift to exercise GPU hit testing.
