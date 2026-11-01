@@ -29,11 +29,17 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   const ok = async (url: string | URL | Request, options?: RequestInit) => options?.method === 'POST' || String(url).endsWith('/api/preferences/compare') ? new Response('', {status:401}) : String(url).endsWith('/api/compare/community') ? Response.json({items:[], nextCursor:null}) : String(url).endsWith('/en/compare') ? new Response('<html>Community comparisons · Colors &amp; style templates</html>') : String(url).endsWith('/api/health')
     ? Response.json({status: 'ok', commitSha: 'abc', revision: 'rev-2'})
     : String(url).endsWith('/about') ? new Response('<html>Understand the companies behind your investments. 了解你所投资的公司。 <a href="mailto:support@youanalyst.com">Email</a><a href="https://x.com/knoics321">X</a></html>')
-    : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]},events:[],session:{startAt:'2026-10-31T00:00:00Z'}})
+    : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]},events:[],enrichmentDeferred:true,session:{startAt:'2026-10-31T00:00:00Z'}})
     : String(url).includes('/api/company-relationships?') ? Response.json({nodes:[{id:'US:NVDA'}],relationships:[]})
     : /\/(industries|investment-themes)\?/.test(String(url)) ? new Response('<html><h2 id="category-title">Semiconductors &amp; Related Devices 集成电路 Chips</h2></html>')
     : new Response('<html>' + 'x'.repeat(1100) + '</html>');
   await verifyCandidate({...options, request: ok});
+  const order:string[]=[];
+  await verifyCandidate({...options,request:async(url,init)=>{order.push(String(url));return ok(url,init);}});
+  assert(order.indexOf(options.url+'/api/intelligence?theme=ai')<order.indexOf(options.url+'/'));
+  let ticks=0;
+  await assert.rejects(verifyCandidate({...options,request:ok,now:()=>ticks++===0?0:6000}),/cold refresh exceeds five seconds/);
+
   await assert.rejects(verifyCandidate({...options, commit: 'wrong', request: ok}), /commit mismatch/);
   await assert.rejects(verifyCandidate({...options, request: async url => String(url).endsWith('/api/health') ? ok(url) : new Response('Not found', {status:404})}), /failed/);
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).endsWith('/api/compare/community') && init?.method !== 'POST' ? new Response('Index building', {status:503}) : ok(url, init)}), /ranking index readiness/);

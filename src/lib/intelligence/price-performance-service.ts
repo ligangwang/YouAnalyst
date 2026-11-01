@@ -7,10 +7,10 @@ import { eventBaselineThrough, completedCloseDate, dailyPrice, eventPriceReturn,
 
 /** Viewing the graph reads stored prices only; no market-data API calls. */
 export async function attachPricePerformance(db:Firestore,graph:KnowledgeGraph,events:IntelligenceEvent[],now:Date,cacheView?:PriceCacheView){
-  const view=cacheView??await loadPriceCache(db);
   const returns:Record<string,NonNullable<ReturnType<typeof eventPriceReturn>>[]>={};
   const nodes=graph.nodes.map(node=>({...node}));
   const companies=nodes.filter(node=>node.kind==='COMPANY'&&/^(US:|XSHG:|XSHE:)/.test(node.id));
+  const view=cacheView??await loadPriceCache(db,companies.map(node=>node.id.startsWith('US:')?node.id.slice(3):node.id));
   for(let i=0;i<companies.length;i+=12)await Promise.all(companies.slice(i,i+12).map(async node=>{
     const ticker=node.id.startsWith('US:')?node.id.slice(3):node.id,instrument=predictionInstrument(ticker);
     if(!instrument)return;
