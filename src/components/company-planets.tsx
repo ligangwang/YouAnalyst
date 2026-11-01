@@ -3,19 +3,22 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
-import { InstancedBufferAttribute, InstancedBufferGeometry, SphereGeometry, type BufferAttribute, type BufferGeometry, type Vector2 } from 'three';
+import { InstancedBufferAttribute, InstancedBufferGeometry, SphereGeometry, Vector2, type BufferAttribute, type BufferGeometry } from 'three';
 
 // Up close, each company in the galaxy universe becomes a small planet in its
 // sector colour, lit by the galactic core. Planets stay modest in size so
 // neighbours and labels remain readable; from afar they fade back into points.
 const vertex = `attribute vec3 center; attribute vec3 tint; attribute float emphasis; attribute float capScale; attribute float seed;
-  uniform vec2 range; uniform float baseRadius;
-  varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed;
+  uniform vec2 range; uniform float baseRadius; uniform vec2 nearRange;
+  varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim;
   void main() {
     float depth = -(viewMatrix * vec4(center, 1.)).z;
     float fade = 1. - smoothstep(range.x, range.y, depth);
     float focus = smoothstep(1., 2., emphasis);
-    vAlpha = fade * mix(.22, 1., clamp(emphasis, 0., 1.));
+    // Dimmed companies stay solid but darker; planets right beside the camera fade
+    // out instead of filling the lens.
+    vAlpha = fade * smoothstep(nearRange.x, nearRange.y, depth);
+    vDim = mix(.3, 1., clamp(emphasis, 0., 1.));
     if (vAlpha < .01) { gl_Position = vec4(2., 2., 2., 1.); return; }
     float radius = baseRadius * clamp(sqrt(capScale), .85, 1.35) * mix(1., 1.2, focus);
     vec3 world = center + position * radius;
@@ -27,7 +30,7 @@ const vertex = `attribute vec3 center; attribute vec3 tint; attribute float emph
     vTint = tint; vSeed = seed;
     gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.);
   }`;
-const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed;
+const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim;
   void main() {
     // Tilted cloud bands with a little turbulence, different for every company.
     vec3 axis = normalize(vec3(sin(vSeed * 6.3) * .35, 1., cos(vSeed * 4.1) * .35));
@@ -36,12 +39,14 @@ const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight;
     float bands = .5 + .5 * sin((latitude + swirl) * (3.2 + vSeed * 2.4) + vSeed * 40.);
     float fine = .5 + .5 * sin((latitude + swirl * 1.6) * 11. + vSeed * 17.);
     vec3 surface = mix(vTint * .62, mix(vTint, vec3(1.), .18), smoothstep(.15, .85, bands)) * (.93 + .07 * fine);
+    // The core lights one side; a soft fill from the viewer keeps the face you see readable.
     float light = max(dot(vNormal, vLight), 0.);
-    vec3 color = surface * (.22 + .9 * light);
+    float fill = max(dot(vNormal, vView), 0.);
+    vec3 color = surface * (.18 + .55 * light + .5 * fill);
     // A thin atmosphere glows at the rim, brighter on the lit side.
     float rim = pow(1. - max(dot(vNormal, vView), 0.), 2.5);
     color += vTint * rim * (.35 + .65 * light) * .9;
-    gl_FragColor = vec4(color, vAlpha);
+    gl_FragColor = vec4(color * vDim, vAlpha);
   }`;
 
 export function CompanyPlanets({ geometry, range, galaxyRadius }: { geometry: BufferGeometry; range: Vector2; galaxyRadius: number }) {
@@ -63,7 +68,7 @@ export function CompanyPlanets({ geometry, range, galaxyRadius }: { geometry: Bu
     return result;
   }, [geometry]);
   useEffect(() => () => planets.dispose(), [planets]);
-  const uniforms = useMemo(() => ({ range: { value: range }, baseRadius: { value: galaxyRadius * .011 } }), [range, galaxyRadius]);
+  const uniforms = useMemo(() => ({ range: { value: range }, baseRadius: { value: galaxyRadius * .011 }, nearRange: { value: new Vector2(galaxyRadius * .05, galaxyRadius * .12) } }), [range, galaxyRadius]);
   const copiedVersion = useRef(-1);
   const mesh = useRef<Mesh>(null);
   // Follow the stars' hover and selection emphasis, which the graph animates per frame.
