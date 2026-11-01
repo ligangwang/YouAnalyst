@@ -1,6 +1,7 @@
 "use client";
 
 import { UiText } from "@/components/ui-text";
+import type { OpenAiUsagePurpose } from "@/lib/openai/usage";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -18,7 +19,7 @@ type OpenAiUsageSummary = {
 
 type OpenAiUsageEvent = {
   id: string;
-  purpose: "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction" | "news_headline_translation";
+  purpose: OpenAiUsagePurpose;
   model: string;
   responseId: string | null;
   createdAt: string;
@@ -74,11 +75,22 @@ function formatCost(value: number | null): string {
   }).format(value);
 }
 
+const JOB_TYPE_LABELS: Record<OpenAiUsagePurpose, string> = {
+  ai_analyst_generation: "AI analyst",
+  company_graph_extraction: "Company graph",
+  company_theme_classification: "Company theme classification",
+  industry_research: "Industry research",
+  earnings_calendar_extraction: "Earnings calendar",
+  news_headline_translation: "News headline translation",
+  relationship_summary_translation: "Relationship summary translation",
+  news_article_analysis: "News article analysis",
+};
+
 function purposeLabel(value: OpenAiUsageEvent["purpose"]): string {
-  return {company_graph_extraction:'Company graph',ai_analyst_generation:'AI analyst',industry_research:'Industry research',earnings_calendar_extraction:'Earnings calendar',news_headline_translation:'News headline translation'}[value];
+  return JOB_TYPE_LABELS[value] ?? (value ? value.replace(/_/g, " ") : "Unknown job type");
 }
 
-function metadataLabel(event: OpenAiUsageEvent): string {
+function metadataLabel(event: OpenAiUsageEvent): string | null {
   const ticker = event.metadata.ticker;
   const runDate = event.metadata.runDate;
   if (typeof ticker === "string" && ticker) {
@@ -88,7 +100,7 @@ function metadataLabel(event: OpenAiUsageEvent): string {
     return runDate;
   }
 
-  return event.responseId ?? event.id;
+  return null;
 }
 
 function SummaryCard({ label, summary }: { label: string; summary: OpenAiUsageSummary | null }) {
@@ -193,8 +205,8 @@ export function AdminOpenAiUsagePage() {
       <p className="mb-4 text-xs text-slate-400">{t('Costs are estimates from returned token usage and configured model rates. Calendar totals cover all recorded calls in the period. Reused extraction results do not make another API call.','费用按返回的 token 用量及模型费率估算。日历总额覆盖该时段所有已记录调用，复用结果不会再次调用 API。')}</p>
 
       <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
-        <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr] gap-3 border-b border-white/10 px-4 py-3 text-xs uppercase text-slate-500">
-          <span><UiText text={"Call"} /></span>
+        <div className="hidden gap-3 border-b border-white/10 px-4 py-3 text-xs uppercase text-slate-500 md:grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
+          <span><UiText text={"Job type / Call"} /></span>
           <span><UiText text={"Model"} /></span>
           <span><UiText text={"Tokens"} /></span>
           <span><UiText text={"Cost"} /></span>
@@ -204,14 +216,15 @@ export function AdminOpenAiUsagePage() {
         {events.map((event) => (
           <article
             key={event.id}
-            className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 md:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr]"
+            className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 md:grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]"
           >
-            <div>
-              <p className="font-semibold text-cyan-100">{<UiText text={purposeLabel(event.purpose)} />} - {metadataLabel(event)}</p>
+            <div className="min-w-0">
+              <p className="inline-flex rounded-md border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 font-semibold text-cyan-100"><UiText text={purposeLabel(event.purpose)} /></p>
+              {metadataLabel(event) ? <p className="mt-2 break-words font-medium text-slate-200">{metadataLabel(event)}</p> : null}
               <p className="mt-1 text-xs text-slate-400">{formatDate(event.createdAt)}</p>
               {event.purpose === 'earnings_calendar_extraction' ? <p className="mt-1 text-xs text-slate-400">{String(event.metadata.validationStatus ?? event.metadata.status ?? '')}</p> : null}
               {event.purpose === 'earnings_calendar_extraction' && event.metadata.validationError ? <p className="mt-1 text-xs text-amber-200">{String(event.metadata.validationError)}</p> : null}
-              {event.responseId ? <p className="mt-1 break-all text-xs text-slate-500">{event.responseId}</p> : null}
+              <p className="mt-1 break-all text-xs text-slate-500">{event.responseId ?? event.id}</p>
             </div>
             <p className="text-slate-200">{event.model}</p>
             <div className="text-slate-300">
