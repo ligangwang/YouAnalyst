@@ -72,7 +72,7 @@ No Firestore collection or document fields are added.
 
 A partial scan does not publish any price partitions or advance the completed
 `price-snapshots/checkpoint.json` watermark. After scanning finishes, complete
-changed ticker/year partitions publish conditionally, one at a time. Publication
+changed ticker/year partitions publish conditionally in bounded batches. Publication
 can span runs and resumes using saved pages without Firestore rereads. The global
 watermark advances only after all partitions publish. Cleanup is resumable too;
 staged pages are deleted after completion. The previous complete partition stays
@@ -104,12 +104,14 @@ This leaves the entity schedule and instrument dispatch running normally.
 
 The dedicated job shares the existing price checkpoint, page journal, and lease.
 Default scheduled operation retains 50,000 reads, 500 publications, and a
-20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1–5,000 (the dedicated
-job uses 5,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1–8 (the dedicated job
+20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1-5,000 (the dedicated
+job uses 5,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1-8 (the dedicated job
 uses 4). Neither setting increases the per-execution read budget.
 
 After scanning, an immutable `staging/<scan-id>/changes.sqlite` index groups the
-saved pages once. Later publishing runs download this index instead of fetching
+saved pages once. If indexing reaches its deadline, `partial.sqlite` preserves
+the completed pages and their cursor for the next execution. Later publishing
+runs download the completed index instead of fetching
 and decoding all pages again. A failed concurrent publication batch waits for
 all uploads before releasing the lease and retries that batch idempotently.
 The index is removed with the journal after checkpoint publication.
