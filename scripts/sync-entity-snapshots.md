@@ -104,8 +104,8 @@ This leaves the entity schedule and instrument dispatch running normally.
 
 The dedicated job shares the existing price checkpoint, page journal, and lease.
 Default scheduled operation retains 50,000 reads, 500 publications, and a
-20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1–1,000 (the dedicated
-job uses 1,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1–8 (the dedicated job
+20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1–5,000 (the dedicated
+job uses 5,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1–8 (the dedicated job
 uses 4). Neither setting increases the per-execution read budget.
 
 After scanning, an immutable `staging/<scan-id>/changes.sqlite` index groups the

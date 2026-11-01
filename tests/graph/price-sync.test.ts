@@ -193,5 +193,13 @@ test('large scan pages still obey a non-multiple read budget across restarts',as
  const f=fixture(),s=sourceFixture(Array.from({length:1600},(_,i)=>row('P'+String(i).padStart(4,'0'))),1000);
  const a=await syncPricePartitions(s.source,f.bucket,{pageSize:1000,maxReads:1251});assert.equal(a.reads,1251);assert.equal(a.status,'partial');
  const b=await syncPricePartitions(s.source,f.bucket,{pageSize:1000,maxReads:100,maxPartitions:1});assert.equal(b.reads,100);assert.equal(new Set(s.state.reads).size,1351);
- await assert.rejects(syncPricePartitions(s.source,f.bucket,{pageSize:1001}),/limit/);
+ await assert.rejects(syncPricePartitions(s.source,f.bucket,{pageSize:5001}),/limit/);
+});
+
+
+test('five-thousand-document pages preserve the strict remaining read limit',async()=>{
+ const f=fixture(),s=sourceFixture(Array.from({length:7000},(_,i)=>row('P'+String(i).padStart(5,'0'))),5000);
+ const result=await syncPricePartitions(s.source,f.bucket,{pageSize:5000,maxReads:6001});
+ assert.equal(result.reads,6001);assert.equal(s.state.calls,2);assert.equal(new Set(s.state.reads).size,6001);
+ assert.equal(result.status,'partial');
 });

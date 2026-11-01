@@ -45,7 +45,7 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
  const maxReads=positive(options.maxReads??50_000,'maxReads');
  const maxPartitions=positive(options.maxPartitions??500,'maxPartitions');
  const pageSize=positive(options.pageSize??250,'pageSize'),publishConcurrency=positive(options.publishConcurrency??1,'publishConcurrency');
- if(pageSize>1000||publishConcurrency>8)throw Error('Price page/concurrency limit exceeded');
+ if(pageSize>5000||publishConcurrency>8)throw Error('Price page/concurrency limit exceeded');
  const now=options.now??Date.now,deadline=now()+positive(options.maxDurationMs??20*60_000,'maxDurationMs');
  if(!source.pricePage)throw Error('Bounded price page source required');
  const stored=await readObject(bucket,PROGRESS);
@@ -89,7 +89,7 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
    const page:PricePage=saved?decode(JSON.parse(gunzipSync(saved.bytes).toString())) as PricePage:
     await source.pricePage(pending.since,pending.through,pending.cursor,Math.min(pageSize,maxReads-reads));
    if(!saved)reads+=page.reads;
-   if(!Number.isInteger(page.reads)||page.reads<1||page.reads>1000||(!page.done&&!page.cursor))throw Error('Invalid price page');
+   if(!Number.isInteger(page.reads)||page.reads<1||page.reads>5000||(!page.done&&!page.cursor))throw Error('Invalid price page');
    for(const row of page.rows){
     if(!(row.data.updatedAt instanceof Timestamp))throw Error('Price timestamp migration required');
     if(!pricePartition(row.id))throw Error(`Unsupported price ID: ${row.id}`);

@@ -12,7 +12,7 @@ check_maintenance_job_iam "$job"
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" --image "$PRICE_SYNC_IMAGE" \
  --service-account "$maintenance_runtime_account" --command node --args dist/sync-price-snapshots.cjs \
  --tasks 1 --parallelism 1 --max-retries 0 --task-timeout 30m --memory 4Gi --cpu 1 \
- --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID,ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET,PRICE_TIMESTAMP_MIGRATION_COMPLETE=1,PRICE_SYNC_MAX_READS=${PRICE_SYNC_MAX_READS:-50000},PRICE_SYNC_MAX_PARTITIONS=${PRICE_SYNC_MAX_PARTITIONS:-500},PRICE_SYNC_PAGE_SIZE=1000,PRICE_SYNC_PUBLISH_CONCURRENCY=4,PRICE_SYNC_MAX_DURATION_MS=1200000,NODE_OPTIONS=--max-old-space-size=3072" --quiet
+ --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID,ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET,PRICE_TIMESTAMP_MIGRATION_COMPLETE=1,PRICE_SYNC_MAX_READS=${PRICE_SYNC_MAX_READS:-50000},PRICE_SYNC_MAX_PARTITIONS=${PRICE_SYNC_MAX_PARTITIONS:-500},PRICE_SYNC_PAGE_SIZE=5000,PRICE_SYNC_PUBLISH_CONCURRENCY=4,PRICE_SYNC_MAX_DURATION_MS=1200000,NODE_OPTIONS=--max-old-space-size=3072" --quiet
 ensure_maintenance_job_iam "$job"
 operation=create
 if gcloud scheduler jobs describe "$job" --project "$GCP_PROJECT_ID" --location "$region" >/dev/null 2>&1; then operation=update; fi
