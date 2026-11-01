@@ -9,6 +9,8 @@ export type IntelligenceEvent = import('../events/classification').ClassifiedEve
   title:string; titleZh?:string; titleEn?:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
   calendarEvents?:IntelligenceCalendarEvent[];
+  /** Response-only state; absence of links is not authoritative until loaded. */
+  calendarPending?:boolean;
   relatedEventIds?:string[];
   insiderTransactions?:import('../events/insider-transactions').InsiderTransaction[];
   amendment?:boolean;
@@ -28,6 +30,7 @@ export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'tit
 export type IntelligenceSourceDocument = {id:string;channel:IntelligenceSource;companyIds:string[];published_at:string|null;publication_date:string};
 export type IntelligenceSnapshot = { eventReturns?: Record<string,import("./price-performance").EventPriceReturn[]>;
   eventsPending?:boolean;
+  enrichmentDeferred?:boolean;
   feedWindow?:{loadedFrom:string;through:string;maxDays:7;hasMore:boolean;version:string};
   theme?: import('../company-themes/model').CompanyThemeId;
   graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;

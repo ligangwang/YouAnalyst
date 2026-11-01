@@ -176,3 +176,20 @@ test('idle days are loaded on demand without presenting a gap as complete histor
   assert.equal(filled.loadedFrom,'2026-10-14');
   assert(store.queries.slice(reads).every(query=>query.filters.some(([, , value])=>String(value).includes('2026-10-15'))));
 });
+
+
+test('cold feed partitions start together, stay bounded, and skip expired days',async()=>{
+ const store=database(),writer=store.client();let loaded=await loadCachedFeed(writer,noon);
+ for(let i=0;i<6;i++)loaded=await loadCachedFeed(writer,noon,loaded.loadedFrom);
+ const db=store.client(),original=db.getAll.bind(db),reads:string[][]=[];
+ let release!:()=>void,started!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;}),fourStarted=new Promise<void>(resolve=>{started=resolve;});
+ let active=0,max=0;
+ db.getAll=(async(...refs:Parameters<Firestore['getAll']>)=>{
+  reads.push(refs.map(ref=>(ref as {path:string}).path));active++;max=Math.max(max,active);if(reads.length===4)started();
+  await gate;try{return await original(...refs);}finally{active--;}
+ }) as Firestore['getAll'];
+ const pending=loadCachedFeed(db,new Date('2026-10-17T16:00:00Z'));
+ await fourStarted;assert.equal(reads.length,4);release();const result=await pending;
+ assert.equal(max,4);assert.equal(reads.length,6);assert(reads.flat().every(path=>!path.includes('2026-10-10')));
+ assert.equal(Object.keys(result.days).length,7);assert.equal(result.days['2026-10-10'],undefined);
+});

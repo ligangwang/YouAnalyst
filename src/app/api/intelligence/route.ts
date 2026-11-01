@@ -18,7 +18,7 @@ export async function GET(request:Request){
     if(!theme)return Response.json({error:'Unknown or unpublished theme'},{status:404,headers:{'Cache-Control':'no-store'}});
     // Complete published graphs need targeted members and valuations, not the
     // entire market's company/fundamentals snapshot files on a fresh instance.
-    const snapshot=await withCompanyPageReads(()=>params.get('section')==='universe'?loadIntelligenceUniverse(new Date(),theme):loadCompanyIntelligenceSnapshot(new Date(),theme,params.get('company')??'',params.get('q')??'',params.get('region')??'',after,params.get('before')??undefined));
+    const snapshot=await withCompanyPageReads(()=>params.get('section')==='universe'?loadIntelligenceUniverse(new Date(),theme):loadCompanyIntelligenceSnapshot(new Date(),theme,params.get('company')??'',params.get('q')??'',params.get('region')??'',after,params.get('before')??undefined,true));
     const body=JSON.stringify(snapshot);
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json; charset=utf-8','Vary':'Accept-Encoding'};
     const etag=`W/"${createHash('sha256').update(body).digest('hex')}"`;

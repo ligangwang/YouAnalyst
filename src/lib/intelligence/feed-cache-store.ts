@@ -50,16 +50,18 @@ async function readChanges(db: Firestore, from: Checkpoint, through: Checkpoint)
   return groups.flat();
 }
 
-async function restore(db: Firestore, state: Manifest): Promise<FeedDays> {
+async function restore(db: Firestore, state: Manifest, target: string[]): Promise<FeedDays> {
   const local = memory.get(db);
   if (local?.revision === state.revision) return local.days;
   const days: FeedDays = {};
-  for (const [day, ids] of Object.entries(state.days)) {
+  const partitions=Object.entries(state.days).filter(([day])=>target.includes(day));
+  // Independent partitions overlap I/O, with a small bound on memory and RPCs.
+  for(let i=0;i<partitions.length;i+=4)await Promise.all(partitions.slice(i,i+4).map(async([day,ids])=>{
     const docs = await db.getAll(...ids.map(id => db.collection('collectors').doc(id)));
-    if (docs.some(doc => !doc.exists)) continue;
+    if (docs.some(doc => !doc.exists)) return;
     try { days[day] = decodeFeedDay(docs.map(doc => doc.get('payload') as Uint8Array)); }
     catch { /* Rebuild only this missing/corrupt partition while holding the lease. */ }
-  }
+  }));
   return days;
 }
 
@@ -85,7 +87,7 @@ async function update(db: Firestore, now: Date, before?: string): Promise<Cached
     if (!acquired) { await new Promise(resolve => setTimeout(resolve, 250)); continue; }
     const { state, target, checkpoint, work } = acquired;
     try {
-      const restored = state?.days ? await restore(db, state) : {};
+      const restored = state?.days ? await restore(db, state, target) : {};
       if(!work&&target.some(day=>!restored[day])){repair=true;continue;}
       let days: FeedDays = Object.fromEntries(target.filter(day => restored[day]).map(day => [day, restored[day]]));
       if (work) {

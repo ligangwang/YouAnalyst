@@ -12,6 +12,8 @@ import { INTELLIGENCE_SOURCES, sourceDocumentsForEvents, intelligenceSession, se
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
+import {loadNewsSources} from './collectors/source-service';
+import {isCalendarCandidate} from '../calendar/candidates';
 import {projectDisclosures} from '../events/disclosure-projection';
 import {attachPricePerformance} from './price-performance-service';
 import {attachCalendarLinks} from '../calendar/intelligence-links';
@@ -20,7 +22,9 @@ import {companySearchRank,companySearchText,matchesCompanySearch} from '../knowl
 
 const LIMIT=10;
 type ScheduleRefresh=(refresh:()=>Promise<void>)=>void;
-const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;key:string}>();
+const caches=new Map<string,{value:IntelligenceSnapshot;key:string}>();
+declare global {var __intelligenceCoreSnapshotsV1:WeakMap<object,Map<string,IntelligenceSnapshot>>|undefined;}
+const coreSnapshots=globalThis.__intelligenceCoreSnapshotsV1??=new WeakMap<object,Map<string,IntelligenceSnapshot>>();
 const requests=new Map<string,Promise<IntelligenceSnapshot>>();
 // Retain the full period privately; company feeds reuse the same database read.
 const periods=new WeakMap<IntelligenceSnapshot,IntelligenceSnapshot['events']>();
@@ -51,8 +55,26 @@ function universeWork(theme:CompanyThemeId){
 }
 async function loadUniverseGraph(theme:CompanyThemeId){return universeWork(theme).complete;}
 
-export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
-  const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh,before);
+/** Only IDs present in the published snapshot can request enrichment. No client
+ * supplied event dates, evidence or company records are trusted. */
+export async function loadIntelligenceEnrichment(theme:CompanyThemeId,eventIds:string[],companyIds:string[],kind:'calendar'|'prices',snapshotAt:string,now=new Date()){
+  const cached=coreSnapshots.get(getAdminFirestore())?.get(theme);
+  const base=cached?.generatedAt===snapshotAt?cached:await loadIntelligenceSnapshot(now,theme,undefined,undefined,true);
+  const selected=new Set(eventIds),companies=new Set(companyIds);
+  const events=base.events.filter(event=>selected.has(event.id)||event.relatedEventIds?.some(id=>selected.has(id)));
+  if(kind==='calendar'){
+    const loaded=await attachCalendarLinks(getAdminFirestore(),events);
+    return {calendar:Object.fromEntries(loaded.map(event=>[event.id,event.calendarEvents??[]]))};
+  }
+  for(const event of events)for(const id of event.companyIds)companies.add(id);
+  const graph={...base.graph,nodes:base.graph.nodes.filter(node=>node.kind==='COMPANY'&&companies.has(node.id))};
+  if(graph.nodes.length>200)throw Error('Price enrichment scope is too large');
+  const priced=await attachPricePerformance(getAdminFirestore(),graph,events,now);
+  return {eventReturns:priced.eventReturns,prices:Object.fromEntries(priced.graph.nodes.map(node=>[node.id,node.dailyPrice??null]))};
+}
+
+export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh,before?:string,core=false):Promise<IntelligenceSnapshot>{
+  const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh,before,core);
   const search=query.normalize('NFKC').trim().replace(/^\$/,'');
   if(!company&&!search&&region!=='US'&&region!=='CN_A')return base;
   const id=company.includes(':')?company.toUpperCase():`US:${company.toUpperCase()}`;
@@ -68,7 +90,7 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
     const matching=(periods.get(base)??base.events).filter(event=>event.companyIds.some(id=>ids.has(id)));
     const events=matching;
     let eventReturns:IntelligenceSnapshot['eventReturns']={};
-    if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
+    if(!core&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
       // Enrich only companies in the selected/search scope; retain the shared graph.
       const graph={...base.graph,nodes:base.graph.nodes.filter(node=>ids.has(node.id))};
       eventReturns=(await attachPricePerformance(getAdminFirestore(),graph,events,now)).eventReturns;
@@ -82,23 +104,34 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
 /** Persistent day partitions are shared across users, processes and themes.
  * Time-dependent display/freshness is projected from change-cached source data.
  */
-export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',_scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
-  return withCacheReadScope(()=>buildIntelligenceSnapshot(now,theme,before));
+export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',_scheduleRefresh?:ScheduleRefresh,before?:string,core=false):Promise<IntelligenceSnapshot>{
+  return withCacheReadScope(()=>buildIntelligenceSnapshot(now,theme,before,core));
 }
-async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:string):Promise<IntelligenceSnapshot>{
+async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:string,core=false):Promise<IntelligenceSnapshot>{
+  const started=performance.now();
+  const timed=async<T>(stage:string,work:Promise<T>)=>{const start=performance.now();try{return await work;}finally{if(core)console.info(JSON.stringify({event:'intelligence_stage_duration',theme,stage,durationMs:Math.round(performance.now()-start)}));}};
+  const settle=<T>(work:Promise<T>)=>work.then(value=>({value,error:undefined as unknown}),error=>({value:undefined,error}));
   const session=intelligenceSession(now);
   const preview=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
   const universe=universeWork(theme);
   let feedError:unknown;
+  const feedRead=preview?Promise.resolve(undefined):timed('feed',loadCachedFeed(getAdminFirestore(),now,before)).catch(error=>{feedError=error;return undefined;});
+  // Configuration and freshness do not depend on graph valuations or feed data.
+  const sourceRead=core&&!preview&&process.env.INTELLIGENCE_NEWS_ENABLED==='1'?settle(timed('news_sources',loadNewsSources(getAdminFirestore()))):undefined;
+  const metadataRead=core&&!preview?settle(timed('collector_freshness',changeCached(getAdminFirestore(),'sec-collector-freshness',['collector:sec-freshness'],()=>secCollectorFreshness(getAdminFirestore()).get()))):undefined;
+  const newsRead=sourceRead?settle(timed('news',Promise.all([feedRead,universe.structure,sourceRead]).then(([feed,graph,sources])=>{
+    if(feedError)throw feedError;if(sources.error)throw sources.error;
+    return loadCollectedNews(getAdminFirestore(),graph,now,feed?.loadedFrom??session.date,undefined,Object.values(feed?.days??{}).flat().filter(row=>row.collection==='events').map(row=>row.data),sources.value);
+  }))):undefined;
   const [feed,priceView,graph]=await Promise.all([
-    preview?undefined:loadCachedFeed(getAdminFirestore(),now,before).catch(error=>{feedError=error;return undefined;}),
-    preview?undefined:loadPriceCache(getAdminFirestore()),
-    universe.structure,
+    feedRead,
+    preview||core?undefined:loadPriceCache(getAdminFirestore()),
+    timed('graph_structure',universe.structure),
   ]);
   // Re-evaluate clock-dependent coverage on reads; source data has no timer expiry.
   const key=[session.date,feed?.revision??'unavailable',priceView?.version??'',createHash('sha256').update(JSON.stringify(graph)).digest('hex'),now.getTime()].join(':');
-  const requestKey=`${theme}:${key}`;
-  const cached=caches.get(theme),pending=requests.get(requestKey);
+  const cacheKey=`${theme}:${core?'core':'complete'}`,requestKey=`${cacheKey}:${key}`;
+  const cached=caches.get(cacheKey),pending=requests.get(requestKey);
   if(feedError&&cached?.value.session.date===session.date)return {...cached.value,statisticsComplete:false,warnings:[...cached.value.warnings,'Feed updates are temporarily unavailable. Showing the previously loaded days.']};
   if(pending)return pending;
   const request=(async()=>{
@@ -113,7 +146,8 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     }else try{
       if(feedError)throw feedError;
       const db=getAdminFirestore();
-      const metadata=await changeCached(db,'sec-collector-freshness',['collector:sec-freshness'],()=>secCollectorFreshness(db).get());
+      const early=await metadataRead;if(early?.error)throw early.error;
+      const metadata=early?.value??await changeCached(db,'sec-collector-freshness',['collector:sec-freshness'],()=>secCollectorFreshness(db).get());
       const lastRun=metadata.get('lastRunAt');
       secFresh=secCollectorIsFresh(lastRun,metadata.get('result'),now);
       if(!secFresh){
@@ -132,7 +166,8 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     let newsCoverage:IntelligenceSnapshot['newsCoverage'];
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       if(feedError)throw feedError;
-      news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,undefined,records.filter(row=>row.collection==='events').map(row=>row.data));
+      const early=await newsRead;if(early?.error)throw early.error;
+      news=early?.value??await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,undefined,records.filter(row=>row.collection==='events').map(row=>row.data));
       const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&(theme!=='ai'||node.id.startsWith('US:'))).map(node=>node.id);
       const configured=new Set(news.configuredCompanyIds);
       const covered=companyIds.filter(id=>configured.has(id)).length;
@@ -152,15 +187,16 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     }catch(error){statisticsComplete=false;console.error('Map disclosure feed unavailable',error);warnings.push('Company disclosure arrivals are temporarily unavailable.');}
     // A discovery and a research citation of the same filing are one document.
     let ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date);
-    if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
+    if(!core&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       // Resolve every candidate's schedules before grouping or limiting the feed.
       ordered=await attachCalendarLinks(getAdminFirestore(),ordered);
     }catch(error){calendarAvailable=false;console.error('Intelligence calendar links unavailable',error);warnings.push('Calendar event links are temporarily unavailable.');}
+    if(core)ordered=ordered.map(event=>({...event,calendarPending:event.category==='BUSINESS'&&isCalendarCandidate(event.title,event.summary)}));
     ordered=calendarAvailable?groupCompanyAnnouncements(ordered):[...groupCompanyAnnouncements(ordered.filter(event=>event.eventType==='insider_trade')),...ordered.filter(event=>event.eventType!=='insider_trade')];
     ordered.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
     const events=ordered;
-    let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
-    if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
+    let priced={graph:core?await universe.complete:graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
+    if(!core&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
       priced=await attachPricePerformance(getAdminFirestore(),await universe.complete,events,now,priceView);
     }
     // Price changes must reach clients that retain the graph on unchanged polls.
@@ -169,9 +205,15 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     for(const event of ordered)for(const source of event.evidence)evidenceChannels.add(source.channel);
     const value:IntelligenceSnapshot={...(feed?{feedWindow:{loadedFrom:feed.loadedFrom,through:session.date,maxDays:7 as const,hasMore:feed.hasMore,version:feed.revision}}:{}),theme,graph:priced.graph,eventReturns:priced.eventReturns,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     periods.set(value,ordered);
+    if(core)value.enrichmentDeferred=true;
+    if(core){
+      const db=getAdminFirestore();let shared=coreSnapshots.get(db);if(!shared){shared=new Map();coreSnapshots.set(db,shared);}
+      const previous=shared.get(theme);if(!previous||Date.parse(previous.generatedAt)<=now.getTime())shared.set(theme,value);
+    }
     // An older in-flight session must not overwrite a newer day's cache.
-    const current=caches.get(theme);
-    if(!current||Date.parse(current.value.generatedAt)<=now.getTime())caches.set(theme,{value,key});
+    const current=caches.get(cacheKey);
+    if(!current||Date.parse(current.value.generatedAt)<=now.getTime())caches.set(cacheKey,{value,key});
+    if(core)console.info(JSON.stringify({event:'intelligence_stage_duration',theme,stage:'core_total',durationMs:Math.round(performance.now()-started)}));
     return value;
   })();
   requests.set(requestKey,request);

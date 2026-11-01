@@ -1,8 +1,9 @@
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
 import {attachPricePerformance} from '../../src/lib/intelligence/price-performance-service';
-import {createCachedPriceBatch,writeCachedPrice} from '../../src/lib/intelligence/price-cache';
+import {loadPriceCache,createCachedPriceBatch,writeCachedPrice} from '../../src/lib/intelligence/price-cache';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import type {IntelligenceEvent} from '../../src/lib/intelligence/model';
 
@@ -126,4 +127,26 @@ test('bootstrap skips invalid adjusted-only records and future sessions',async()
  const next=await attachPricePerformance(f.client(),graph,[],now);
  assert.equal(next.graph.nodes[0].dailyPrice?.close,110);assert.equal(next.graph.nodes[0].dailyPrice?.previousTradingDate,'2026-10-01');
  assert(f.queries.every(q=>q.limit===2));
+});
+
+
+test('scoped price cache reads only requested buckets and retains concurrent bucket loads and corrections',async()=>{
+ const f=fixture(),db=f.client(),reads:string[][]=[];
+ const ids=['AMD','MU'].map(ticker=>createHash('sha256').update(`US_${ticker}`).digest('hex').slice(0,2));
+ assert.notEqual(ids[0],ids[1]);
+ const entry=(close:number)=>({bars:[{date:'2026-10-02',close}],baselines:{}});
+ f.data.set('collectors/_graph_prices_v1',{buckets:{[ids[0]]:'a1',[ids[1]]:'m1'}});
+ f.data.set(`collectors/_graph_prices_v1_${ids[0]}`,{entries:{US_AMD:entry(100)}});
+ f.data.set(`collectors/_graph_prices_v1_${ids[1]}`,{entries:{US_MU:entry(200)}});
+ const getAll=db.getAll.bind(db);
+ db.getAll=(async(...refs:Parameters<Firestore['getAll']>)=>{reads.push(refs.map(ref=>(ref as {path:string}).path));return getAll(...refs);}) as Firestore['getAll'];
+ assert.deepEqual(await loadPriceCache(db,[]),{version:'',entries:{}});
+ const [amd,mu]=await Promise.all([loadPriceCache(db,['AMD']),loadPriceCache(db,['MU'])]);
+ assert.deepEqual(Object.keys(amd.entries),['US_AMD']);assert.deepEqual(Object.keys(mu.entries),['US_MU']);
+ assert.deepEqual(reads,ids.map(id=>[`collectors/_graph_prices_v1_${id}`]));
+ await Promise.all([loadPriceCache(db,['AMD']),loadPriceCache(db,['MU'])]);assert.equal(reads.length,2,'both concurrent bucket loads must be retained');
+ f.data.set('collectors/_graph_prices_v1',{buckets:{[ids[0]]:'a2',[ids[1]]:'m1'}});
+ f.data.set(`collectors/_graph_prices_v1_${ids[0]}`,{entries:{US_AMD:entry(110)}});
+ assert.equal((await loadPriceCache(db,['AMD'])).entries.US_AMD.bars[0].close,110);
+ await loadPriceCache(db,['MU']);assert.equal(reads.length,3,'correction must reload only its own bucket');
 });
