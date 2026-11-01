@@ -32,6 +32,7 @@ const bakeFragment = `
   varying vec3 skyDirection;
   uniform vec3 plane;
   uniform vec3 bulgeDirection;
+  uniform float band3d;
   float hash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1);
     p *= 17.0;
@@ -67,9 +68,11 @@ const bakeFragment = `
     float filaments = ridge * ridge * ridge * ridge;
 
     vec3 light = vec3(0.0);
+    // A 3D galaxy around the graph replaces the painted band and spiral.
+    float painted = 1.0 - band3d;
     vec3 milky = mix(vec3(0.28, 0.37, 0.64), vec3(0.52, 0.46, 0.68), bulge);
-    light += milky * band * (0.16 + 0.42 * detail * detail) * (1.0 - lanes * 0.85);
-    light += vec3(0.48, 0.44, 0.66) * bulge * (band * 0.08 + haze * 0.03) * (1.0 - lanes * 0.7);
+    light += painted * milky * band * (0.16 + 0.42 * detail * detail) * (1.0 - lanes * 0.85);
+    light += painted * vec3(0.48, 0.44, 0.66) * bulge * (band * 0.08 + haze * 0.03) * (1.0 - lanes * 0.7);
 
     // Offset, tilted spiral with irregular dust lanes and a restrained core.
     vec3 across = normalize(cross(plane, bulgeDirection));
@@ -81,8 +84,8 @@ const bakeFragment = `
     float envelope = exp(-r * 3.4) * smoothstep(0.15, 0.65, dot(d, bulgeDirection));
     float core = exp(-r * r * 65.0);
     vec3 spiral = mix(vec3(0.22, 0.36, 0.65), vec3(0.48, 0.30, 0.62), detail);
-    light += spiral * envelope * (0.10 + arms * 0.55) * (0.5 + detail) * (1.0 - lanes * 0.65);
-    light += vec3(0.48, 0.52, 0.67) * core * envelope * 0.10;
+    light += painted * spiral * envelope * (0.10 + arms * 0.55) * (0.5 + detail) * (1.0 - lanes * 0.65);
+    light += painted * vec3(0.48, 0.52, 0.67) * core * envelope * 0.10;
 
     float cyan = smoothstep(0.5, 0.82, fbm(d * 1.9 + vec3(11.0, 3.0, -2.0)));
     float magenta = smoothstep(0.52, 0.84, fbm(d * 2.3 + vec3(-5.0, 2.0, 8.0)));
@@ -124,7 +127,7 @@ const bandVertex = `attribute float size; varying vec3 starColor;
 const bandFragment = `varying vec3 starColor; uniform float intensity;
   void main() { float r = length(gl_PointCoord - 0.5); float alpha = (1.0 - smoothstep(0.1, 0.5, r)) * intensity; if (alpha < 0.02) discard; gl_FragColor = vec4(starColor, alpha); }`;
 
-export function DeepSpaceSky({ height, focused = false }: { height: number; focused?: boolean }) {
+export function DeepSpaceSky({ height, focused = false, galaxy = false }: { height: number; focused?: boolean; galaxy?: boolean }) {
   const { gl, invalidate } = useThree();
   const target = useMemo(() => new WebGLCubeRenderTarget(SKY_FACE), []);
   const uniforms = useMemo(() => ({ light: { value: target.texture }, plane: { value: normalize(PLANE) }, resolution: { value: new Vector2(1, 1) }, intensity: { value: focused ? 0.45 : 1 } }), [target, focused]);
@@ -135,7 +138,7 @@ export function DeepSpaceSky({ height, focused = false }: { height: number; focu
   useEffect(() => {
     const geometry = new SphereGeometry(10, 64, 32);
     const material = new ShaderMaterial({ side: BackSide, depthTest: false, depthWrite: false, toneMapped: false,
-      uniforms: { plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) } }, vertexShader: skyVertex, fragmentShader: bakeFragment });
+      uniforms: { plane: { value: normalize(PLANE) }, bulgeDirection: { value: normalize(BULGE) }, band3d: { value: galaxy ? 1 : 0 } }, vertexShader: skyVertex, fragmentShader: bakeFragment });
     const scene = new Scene().add(new Mesh(geometry, material));
     const camera = new CubeCamera(1, 100, target);
     camera.coordinateSystem = gl.coordinateSystem;
@@ -155,7 +158,7 @@ export function DeepSpaceSky({ height, focused = false }: { height: number; focu
     bake();
     gl.domElement.addEventListener('webglcontextrestored', bake);
     return () => { cancelAnimationFrame(frame); gl.domElement.removeEventListener('webglcontextrestored', bake); geometry.dispose(); material.dispose(); };
-  }, [gl, invalidate, target]);
+  }, [gl, invalidate, target, galaxy]);
   // Fine stars crowd the galactic band and thin out toward its edges.
   const bandStars = useMemo(() => {
     const plane = normalize(PLANE), bulge = normalize(BULGE);
@@ -185,8 +188,8 @@ export function DeepSpaceSky({ height, focused = false }: { height: number; focu
       <sphereGeometry args={[SKY_RADIUS, 64, 32]}/>
       <shaderMaterial side={BackSide} depthWrite={false} toneMapped={false} uniforms={uniforms} vertexShader={skyVertex} fragmentShader={skyFragment}/>
     </mesh>
-    <points geometry={bandStars} renderOrder={-2} raycast={() => {}} frustumCulled={false}>
+    {!galaxy && <points geometry={bandStars} renderOrder={-2} raycast={() => {}} frustumCulled={false}>
       <shaderMaterial transparent depthWrite={false} vertexColors toneMapped={false} uniforms={uniforms} vertexShader={bandVertex} fragmentShader={bandFragment}/>
-    </points>
+    </points>}
   </group>;
 }
