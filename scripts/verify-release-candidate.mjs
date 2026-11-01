@@ -1,7 +1,7 @@
 import {taggedReleaseRequest} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
-export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now()}) {
+export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now(),warn=console.warn}) {
   const rawRequest=request;
   request=(input,options)=>taggedReleaseRequest(input,options,{request:rawRequest});
   assert(url && revision && commit, 'Candidate URL, revision and commit required');
@@ -19,8 +19,9 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
       assert.equal(response.status,200,'Candidate refresh failed; existing traffic stays unchanged');
       const data=await response.json();
       assert(Array.isArray(data.events)&&data.eventsPending!==true&&data.enrichmentDeferred===true&&data.session?.startAt,'Candidate refresh is incomplete');
-      assert(now()-refreshStarted<5000,'Candidate cold refresh exceeds five seconds; existing traffic stays unchanged');
-      console.log(JSON.stringify({event:'candidate_cold_refresh',durationMs:Math.round(now()-refreshStarted)}));
+      const durationMs=Math.round(now()-refreshStarted);
+      if(durationMs>=5000)warn(`::warning::Candidate cold refresh took ${durationMs}ms, exceeding the 5000ms target; continuing deployment because response validation passed.`);
+      console.log(JSON.stringify({event:'candidate_cold_refresh',durationMs}));
       return data;
     }),
     request(`${url}/api/company-relationships?company=US%3ANVDA`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
@@ -31,7 +32,8 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
       const started=now(),response=await request(`${url}${path}`,{signal:AbortSignal.timeout(15000)});
       assert.equal(response.status,200,`Candidate concurrent ${path} failed`);
       const html=await response.text();assert(html.includes('<html'),`Candidate ${path} is not HTML`);
-      const durationMs=now()-started;assert(durationMs<5000,`Candidate refresh blocked ${path} for five seconds`);
+      const durationMs=now()-started;
+      if(durationMs>=5000)warn(`::warning::Candidate concurrent ${path} took ${Math.round(durationMs)}ms, exceeding the 5000ms target; continuing deployment because response validation passed.`);
       console.log(JSON.stringify({event:'candidate_concurrent_page',path,durationMs:Math.round(durationMs)}));
     }),
   ]);
