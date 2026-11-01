@@ -9,7 +9,7 @@ import {companyViewSnapshotFiles} from '../src/lib/entity-snapshots/company-view
 import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 
 async function main(){
-  const {dispatchInstruments}=snapshotSyncOptions(process.argv.slice(2));
+  const {dispatchInstruments,includePrices}=snapshotSyncOptions(process.argv.slice(2));
   const projectId=process.env.GCP_PROJECT_ID,bucketName=process.env.ENTITY_SNAPSHOT_BUCKET;
   if(!projectId||!bucketName)throw Error('GCP_PROJECT_ID and ENTITY_SNAPSHOT_BUCKET are required');
   if(process.env.ENTITY_TIMESTAMP_MIGRATION_COMPLETE!=='1')throw Error('Verify entity timestamp migration before enabling snapshot sync');
@@ -19,7 +19,7 @@ async function main(){
   try{
   for(const collection of collections){
     if(collection==='eod_prices'){
-      if(process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'){
+      if(includePrices&&process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'){
         const result=await syncPricePartitions(source,getStorage().bucket(bucketName),priceSyncOptions());
         changed+=result.changed;records+=result.records;deleted+=result.deleted;
         console.info(JSON.stringify({job:'sync-entity-snapshots',event:'price_partition_sync',...result}));

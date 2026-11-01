@@ -91,3 +91,33 @@ bounded executions: 3.5 million documents need about 70 scanning runs at the
 sequentially or tune the budget/cadence after observing usage; this change does
 not automatically launch catch-up runs. Do not run an older unbounded image
 concurrently or roll back to it while saved progress is pending.
+
+
+## Dedicated price job
+
+`sync-price-snapshots-production` runs `dist/sync-price-snapshots.cjs` from the
+Node-only `Dockerfile.price-sync` image. Build with `cloudbuild.price-sync.yaml`
+and deploy the immutable digest with `scripts/deploy-price-snapshots.sh`.
+Entity maintenance uses `--entities-only`; an older entity image can be isolated
+by setting its `PRICE_TIMESTAMP_MIGRATION_COMPLETE=0` until its next release.
+This leaves the entity schedule and instrument dispatch running normally.
+
+The dedicated job shares the existing price checkpoint, page journal, and lease.
+Default scheduled operation retains 50,000 reads, 500 publications, and a
+20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1–1,000 (the dedicated
+job uses 1,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1–8 (the dedicated job
+uses 4). Neither setting increases the per-execution read budget.
+
+After scanning, an immutable `staging/<scan-id>/changes.sqlite` index groups the
+saved pages once. Later publishing runs download this index instead of fetching
+and decoding all pages again. A failed concurrent publication batch waits for
+all uploads before releasing the lease and retries that batch idempotently.
+The index is removed with the journal after checkpoint publication.
+
+For an explicitly approved backlog catch-up, execute the dedicated job
+sequentially with execution-only overrides such as `PRICE_SYNC_MAX_READS=500000`
+and `PRICE_SYNC_MAX_PARTITIONS=10000`. Do not change the saved routine limit.
+Check each successful execution, the saved scan ID/cursor, and phase logs before
+starting the next. Stop when the fixed scan's completed checkpoint is published;
+then run one normal bounded pass to capture later changes. Never reset the
+checkpoint or delete pending progress to force a restart.

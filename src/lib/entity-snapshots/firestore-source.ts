@@ -20,7 +20,7 @@ export function snapshotSource(db: Firestore): Source {
     boundary:async()=>withLiveCompanyReads(async()=>(await db.collection('companies').limit(1).get()).readTime),
     pages,
     pricePage:async(since,through,cursor,limit)=>{
-      if(!Number.isInteger(limit)||limit<1||limit>250)throw Error('Invalid price page limit');
+      if(!Number.isInteger(limit)||limit<1||limit>1000)throw Error('Invalid price page limit');
       let query:Query=db.collection('eod_prices');
       // Keep the initial ID scan so legacy prices are validated too. Changes
       // after this fixed boundary are picked up by the next incremental scan.

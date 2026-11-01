@@ -14,11 +14,11 @@ const row=(ticker:string,date='2026-01-02',time=9,nanos=123):Row=>({id:`US_${tic
 const progressName='price-snapshots/progress.json',checkpointName='price-snapshots/checkpoint.json';
 function fixture(){
  const objects=new Map<string,{generation:string;bytes:Buffer;gzip?:boolean}>();let seq=0;
- const f={objects,failUpload:false,beforeSave:undefined as undefined|((name:string)=>void),beforeUpload:undefined as undefined|(()=>Promise<void>)};
+ const f={objects,failUpload:false,beforeSave:undefined as undefined|((name:string)=>void),beforeUpload:undefined as undefined|((name:string)=>Promise<void>),beforeDownload:undefined as undefined|((name:string)=>void)};
  const missing=()=>Object.assign(Error('missing'),{code:404});
  const bucket={file:(name:string,options?:{generation:string})=>({name,
   getMetadata:async()=>{const obj=objects.get(name);if(!obj)throw missing();return [{generation:obj.generation,contentEncoding:obj.gzip?'gzip':undefined}];},
-  download:async()=>{const obj=objects.get(name);if(!obj)throw missing();if(options?.generation)assert.equal(options.generation,obj.generation);return [obj.bytes];},
+  download:async()=>{f.beforeDownload?.(name);const obj=objects.get(name);if(!obj)throw missing();if(options?.generation)assert.equal(options.generation,obj.generation);return [obj.bytes];},
   save:async(bytes:string|Buffer,opts:{preconditionOpts:{ifGenerationMatch:string|number}})=>{
    f.beforeSave?.(name);
    if((objects.get(name)?.generation??'0')!==String(opts.preconditionOpts.ifGenerationMatch))throw Object.assign(Error('precondition'),{code:412});
@@ -27,8 +27,8 @@ function fixture(){
   delete:async()=>{objects.delete(name);},
   createReadStream:()=>{const obj=objects.get(name)!;assert.equal(options?.generation,obj.generation);return Readable.from(obj.gzip?gunzipSync(obj.bytes):obj.bytes);},
  }),upload:async(path:string,opts:{destination:string;gzip?:boolean;preconditionOpts:{ifGenerationMatch:string}})=>{
-  await f.beforeUpload?.();if(f.failUpload)throw Error('upload failed');
-  if((objects.get(opts.destination)?.generation??'0')!==opts.preconditionOpts.ifGenerationMatch)throw Object.assign(Error('precondition'),{code:412});
+  await f.beforeUpload?.(opts.destination);if(f.failUpload)throw Error('upload failed');
+  if((objects.get(opts.destination)?.generation??'0')!==String(opts.preconditionOpts.ifGenerationMatch))throw Object.assign(Error('precondition'),{code:412});
   // File bytes suffice for these tests; the production SDK applies gzip.
   objects.set(opts.destination,{generation:String(++seq),bytes:await readFile(path)});
  }} as unknown as Bucket;
@@ -162,4 +162,36 @@ test('newer partition and malformed checkpoint fail closed without losing its co
  assert.equal((await prices(f.bucket,'A'))!.rows[0].data.close,19);assert.equal(f.objects.has(checkpointName),false);
  const other=fixture();other.objects.set(checkpointName,{generation:'bad',bytes:Buffer.from(JSON.stringify({watermark:encode(null)}))});
  const calls=s.state.calls;await assert.rejects(syncPricePartitions(s.source,other.bucket),/Invalid price sync checkpoint/);assert.equal(s.state.calls,calls);
+});
+
+
+test('publication resumes from the durable index without downloading saved pages again',async()=>{
+ const f=fixture(),s=sourceFixture([row('A'),row('B'),row('C')]);
+ assert.equal((await syncPricePartitions(s.source,f.bucket,{maxPartitions:1})).status,'partial');
+ assert([...f.objects.keys()].some(k=>k.endsWith('/changes.sqlite')));
+ f.controls.beforeDownload=name=>{if(name.endsWith('.json.gz'))throw Error('journal replay');};
+ const reads=s.state.reads.length;
+ assert.equal((await syncPricePartitions(s.source,f.bucket,{publishConcurrency:2})).status,'complete');
+ assert.equal(s.state.reads.length,reads);
+ assert(![...f.objects.keys()].some(k=>k.includes('/staging/')));
+});
+
+test('parallel publication waits for all in-flight uploads before releasing its lease after failure',async()=>{
+ const f=fixture(),s=sourceFixture([row('A'),row('B')]);let settled=false;
+ f.controls.beforeUpload=async name=>{
+  if(name.endsWith('/A/2026.sqlite'))throw Error('failed A');
+  if(name.endsWith('/B/2026.sqlite')){await new Promise(resolve=>setTimeout(resolve,20));settled=true;}
+ };
+ await assert.rejects(syncPricePartitions(s.source,f.bucket,{publishConcurrency:2}),/failed A/);
+ assert(settled);const p=decode(JSON.parse(f.objects.get(progressName)!.bytes.toString()));
+ assert.equal(p.leaseUntil,0);assert.equal(p.pending.lastPublished,undefined);
+ const reads=s.state.reads.length;f.controls.beforeUpload=undefined;
+ assert.equal((await syncPricePartitions(s.source,f.bucket,{publishConcurrency:2})).status,'complete');assert.equal(s.state.reads.length,reads);
+});
+
+test('large scan pages still obey a non-multiple read budget across restarts',async()=>{
+ const f=fixture(),s=sourceFixture(Array.from({length:1600},(_,i)=>row('P'+String(i).padStart(4,'0'))),1000);
+ const a=await syncPricePartitions(s.source,f.bucket,{pageSize:1000,maxReads:1251});assert.equal(a.reads,1251);assert.equal(a.status,'partial');
+ const b=await syncPricePartitions(s.source,f.bucket,{pageSize:1000,maxReads:100,maxPartitions:1});assert.equal(b.reads,100);assert.equal(new Set(s.state.reads).size,1351);
+ await assert.rejects(syncPricePartitions(s.source,f.bucket,{pageSize:1001}),/limit/);
 });

@@ -1,5 +1,7 @@
 import Database from 'better-sqlite3';
 import {randomUUID} from 'node:crypto';
+import {createWriteStream} from 'node:fs';
+import {pipeline} from 'node:stream/promises';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -16,7 +18,7 @@ const CHECKPOINT='price-snapshots/checkpoint.json';
 // Longer than the deployed task's hard 30-minute timeout. A killed worker
 // cannot overlap a successor; normal exits release the lease immediately.
 const LEASE_MS=35*60_000;
-export type PriceSyncOptions={maxReads?:number;maxPartitions?:number;maxDurationMs?:number;now?:()=>number};
+export type PriceSyncOptions={maxReads?:number;maxPartitions?:number;maxDurationMs?:number;pageSize?:number;publishConcurrency?:number;now?:()=>number};
 type Pending={id:string;since?:Timestamp;through:Timestamp;checkpointGeneration:string;
  cursor?:PriceCursor;pages:number;scanned:boolean;lastPublished?:string;cleanup?:number};
 type Progress={version:1;owner:string;leaseUntil:number;pending?:Pending};
@@ -32,6 +34,8 @@ function positive(value:number,name:string){if(!Number.isSafeInteger(value)||val
 export function priceSyncOptions(env:Record<string,string|undefined>=process.env):PriceSyncOptions {
  return {maxReads:positive(Number(env.PRICE_SYNC_MAX_READS??50_000),'PRICE_SYNC_MAX_READS'),
   maxPartitions:positive(Number(env.PRICE_SYNC_MAX_PARTITIONS??500),'PRICE_SYNC_MAX_PARTITIONS'),
+  pageSize:positive(Number(env.PRICE_SYNC_PAGE_SIZE??250),'PRICE_SYNC_PAGE_SIZE'),
+  publishConcurrency:positive(Number(env.PRICE_SYNC_PUBLISH_CONCURRENCY??1),'PRICE_SYNC_PUBLISH_CONCURRENCY'),
   maxDurationMs:positive(Number(env.PRICE_SYNC_MAX_DURATION_MS??20*60_000),'PRICE_SYNC_MAX_DURATION_MS')};
 }
 
@@ -40,6 +44,8 @@ export function priceSyncOptions(env:Record<string,string|undefined>=process.env
 export async function syncPricePartitions(source:Source,bucket:Bucket,options:PriceSyncOptions={}){
  const maxReads=positive(options.maxReads??50_000,'maxReads');
  const maxPartitions=positive(options.maxPartitions??500,'maxPartitions');
+ const pageSize=positive(options.pageSize??250,'pageSize'),publishConcurrency=positive(options.publishConcurrency??1,'publishConcurrency');
+ if(pageSize>1000||publishConcurrency>8)throw Error('Price page/concurrency limit exceeded');
  const now=options.now??Date.now,deadline=now()+positive(options.maxDurationMs??20*60_000,'maxDurationMs');
  if(!source.pricePage)throw Error('Bounded price page source required');
  const stored=await readObject(bucket,PROGRESS);
@@ -81,9 +87,9 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
    // Recover an uploaded page even if the process died before saving its cursor.
    const saved=await readObject(bucket,pageName(pending.pages));
    const page:PricePage=saved?decode(JSON.parse(gunzipSync(saved.bytes).toString())) as PricePage:
-    await source.pricePage(pending.since,pending.through,pending.cursor,Math.min(250,maxReads-reads));
+    await source.pricePage(pending.since,pending.through,pending.cursor,Math.min(pageSize,maxReads-reads));
    if(!saved)reads+=page.reads;
-   if(!Number.isInteger(page.reads)||page.reads<1||page.reads>250||(!page.done&&!page.cursor))throw Error('Invalid price page');
+   if(!Number.isInteger(page.reads)||page.reads<1||page.reads>1000||(!page.done&&!page.cursor))throw Error('Invalid price page');
    for(const row of page.rows){
     if(!(row.data.updatedAt instanceof Timestamp))throw Error('Price timestamp migration required');
     if(!pricePartition(row.id))throw Error(`Unsupported price ID: ${row.id}`);
@@ -93,42 +99,68 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
    pending.cursor=page.cursor;pending.pages++;pending.scanned=page.done;
    changed+=page.rows.length;deleted+=page.rows.filter(row=>row.data.isDeleted===true).length;
    await persist();
+   if(pending.pages%100===0)console.info(JSON.stringify({event:'price_sync_progress',phase:'scan',scanId:pending.id,savedPages:pending.pages,reads,cursor:pending.cursor}));
   }
   if(!pending.scanned||now()>=deadline)return result('partial');
   if(pending.cleanup===undefined){
    // Disk staging bounds decoded memory to one ticker/year. Rebuilding this
    // index after interruption reads Storage only, never Firestore.
    directory=await mkdtemp(join(tmpdir(),'price-changes-'));
-   staging=new Database(join(directory,'changes.sqlite'));
-   staging.exec('PRAGMA cache_size=-8192; PRAGMA journal_mode=OFF; CREATE TABLE changes (object TEXT NOT NULL,id TEXT NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(object,id)) WITHOUT ROWID');
-   const insert=staging.prepare('INSERT OR REPLACE INTO changes VALUES(?,?,?)');
-   const stage=staging.transaction((rows:Row[])=>{for(const row of rows){
-    const object=pricePartition(row.id)!.object;
-    if(!pending.lastPublished||object>pending.lastPublished)insert.run(object,row.id,gzipSync(JSON.stringify(encode(row.data))));
-   }});
-   for(let n=0;n<pending.pages;n+=16){
-    if(now()>=deadline)return result('partial');
-    const batch=await Promise.all(Array.from({length:Math.min(16,pending.pages-n)},(_,i)=>readObject(bucket,pageName(n+i))));
-    for(const page of batch){
-     if(!page)throw Error('Missing saved price page');
-     stage((decode(JSON.parse(gunzipSync(page.bytes).toString())) as PricePage).rows);
+   const indexPath=join(directory,'changes.sqlite'),indexName=`price-snapshots/staging/${pending.id}/changes.sqlite`;
+   let indexGeneration:string|undefined;
+   try{const [meta]=await bucket.file(indexName).getMetadata();indexGeneration=String(meta.generation);}
+   catch(error){if((error as {code?:number}).code!==404)throw error;}
+   if(indexGeneration){
+    await pipeline(bucket.file(indexName,{generation:indexGeneration}).createReadStream(),createWriteStream(indexPath,{flags:'wx'}));
+    staging=new Database(indexPath,{readonly:true});
+   }else{
+    staging=new Database(indexPath);
+    staging.exec('PRAGMA cache_size=-8192; PRAGMA journal_mode=OFF; CREATE TABLE changes (object TEXT NOT NULL,id TEXT NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(object,id)) WITHOUT ROWID');
+    const insert=staging.prepare('INSERT OR REPLACE INTO changes VALUES(?,?,?)');
+    const stage=staging.transaction((rows:Row[])=>{for(const row of rows){
+     const object=pricePartition(row.id)!.object;
+     insert.run(object,row.id,gzipSync(JSON.stringify(encode(row.data))));
+    }});
+    for(let n=0;n<pending.pages;n+=16){
+     if(now()>=deadline)return result('partial');
+     const batch=await Promise.all(Array.from({length:Math.min(16,pending.pages-n)},(_,i)=>readObject(bucket,pageName(n+i))));
+     for(const page of batch){
+      if(!page)throw Error('Missing saved price page');
+      stage((decode(JSON.parse(gunzipSync(page.bytes).toString())) as PricePage).rows);
+     }
+     if(n%160===0)console.info(JSON.stringify({event:'price_sync_progress',phase:'index',indexedPages:Math.min(n+16,pending.pages),savedPages:pending.pages}));
     }
+    staging.close();staging=undefined;
+    // Immutable index: later publication runs need one download, not another
+    // download/decode/regroup of every saved page. Existing page journals work.
+    await bucket.upload(indexPath,{destination:indexName,resumable:true,metadata:{contentType:'application/vnd.sqlite3'},preconditionOpts:{ifGenerationMatch:0}});
+    staging=new Database(indexPath,{readonly:true});
    }
-   for(const {object} of staging.prepare('SELECT DISTINCT object FROM changes ORDER BY object').iterate() as Iterable<{object:string}>){
+   const objects=(staging.prepare('SELECT DISTINCT object FROM changes WHERE object>? ORDER BY object').all(pending.lastPublished??'') as {object:string}[]).map(row=>row.object);
+   for(let offset=0;offset<objects.length;){
     if(partitions>=maxPartitions||now()>=deadline)return result('partial');
-    const rows=staging.prepare('SELECT id,payload FROM changes WHERE object=? ORDER BY id').all(object).map(value=>{
-     const row=value as {id:string;payload:Buffer};return {id:row.id,data:decode(JSON.parse(gunzipSync(row.payload).toString()))} as Row;
-    });
-    const files=sqliteSnapshotFiles(bucket,()=>object);
-    try{
-     const previous=await files.load('eod_prices');
-     if(previous.snapshot&&previous.snapshot.watermark.valueOf()>pending.through.valueOf())throw Error('Newer price partition already published');
-     const merged=new Map(previous.snapshot?.rows.map(row=>[row.id,row])??[]);
-     for(const row of rows){if(row.data.isDeleted===true)merged.delete(row.id);else merged.set(row.id,row);}
-     await files.save('eod_prices',{version:1,collection:'eod_prices',watermark:pending.through,rows:[...merged.values()]},previous.generation);
-     records+=merged.size;partitions++;
-    }finally{await files.close();}
-    pending.lastPublished=object;await persist();
+    const batch=objects.slice(offset,offset+Math.min(publishConcurrency,maxPartitions-partitions));
+    // Wait for every upload, including failures, before advancing or releasing
+    // the lease. A failed batch replays idempotently from the prepared index.
+    const published=await Promise.allSettled(batch.map(async object=>{
+     const rows=staging!.prepare('SELECT id,payload FROM changes WHERE object=? ORDER BY id').all(object).map(value=>{
+      const row=value as {id:string;payload:Buffer};return {id:row.id,data:decode(JSON.parse(gunzipSync(row.payload).toString()))} as Row;
+     });
+     const files=sqliteSnapshotFiles(bucket,()=>object);
+     try{
+      const previous=await files.load('eod_prices');
+      if(previous.snapshot&&previous.snapshot.watermark.valueOf()>pending.through.valueOf())throw Error('Newer price partition already published');
+      const merged=new Map(previous.snapshot?.rows.map(row=>[row.id,row])??[]);
+      for(const row of rows){if(row.data.isDeleted===true)merged.delete(row.id);else merged.set(row.id,row);}
+      await files.save('eod_prices',{version:1,collection:'eod_prices',watermark:pending.through,rows:[...merged.values()]},previous.generation);
+      return merged.size;
+     }finally{await files.close();}
+    }));
+    const failure=published.find(value=>value.status==='rejected');if(failure?.status==='rejected')throw failure.reason;
+    for(const value of published)if(value.status==='fulfilled')records+=value.value;
+    partitions+=batch.length;offset+=batch.length;
+    pending.lastPublished=batch.at(-1);await persist();
+    if(partitions%100===0)console.info(JSON.stringify({event:'price_sync_progress',phase:'publish',partitions,lastPublished:pending.lastPublished}));
    }
    const latest=await readObject(bucket,CHECKPOINT);
    const watermark=latest?decode(JSON.parse(latest.bytes.toString()).watermark) as Timestamp:undefined;
@@ -143,6 +175,7 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
    await Promise.all(Array.from({length:end-pending.cleanup},(_,i)=>bucket.file(pageName(pending.cleanup!+i)).delete({ignoreNotFound:true})));
    pending.cleanup=end;await persist();
   }
+  await bucket.file(`price-snapshots/staging/${pending.id}/changes.sqlite`).delete({ignoreNotFound:true});
   delete progress.pending;await persist();return result('complete');
  }finally{
   staging?.close();if(directory)await rm(directory,{recursive:true,force:true});
