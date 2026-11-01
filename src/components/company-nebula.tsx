@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { AddEquation, BufferGeometry, Color, CustomBlending, Float32BufferAttribute, OneFactor, Vector3, ZeroFactor, type Points, type ShaderMaterial } from 'three';
-import { galaxyArmPoint, galaxyToWorld, type GalaxyArm } from '@/lib/knowledge-graph/layout-galaxy';
+import { galaxyArmPoint, galaxyToWorld, type GalaxyArm } from '@/lib/ui/knowledge-graph/layout-galaxy';
 
 // The nebula is made of the companies: every company carries a swarm of stars
 // and dust in its sector colour, and each sector arm is filled with the same

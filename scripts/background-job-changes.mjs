@@ -12,7 +12,7 @@ export const UI_LIBRARY_ROOT = 'src/lib/ui/';
 const retiredUiPaths = new Set([
   'src/lib/company-timeline.ts',
   'src/lib/compare-video.ts',
-  ...['vertical-tree','vertical-tree-geometry','tree-tour','tour-motion','label-fade','intro-orbit','industry-tree','hierarchy-tour'].map(name=>`src/lib/knowledge-graph/${name}.ts`),
+  ...['vertical-tree','vertical-tree-geometry','tree-tour','tour-motion','label-fade','intro-orbit','industry-tree','hierarchy-tour','layout-galaxy'].map(name=>`src/lib/knowledge-graph/${name}.ts`),
 ]);
 export function backgroundJobTarget(paths) {
   let financial = false, directory = false;

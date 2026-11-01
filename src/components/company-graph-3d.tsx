@@ -13,7 +13,7 @@ import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/kno
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
-import { layoutGalaxy } from "@/lib/knowledge-graph/layout-galaxy";
+import { layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
 import { densitySelection } from "@/lib/knowledge-graph/density";
 import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
