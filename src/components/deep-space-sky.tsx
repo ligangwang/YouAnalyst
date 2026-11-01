@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import { BackSide, BufferGeometry, CubeCamera, Float32BufferAttribute, Mesh, Scene, ShaderMaterial, SphereGeometry, Vector2, WebGLCubeRenderTarget, type PerspectiveCamera } from 'three';
 
@@ -132,7 +132,9 @@ export function DeepSpaceSky({ height, focused = false, galaxy = false }: { heig
   const target = useMemo(() => new WebGLCubeRenderTarget(SKY_FACE), []);
   const uniforms = useMemo(() => ({ light: { value: target.texture }, plane: { value: normalize(PLANE) }, resolution: { value: new Vector2(1, 1) }, intensity: { value: focused ? 0.45 : 1 } }), [target, focused]);
   useEffect(() => () => target.dispose(), [target]);
-  const [baked, setBaked] = useState(false);
+  // Draw the dark sky from the first frame; the baked light fills in a face per frame.
+  // Hiding the dome until then let the page background show through the canvas.
+  useLayoutEffect(() => { gl.initRenderTarget(target); }, [gl, target]);
   // Bake one face per animation frame so no single task blocks input on software
   // renderers; rebake after a restored context drops the cubemap.
   useEffect(() => {
@@ -152,7 +154,7 @@ export function DeepSpaceSky({ height, focused = false, galaxy = false }: { heig
       gl.render(scene, camera.children[face] as PerspectiveCamera);
       gl.setRenderTarget(previous, previousFace, previousLevel);
       if (face < 5) frame = requestAnimationFrame(() => bakeFace(face + 1));
-      else { setBaked(true); invalidate(); }
+      else invalidate();
     };
     const bake = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => bakeFace(0)); };
     bake();
@@ -184,7 +186,7 @@ export function DeepSpaceSky({ height, focused = false, galaxy = false }: { heig
   useEffect(() => () => bandStars.dispose(), [bandStars]);
   return <group name="deep-space-sky" position={[0, height / 2, 0]}>
     {/* Read the drawing buffer at draw time so DPR changes keep the calm area centered. */}
-    <mesh visible={baked} renderOrder={-3} raycast={() => {}} frustumCulled={false} onBeforeRender={renderer => renderer.getDrawingBufferSize(uniforms.resolution.value)}>
+    <mesh renderOrder={-3} raycast={() => {}} frustumCulled={false} onBeforeRender={renderer => renderer.getDrawingBufferSize(uniforms.resolution.value)}>
       <sphereGeometry args={[SKY_RADIUS, 64, 32]}/>
       <shaderMaterial side={BackSide} depthWrite={false} toneMapped={false} uniforms={uniforms} vertexShader={skyVertex} fragmentShader={skyFragment}/>
     </mesh>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Group, Quaternion, Vector3, type Mesh, type Points, type ShaderMaterial } from 'three';
+import { AddEquation, BufferGeometry, CustomBlending, OneFactor, ZeroFactor, Float32BufferAttribute, Group, Quaternion, Vector3, type Mesh, type Points, type ShaderMaterial } from 'three';
 
 // The company graph sits on an outer arm of a spiral galaxy, like the Sun in the
 // Milky Way. The camera opens far enough out to frame the whole spiral, flies in
@@ -96,6 +96,11 @@ const glowVertex = `uniform float glowSize; varying vec2 local; varying float al
   }`;
 const glowFragment = `uniform vec3 glowColor; uniform float falloff; varying vec2 local; varying float alpha;
   void main() { float r = length(local) * 2.; float a = exp(-r * r * falloff) * alpha; if (a < .003) discard; gl_FragColor = vec4(glowColor * a, 1.); }`;
+
+// Glow layers add light to whatever is behind them but leave the canvas alpha alone.
+// Additive blending also raised alpha, so on a transparent canvas or before the sky
+// bake finished, halos and dust turned into opaque dark shapes over the page.
+const addLight = { blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneFactor, blendSrcAlpha: ZeroFactor, blendDstAlpha: OneFactor } as const;
 
 function geometry(positions: number[], colors: number[], sizes: number[]) {
   const result = new BufferGeometry();
@@ -206,12 +211,12 @@ export function GalaxyDisc({ graphRadius, introRef, focused }: { graphRadius: nu
         <shaderMaterial ref={starMaterial} uniforms={uniforms} vertexShader={starVertex} fragmentShader={starFragment} transparent depthWrite={false} vertexColors toneMapped={false}/>
       </points>
       <points ref={dustPoints} geometry={dust} renderOrder={-1} raycast={() => {}} frustumCulled={false}>
-        <shaderMaterial uniforms={uniforms} vertexShader={dustVertex} fragmentShader={dustFragment} transparent depthWrite={false} blending={AdditiveBlending} vertexColors toneMapped={false}/>
+        <shaderMaterial uniforms={uniforms} vertexShader={dustVertex} fragmentShader={dustFragment} transparent depthWrite={false} {...addLight} vertexColors toneMapped={false}/>
       </points>
     </group>
     {[haloGlow, core].map((glow, i) => <mesh key={i} ref={i ? undefined : halo} renderOrder={-1} raycast={() => {}} frustumCulled={false}>
       <planeGeometry args={[1, 1]}/>
-      <shaderMaterial uniforms={glow} vertexShader={glowVertex} fragmentShader={glowFragment} transparent depthWrite={false} blending={AdditiveBlending} toneMapped={false}/>
+      <shaderMaterial uniforms={glow} vertexShader={glowVertex} fragmentShader={glowFragment} transparent depthWrite={false} {...addLight} toneMapped={false}/>
     </mesh>)}
   </group>;
 }
