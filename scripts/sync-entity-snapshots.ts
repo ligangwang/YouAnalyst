@@ -1,4 +1,4 @@
-import {syncPricePartitions} from '../src/lib/entity-snapshots/price-sync';
+import {syncPricePartitions,priceSyncOptions} from '../src/lib/entity-snapshots/price-sync';
 import {queueFundamentalsSeeding} from '../src/lib/fundamentals/seed-queue';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getStorage} from 'firebase-admin/storage';
@@ -20,9 +20,9 @@ async function main(){
   for(const collection of collections){
     if(collection==='eod_prices'){
       if(process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'){
-        const result=await syncPricePartitions(source,getStorage().bucket(bucketName));
+        const result=await syncPricePartitions(source,getStorage().bucket(bucketName),priceSyncOptions());
         changed+=result.changed;records+=result.records;deleted+=result.deleted;
-        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'price_partition_sync',status:'success',...result}));
+        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'price_partition_sync',...result}));
       }
       continue;
     }

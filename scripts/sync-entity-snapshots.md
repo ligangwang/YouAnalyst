@@ -49,3 +49,45 @@ Soft deletion retains final documents, not all historical versions. Complete
 timeline playback and version history are not implemented by this job.
 
 Before publishing the instruments file, the job compares company-derived instrument identity against the previous instrument file in memory. Only changed entries are transactionally synchronized; unchanged entries cause no extra Firestore lookup. The initial run reads existing instruments into a file first. Legacy company aliases and provider history keys remain available during the gradual consumer cutover.
+
+
+## Bounded, resumable price sync
+
+Prices use `price-snapshots/<market>/<ticker>/<year>.sqlite`, independently of
+entity snapshots. `PRICE_TIMESTAMP_MIGRATION_COMPLETE=1` enables this phase.
+The defaults are 50,000 price document reads, 500 partition publications, and
+20 minutes per invocation. Configure `PRICE_SYNC_MAX_READS`,
+`PRICE_SYNC_MAX_PARTITIONS`, and `PRICE_SYNC_MAX_DURATION_MS` on the job.
+The read cap includes empty queries and operational documents. The single
+company boundary lookup and index-entry billing are outside this price-document
+budget. The runtime deadline is checked between operations; the Cloud Run task
+retains its hard 30-minute limit. Keep that hard timeout below the 35-minute lease.
+
+`price-snapshots/progress.json` stores a fixed scan boundary, the timestamp/ID
+cursor (including timestamp nanoseconds), page count, and publication progress.
+Compressed pages under `price-snapshots/staging/<scan-id>/` are saved before the
+cursor advances. On restart an already uploaded page is reused even if its cursor
+save failed. Only the in-flight page can need rereading if killed before upload.
+No Firestore collection or document fields are added.
+
+A partial scan does not publish any price partitions or advance the completed
+`price-snapshots/checkpoint.json` watermark. After scanning finishes, complete
+changed ticker/year partitions publish conditionally, one at a time. Publication
+can span runs and resumes using saved pages without Firestore rereads. The global
+watermark advances only after all partitions publish. Cleanup is resumable too;
+staged pages are deleted after completion. The previous complete partition stays
+available until its replacement is ready. Partitions publish independently, not
+as one cross-partition transaction.
+
+A generation-checked lease prevents overlapping workers from spending the same
+read budget. Clean exits release it; killed executions expire after 35 minutes.
+Logs report `status: partial`, `complete`, or `busy`, and per-invocation `reads`,
+`changed`, and `partitions`. Partial is successful saved progress, not a failure.
+Invalid storage or missing journal pages fail closed rather than restart a scan.
+
+The existing daily schedule is unchanged. A large backlog now takes multiple
+bounded executions: 3.5 million documents need about 70 scanning runs at the
+50,000 default, plus publication runs. Operators can execute additional runs
+sequentially or tune the budget/cadence after observing usage; this change does
+not automatically launch catch-up runs. Do not run an older unbounded image
+concurrently or roll back to it while saved progress is pending.
