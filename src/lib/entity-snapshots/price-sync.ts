@@ -103,10 +103,11 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
   }
   if(!pending.scanned||now()>=deadline)return result('partial');
   if(pending.cleanup===undefined){
-   // Disk staging bounds decoded memory to one ticker/year. Rebuilding this
-   // index after interruption reads Storage only, never Firestore.
+   // Disk staging bounds decoded memory to one ticker/year. An unfinished
+   // index and its embedded page cursor survive bounded execution deadlines.
    directory=await mkdtemp(join(tmpdir(),'price-changes-'));
    const indexPath=join(directory,'changes.sqlite'),indexName=`price-snapshots/staging/${pending.id}/changes.sqlite`;
+   const partialName=`price-snapshots/staging/${pending.id}/partial.sqlite`;
    let indexGeneration:string|undefined;
    try{const [meta]=await bucket.file(indexName).getMetadata();indexGeneration=String(meta.generation);}
    catch(error){if((error as {code?:number}).code!==404)throw error;}
@@ -114,20 +115,32 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
     await pipeline(bucket.file(indexName,{generation:indexGeneration}).createReadStream(),createWriteStream(indexPath,{flags:'wx'}));
     staging=new Database(indexPath,{readonly:true});
    }else{
+    let partialGeneration:string|undefined;
+    try{const [meta]=await bucket.file(partialName).getMetadata();partialGeneration=String(meta.generation);}
+    catch(error){if((error as {code?:number}).code!==404)throw error;}
+    if(partialGeneration)await pipeline(bucket.file(partialName,{generation:partialGeneration}).createReadStream(),createWriteStream(indexPath,{flags:'wx'}));
     staging=new Database(indexPath);
-    staging.exec('PRAGMA cache_size=-8192; PRAGMA journal_mode=OFF; CREATE TABLE changes (object TEXT NOT NULL,id TEXT NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(object,id)) WITHOUT ROWID');
+    staging.exec('PRAGMA cache_size=-8192; PRAGMA journal_mode=OFF');
+    if(!partialGeneration)staging.exec('CREATE TABLE changes (object TEXT NOT NULL,id TEXT NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(object,id)) WITHOUT ROWID; CREATE TABLE index_progress (next_page INTEGER NOT NULL); INSERT INTO index_progress VALUES(0)');
+    const nextPage=(staging.prepare('SELECT next_page FROM index_progress').get() as {next_page:number}).next_page;
+    if(!Number.isSafeInteger(nextPage)||nextPage<0||nextPage>pending.pages)throw Error('Invalid saved price index progress');
     const insert=staging.prepare('INSERT OR REPLACE INTO changes VALUES(?,?,?)');
     const stage=staging.transaction((rows:Row[])=>{for(const row of rows){
      const object=pricePartition(row.id)!.object;
      insert.run(object,row.id,gzipSync(JSON.stringify(encode(row.data))));
     }});
-    for(let n=0;n<pending.pages;n+=16){
-     if(now()>=deadline)return result('partial');
+    for(let n=nextPage;n<pending.pages;n+=16){
+     if(now()>=deadline){
+      staging.close();staging=undefined;
+      await bucket.upload(indexPath,{destination:partialName,resumable:true,metadata:{contentType:'application/vnd.sqlite3'},preconditionOpts:{ifGenerationMatch:partialGeneration??0}});
+      return result('partial');
+     }
      const batch=await Promise.all(Array.from({length:Math.min(16,pending.pages-n)},(_,i)=>readObject(bucket,pageName(n+i))));
      for(const page of batch){
       if(!page)throw Error('Missing saved price page');
       stage((decode(JSON.parse(gunzipSync(page.bytes).toString())) as PricePage).rows);
      }
+     staging.prepare('UPDATE index_progress SET next_page=?').run(Math.min(n+16,pending.pages));
      if(n%160===0)console.info(JSON.stringify({event:'price_sync_progress',phase:'index',indexedPages:Math.min(n+16,pending.pages),savedPages:pending.pages}));
     }
     staging.close();staging=undefined;
@@ -176,6 +189,7 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
    pending.cleanup=end;await persist();
   }
   await bucket.file(`price-snapshots/staging/${pending.id}/changes.sqlite`).delete({ignoreNotFound:true});
+  await bucket.file(`price-snapshots/staging/${pending.id}/partial.sqlite`).delete({ignoreNotFound:true});
   delete progress.pending;await persist();return result('complete');
  }finally{
   staging?.close();if(directory)await rm(directory,{recursive:true,force:true});

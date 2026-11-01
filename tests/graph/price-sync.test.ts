@@ -203,3 +203,25 @@ test('five-thousand-document pages preserve the strict remaining read limit',asy
  assert.equal(result.reads,6001);assert.equal(s.state.calls,2);assert.equal(new Set(s.state.reads).size,6001);
  assert.equal(result.status,'partial');
 });
+
+test('index construction resumes its saved page cursor across multiple deadlines',async()=>{
+ const f=fixture(),s=sourceFixture(Array.from({length:40},(_,i)=>row('P'+String(i).padStart(3,'0'))),1);
+ await syncPricePartitions(s.source,f.bucket,{maxReads:40});
+ let clock=0,downloaded=0,floor=0;
+ f.controls.beforeDownload=name=>{
+  const match=name.match(/\/(\d+)\.json\.gz$/);if(!match)return;
+  assert(Number(match[1])>=floor,'already indexed page downloaded again');
+  downloaded++;if(downloaded===16)clock=21;
+ };
+ assert.equal((await syncPricePartitions(s.source,f.bucket,{now:()=>clock,maxDurationMs:20})).status,'partial');
+ assert.equal(downloaded,16);assert([...f.objects.keys()].some(k=>k.endsWith('/partial.sqlite')));
+ const calls=s.state.calls;
+ floor=16;clock=0;downloaded=0;
+ assert.equal((await syncPricePartitions(s.source,f.bucket,{now:()=>clock,maxDurationMs:20})).status,'partial');
+ assert.equal(downloaded,16);assert.equal(s.state.calls,calls);
+ floor=32;clock=0;downloaded=0;
+ assert.equal((await syncPricePartitions(s.source,f.bucket,{now:()=>clock,maxDurationMs:20})).status,'complete');
+ assert.equal(downloaded,9);assert.equal(s.state.calls,calls);
+ assert.equal((await prices(f.bucket,'P039'))!.rows.length,1);
+ assert(![...f.objects.keys()].some(k=>k.includes('/staging/')));
+});
