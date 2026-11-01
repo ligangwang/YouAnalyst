@@ -225,3 +225,16 @@ test('index construction resumes its saved page cursor across multiple deadlines
  assert.equal((await prices(f.bucket,'P039'))!.rows.length,1);
  assert(![...f.objects.keys()].some(k=>k.includes('/staging/')));
 });
+
+test('production progress pacing and transient mutation throttling preserve the completed scan',async()=>{
+ assert.equal(priceSyncOptions({}).progressWriteIntervalMs,1100);
+ const f=fixture(),s=sourceFixture([row('A')]);let throttled=false;
+ f.controls.beforeSave=name=>{
+  if(name===progressName&&!throttled&&f.objects.has(checkpointName)){
+   throttled=true;throw Object.assign(Error('rate limit'),{code:429});
+  }
+ };
+ const result=await syncPricePartitions(s.source,f.bucket,{progressWriteIntervalMs:1});
+ assert(throttled);assert.equal(result.status,'complete');assert.equal(s.state.calls,1);
+ assert.equal(decode(JSON.parse(f.objects.get(progressName)!.bytes.toString())).pending,undefined);
+});

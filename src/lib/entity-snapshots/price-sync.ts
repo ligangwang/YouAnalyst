@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import {randomUUID} from 'node:crypto';
 import {createWriteStream} from 'node:fs';
 import {pipeline} from 'node:stream/promises';
+import {setTimeout as sleep} from 'node:timers/promises';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -18,7 +19,7 @@ const CHECKPOINT='price-snapshots/checkpoint.json';
 // Longer than the deployed task's hard 30-minute timeout. A killed worker
 // cannot overlap a successor; normal exits release the lease immediately.
 const LEASE_MS=35*60_000;
-export type PriceSyncOptions={maxReads?:number;maxPartitions?:number;maxDurationMs?:number;pageSize?:number;publishConcurrency?:number;now?:()=>number};
+export type PriceSyncOptions={maxReads?:number;maxPartitions?:number;maxDurationMs?:number;pageSize?:number;publishConcurrency?:number;progressWriteIntervalMs?:number;now?:()=>number};
 type Pending={id:string;since?:Timestamp;through:Timestamp;checkpointGeneration:string;
  cursor?:PriceCursor;pages:number;scanned:boolean;lastPublished?:string;cleanup?:number};
 type Progress={version:1;owner:string;leaseUntil:number;pending?:Pending};
@@ -36,6 +37,7 @@ export function priceSyncOptions(env:Record<string,string|undefined>=process.env
   maxPartitions:positive(Number(env.PRICE_SYNC_MAX_PARTITIONS??500),'PRICE_SYNC_MAX_PARTITIONS'),
   pageSize:positive(Number(env.PRICE_SYNC_PAGE_SIZE??250),'PRICE_SYNC_PAGE_SIZE'),
   publishConcurrency:positive(Number(env.PRICE_SYNC_PUBLISH_CONCURRENCY??1),'PRICE_SYNC_PUBLISH_CONCURRENCY'),
+  progressWriteIntervalMs:positive(Number(env.PRICE_SYNC_PROGRESS_WRITE_INTERVAL_MS??1100),'PRICE_SYNC_PROGRESS_WRITE_INTERVAL_MS'),
   maxDurationMs:positive(Number(env.PRICE_SYNC_MAX_DURATION_MS??20*60_000),'PRICE_SYNC_MAX_DURATION_MS')};
 }
 
@@ -54,10 +56,22 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
  if(progress.version!==1||!Number.isFinite(progress.leaseUntil))throw Error('Invalid price sync progress');
  if(progress.leaseUntil>now())return {collection:'eod_prices',status:'busy',changed:0,reads:0,partitions:0,records:0,deleted:0};
  progress.owner=randomUUID();
+ const writeInterval=options.progressWriteIntervalMs??0;
+ if(!Number.isSafeInteger(writeInterval)||writeInterval<0)throw Error('Invalid progress write interval');
+ let lastWrite=0;
  const persist=async()=>{
   const revision=randomUUID();
-  await bucket.file(PROGRESS).save(JSON.stringify(encode({...progress,revision})),{resumable:false,
-   metadata:{contentType:'application/json',cacheControl:'private, no-cache'},preconditionOpts:{ifGenerationMatch:generation}});
+  for(let attempt=0;;attempt++){
+   const delay=lastWrite+writeInterval-Date.now();if(delay>0)await sleep(delay);
+   try{
+    await bucket.file(PROGRESS).save(JSON.stringify(encode({...progress,revision})),{resumable:false,
+     metadata:{contentType:'application/json',cacheControl:'private, no-cache'},preconditionOpts:{ifGenerationMatch:generation}});
+    lastWrite=Date.now();break;
+   }catch(error){
+    if((error as {code?:number}).code!==429||attempt>=4)throw error;
+    await sleep(1000*2**attempt);
+   }
+  }
   const saved=await readObject(bucket,PROGRESS);
   if(!saved||decode(JSON.parse(saved.bytes.toString())).revision!==revision)throw Error('Price sync lease lost');
   generation=saved.generation;
