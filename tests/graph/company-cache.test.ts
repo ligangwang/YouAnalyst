@@ -85,19 +85,23 @@ test('theme enrollment observes source membership changes without checkpoint rea
 });
 
 
-test('cold page graph and news share membership reads without downloading directory files',async t=>{
- t.after(closeLocalCaches);let push!:(value:unknown)=>void,started!:()=>void,subscriptions=0,files=0;
- const ready=new Promise<void>(resolve=>{started=resolve;});
- const query={where:()=>query,isEqual:(other:unknown)=>other===query,onSnapshot:(next:(value:unknown)=>void)=>{subscriptions++;push=next;started();return ()=>{};},select:()=>{throw Error('page query must use shared live membership');}};
+test('published graph bootstrap shares projected reads and preserves live corrections without files or unrelated fields',async t=>{
+ t.after(closeLocalCaches);let push!:(value:unknown)=>void,subscriptions=0,files=0,reads=0;
+ const doc=(id:string,data:Record<string,unknown>)=>({id,exists:true,get:(field:string)=>data[field],data:()=>{throw Error('Unrelated company fields decoded');}});
+ const snapshot=(seconds:number,docs:unknown[])=>({readTime:{seconds,nanoseconds:0},docs});
+ const initial=snapshot(10,[doc('US:AMD',{name:'AMD',themeIds:['ai'],newsSources:[]}),doc('US:GONE',{isDeleted:true,themeIds:['ai']}),doc('US:HIDDEN',{themeIds:['unpublished']})]);
+ const query={where:(field:string,op:string,value:string)=>{assert.deepEqual([field,op,value],['inGraph.status','==','PUBLISHED']);return query;},
+  onSnapshot:(next:(value:unknown)=>void)=>{subscriptions++;push=next;return ()=>{};},
+  select:(...fields:string[])=>{assert(!fields.includes('searchPrefixes'));assert(fields.includes('newsSources'));return {get:async()=>{reads++;return initial;}};}};
  const db=withThemeCatalog({collection:(name:string)=>{assert.equal(name,'companies');return query;}} as unknown as Firestore);
  enableCompanyDirectory(db,db,{file:async()=>{files++;throw Error('whole directory read');}});
- const graph=loadThemeEnrolledCompanies(db,true),news=loadNewsSourceCompanies(db,'ai');await ready;
- const doc=(id:string,data:Record<string,unknown>)=>({id,data:()=>data});
- push({docs:[doc('US:AMD',{name:'AMD',newsSources:[]}),doc('US:GONE',{isDeleted:true})]});
- assert.deepEqual((await graph).docs.map(doc=>doc.id),['US:AMD']);assert.deepEqual((await news).map(doc=>doc.id),['US:AMD']);
- push({docs:[doc('US:MU',{name:'Micron'})]});
+ const [graph,news]=await Promise.all([loadThemeEnrolledCompanies(db,true),loadNewsSourceCompanies(db,'ai')]);
+ assert.deepEqual(graph.docs.map(doc=>doc.id),['US:AMD']);assert.deepEqual(news.map(doc=>doc.id),['US:AMD']);assert.equal(reads,1);assert.equal(subscriptions,1);
+ push(snapshot(9,[doc('US:OLD',{themeIds:['ai']})]));assert.equal((await loadThemeEnrolledCompanies(db,true)).docs[0].id,'US:AMD');
+ push(snapshot(11,[doc('US:MU',{name:'Micron',themeIds:['ai']})]));
  assert.deepEqual((await loadNewsSourceCompanies(db,'ai')).map(doc=>doc.id),['US:MU']);
- assert.equal(subscriptions,1);assert.equal(files,0);
+ push(snapshot(12,[]));assert.equal((await loadThemeEnrolledCompanies(db,true)).docs.length,0);
+ assert.equal(reads,1);assert.equal(subscriptions,1);assert.equal(files,0);
 });
 
 test('graph news reuses member records and loads only relationship neighbors, preserving source approvals',async()=>{
