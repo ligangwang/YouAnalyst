@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Firestore, Timestamp} from 'firebase-admin/firestore';
 import {loadThemeEnrolledCompanies,loadSingleThemeCompanies} from '../../src/lib/knowledge-graph/company-cache';
+import {loadNewsSourceCompanies,graphNewsSources} from '../../src/lib/intelligence/collectors/source-service';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {enableCompanyDirectory,refreshCompanyDirectoryIds,withPageEntityReads} from '../../src/lib/local-cache/company-directory';
@@ -81,4 +82,30 @@ test('theme enrollment observes source membership changes without checkpoint rea
  const db=withThemeCatalog({collection:(name:string)=>{assert.equal(name,'companies');return query;}} as unknown as Firestore);
  assert.equal((await loadThemeEnrolledCompanies(db)).docs.length,1);push({docs:[]});
  assert.equal((await loadThemeEnrolledCompanies(db)).docs.length,0);assert.equal(calls,1);
+});
+
+
+test('cold page graph and news share membership reads without downloading directory files',async t=>{
+ t.after(closeLocalCaches);let push!:(value:unknown)=>void,started!:()=>void,subscriptions=0,files=0;
+ const ready=new Promise<void>(resolve=>{started=resolve;});
+ const query={where:()=>query,isEqual:(other:unknown)=>other===query,onSnapshot:(next:(value:unknown)=>void)=>{subscriptions++;push=next;started();return ()=>{};},select:()=>{throw Error('page query must use shared live membership');}};
+ const db=withThemeCatalog({collection:(name:string)=>{assert.equal(name,'companies');return query;}} as unknown as Firestore);
+ enableCompanyDirectory(db,db,{file:async()=>{files++;throw Error('whole directory read');}});
+ const graph=loadThemeEnrolledCompanies(db,true),news=loadNewsSourceCompanies(db,'ai');await ready;
+ const doc=(id:string,data:Record<string,unknown>)=>({id,data:()=>data});
+ push({docs:[doc('US:AMD',{name:'AMD',newsSources:[]}),doc('US:GONE',{isDeleted:true})]});
+ assert.deepEqual((await graph).docs.map(doc=>doc.id),['US:AMD']);assert.deepEqual((await news).map(doc=>doc.id),['US:AMD']);
+ push({docs:[doc('US:MU',{name:'Micron'})]});
+ assert.deepEqual((await loadNewsSourceCompanies(db,'ai')).map(doc=>doc.id),['US:MU']);
+ assert.equal(subscriptions,1);assert.equal(files,0);
+});
+
+test('graph news reuses member records and loads only relationship neighbors, preserving source approvals',async()=>{
+ const source=(id:string,companyId:string)=>({id,companyId,name:id,url:'https://ir.amd.com/feed',allowedHosts:['ir.amd.com'],pollMs:60000,status:'PUBLISHED',reviewedAt:'2026-10-01'});
+ const row=(id:string)=>({id,exists:true,data:()=>({name:id,status:'PUBLISHED',onboarding:{status:'SUPPORTED'},newsSources:[source(id==='US:AMD'?'amd-ir':'mu-ir',id)]})});
+ const reads:string[][]=[];
+ const db={collection:()=>({doc:(id:string)=>({id})}),getAll:async(...refs:{id:string}[])=>{reads.push(refs.map(ref=>ref.id));return refs.map(ref=>row(ref.id));}} as unknown as Firestore;
+ const graph={nodes:['US:AMD','US:MU'].map((id,order)=>({id,kind:'COMPANY' as const,order})),relationships:[],sources:[],asOf:'2026-10-01'};
+ const sources=await graphNewsSources(db,graph,[row('US:AMD'),row('US:OTHER')] as never);
+ assert.deepEqual(reads,[['US:MU']]);assert.deepEqual(sources.map(source=>source.companyId),['US:AMD','US:MU']);
 });

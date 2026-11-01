@@ -8,14 +8,14 @@ import { attachCnMarketCaps } from "./cn-market-caps";
 import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
 import { changeCached } from '../change-cache';
 import type { Firestore, DocumentSnapshot } from 'firebase-admin/firestore';
-type GraphOptions = { db?: Firestore; companies?: DocumentSnapshot[] };
+type GraphOptions = { db?: Firestore; companies?: DocumentSnapshot[];targeted?:boolean };
 /** Identity and sourced relationships do not depend on valuation enrichment. */
 export async function loadKnowledgeGraphStructure(options: GraphOptions = {}): Promise<KnowledgeGraph> {
   const db = options.db ?? getAdminFirestore();
   return changeCached(db, 'knowledge-graph-structure', ['companies', 'company_relationships'], async () => {
     const [companies, edges] = await Promise.all([
       options.companies !== undefined ? { docs: options.companies }
-        : loadThemeEnrolledCompanies(db),
+        : loadThemeEnrolledCompanies(db,options.targeted??false),
       loadPublishedRelationships(db),
     ]);
     // Retain graph layout enrollment without a second indexed company query.

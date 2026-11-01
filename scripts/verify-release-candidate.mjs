@@ -1,7 +1,7 @@
 import {taggedReleaseRequest} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
-export async function verifyCandidate({url, revision, commit, request=fetch}) {
+export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now()}) {
   const rawRequest=request;
   request=(input,options)=>taggedReleaseRequest(input,options,{request:rawRequest});
   assert(url && revision && commit, 'Candidate URL, revision and commit required');
@@ -11,6 +11,35 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
   assert.equal(body.status, 'ok');
   assert.equal(body.commitSha, commit, 'Candidate commit mismatch');
   assert.equal(body.revision, revision, 'Candidate revision mismatch');
+  // First data requests on the new candidate: no page warm-up before this gate.
+  const refreshStarted=now();
+  const [graphResponse,feed,relationships]=await Promise.all([
+    request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)}),
+    request(`${url}/api/intelligence?theme=ai`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
+      assert.equal(response.status,200,'Candidate refresh failed; existing traffic stays unchanged');
+      const data=await response.json();
+      assert(Array.isArray(data.events)&&data.eventsPending!==true&&data.enrichmentDeferred===true&&data.session?.startAt,'Candidate refresh is incomplete');
+      assert(now()-refreshStarted<5000,'Candidate cold refresh exceeds five seconds; existing traffic stays unchanged');
+      console.log(JSON.stringify({event:'candidate_cold_refresh',durationMs:Math.round(now()-refreshStarted)}));
+      return data;
+    }),
+    request(`${url}/api/company-relationships?company=US%3ANVDA`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
+      assert.equal(response.status,200,'Candidate company relationships failed');
+      return response.json();
+    }),
+    ...['/en/company/AMD','/en/company/NVDA'].map(async path=>{
+      const started=now(),response=await request(`${url}${path}`,{signal:AbortSignal.timeout(15000)});
+      assert.equal(response.status,200,`Candidate concurrent ${path} failed`);
+      const html=await response.text();assert(html.includes('<html'),`Candidate ${path} is not HTML`);
+      const durationMs=now()-started;assert(durationMs<5000,`Candidate refresh blocked ${path} for five seconds`);
+      console.log(JSON.stringify({event:'candidate_concurrent_page',path,durationMs:Math.round(durationMs)}));
+    }),
+  ]);
+  assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
+  const graph=await graphResponse.json();
+  assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
+  assert(Array.isArray(feed.graph?.nodes)&&feed.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate feed has no companies');
+  assert(Array.isArray(relationships.nodes)&&relationships.nodes.some(node=>node.id==='US:NVDA')&&Array.isArray(relationships.relationships),'Candidate relationship graph is invalid');
   for (const path of ['/', '/feed']) {
     const response = await request(`${url}${path}`, {signal:AbortSignal.timeout(60000)});
     assert.equal(response.status, 200, `Candidate ${path} failed; existing traffic stays unchanged`);
@@ -39,27 +68,6 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
   }
   const preferences = await request(`${url}/api/preferences/compare`, {signal:AbortSignal.timeout(60000)});
   assert.equal(preferences.status, 401, 'Candidate comparison preferences must require sign-in');
-  // Exercise the data path before promotion, not only an HTML shell/health check.
-  const refreshStarted=performance.now();
-  const [graphResponse,feed,relationships]=await Promise.all([
-    request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)}),
-    request(`${url}/api/intelligence?theme=ai`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
-      assert.equal(response.status,200,'Candidate refresh failed; existing traffic stays unchanged');
-      const data=await response.json();
-      assert(Array.isArray(data.events)&&data.eventsPending!==true&&data.session?.startAt,'Candidate refresh is incomplete');
-      assert(performance.now()-refreshStarted<15000,'Candidate refresh exceeds the browser timeout; existing traffic stays unchanged');
-      return data;
-    }),
-    request(`${url}/api/company-relationships?company=US%3ANVDA`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
-      assert.equal(response.status,200,'Candidate company relationships failed');
-      return response.json();
-    }),
-  ]);
-  assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
-  const graph=await graphResponse.json();
-  assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
-  assert(Array.isArray(feed.graph?.nodes)&&feed.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate feed has no companies');
-  assert(Array.isArray(relationships.nodes)&&relationships.nodes.some(node=>node.id==='US:NVDA')&&Array.isArray(relationships.relationships),'Candidate relationship graph is invalid');
   for (const [path, text] of [
     ['/en/industries?taxonomy=SIC&code=3674', 'Semiconductors &amp; Related Devices'],
     ['/zh-cn/industries?taxonomy=CNI&code=C08030101', '集成电路'],

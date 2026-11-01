@@ -35,13 +35,19 @@ async function queryCloses(db:Firestore,ticker:string,through:string,count:numbe
  return priceBars(rows,through);
 }
 
-export async function loadPriceCache(db:Firestore):Promise<PriceCacheView>{
+export async function loadPriceCache(db:Firestore,tickers?:string[]):Promise<PriceCacheView>{
+ const keys=tickers?[...new Set(tickers.filter(ticker=>predictionInstrument(ticker)).map(keyFor))]:undefined;
+ if(keys&&!keys.length)return {version:'',entries:{}};
  const versions=((await db.collection('collectors').doc(META).get()).get('buckets')??{}) as Record<string,string>;
+ const selected=keys?[...new Set(keys.map(bucketFor))]:Object.keys(versions);
  const old=memory.get(db),buckets={...old?.buckets};
- const changed=Object.keys(versions).filter(id=>old?.versions[id]!==versions[id]);
+ const changed=selected.filter(id=>versions[id]!==undefined&&(!old?.buckets[id]||old.versions[id]!==versions[id]));
  if(changed.length){const docs=await db.getAll(...changed.map(id=>refFor(db,id)));docs.forEach((doc,i)=>{buckets[changed[i]]={entries:(doc.get('entries')??{}) as Bucket['entries']};});}
- memory.set(db,{versions,buckets});
- return {version:JSON.stringify(versions),entries:Object.assign({},...Object.values(buckets).map(bucket=>bucket.entries))};
+ const latest=memory.get(db),retained={...latest?.buckets},loadedVersions={...latest?.versions};
+ for(const id of selected){if(versions[id]===undefined){delete buckets[id];delete retained[id];delete loadedVersions[id];}else {retained[id]=buckets[id];loadedVersions[id]=versions[id];}}
+ memory.set(db,{versions:loadedVersions,buckets:retained});
+ const entries:Record<string,Entry>=keys?Object.fromEntries(keys.flatMap(key=>{const entry=buckets[bucketFor(key)]?.entries[key];return entry?[[key,entry]]:[];})):Object.assign({},...selected.map(id=>buckets[id]?.entries??{}));
+ return {version:JSON.stringify(Object.fromEntries(selected.map(id=>[id,versions[id]]))),entries};
 }
 
 export async function cachedPriceEntry(db:Firestore,view:PriceCacheView,ticker:string,now:Date):Promise<Entry>{

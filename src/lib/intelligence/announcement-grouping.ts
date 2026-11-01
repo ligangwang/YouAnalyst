@@ -6,6 +6,9 @@ const details = (event:IntelligenceEvent) => normalize(event.summary) === defaul
 
 function announcementKey(event:IntelligenceEvent):string|null {
   if(event.eventType==='insider_trade'&&event.eventGroupingKey&&event.insiderTransactions?.length)return event.eventGroupingKey;
+  // Unknown schedule dates must not collapse distinct announcements. The client
+  // can regroup after demand-loaded calendar links establish compatibility.
+  if(event.calendarPending)return null;
   // Only verified company-news projections qualify, never filings or research.
   if(!event.id.startsWith('news-company_news_')||event.category!=='BUSINESS'||event.companyIds.length!==1||event.companyIds[0]!==event.origin||!event.evidence.length||event.evidence.some(source=>source.channel!=='IR'))return null;
   const title=normalize(event.title);
