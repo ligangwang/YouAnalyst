@@ -8,7 +8,7 @@ import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
-import { layoutGalaxy } from "../../src/lib/knowledge-graph/layout-galaxy";
+import { layoutGalaxy } from "../../src/lib/ui/knowledge-graph/layout-galaxy";
 import { marketCapScale } from "../../src/lib/knowledge-graph/market-cap";
 
 test('crowded universe bounds rendered labels and retains company search',async({page})=>{

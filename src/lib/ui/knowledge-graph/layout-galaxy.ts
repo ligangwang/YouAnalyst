@@ -1,5 +1,5 @@
-import type { KnowledgeGraph } from "./model";
-import { companySector, graphSectors, graphTheme, OTHER_SECTOR } from "./sectors";
+import type { KnowledgeGraph } from "../../knowledge-graph/model";
+import { companySector, graphSectors, graphTheme, OTHER_SECTOR } from "../../knowledge-graph/sectors";
 
 // The companies themselves form a spiral galaxy: each sector is an arm, and the
 // most significant companies sit closest to the core. From afar the arms read

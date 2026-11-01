@@ -34,6 +34,8 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['src/lib/ui/compare-video.ts','src/lib/events/classification.ts']),'all');
   assert.equal(backgroundJobTarget(['src/lib/company-timeline.ts','src/lib/knowledge-graph/tree-tour.ts','src/lib/ui/company-timeline.ts','scripts/background-job-changes.mjs']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/events/classification.ts']),'all');
+  // Moving the galaxy layout out of the shared library must not redeploy workers.
+  assert.equal(backgroundJobTarget(['src/lib/knowledge-graph/layout-galaxy.ts','src/lib/ui/knowledge-graph/layout-galaxy.ts','src/components/company-graph-3d.tsx','scripts/background-job-changes.mjs']),'none');
   assert.equal(backgroundJobTarget(['scripts/fetch-cn-annual.py']),'fundamentals');
   for (const path of ['scripts/collect-sec-filings.ts', 'scripts/deploy-sec-filings.sh', 'scripts/deploy-sec-filings-pubsub.sh', 'scripts/refresh-company-graph.ts', 'scripts/serve-company-graph.ts', 'scripts/deploy-company-graph.sh', 'scripts/deploy-company-graph-pubsub.sh', 'scripts/serve-eod-maintenance.ts', 'scripts/deploy-eod-maintenance.sh']) {
     assert.equal(backgroundJobTarget([path]), 'fundamentals');
