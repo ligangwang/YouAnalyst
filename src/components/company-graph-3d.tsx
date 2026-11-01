@@ -1,14 +1,17 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
-import { TOUR_IDLE_RESUME_MS, TOUR_MOTION, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
+import { TOUR_IDLE_RESUME_MS, tourDelta, tourEase } from '@/lib/ui/knowledge-graph/tour-motion';
+// Cinematic pace of the galaxy tour: seconds of travel per company at 1x speed.
+const TOUR_STOP_SECONDS = 9;
+const TOUR_JOIN_SECONDS = 5;
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, NormalBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
+import { AdditiveBlending, NormalBlending, BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
 import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
@@ -406,9 +409,20 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   // Live data refreshes (prices, follows) rebuild the graph object without moving any
   // company. Only a real change of positions may reframe the camera or cancel the tour.
   const layoutKey=useMemo(()=>layout.nodes.map(n=>`${n.id}:${n.x.toFixed(1)},${n.y.toFixed(1)},${n.z.toFixed(1)}`).join('|'),[layout]);
-  // Spiral outwards from the core, alternating arms, so the largest companies come first.
-  const tourOrder=useMemo(()=>galaxyLayout?[...galaxyLayout.nodes].sort((a,b)=>a.galaxyT-b.galaxyT||a.galaxyArm-b.galaxyArm).map(n=>n.id):[],[galaxyLayout]);
-  const tour=useRef<{index:number;nextAt:number}|null>(null);
+  // A slow, unbroken flight past every company: out along one arm and back in along
+  // the next, so the camera glides between neighbours instead of swinging across the core.
+  const tourPath=useMemo(()=>{
+    if(!galaxyLayout?.nodes.length)return null;
+    const arms=[...new Set(galaxyLayout.nodes.map(n=>n.galaxyArm))].sort((a,b)=>a-b);
+    const stops=arms.flatMap((arm,i)=>galaxyLayout.nodes.filter(n=>n.galaxyArm===arm).sort((a,b)=>i%2?b.galaxyT-a.galaxyT:a.galaxyT-b.galaxyT));
+    const up=new Vector3(galaxyNormal.x,galaxyNormal.y,galaxyNormal.z);
+    const targets=stops.map(n=>new Vector3(n.x,n.y,n.z));
+    // Each company is seen from just outside its arm, with the nebula and core behind it.
+    const eyes=targets.map(at=>at.clone().addScaledVector(at.clone().normalize(),galaxyRadius*.36).addScaledVector(up,galaxyRadius*.14));
+    if(stops.length===1){eyes.push(eyes[0].clone().addScaledVector(up,1));targets.push(targets[0].clone());}
+    return {ids:stops.map(n=>n.id),eyes:new CatmullRomCurve3(eyes,true,'centripetal'),targets:new CatmullRomCurve3(targets,true,'centripetal')};
+  },[galaxyLayout,galaxyRadius]);
+  const tour=useRef<{t:number;elapsed:number;fromEye:Vector3;fromTarget:Vector3}|null>(null);
   const lastCameraRequest=useRef<{layout:string;request:number;reset:number;width:number;height:number}|null>(null);
   // Apply selection framing before the next paint; a shared overlay can commit
   // its selection while a passive effect is still waiting behind animation work.
@@ -611,25 +625,22 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
     else if(editingForm)rotation='input';
     else if(pointerHovered)rotation='hovered';
     else if(returningView.current)rotation='returning';
-    else if (introOrbitRef.current && controls.current && galaxyLayout && tourOrder.length && (tour.current || controls.current.distance<=introClose*1.03)) {
-      // After the fly-in, visit each company in turn: it comes up front with its
-      // name, ticker and latest change while the nebula and core stay behind it.
+    else if (introOrbitRef.current && controls.current && tourPath && (tour.current || controls.current.distance<=introClose*1.03)) {
+      // After the fly-in, glide past each company without stopping; the one nearest
+      // the camera comes up front with its name, ticker and latest change.
       rotation='tour';
-      const now=performance.now(),c=controls.current;
-      if(!tour.current||now>=tour.current.nextAt){
-        const index=tour.current?(tour.current.index+1)%tourOrder.length:0;
-        const node=layout.nodes.find(n=>n.id===tourOrder[index]);
-        if(node){
-          const at=new Vector3(node.x,node.y,node.z);
-          const outward=at.clone().normalize();
-          const up=new Vector3(galaxyNormal.x,galaxyNormal.y,galaxyNormal.z);
-          const eye=at.clone().addScaledVector(outward,galaxyRadius*.36).addScaledVector(up,galaxyRadius*.14);
-          c.smoothTime=1.1/speed;
-          void c.setLookAt(...eye.toArray(),...at.toArray(),true);
-          setTourCompany(node.id);
-        }
-        tour.current={index,nextAt:now+(TOUR_MOTION.hold+2.5)*1000/speed};
-      }
+      const c=controls.current,dt=tourDelta(delta,speed);
+      tour.current??={t:0,elapsed:0,fromEye:c.getPosition(new Vector3()),fromTarget:c.getTarget(new Vector3())};
+      const state=tour.current;
+      state.elapsed+=dt;
+      state.t=(state.t+dt/(TOUR_STOP_SECONDS*tourPath.ids.length))%1;
+      const eye=tourPath.eyes.getPoint(state.t),target=tourPath.targets.getPoint(state.t);
+      // Ease from wherever the fly-in ended onto the path.
+      const join=tourEase(Math.min(1,state.elapsed/TOUR_JOIN_SECONDS));
+      eye.lerpVectors(state.fromEye,eye,join);target.lerpVectors(state.fromTarget,target,join);
+      void c.setLookAt(...eye.toArray(),...target.toArray(),false);
+      const current=tourPath.ids[Math.round(state.t*tourPath.ids.length)%tourPath.ids.length];
+      if(current!==tourCompany)setTourCompany(current);
       invalidate();
     }
     else if (introOrbitRef.current && controls.current) {
