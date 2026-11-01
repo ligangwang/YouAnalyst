@@ -13,6 +13,7 @@ import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/kno
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
+import { layoutGalaxy } from "@/lib/knowledge-graph/layout-galaxy";
 import { densitySelection } from "@/lib/knowledge-graph/density";
 import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -24,6 +25,8 @@ import { TreeStarField } from './tree-star-field';
 import { DeepSpaceClouds } from './deep-space-clouds';
 import { DeepSpaceSky } from './deep-space-sky';
 import { GalaxyDisc, galaxyOpeningDistance } from './galaxy-disc';
+import { CompanyNebula } from './company-nebula';
+import { CompanyPlanets } from './company-planets';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import styles from "./ai-knowledge-graph.module.css";
 
@@ -51,18 +54,18 @@ function editingGraphForm() {
   return Boolean(element?.matches('input,textarea,[contenteditable="true"]') && !element.closest('[data-company-search]'));
 }
 
-type Props = { companyFocus?: string[]; intelligence?: {origin:string;edges:string[]}; musicControls?: boolean; showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { universe?: "ball" | "galaxy"; companyFocus?: string[]; intelligence?: {origin:string;edges:string[]}; musicControls?: boolean; showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; uniform float lightMode; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*mix(1.,1.5,emphasisBlend)*mix(1.,.65,lightMode);}`;
-const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis; uniform float lightMode;
-void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.65;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float disk=1.-smoothstep(.09,.12,r);float ring=smoothstep(.15,.17,r)*(1.-smoothstep(.19,.21,r));float a=mix(glow+core+rays*.15,disk+ring*.75,lightMode)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(mix(vColor,vec3(1.),core*.8),vColor*.45,lightMode),a);}`;
+const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; uniform float lightMode; uniform float minPointSize; uniform vec2 planetRange; varying float vDepth; varying vec3 vColor; varying float vEmphasis; varying float vPlanet;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);vPlanet=planetRange.y>0.?1.-smoothstep(planetRange.x,planetRange.y,-p.z):0.;float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),minPointSize,72.)*capScale*mix(1.,1.5,emphasisBlend)*mix(1.,.65,lightMode);}`;
+const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis; varying float vPlanet; uniform float lightMode;
+void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.65;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float disk=1.-smoothstep(.09,.12,r);float ring=smoothstep(.15,.17,r)*(1.-smoothstep(.19,.21,r));float a=mix(glow+core+rays*.15,disk+ring*.75,lightMode)*min(1.,vEmphasis)*vDepth*mix(1.,.3,vPlanet);if(a<.015)discard;gl_FragColor=vec4(mix(mix(vColor,vec3(1.),core*.8),vColor*.45,lightMode),a);}`;
 
-function Scene({ light, companyFocus, intelligence, showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef, onHoverChange }: Props & { light: boolean; introOrbitRef: { current: boolean }; onHoverChange: (hovered: boolean) => void }) {
+function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef, onHoverChange }: Props & { light: boolean; introOrbitRef: { current: boolean }; onHoverChange: (hovered: boolean) => void }) {
   const { text, locale } = useLocale();
   // Graph uses the original baseline; the tree keeps its faster reveal cadence.
   const {selectedSpeed:speed}=useNavigationSettings();
@@ -70,8 +73,16 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const edgeFades = useRef(new Map<string, number>());
   const linePoint = useMemo(() => new Vector3(), []);
   const arrowElements = useRef(new Map<string, Mesh>());
-  const layout = useMemo(() => layout3D(graph), [graph]);
-  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius},lightMode:{value:0}}), [layout.radius]);
+  const galaxyLayout = useMemo(() => universe === "galaxy" ? layoutGalaxy(graph) : null, [graph, universe]);
+  const layout = useMemo(() => galaxyLayout ?? layout3D(graph), [graph, galaxyLayout]);
+  // In the galaxy universe the companies form the nebula: the camera may travel
+  // inside it, and distant companies shrink to points of light within the arms.
+  const galaxyRadius = galaxyLayout?.galaxyRadius ?? 0;
+  const clearance = galaxyRadius ? galaxyRadius * .25 : layout.radius;
+  const minPointSize = galaxyRadius ? 3 : 18;
+  // Up close in the galaxy universe, companies become small planets; their star glow fades to a halo.
+  const planetRange = useMemo(() => new Vector2(galaxyRadius*1.5, galaxyRadius*2.3), [galaxyRadius]);
+  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius},lightMode:{value:0},minPointSize:{value:minPointSize},planetRange:{value:galaxyRadius ? planetRange : new Vector2()}}), [layout.radius, minPointSize, galaxyRadius, planetRange]);
   const pointMaterial = useRef<ShaderMaterial>(null);
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
@@ -302,7 +313,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
       const emphasis=geometry.getAttribute('emphasis').getX(index);
       const blend=Math.max(0,Math.min(1,emphasis-1));
-      const starSize=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(node.marketCap)*(1+.5*blend*blend*(3-2*blend));
+      const starSize=Math.max(minPointSize,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(node.marketCap)*(1+.5*blend*blend*(3-2*blend));
       const distance=Math.hypot((screen.x-pointer.x)*size.width/2,(screen.y-pointer.y)*size.height/2);
       // Clicks get a generous halo; hover leaves nearby relationships reachable.
       const radius=clickTarget?Math.max(18,starSize*.5/gl.getPixelRatio()+6):Math.max(3,starSize*.12/gl.getPixelRatio());
@@ -380,7 +391,11 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:members.reduce((v,n)=>v+n.y,0)/members.length, z:members.reduce((v,n)=>v+n.z,0)/members.length };
   }),[layout]);
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
-  useEffect(()=>{openingFrame.current={far:fitDistance*3,close:Math.max(layout.radius*1.3,fitDistance*.9)};},[fitDistance,layout.radius]);
+  const introClose=galaxyRadius ? galaxyRadius*1.05 : Math.max(layout.radius*1.3,fitDistance*.9);
+  const openingDistance=galaxyRadius ? galaxyRadius*3.4/Math.min(1,size.width/Math.max(1,size.height)) : galaxyOpeningDistance(size.width/Math.max(1,size.height));
+  // Only views beyond the normal fitted view count as the far opening: on narrow
+  // screens (and for reduced motion) the fitted view itself must stay clickable.
+  useEffect(()=>{openingFrame.current={far:galaxyRadius ? Math.max(galaxyRadius*2.5,fitDistance*1.2) : fitDistance*3,close:introClose};},[fitDistance,galaxyRadius,introClose]);
   const savedView=useRef<{position:Vector3;target:Vector3}|null>(null);
   const lastSelected=useRef("");
   const restoredView=useRef(false);
@@ -443,22 +458,22 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     // Open on the whole galaxy; the introduction then flies in to the graph.
-    const distance = opening && !reduced ? Math.max(d * 1.4, light ? 0 : galaxyOpeningDistance(size.width / Math.max(1, size.height))) : d;
+    const distance = opening && !reduced ? Math.max(d * 1.4, light ? 0 : openingDistance) : d;
     const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
     // The detail card changes the viewport in this commit. Fiber's resize
     // observer reports that size later; framing against its previous size would
     // produce a second camera jump. Measure once on selection, never per frame.
     const selectionSize=n?gl.domElement.parentElement?.getBoundingClientRect():null;
-    const fitted=n?fitSelectionCamera(neighbors,direction,selectionSize?.width||size.width,selectionSize?.height||size.height,layout.radius):null;
+    const fitted=n?fitSelectionCamera(neighbors,direction,selectionSize?.width||size.width,selectionSize?.height||size.height,clearance):null;
     const position=fitted?.position??new Vector3(x,y,z).addScaledVector(direction,distance);
     const target=fitted?.target??new Vector3(x,y,z);
-    if(!fitted&&position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
+    if(!fitted&&position.length()<clearance*1.15)position.setLength(clearance*1.15);
     c.smoothTime=.8/speed;
     // Company clicks frame their connections immediately; reserve camera flights
     // for sector navigation and the automatic tour.
     void c.setLookAt(...position.toArray(),...target.toArray(),!n&&!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl, light]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl, light, clearance, openingDistance]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
@@ -568,10 +583,12 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
       }
     }
     // Correct unsafe destinations smoothly; never teleport the rendered camera mid-return.
-    if(controls.current){const p=controls.current.getPosition(new Vector3());if(p.length()<layout.radius*1.12){if(!p.length())p.z=1;p.setLength(layout.radius*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),true);}}
+    if(controls.current){const p=controls.current.getPosition(new Vector3());if(p.length()<clearance*1.12){if(!p.length())p.z=1;p.setLength(clearance*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),true);}}
     gl.domElement.dataset.visibleRelationships=renderedEdges.filter(edge=>(edgeTargets.get(edge.id)??0)>0).map(edge=>edge.id).join(',');
     gl.domElement.dataset.hoveredRelationship=displayedEdge;
     gl.domElement.dataset.ballRadius=String(layout.radius);
+    // The closest the camera may come to the graph's centre (the whole ball, or the galaxy core).
+    gl.domElement.dataset.cameraClearance=String(clearance);
     gl.domElement.dataset.cameraPosition=camera.position.toArray().join(',');
     if (focused) introOrbitRef.current = false;
     let rotation='paused';
@@ -584,7 +601,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
     else if (introOrbitRef.current && controls.current) {
       rotation='intro';
       // Move into a detail view before orbiting; keep the camera outside the node cloud.
-      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.3, fitDistance * .9));
+      introPath.current ??= createIntroCamera(controls.current.distance, introClose);
       const step = introPath.current(delta, controls.current.polarAngle, speed);
       void controls.current.dollyTo(step.distance, false);
       void controls.current.rotate(step.azimuth, step.polar, false);
@@ -600,7 +617,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
         // Resume around the user's chosen target at their chosen distance.
         // Only selection framing or an explicit Reset may replace that view.
         const safeStep=safeGraphOrbitStep(controls.current.getPosition(new Vector3()),controls.current.getTarget(new Vector3()),
-          {azimuth:step.azimuth*resumedDirection.current,polar:step.polar},layout.radius*1.2);
+          {azimuth:step.azimuth*resumedDirection.current,polar:step.polar},clearance*1.2);
         if(safeStep.reversed){resumedDirection.current*=-1;resumeElapsed.current=0;}
         void controls.current.rotate(safeStep.azimuth,safeStep.polar,true);
         invalidate();
@@ -779,8 +796,8 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/><GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/><TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
-    <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={light ? fitDistance*3 : Math.max(fitDistance*3, galaxyOpeningDistance(size.width/Math.max(1,size.height))*1.05)} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>{galaxyLayout && <CompanyPlanets geometry={geometry} range={planetRange} galaxyRadius={galaxyRadius}/>}{galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>}<TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
+    <CameraControls ref={controls} makeDefault minDistance={clearance*1.15} maxDistance={light ? fitDistance*3 : Math.max(fitDistance*3, openingDistance*1.05)} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
       // point remains under the pointer. Only clear the exiting company.

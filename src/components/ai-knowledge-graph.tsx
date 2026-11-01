@@ -240,7 +240,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       </div>}
       {view==='hierarchy'&&<IndustryHierarchy companies={treeCompanies} selected={selected} closing={cardDismiss.closing} onSelect={id=>selectNode(id,'horizontal')}/>}
       </Suspense>
-      {view==='graph' && <Suspense fallback={<div className={styles.canvas3d}><p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p><UniverseMusicToggle/></div>}><CompanyGraph3D musicControls showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
+      {view==='graph' && <Suspense fallback={<div className={styles.canvas3d}><p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p><UniverseMusicToggle/></div>}><CompanyGraph3D universe="galaxy" musicControls showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
       </div>
       {company && !treeView && <aside ref={detailCard} className={`${styles.detail} ${cardFade.card}`} data-closing={cardDismiss.closing} inert={cardDismiss.closing} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>
         <div className={styles.detailHeader} data-card-drag={view==='graph'?true:undefined} tabIndex={view==='graph'?0:undefined} aria-label={view==='graph'?text("Move company card","移动公司卡片"):undefined}>
