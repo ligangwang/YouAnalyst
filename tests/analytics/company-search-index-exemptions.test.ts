@@ -20,6 +20,7 @@ test('index maintenance defers obsolete search exemptions until explicitly enabl
   for(const command of fields){
    assert(command.includes('--collection-group=companies'));assert(!command.includes('searchPrefixes'));assert(!command.includes('symbolLower'));
    if(command.includes('updatedAt')){assert(command.includes('--index=order=ascending'));assert(command.includes('--index=order=descending'));assert(!command.includes('--disable-indexes'));}
+   else if(command.includes('inGraph.status')){assert(command.includes('--index=order=ascending'));assert(!command.includes('--disable-indexes'));}
    else {assert(enabled);assert(command.includes('--disable-indexes'));}
   }
  }
