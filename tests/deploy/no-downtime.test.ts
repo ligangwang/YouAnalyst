@@ -37,8 +37,15 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   const order:string[]=[];
   await verifyCandidate({...options,request:async(url,init)=>{order.push(String(url));return ok(url,init);}});
   assert(order.indexOf(options.url+'/api/intelligence?theme=ai')<order.indexOf(options.url+'/'));
-  let ticks=0;
-  await assert.rejects(verifyCandidate({...options,request:ok,now:()=>ticks++===0?0:6000}),/cold refresh exceeds five seconds/);
+  // A deterministic clock makes all three timed requests slow without sleeping.
+  let ticks=0;const warnings:string[]=[];
+  await verifyCandidate({...options,request:ok,now:()=>ticks++*6000,warn:(message:string)=>warnings.push(message)});
+  assert.equal(warnings.length,3);
+  assert(warnings.some(message=>message.startsWith('::warning::Candidate cold refresh')));
+  for(const symbol of ['AMD','NVDA'])assert(warnings.some(message=>message.includes(`/en/company/${symbol}`)));
+  const fastWarnings:string[]=[];
+  await verifyCandidate({...options,request:ok,now:()=>0,warn:(message:string)=>fastWarnings.push(message)});
+  assert.deepEqual(fastWarnings,[]);
 
   await assert.rejects(verifyCandidate({...options, commit: 'wrong', request: ok}), /commit mismatch/);
   await assert.rejects(verifyCandidate({...options, request: async url => String(url).endsWith('/api/health') ? ok(url) : new Response('Not found', {status:404})}), /failed/);
