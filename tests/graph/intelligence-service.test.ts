@@ -22,7 +22,7 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}},db={};
   const injected=(name:string)=>{
     if(name==='./price-cache')return {loadPriceCache:async()=>{options.priceRead?.();return {version:options.priceVersion?.()??'prices',entries:{}};}};
-    if(name==='./collectors/source-service')return {loadNewsSources:options.sources??(async()=>[])};
+    if(name==='./collectors/source-service')return {loadNewsSourceCompanies:options.sources??(async()=>[]),graphNewsSources:async()=>[],loadNewsSources:async()=>[]};
     if(name==='./feed-cache-store')return {loadCachedFeed:load};
     if(name==='./price-performance-service')return {attachPricePerformance:async(_db:unknown,graph:KnowledgeGraph,events:unknown[])=>{options.priceAttach?.(graph,events);return {graph,eventReturns:{}};}};
     if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:unknown[])=>{options.calendar?.(events);return events;}};

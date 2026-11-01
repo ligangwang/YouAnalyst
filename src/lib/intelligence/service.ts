@@ -12,7 +12,7 @@ import { INTELLIGENCE_SOURCES, sourceDocumentsForEvents, intelligenceSession, se
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
-import {loadNewsSources} from './collectors/source-service';
+import {loadNewsSourceCompanies,graphNewsSources} from './collectors/source-service';
 import {isCalendarCandidate} from '../calendar/candidates';
 import {projectDisclosures} from '../events/disclosure-projection';
 import {attachPricePerformance} from './price-performance-service';
@@ -117,11 +117,12 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
   let feedError:unknown;
   const feedRead=preview?Promise.resolve(undefined):timed('feed',loadCachedFeed(getAdminFirestore(),now,before)).catch(error=>{feedError=error;return undefined;});
   // Configuration and freshness do not depend on graph valuations or feed data.
-  const sourceRead=core&&!preview&&process.env.INTELLIGENCE_NEWS_ENABLED==='1'?settle(timed('news_sources',loadNewsSources(getAdminFirestore()))):undefined;
+  const sourceRead=core&&!preview&&process.env.INTELLIGENCE_NEWS_ENABLED==='1'?settle(timed('news_sources',loadNewsSourceCompanies(getAdminFirestore(),theme))):undefined;
   const metadataRead=core&&!preview?settle(timed('collector_freshness',changeCached(getAdminFirestore(),'sec-collector-freshness',['collector:sec-freshness'],()=>secCollectorFreshness(getAdminFirestore()).get()))):undefined;
-  const newsRead=sourceRead?settle(timed('news',Promise.all([feedRead,universe.structure,sourceRead]).then(([feed,graph,sources])=>{
+  const newsRead=sourceRead?settle(timed('news',Promise.all([feedRead,universe.structure,sourceRead]).then(async([feed,graph,sources])=>{
     if(feedError)throw feedError;if(sources.error)throw sources.error;
-    return loadCollectedNews(getAdminFirestore(),graph,now,feed?.loadedFrom??session.date,undefined,Object.values(feed?.days??{}).flat().filter(row=>row.collection==='events').map(row=>row.data),sources.value);
+    const configured=await graphNewsSources(getAdminFirestore(),graph,sources.value??[]);
+    return loadCollectedNews(getAdminFirestore(),graph,now,feed?.loadedFrom??session.date,undefined,Object.values(feed?.days??{}).flat().filter(row=>row.collection==='events').map(row=>row.data),configured);
   }))):undefined;
   const [feed,priceView,graph]=await Promise.all([
     feedRead,

@@ -15,7 +15,7 @@ export async function loadKnowledgeGraphStructure(options: GraphOptions = {}): P
   return changeCached(db, 'knowledge-graph-structure', ['companies', 'company_relationships'], async () => {
     const [companies, edges] = await Promise.all([
       options.companies !== undefined ? { docs: options.companies }
-        : loadThemeEnrolledCompanies(db),
+        : loadThemeEnrolledCompanies(db,true),
       loadPublishedRelationships(db),
     ]);
     // Retain graph layout enrollment without a second indexed company query.
