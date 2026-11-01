@@ -78,6 +78,7 @@ function formatCost(value: number | null): string {
 const JOB_TYPE_LABELS: Record<OpenAiUsagePurpose, string> = {
   ai_analyst_generation: "AI analyst",
   company_graph_extraction: "Company graph",
+  company_theme_classification: "Company theme classification",
   industry_research: "Industry research",
   earnings_calendar_extraction: "Earnings calendar",
   news_headline_translation: "News headline translation",
