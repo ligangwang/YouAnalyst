@@ -249,6 +249,8 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   const [pointHovered, setPointHovered] = useState("");
   const [labelHovered, setLabelHovered] = useState("");
   const pointerHovered = labelHovered || pointHovered;
+  const [decor,setDecor]=useState(0);
+  useEffect(()=>{if(decor>=5)return;const frame=requestAnimationFrame(()=>setDecor(stage=>stage+1));return()=>cancelAnimationFrame(frame);},[decor]);
   // The galaxy tour presents one company at a time, highlighted like a hover.
   const [tourCompany, setTourCompany] = useState("");
   const hovered = pointerHovered || tourCompany;
@@ -841,7 +843,9 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>{galaxyLayout && <CompanyPlanets geometry={geometry} range={planetRange} galaxyRadius={galaxyRadius}/>}{galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>}<TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
+    {/* Decorative layers mount one per frame: compiling them all in the first frame
+        blocked input while the graph started. */}
+    {!light && <>{decor>=1&&<DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>}{decor>=2&&<TreeStarField height={0} count={1100} paused/>}{decor>=3&&<DeepSpaceClouds height={0}/>}{decor>=4&&(galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>)}{decor>=5&&galaxyLayout && <CompanyPlanets geometry={geometry} range={planetRange} galaxyRadius={galaxyRadius}/>}</>}
     <CameraControls ref={controls} makeDefault minDistance={clearance*1.15} maxDistance={light ? fitDistance*3 : Math.max(fitDistance*3, openingDistance*1.05)} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
