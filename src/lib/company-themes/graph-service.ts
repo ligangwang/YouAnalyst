@@ -18,7 +18,7 @@ import { changeCached } from '../change-cache';
 export async function loadThemeGraphStructure(theme: CompanyThemeId): Promise<KnowledgeGraph> {
   const catalog=await loadThemeCatalog();
   if(!catalogThemeIds(catalog).includes(theme))throw new Error('Unknown or unpublished theme');
-  if (theme === 'ai') return applyThemeCatalog(await loadKnowledgeGraphStructure(),theme,catalog);
+  if (theme === 'ai') return applyThemeCatalog(await loadKnowledgeGraphStructure({targeted:true}),theme,catalog);
   const version=createHash('sha256').update(JSON.stringify(catalog)).digest('hex').slice(0,16);
   const db = getAdminFirestore();
   return changeCached(db, `theme-graph:${theme}:${version}`, ['companies', 'company_relationships'], async () => {
