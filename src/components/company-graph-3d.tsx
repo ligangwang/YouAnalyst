@@ -1,19 +1,23 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
-import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
+import { TOUR_IDLE_RESUME_MS, tourDelta, tourEase } from '@/lib/ui/knowledge-graph/tour-motion';
+// Cinematic pace of the galaxy tour: seconds of travel per company at 1x speed.
+const TOUR_STOP_SECONDS = 9;
+const TOUR_JOIN_SECONDS = 5;
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, NormalBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
+import { AdditiveBlending, NormalBlending, BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
 import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
-import { layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
+import { galaxyToWorld, layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
+const galaxyNormal = galaxyToWorld(0, 1, 0);
 import { densitySelection } from "@/lib/knowledge-graph/density";
 import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -244,7 +248,12 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   const projected = useMemo(() => new Vector3(), []);
   const [pointHovered, setPointHovered] = useState("");
   const [labelHovered, setLabelHovered] = useState("");
-  const hovered = labelHovered || pointHovered;
+  const pointerHovered = labelHovered || pointHovered;
+  const [decor,setDecor]=useState(0);
+  useEffect(()=>{if(decor>=5)return;const frame=requestAnimationFrame(()=>setDecor(stage=>stage+1));return()=>cancelAnimationFrame(frame);},[decor]);
+  // The galaxy tour presents one company at a time, highlighted like a hover.
+  const [tourCompany, setTourCompany] = useState("");
+  const hovered = pointerHovered || tourCompany;
   const focusCompany=selected||hovered;
   const [hoveredEdge, setHoveredEdge] = useState("");
   const crowded=layout.nodes.length>300;
@@ -259,7 +268,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, selected?"":hovered, intelligence)])), [layout, selected, activeEdge, showAllEdges, hovered, intelligence]);
   const renderedEdges=useMemo(()=>crowded?layout.edges.filter(edge=>(edgeTargets.get(edge.id)??0)>0 && (edge.id===activeEdge || edge.source===selected || edge.target===selected || edge.source===hovered || edge.target===hovered || intelligence?.edges.includes(edge.id) || renderedSet.has(edge.source) || renderedSet.has(edge.target))):layout.edges,[crowded,layout,edgeTargets,activeEdge,selected,hovered,intelligence,renderedSet]);
   const displayedEdge=((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "")||activeEdge;
-  const hoveringEntity=Boolean(hovered || (hoveredEdge && (edgeTargets.get(hoveredEdge) ?? 0) > 0));
+  const hoveringEntity=Boolean(pointerHovered || (hoveredEdge && (edgeTargets.get(hoveredEdge) ?? 0) > 0));
   useEffect(()=>{onHoverChange(hoveringEntity);},[hoveringEntity,onHoverChange]);
   useEffect(()=>{invalidate();},[edgeTargets,invalidate]);
   const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
@@ -399,7 +408,24 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   const savedView=useRef<{position:Vector3;target:Vector3}|null>(null);
   const lastSelected=useRef("");
   const restoredView=useRef(false);
-  const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number;width:number;height:number}|null>(null);
+  // Live data refreshes (prices, follows) rebuild the graph object without moving any
+  // company. Only a real change of positions may reframe the camera or cancel the tour.
+  const layoutKey=useMemo(()=>layout.nodes.map(n=>`${n.id}:${n.x.toFixed(1)},${n.y.toFixed(1)},${n.z.toFixed(1)}`).join('|'),[layout]);
+  // A slow, unbroken flight past every company: out along one arm and back in along
+  // the next, so the camera glides between neighbours instead of swinging across the core.
+  const tourPath=useMemo(()=>{
+    if(!galaxyLayout?.nodes.length)return null;
+    const arms=[...new Set(galaxyLayout.nodes.map(n=>n.galaxyArm))].sort((a,b)=>a-b);
+    const stops=arms.flatMap((arm,i)=>galaxyLayout.nodes.filter(n=>n.galaxyArm===arm).sort((a,b)=>i%2?b.galaxyT-a.galaxyT:a.galaxyT-b.galaxyT));
+    const up=new Vector3(galaxyNormal.x,galaxyNormal.y,galaxyNormal.z);
+    const targets=stops.map(n=>new Vector3(n.x,n.y,n.z));
+    // Each company is seen from just outside its arm, with the nebula and core behind it.
+    const eyes=targets.map(at=>at.clone().addScaledVector(at.clone().normalize(),galaxyRadius*.36).addScaledVector(up,galaxyRadius*.14));
+    if(stops.length===1){eyes.push(eyes[0].clone().addScaledVector(up,1));targets.push(targets[0].clone());}
+    return {ids:stops.map(n=>n.id),eyes:new CatmullRomCurve3(eyes,true,'centripetal'),targets:new CatmullRomCurve3(targets,true,'centripetal')};
+  },[galaxyLayout,galaxyRadius]);
+  const tour=useRef<{t:number;elapsed:number;fromEye:Vector3;fromTarget:Vector3}|null>(null);
+  const lastCameraRequest=useRef<{layout:string;request:number;reset:number;width:number;height:number}|null>(null);
   // Apply selection framing before the next paint; a shared overlay can commit
   // its selection while a passive effect is still waiting behind animation work.
   useLayoutEffect(() => {
@@ -417,24 +443,25 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
       });
       invalidate();return;
     }
-    if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset){returningView.current=false;returnRequest.current++;}
+    if(selected||previous?.layout!==layoutKey||previous.request!==cameraRequest||previous.reset!==reset){returningView.current=false;returnRequest.current++;}
     lastSelected.current=selected;
-    if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset)restoredView.current=false;
+    if(selected||previous?.layout!==layoutKey||previous.request!==cameraRequest||previous.reset!==reset)restoredView.current=false;
     if(previous?.reset!==reset)savedView.current=null;
     const restarting = previous !== null && previous.reset !== reset;
     if (restarting) {
       // Replay from the opening shot, including a fresh approach timer and label layout.
       introOrbitRef.current = true;
       introPath.current = null;
+      tour.current = null;
       labelPlacements.current = new WeakMap();
       labelVisibility.current = new WeakMap();
       companyScales.current = new WeakMap();
-    } else if (previous && (previous.layout !== layout || previous.request !== cameraRequest)) {
+    } else if (previous && (previous.layout !== layoutKey || previous.request !== cameraRequest)) {
       // Searching or focusing a company still cancels the automatic flight.
       introOrbitRef.current = false;
     }
-    if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset&&(restoredView.current||(previous.width===size.width&&previous.height===size.height)))return;
-    lastCameraRequest.current={layout,request:cameraRequest,reset,width:size.width,height:size.height};
+    if(previous?.layout===layoutKey && previous.request===cameraRequest && previous.reset===reset&&(restoredView.current||(previous.width===size.width&&previous.height===size.height)))return;
+    lastCameraRequest.current={layout:layoutKey,request:cameraRequest,reset,width:size.width,height:size.height};
     // Search, focus, and Reset own their camera request; discard any old idle restart.
     resumeAt.current=null;resumedOrbit.current=null;resumeElapsed.current=0;
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
@@ -473,7 +500,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
     // for sector navigation and the automatic tour.
     void c.setLookAt(...position.toArray(),...target.toArray(),!n&&!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl, light, clearance, openingDistance]);
+  }, [layout, layoutKey, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed, gl, light, clearance, openingDistance]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
@@ -591,13 +618,33 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
     gl.domElement.dataset.cameraClearance=String(clearance);
     gl.domElement.dataset.cameraPosition=camera.position.toArray().join(',');
     if (focused) introOrbitRef.current = false;
+    // Any interaction, selection or focus ends the tour; Reset view starts it again.
+    if(!introOrbitRef.current&&tour.current){tour.current=null;setTourCompany("");}
     let rotation='paused';
     if(focused)rotation='focused';
     else if(reducedMotion.current)rotation='reduced';
     else if(document.hidden)rotation='hidden';
     else if(editingForm)rotation='input';
-    else if(hovered)rotation='hovered';
+    else if(pointerHovered)rotation='hovered';
     else if(returningView.current)rotation='returning';
+    else if (introOrbitRef.current && controls.current && tourPath && (tour.current || controls.current.distance<=introClose*1.03)) {
+      // After the fly-in, glide past each company without stopping; the one nearest
+      // the camera comes up front with its name, ticker and latest change.
+      rotation='tour';
+      const c=controls.current,dt=tourDelta(delta,speed);
+      tour.current??={t:0,elapsed:0,fromEye:c.getPosition(new Vector3()),fromTarget:c.getTarget(new Vector3())};
+      const state=tour.current;
+      state.elapsed+=dt;
+      state.t=(state.t+dt/(TOUR_STOP_SECONDS*tourPath.ids.length))%1;
+      const eye=tourPath.eyes.getPoint(state.t),target=tourPath.targets.getPoint(state.t);
+      // Ease from wherever the fly-in ended onto the path.
+      const join=tourEase(Math.min(1,state.elapsed/TOUR_JOIN_SECONDS));
+      eye.lerpVectors(state.fromEye,eye,join);target.lerpVectors(state.fromTarget,target,join);
+      void c.setLookAt(...eye.toArray(),...target.toArray(),false);
+      const current=tourPath.ids[Math.round(state.t*tourPath.ids.length)%tourPath.ids.length];
+      if(current!==tourCompany)setTourCompany(current);
+      invalidate();
+    }
     else if (introOrbitRef.current && controls.current) {
       rotation='intro';
       // Move into a detail view before orbiting; keep the camera outside the node cloud.
@@ -796,7 +843,9 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    {!light && <><DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>{galaxyLayout && <CompanyPlanets geometry={geometry} range={planetRange} galaxyRadius={galaxyRadius}/>}{galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>}<TreeStarField height={0} count={1100} paused/><DeepSpaceClouds height={0}/></>}
+    {/* Decorative layers mount one per frame: compiling them all in the first frame
+        blocked input while the graph started. */}
+    {!light && <>{decor>=1&&<DeepSpaceSky height={0} focused={Boolean(selected || displayedEdge)} galaxy/>}{decor>=2&&<TreeStarField height={0} count={1100} paused/>}{decor>=3&&<DeepSpaceClouds height={0}/>}{decor>=4&&(galaxyLayout ? <CompanyNebula nodes={galaxyLayout.nodes} arms={galaxyLayout.arms} galaxyRadius={galaxyRadius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/> : <GalaxyDisc graphRadius={layout.radius} introRef={introOrbitRef} focused={Boolean(selected || displayedEdge || sectorFocus)}/>)}{decor>=5&&galaxyLayout && <CompanyPlanets geometry={geometry} range={planetRange} galaxyRadius={galaxyRadius}/>}</>}
     <CameraControls ref={controls} makeDefault minDistance={clearance*1.15} maxDistance={light ? fitDistance*3 : Math.max(fitDistance*3, openingDistance*1.05)} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
@@ -812,7 +861,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
     </group>)}
     <Html onOcclude={()=>{}} calculatePosition={overlayPosition} zIndexRange={[20,20]} style={{pointerEvents:"none"}}>
       {edgeLabels.map(edge=><div key={edge.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={el=>registerLabel(edgeElements.current,edge.id,el)} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} data-displayed={edge.id===displayedEdge} data-relationship-id={edge.id} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${relationshipSummary(edge,locale)}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{edge.id===displayedEdge?<><strong>{edge.from} {edge.directional?'→':'↔'} {edge.to} · {text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</strong><small>{relationshipSummary(edge,locale)}</small></>:text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></div></div>)}
-      {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n=><div key={n.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={element=>registerLabel(labelElements.current,n.id,element)} className={styles.label3d} data-visible="false" aria-hidden="true" tabIndex={-1} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong>{n.id===selected&&<><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></>}</button></div></div>)}
+      {layout.nodes.filter(n=>!crowded || renderedSet.has(n.id) || n.id===selected || n.id===hovered).map(n=><div key={n.id} style={{position:"absolute",pointerEvents:"none"}}><div style={{transform:"translate(-50%,-50%)"}}><button ref={element=>registerLabel(labelElements.current,n.id,element)} className={styles.label3d} data-visible="false" aria-hidden="true" tabIndex={-1} data-company-id={n.id} aria-pressed={n.id===selected} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong>{(n.id===selected||n.id===tourCompany)&&<><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span><CompanyPriceChange price={n.dailyPrice} locale={locale}/></>}</button></div></div>)}
     </Html>
   </>;
 }
