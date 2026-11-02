@@ -61,7 +61,8 @@ test('routine deployment is private, bounded and reuses push identity without AI
 test('snapshot preflight prevents scan fallback and preserves custom bucket configuration',()=>{
   const missing=run({MISSING_RESOURCE:'gs://demo-eodhd-bulk-eod/entity-snapshots/companies.sqlite'});
   assert.notEqual(missing.status,0);assert.doesNotMatch(missing.calls,mutations);
-  for(const extra of [{ENTITY_SNAPSHOT_BUCKET:'custom-snapshots'},{EODHD_BULK_EOD_BUCKET:'custom-snapshots'}]){
+  const overrides:Record<string,string>[]=[{ENTITY_SNAPSHOT_BUCKET:'custom-snapshots'},{EODHD_BULK_EOD_BUCKET:'custom-snapshots'}];
+  for(const extra of overrides){
     const result=run(extra);assert.equal(result.status,0,result.stderr);
     assert.match(result.calls,/storage objects describe gs:\/\/custom-snapshots\/entity-snapshots\/companies.sqlite/);
     assert.match(result.calls,/ENTITY_SNAPSHOT_BUCKET=custom-snapshots/);
