@@ -23,7 +23,7 @@ const vertex = `attribute vec3 center; attribute vec3 tint; attribute float emph
     // Companies outside the current focus shrink so they recede instead of crowding it.
     float radius = baseRadius * clamp(sqrt(capScale), .85, 1.35) * mix(1., 1.2, focus) * mix(.55, 1., clamp(emphasis, 0., 1.));
     // Cap the on-screen size so planets passing the camera never fill the frame.
-    radius = min(radius, depth * mix(.035, .05, focus) / projectionMatrix[1][1]);
+    radius = min(radius, depth * mix(.022, .032, focus) / projectionMatrix[1][1]);
     vec3 world = center + position * radius;
     vNormal = normalize(position);
     vLocal = position;
@@ -71,7 +71,7 @@ export function CompanyPlanets({ geometry, range, galaxyRadius }: { geometry: Bu
     return result;
   }, [geometry]);
   useEffect(() => () => planets.dispose(), [planets]);
-  const uniforms = useMemo(() => ({ range: { value: range }, baseRadius: { value: galaxyRadius * .008 }, nearRange: { value: new Vector2(galaxyRadius * .05, galaxyRadius * .12) } }), [range, galaxyRadius]);
+  const uniforms = useMemo(() => ({ range: { value: range }, baseRadius: { value: galaxyRadius * .0055 }, nearRange: { value: new Vector2(galaxyRadius * .05, galaxyRadius * .12) } }), [range, galaxyRadius]);
   const copiedVersion = useRef(-1);
   const mesh = useRef<Mesh>(null);
   // Follow the stars' hover and selection emphasis, which the graph animates per frame.
