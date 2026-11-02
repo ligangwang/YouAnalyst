@@ -8,15 +8,30 @@ function cloud(args:string[]){
  const command=process.platform==='win32'?'cmd.exe':'gcloud',actual=process.platform==='win32'?['/d','/s','/c','gcloud '+args.join(' ')]:args;
  const result=spawnSync(command,actual,{encoding:'utf8',stdio:['ignore','pipe','pipe']});if(result.status!==0)throw Error('Cloud monitoring command failed');return result.stdout.trim();
 }
-function token(){return cloud(['auth','print-access-token']);}
+async function token(){
+ if(process.env.CLOUD_RUN_JOB){
+  const credential=await json('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',{headers:{'Metadata-Flavor':'Google'}});
+  if(typeof credential.access_token!=='string')throw Error('Runtime credentials unavailable');
+  return credential.access_token as string;
+ }
+ return cloud(['auth','print-access-token']);
+}
+async function inventory(url:string,key:string,headers:Record<string,string>){
+ const items:Record<string,any>[]=[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+ let pageToken='';
+ do{const endpoint=new URL(url);if(pageToken)endpoint.searchParams.set('pageToken',pageToken);
+  const result=await json(endpoint.toString(),{headers});items.push(...(result[key]??[]));pageToken=result.nextPageToken??'';
+ }while(pageToken);
+ return items;
+}
 async function json(url:string,options:RequestInit={}){const response=await fetch(url,{...options,signal:AbortSignal.timeout(30000)});if(!response.ok)throw Error(`Monitor request failed: ${response.status}`);return response.json();}
 export async function observeOnboardingCapacity(credential:string){
  const auth={Authorization:`Bearer ${credential}`,'Content-Type':'application/json'};
  const checks=await Promise.all([fetch(website+'/api/health',{signal:AbortSignal.timeout(30000)}),fetch(website+'/',{signal:AbortSignal.timeout(30000)})]);
  const webHealthy=checks.every(response=>response.ok);await Promise.all(checks.map(response=>response.body?.cancel()));
  const logs=await json('https://logging.googleapis.com/v2/entries:list',{method:'POST',headers:auth,body:JSON.stringify({resourceNames:[`projects/${project}`],filter:`resource.type="cloud_run_revision" AND resource.labels.service_name="ifindata-web" AND timestamp>="${start.toISOString()}" AND (httpRequest.status>=500 OR httpRequest.status=429 OR textPayload:"Memory limit" OR textPayload:"RESOURCE_EXHAUSTED")`,pageSize:1})});
- const triggers=JSON.parse(cloud(['eventarc','triggers','list','--project',project,'--location','us-east4','--format=json']));
- const subscriptions=JSON.parse(cloud(['pubsub','subscriptions','list','--project',project,'--format=json']));
+ const triggers=await inventory(`https://eventarc.googleapis.com/v1/projects/${project}/locations/us-east4/triggers`,'triggers',auth);
+ const subscriptions=await inventory(`https://pubsub.googleapis.com/v1/projects/${project}/subscriptions`,'subscriptions',auth);
  const cacheSubscriptions=new Set<string>();
  for(const trigger of triggers)if(trigger.destination?.cloudRun?.path==='/api/internal/cache-changes'&&trigger.transport?.pubsub?.subscription)cacheSubscriptions.add(trigger.transport.pubsub.subscription.split('/').at(-1));
  for(const item of subscriptions)if(/cache/i.test(item.name))cacheSubscriptions.add(item.name.split('/').at(-1));
@@ -38,7 +53,7 @@ export async function observeOnboardingCapacity(credential:string){
  return {at:end.toISOString(),windowStart:start.toISOString(),webHealthy,websiteErrors,backlog:metrics[subscription].num_undelivered_messages,oldestAgeSeconds:metrics[subscription].oldest_unacked_message_age,cacheSubscriptions:[...cacheSubscriptions],cacheBacklogHigh,classificationEvents:events,estimatedUsd,unknownCosts,allEvents,allEstimatedUsd,allUnknownCosts,usageLoggingErrors:(usageWarnings.entries??[]).length,pauseNewBatches:!webHealthy||websiteErrors>0||cacheBacklogHigh||Object.values(metrics[subscription]).some(value=>value===null)};
 }
 async function main(){
- const credential=token();let observed:Awaited<ReturnType<typeof observeOnboardingCapacity>>|undefined;let failure='';
+ const credential=await token();let observed:Awaited<ReturnType<typeof observeOnboardingCapacity>>|undefined;let failure='';
  try{observed=await observeOnboardingCapacity(credential);}catch(error){failure=error instanceof Error?error.message:'Monitor unavailable';}
  const paused=!observed||observed.pauseNewBatches;
  if(process.argv.includes('--write-control')){

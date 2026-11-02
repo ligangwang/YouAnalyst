@@ -187,3 +187,18 @@ test('news and fundamentals consumers use projected company data without expandi
  const [sources,ids]=await Promise.all([loadNewsSources(db),loadFundamentalsCompanyIds(db,'US')]);
  assert.deepEqual(ids,['US:NEW']);assert.equal(sources.length,1);assert.equal(sources[0].id,feed.id);assert.deepEqual(sources[0].allowedHosts,feed.allowedHosts);assert.deepEqual(loads,[true]);
 });
+
+
+test('projected mixed batches use cached companies and live operational documents in original order',async()=>{
+ const sdk=new Firestore({projectId:'mixed-company-projection'});let liveReads=0;
+ sdk.getAll=(async(...args:unknown[])=>{
+  liveReads++;assert.deepEqual(args.slice(0,-1).map(ref=>(ref as {path:string}).path),['collectors/identity']);
+  assert.deepEqual(args.at(-1),{fieldMask:['name','names.en']});
+  return [{exists:true,data:()=>({name:'Live identity'})}];
+ }) as unknown as typeof sdk.getAll;
+ const db=observeFirestore(sdk,()=>{});let loads=0;
+ enableCompanyDirectory(db,sdk,{file:async()=>{loads++;return records();},sync:false});
+ const result=await db.getAll(db.collection('companies').doc('US:A'),db.collection('collectors').doc('identity'),db.collection('companies').doc('US:X'),{fieldMask:['name','names.en']});
+ assert.deepEqual(result.map(doc=>doc.data()),[{name:'Alpha',names:{en:'Alpha'}},{name:'Live identity'},undefined]);
+ assert.equal(loads,1);assert.equal(liveReads,1);
+});

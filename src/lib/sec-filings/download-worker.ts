@@ -11,13 +11,13 @@ import {isSupportedCompany} from '../company-support/model';
 import {reviewedEarningsIssuers,type EarningsCompany} from '../earnings/issuers';
 
 /** Intake needs one current issuer, not the graph and identity-directory listeners.
- * Read afresh so removals and CIK corrections apply to the next delivery. Never
+ * Company deltas update eligibility; the operational identity stays live. Never
  * trust the queued source itself to establish its issuer identity.
  */
 export async function readSecIntakeIdentity(db:Firestore,companyId:string):Promise<EarningsCompany>{
   if(!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(companyId))throw new Error('Invalid SEC intake company');
-  // Field-mask reads retain SDK semantics in the Firestore adapter instead of
-  // hydrating the shared company snapshot directory and opening its listener.
+  // The adapter serves the company projection from the shared directory and
+  // reads the operational identity directly from Firestore.
   const [companyDoc,identityDoc]=await db.getAll(db.collection('companies').doc(companyId),db.collection('collectors').doc(`sec-identity-${companyId}`),
     {fieldMask:['name','status','isDeleted','supersededByCompanyId','onboarding.status','companyId','cik']});
   const company=companyDoc.data(),identity=identityDoc.data();

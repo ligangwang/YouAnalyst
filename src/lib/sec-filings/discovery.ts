@@ -31,7 +31,7 @@ export async function discoverSecCompany(db:Firestore,ticker:string){
   const id=`US:${ticker}`,doc=await readSecCollectionCompany(db,id);
   const companies=supportedCompanyUniverse(doc?[doc]:[]);
   if(!companies.nodes.length)return {status:'ineligible',companyId:id};
-  const log=createMaintenanceLog('sec-company-discovery'),deadline=Date.now()+8*60000;
+  const log=createMaintenanceLog('sec-company-discovery'),startedAt=Date.now(),deadline=startedAt+8*60000;
   const sync=createSecCompanySync(db,new Map([[id,doc!]]));
   const initialStates=new Map<string,DocumentData|undefined>();
   await loadEarningsMap(db,companies,initialStates);
@@ -51,6 +51,11 @@ export async function discoverSecCompany(db:Firestore,ticker:string){
     const cik=sync.register(id,mapped);registerEarningsIssuer(id,cik);byCik.set(cik,[id]);return cik;
   };
   const result=await collectSecFilings(db,[ticker],log,{source,companyId:ticker,deadline,
+    discoveryCompletion:(financial,financialCompleteAt)=>{
+      const complete=!financial.failed&&!financial.partial&&!financial.remaining&&!disclosures.failed.size&&!earnings?.failed.size&&financialCompleteAt!==null;
+      return {discoveryStatus:complete?'complete':'partial',discoveryNextPollAtMs:Date.now()+15*60000,
+        ...(complete?{discoveryCompleteAt:new Date(Math.min(startedAt,Date.parse(financialCompleteAt!))).toISOString()}: {})};
+    },
     beforeCompany:async()=>{await source.submissions(await source.resolveCik(ticker));},
     publish:event=>publishJobMessage(process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED==='1'?SEC_DOWNLOAD_TOPIC:SEC_FILINGS_TOPIC,event)});
   if(result.failed||result.partial||result.remaining||disclosures.failed.size||earnings?.failed.size)throw new Error('SEC company discovery incomplete; saved cursors and outboxes retained');

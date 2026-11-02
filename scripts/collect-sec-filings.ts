@@ -1,3 +1,4 @@
+import {selectSecDiscoveryCompanies} from '../src/lib/sec-filings/discovery-schedule';
 import {supportedCompanyUniverse} from '../src/lib/company-support/model';
 import {createSecCompanySync} from '../src/lib/industry-classification/sec-sync';
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
@@ -8,7 +9,7 @@ import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
 import { collectSecFilings, inspectSecFilingCollection,repairSecDiscoveryOutbox } from "../src/lib/sec-filings/collector";
-import {SEC_DISCOVERY_TOPIC,publishSecDiscoveryTasks,updateSecDiscoveryFreshness,saveSecDiscoveryRotation} from '../src/lib/sec-filings/discovery-queue';
+import {SEC_DISCOVERY_TOPIC,publishSecDiscoveryTasks,saveSecDiscoveryRotation} from '../src/lib/sec-filings/discovery-queue';
 import {secCollectorMetadata} from '../src/lib/sec-filings/store';
 import { SEC_FILINGS_TOPIC } from "../src/lib/sec-filings/event";
 import { createSecFilingsSource } from "../src/lib/sec-filings/source";
@@ -72,12 +73,13 @@ async function main() {
     const repair=await repairSecDiscoveryOutbox(db,log,event=>publishJobMessage(downloadTopic,event),deadline);
     if(repair.incomplete)throw new Error('SEC outbox repair incomplete; no new discovery dispatched');
     const ids=companyIds.map(ticker=>`US:${ticker}`);
-    const freshness=await updateSecDiscoveryFreshness(db,ids,process.env.EARNINGS_COLLECTION_ENABLED==='1');
+    const selection=await selectSecDiscoveryCompanies(db,ids,{now:Date.now(),maxCompanies});
+    const freshness=selection.freshness;
     const after=(await secCollectorMetadata(db).get()).get('afterCompanyId');
-    const publication=await publishSecDiscoveryTasks(ids,task=>publishJobMessage(SEC_DISCOVERY_TOPIC,task),{
+    const publication=await publishSecDiscoveryTasks(selection.ids,task=>publishJobMessage(SEC_DISCOVERY_TOPIC,task),{
       execution:process.env.CLOUD_RUN_EXECUTION??log.runId,deadline,maxCompanies,after:typeof after==='string'?`US:${after}`:undefined});
     await saveSecDiscoveryRotation(db,publication.afterCompanyId);
-    log.emit(publication.failed?'ERROR':'INFO','run_completed',{mode:'pubsub',repair,freshness,...publication});
+    log.emit(publication.failed?'ERROR':'INFO','run_completed',{mode:'pubsub',repair,freshness,statusDocumentsRead:selection.statusDocumentsRead,registered:selection.registered,unregistered:selection.unregistered,...publication});
     if(publication.failed)throw new Error('SEC discovery publication incomplete; retry stable company tasks');
     return;
   }

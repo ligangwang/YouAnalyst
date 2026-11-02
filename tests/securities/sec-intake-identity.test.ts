@@ -23,22 +23,21 @@ function fixture(){
   return {db,rows,put,get reads(){return reads;}};
 }
 
-test('production Firestore adapter bypasses company snapshots and listeners for intake validation',async()=>{
+test('production intake shares company snapshots while reading current operational identity',async()=>{
   const raw=new Firestore({projectId:'sec-intake-projection-test'});
   let calls=0,directoryLoads=0,cik='0000001234';
   raw.getAll=(async(...args:unknown[])=>{
     calls++;
-    assert.deepEqual(args.slice(0,2).map(ref=>(ref as {path:string}).path),['companies/US:AAA','collectors/sec-identity-US:AAA']);
-    assert.deepEqual(args[2],{fieldMask:['name','status','isDeleted','supersededByCompanyId','onboarding.status','companyId','cik']});
-    return [{exists:true,data:()=>({name:'AAA',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}})},
-      {exists:true,data:()=>({companyId:'US:AAA',cik})}];
+    assert.deepEqual(args.slice(0,-1).map(ref=>(ref as {path:string}).path),['collectors/sec-identity-US:AAA']);
+    assert.deepEqual(args.at(-1),{fieldMask:['name','status','isDeleted','supersededByCompanyId','onboarding.status','companyId','cik']});
+    return [{exists:true,data:()=>({companyId:'US:AAA',cik})}];
   }) as unknown as typeof raw.getAll;
   const db=observeFirestore(raw,()=>{});
-  enableCompanyDirectory(db,raw,{file:async()=>{directoryLoads++;throw Error('Intake must not hydrate company directory');}});
+  enableCompanyDirectory(db,raw,{sync:false,file:async()=>{directoryLoads++;return new Map([['US:AAA',{name:'AAA',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}}]]);}});
   assert.equal((await readSecIntakeIdentity(db,'US:AAA')).cik,'0000001234');
   cik='0000005678';
   assert.equal((await readSecIntakeIdentity(db,'US:AAA')).cik,'0000005678');
-  assert.equal(calls,2);assert.equal(directoryLoads,0);
+  assert.equal(calls,2);assert.equal(directoryLoads,1);
 });
 
 test('repeated and concurrent deliveries read only their two issuer documents without listeners or global map replacement',async()=>{
