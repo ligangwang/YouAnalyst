@@ -316,7 +316,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`sector selection re
 for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,{tag:'@desktop-only'},async({page})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);
  await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'},{supportState:'SUPPORTED',id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}));
- await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),start:'2026-09-04',end:'2026-10-04',currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  const lookup=async(id:string,name:string)=>{
@@ -360,7 +360,7 @@ test('fullscreen lookup keeps chart closed until requested while event sources l
   return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
  });
  await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{supportState:'SUPPORTED',id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
- await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',currency:'USD',available:true,prices:[{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-04',end:'2026-10-04',currency:'USD',available:true,prices:[{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
  await page.goto('http://workspace.test/?view=graph');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
