@@ -1,3 +1,4 @@
+import type {DiscoveryCompletion} from './discovery-schedule';
 import type { Firestore } from "firebase-admin/firestore";
 import { acquireSecCollectorLease, releaseSecCollectorLease,acquireSecDiscoveryCompanyLease,releaseSecDiscoveryCompanyLease,secDiscoveryCompanyState } from "../sec-collector-state";
 import { cloudRunTaskAttempt } from "../maintenance-lease";
@@ -25,6 +26,7 @@ export type SecCollectorOptions = {
   /** One queued company, sharing all existing scan/baseline/outbox semantics. */
   companyId?:string;
   beforeCompany?:(ticker:string)=>Promise<void>;
+  discoveryCompletion?:(result:SecCollectorResult,financialCompleteAt:string|null)=>DiscoveryCompletion;
 };
 export type SecCollectorResult = {
   companies: number;
@@ -108,7 +110,8 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
   const canWork = () => now() + OPERATION_RESERVE_MS < options.deadline;
   const result: SecCollectorResult = { companies: companies.length, inspected: 0, completed: 0,
     baselined: 0, discovered: 0, published: 0, deferred: 0, partial: 0, failed: 0, remaining: companies.length, outboxIncomplete: false };
-  let completion: {afterCompanyId:string;lastRunAt:string;result:SecCollectorResult}|undefined;
+  let completion: ({afterCompanyId:string;lastRunAt:string;result:SecCollectorResult}&Partial<DiscoveryCompletion>)|undefined;
+  let financialCompleteAt:string|null=null;
   const metadata = options.companyId?secDiscoveryCompanyState(db,options.companyId):secCollectorMetadata(db);
   if (!(options.companyId?await acquireSecDiscoveryCompanyLease(db,options.companyId,log.runId,now()):await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt()))) throw new Error("SEC filing collector is busy");
   try {
@@ -149,6 +152,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
       try {
         await options.beforeCompany?.(companyId);
         let cursor = await readSecCollectorCursor(db, companyId);
+        financialCompleteAt=cursor?.lastCompleteAt??null;
         if (cursor && !cursor.scan && cursor.nextPollAfterMs > now()) {
           result.deferred++;
         } else {
@@ -225,6 +229,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
             const completed: SecCollectorCursor = { ...cursor, lastCompleteAt: scan.startedAt,
               nextPollAfterMs: now() + pollIntervalMs, scan: null };
             await writeSecCollectorCursor(db, companyId, completed);
+            financialCompleteAt=completed.lastCompleteAt;
             result.completed++;
             log.emit("INFO", "company_collected", { companyId, baseline: scan.baseline, cik });
           } else result.partial++;
@@ -245,7 +250,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
     }
     await drain();
     const lastRunAt = new Date(now()).toISOString();
-    if(options.companyId)completion={afterCompanyId:options.companyId,lastRunAt,result};
+    if(options.companyId)completion={afterCompanyId:options.companyId,lastRunAt,result,...options.discoveryCompletion?.(result,financialCompleteAt)};
     else await db.runTransaction(async tx => {
       // Keep the previous status fields for admin/older revisions during rollout.
       tx.set(metadata, { lastRunAt, result }, { merge: true });

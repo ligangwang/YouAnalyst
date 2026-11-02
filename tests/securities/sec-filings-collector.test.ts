@@ -573,3 +573,16 @@ test('combined completion cannot overwrite a newer company lease or status',asyn
  assert.equal(f.writes(),before);assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.leaseOwner,'new-owner');
  assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.lastRunAt,'new-status');
 });
+
+
+test('queryable discovery summary is committed in the existing owner-checked completion write',async()=>{
+ const f=fixture({[COMPANY]:{secFilingsCollector:cursor()}});f.setSubmissions({recent:[],files:[]});
+ const before=f.writes();
+ await collectSecFilings(f.db,['AMD'],f.log,{...f.options(),companyId:'AMD',discoveryCompletion:(result,completeAt)=>{
+  assert.equal(result.completed,1);assert.equal(completeAt,iso);
+  return {discoveryStatus:'complete',discoveryNextPollAtMs:f.now()+900000,discoveryCompleteAt:completeAt!};
+ }});
+ assert.equal(f.writes()-before,4,'summary does not add a per-company write');
+ assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.discoveryStatus,'complete');
+ assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.leaseOwner,undefined);
+});

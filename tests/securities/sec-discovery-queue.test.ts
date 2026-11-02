@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {parseSecDiscoveryTask,publishSecDiscoveryTasks,processSecDiscoveryTask,updateSecDiscoveryFreshness} from '../../src/lib/sec-filings/discovery-queue';
+import {parseSecDiscoveryTask,publishSecDiscoveryTasks,processSecDiscoveryTask} from '../../src/lib/sec-filings/discovery-queue';
 import {acquireSecDiscoveryCompanyLease,releaseSecDiscoveryCompanyLease} from '../../src/lib/sec-collector-state';
 import {earningsFirestore} from '../helpers/earnings-firestore';
 import {discoverSecCompany} from '../../src/lib/sec-filings/discovery';
@@ -55,15 +55,6 @@ test('company fencing excludes duplicate tasks and old global collectors without
  f.rows.set('sec_collector_state/_sec_filings_collector',{leaseExpiresAtMs:now()+60000});
  assert.equal(await acquireSecDiscoveryCompanyLease(f.db,'INTC','d',now()),false);
 });
-test('queued freshness uses completed coverage of every company, not accepted tasks',async()=>{
- const f=earningsFirestore();f.rows.set('sec_collector_state/_sec_filings_collector',{bridgeRetired:true});
- f.rows.set('sec_collector_state/US:AMD',{secFilingsCollector:{version:1,cik:'0000002488',baselineAt:at,lastCompleteAt:at,nextPollAfterMs:0,scan:null}});
- f.rows.set('collectors/sec-US:AMD',{status:'complete',lastSuccessAt:at});
- await updateSecDiscoveryFreshness(f.db,['US:AMD'],false,now());
- assert.equal((f.rows.get('sec_collector_state/_website_freshness')!.result as {remaining:number}).remaining,0);
- await updateSecDiscoveryFreshness(f.db,['US:AMD','US:NVDA'],false,now());
- assert.equal((f.rows.get('sec_collector_state/_website_freshness')!.result as {remaining:number}).remaining,1);
-});
 test('live company discovery loads only its issuer snapshot and shares the ticker directory across tasks',async()=>{
  const f=earningsFirestore(),originalFetch=globalThis.fetch,gate=secBudget.run,agent=process.env.SEC_USER_AGENT,earnings=process.env.EARNINGS_COLLECTION_ENABLED;
  Object.assign(f.db,{getAll:async(ref:DocumentReference,options:{fieldMask:string[]})=>{
@@ -93,4 +84,19 @@ test('live company discovery loads only its issuer snapshot and shares the ticke
   if(agent===undefined)delete process.env.SEC_USER_AGENT;else process.env.SEC_USER_AGENT=agent;
   if(earnings===undefined)delete process.env.EARNINGS_COLLECTION_ENABLED;else process.env.EARNINGS_COLLECTION_ENABLED=earnings;
  }
+});
+
+
+test('pre-collector failures become due retries without overwriting active leases or saved completion',async()=>{
+ const f=earningsFirestore();
+ Object.assign(f.db,{getAll:async(ref:DocumentReference)=>[await ref.get()]});
+ f.rows.set('companies/US:AMD',{name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}});
+ const path='sec_collector_state/_discovery_AMD';f.rows.set(path,{discoveryStatus:'pending',discoveryNextPollAtMs:0});
+ const options={enabled:true,run:async()=>{throw Error('setup failed');}};
+ await assert.rejects(processSecDiscoveryTask(task,f.db,options),/setup failed/);
+ assert.equal(f.rows.get(path)?.discoveryStatus,'partial');assert(Number(f.rows.get(path)?.discoveryNextPollAtMs)>Date.now());
+ const saved=structuredClone(f.rows.get(path));
+ await assert.rejects(processSecDiscoveryTask(task,f.db,options),/setup failed/);assert.deepEqual(f.rows.get(path),saved);
+ f.rows.set(path,{leaseOwner:'another',leaseExpiresAtMs:Date.now()+60000,discoveryStatus:'pending',discoveryNextPollAtMs:0});
+ await assert.rejects(processSecDiscoveryTask(task,f.db,options),/setup failed/);assert.equal(f.rows.get(path)?.discoveryStatus,'pending');
 });

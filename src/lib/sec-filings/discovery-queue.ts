@@ -1,9 +1,10 @@
+import {secDiscoveryCompanyState} from '../sec-collector-state';
 import {createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import type {Firestore} from 'firebase-admin/firestore';
 import {readSecCollectionCompany} from '../company-support/collection-reader';
 import {supportedCompanyUniverse} from '../company-support/model';
-import {readSecCollectorCursor,secCollectorFreshness,secCollectorMetadata} from './store';
+import {secCollectorMetadata} from './store';
 
 export const SEC_DISCOVERY_TOPIC='sec-company-discovery-requests';
 export const SEC_DISCOVERY_SUBSCRIPTION='sec-company-discovery-worker';
@@ -51,23 +52,18 @@ export async function processSecDiscoveryTask(input:unknown,db:Firestore,options
   const doc=await readSecCollectionCompany(db,task.companyId);
   const graph=supportedCompanyUniverse(doc?[doc]:[]);
   if(!graph.nodes.some(node=>node.id===task.companyId))return {status:'ineligible',companyId:task.companyId};
-  return options.run(task.companyId.slice(3));
-}
-/** Public freshness reflects completed company scans, never queue acceptance. */
-export async function updateSecDiscoveryFreshness(db:Firestore,ids:readonly string[],earnings:boolean,now=Date.now()){
-  let oldest=now,incomplete=0;
-  for(const id of ids){
-    const [financial,disclosure,earning]=await Promise.all([readSecCollectorCursor(db,id.slice(3)),
-      db.collection('collectors').doc(`sec-${id}`).get(),earnings?db.collection('earnings_collectors').doc(`us_${id.replaceAll('.','_')}`).get():undefined]);
-    const d=disclosure.data(),e=earning?.data();
-    const times=[financial?.lastCompleteAt,d?.lastSuccessAt,...(earnings?[e?.lastCompleteAt]:[])].map(value=>Date.parse(String(value)));
-    if(financial?.scan||d?.status!=='complete'||(earnings&&e?.status!=='complete')||times.some(t=>!Number.isFinite(t)||t>now)){incomplete++;continue;}
-    oldest=Math.min(oldest,...times);
+  try{return await options.run(task.companyId.slice(3));}
+  catch(error){
+    // Failures before the collector acquires its lease still need a retry time.
+    // Do not overwrite a current lease or the completion already saved by it.
+    const ref=secDiscoveryCompanyState(db,task.companyId.slice(3)),now=Date.now();
+    await db.runTransaction(async tx=>{
+      const state=(await tx.get(ref)).data();
+      if(Number(state?.leaseExpiresAtMs)>now||Number(state?.discoveryNextPollAtMs)>now)return;
+      tx.set(ref,{discoveryStatus:'partial',discoveryNextPollAtMs:now+15*60000},{merge:true});
+    });
+    throw error;
   }
-  if(!ids.length)incomplete++;
-  const result={companies:ids.length,failed:0,partial:incomplete,remaining:incomplete,outboxIncomplete:false};
-  await secCollectorFreshness(db).set({lastRunAt:new Date(oldest).toISOString(),result},{merge:true});
-  return result;
 }
 export async function saveSecDiscoveryRotation(db:Firestore,after:string|null){
   if(after)await secCollectorMetadata(db).set({afterCompanyId:after.slice(3)},{merge:true});

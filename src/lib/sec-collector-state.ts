@@ -22,7 +22,7 @@ export async function acquireSecDiscoveryCompanyLease(db:Firestore,ticker:string
   });
 }
 /** Commit the final single-company status with the owner-checked lease release. */
-export async function releaseSecDiscoveryCompanyLease(db:Firestore,ticker:string,owner:string,completion?:{afterCompanyId:string;lastRunAt:string;result:unknown}){
+export async function releaseSecDiscoveryCompanyLease(db:Firestore,ticker:string,owner:string,completion?:{afterCompanyId:string;lastRunAt:string;result:unknown;discoveryStatus?:'complete'|'partial';discoveryNextPollAtMs?:number;discoveryCompleteAt?:string}){
   const ref=secDiscoveryCompanyState(db,ticker);
   if(!completion)return releaseMaintenanceLease(ref,owner);
   await db.runTransaction(async tx=>{
