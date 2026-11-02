@@ -3,7 +3,7 @@
 import { LoadingSpinner } from './loading-spinner';
 import { TOUR_IDLE_RESUME_MS, tourDelta, tourEase } from '@/lib/ui/knowledge-graph/tour-motion';
 // Cinematic pace of the galaxy tour: seconds of travel per company at 1x speed.
-const TOUR_STOP_SECONDS = 9;
+const TOUR_STOP_SECONDS = 12;
 const TOUR_JOIN_SECONDS = 5;
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
