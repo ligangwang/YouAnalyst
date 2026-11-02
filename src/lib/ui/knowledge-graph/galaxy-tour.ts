@@ -11,6 +11,8 @@ const TAU = Math.PI * 2;
 const MIN_RETURN_TURN = Math.PI / 3;
 // Weight of view rotation against travel when pacing the flight: turns slow it down.
 const TURN_WEIGHT = 2;
+// The loop never turns faster than this on average, however few companies it shows.
+export const GALAXY_TOUR_MAX_TURN_DEGREES = 2.5;
 
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
@@ -73,6 +75,12 @@ export type GalaxyTour = {
    * another is clearly nearer, so the label does not flicker between neighbours.
    */
   company(progress: number, target: Vector3, held: string): string;
+  /**
+   * Loop length: the given seconds per company, but never so short that the view
+   * turns faster than GALAXY_TOUR_MAX_TURN_DEGREES per second (a filtered graph of a
+   * few companies still circles the galaxy at least once).
+   */
+  loopSeconds(perCompany: number): number;
 };
 
 export function galaxyTour(nodes: readonly TourCompany[], arms: readonly GalaxyArm[], galaxyRadius: number): GalaxyTour | null {
@@ -86,11 +94,17 @@ export function galaxyTour(nodes: readonly TourCompany[], arms: readonly GalaxyA
   const eyeCurve = new CatmullRomCurve3(eyes, true, 'centripetal'), targetCurve = new CatmullRomCurve3(targets, true, 'centripetal');
   // Pace by travel plus turning, so the flight keeps one calm speed through bends.
   const samples = eyes.length * 40, pace = new Float64Array(samples + 1);
-  const eye = new Vector3(), target = new Vector3(), view = new Vector3(), previousEye = eyeCurve.getPoint(0), previousView = targetCurve.getPoint(0).sub(previousEye).normalize();
+  let rotation = 0;
+  const eye = new Vector3(), target = new Vector3(), view = new Vector3(), previousEye = eyeCurve.getPoint(0), previousView = targetCurve.getPoint(0).sub(previousEye);
+  previousView.addScaledVector(up, -previousView.dot(up)).normalize();
   for (let i = 1; i <= samples; i++) {
     eyeCurve.getPoint(i / samples, eye); targetCurve.getPoint(i / samples, target);
-    view.subVectors(target, eye).normalize();
-    pace[i] = pace[i - 1] + eye.distanceTo(previousEye) / R + view.angleTo(previousView) * TURN_WEIGHT;
+    // Measure turning around the galaxy's axis: the tilt of the view is constant.
+    view.subVectors(target, eye);
+    view.addScaledVector(up, -view.dot(up)).normalize();
+    const turn = view.angleTo(previousView);
+    rotation += turn;
+    pace[i] = pace[i - 1] + eye.distanceTo(previousEye) / R + turn * TURN_WEIGHT;
     previousEye.copy(eye); previousView.copy(view);
   }
   const total = pace[samples] || 1;
@@ -102,7 +116,9 @@ export function galaxyTour(nodes: readonly TourCompany[], arms: readonly GalaxyA
   };
   const members = new Map<number, { id: string; at: Vector3 }[]>();
   for (const node of nodes) members.set(node.galaxyArm, [...members.get(node.galaxyArm) ?? [], { id: node.id, at: new Vector3(node.x, node.y, node.z) }]);
+  const rotationDegrees = rotation * 180 / Math.PI;
   return {
+    loopSeconds: perCompany => Math.max(perCompany * nodes.length, rotationDegrees / GALAXY_TOUR_MAX_TURN_DEGREES),
     at(progress, eyeOut, targetOut) {
       const u = curveAt(progress);
       eyeCurve.getPoint(u, eyeOut); targetCurve.getPoint(u, targetOut);

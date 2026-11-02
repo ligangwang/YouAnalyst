@@ -418,7 +418,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
     if(!galaxyLayout?.nodes.length)return null;
     const path=galaxyTour(galaxyLayout.nodes,galaxyLayout.arms,galaxyRadius);
     if(!path)return null;
-    return {path,count:galaxyLayout.nodes.length};
+    return {path,loopSeconds:path.loopSeconds(TOUR_STOP_SECONDS)};
   },[galaxyLayout,galaxyRadius]);
   const tour=useRef<{t:number;elapsed:number;fromEye:Vector3;fromTarget:Vector3}|null>(null);
   const lastCameraRequest=useRef<{layout:string;request:number;reset:number;width:number;height:number}|null>(null);
@@ -638,7 +638,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
       }
       const state=tour.current;
       state.elapsed+=dt;
-      state.t=(state.t+dt/(TOUR_STOP_SECONDS*tourPath.count))%1;
+      state.t=(state.t+dt/tourPath.loopSeconds)%1;
       const eye=new Vector3(),target=new Vector3();
       tourPath.path.at(state.t,eye,target);
       // Each company of the arm being ridden comes up front in turn, once per loop.
