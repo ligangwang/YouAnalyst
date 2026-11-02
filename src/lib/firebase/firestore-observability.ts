@@ -219,6 +219,15 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         if(method==='get'&&(kind==='doc'||kind==='query')&&isSnapshotCollection(shape.collection)){
           const cached=companySourceSnapshot(observed,proxy);if(cached)return cached;
         }
+        // Projected company reads must share the file/watermark directory too.
+        // Leave other collections and transaction reads on the SDK path.
+        if(method==='getAll'&&kind==='db'&&Array.isArray(args.at(-1)?.fieldMask)){
+          const refs=args.slice(0,-1),fields=args.at(-1).fieldMask;
+          if(refs.length&&fields.every((field:unknown)=>typeof field==='string')&&refs.every(ref=>ref?.path&&documentCollection(ref.path)==='companies')){
+            const reads=refs.map(ref=>companySourceSnapshot(observed,ref,fields));
+            if(reads.every(Boolean))return Promise.all(reads);
+          }
+        }
         if(method==='getAll'&&kind==='db'&&args.length&&args.every(ref=>ref?.path)){
           const reads=args.map(ref=>isSnapshotCollection(documentCollection(ref.path))?companySourceSnapshot(observed,ref):undefined);
           if(reads.some(Boolean))return Promise.all(args.map((ref,index)=>reads[index]??ref.get()));

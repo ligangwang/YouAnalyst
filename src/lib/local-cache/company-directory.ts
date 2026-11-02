@@ -177,7 +177,14 @@ function document(db:Firestore,id:string,data:DocumentData|undefined,collection:
  };
  return {id,exists:data!==undefined,ref:db.collection(collection).doc(id),data:()=>copy(data),get:(name:string)=>copy(data?field(data,name):undefined)};
 }
-export function companySourceSnapshot(db:Firestore,source:object):Promise<unknown>|undefined {
+function project(data:DocumentData,fields:readonly string[]):DocumentData {
+ const selected:DocumentData={};
+ for(const name of fields){const value=field(data,name);if(value===undefined)continue;
+  const parts=name.split('.');let into=selected;for(const part of parts.slice(0,-1))into=into[part]??={};into[parts.at(-1)!]=value;
+ }
+ return selected;
+}
+export function companySourceSnapshot(db:Firestore,source:object,fieldMask?:readonly string[]):Promise<unknown>|undefined {
  const spec=state.sources.get(source);if(!spec||!companyDirectoryEnabled(db,spec.collection))return undefined;
  // Enable only after legacy price writers drain, timestamps are migrated, and a snapshot is published.
  if(spec.collection==='eod_prices'&&process.env.PRICE_SNAPSHOT_READY!=='1')return undefined;
@@ -190,7 +197,7 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
   &&spec.steps.filter(step=>['where','orderBy'].includes(step.method)).every(step=>isCompanyViewField(fieldName(step.args[0])));
  // Small peer comparisons share the same file + watermark delta path as charts.
  return (plan?priceRows(state.clients.get(db)!.raw,plan,state.clients.get(db)!.options.price):companyDirectory(db,spec.collection,view)).then(async rows=>{
-  if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data,spec.collection);}
+  if(spec.id!==undefined){const data=rows.get(spec.id);return document(db,spec.id,data?.isDeleted===true?undefined:data&&fieldMask?project(data,fieldMask):data,spec.collection);}
   const filters=spec.steps.filter(s=>s.method==='where');
   let candidates:Set<string>|undefined;
   for(const step of filters){
@@ -228,7 +235,7 @@ export function companySourceSnapshot(db:Firestore,source:object):Promise<unknow
   for(let i=0;i<result.length;i++){
    if(i&&i%128===0)await yieldToRequests();
    const id=result[i][0];let data=result[i][1];
-   if(projection){const selected:DocumentData={};for(const f of projection.args){const name=fieldName(f),v=field(data,name);if(v!==undefined){const parts=name.split('.');let into=selected;for(const part of parts.slice(0,-1))into=into[part]??={};into[parts.at(-1)!]=v;}}data=selected;}
+   if(projection)data=project(data,projection.args.map(fieldName));
    docs.push(document(db,id,data,spec.collection));
   }
   for(const step of spec.steps)if(!['where','orderBy','startAt','startAfter','endAt','endBefore','limit','limitToLast','offset','select'].includes(step.method))throw Error(`Unsupported cached company query: ${step.method}`);
