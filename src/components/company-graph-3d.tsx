@@ -16,7 +16,7 @@ import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/kno
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
-import { galaxyToWorld, layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
+import { galaxyArmPoint, galaxyToWorld, layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
 const galaxyNormal = galaxyToWorld(0, 1, 0);
 import { densitySelection } from "@/lib/knowledge-graph/density";
 import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
@@ -411,18 +411,31 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   // Live data refreshes (prices, follows) rebuild the graph object without moving any
   // company. Only a real change of positions may reframe the camera or cancel the tour.
   const layoutKey=useMemo(()=>layout.nodes.map(n=>`${n.id}:${n.x.toFixed(1)},${n.y.toFixed(1)},${n.z.toFixed(1)}`).join('|'),[layout]);
-  // A slow, unbroken flight past every company: out along one arm and back in along
-  // the next, so the camera glides between neighbours instead of swinging across the core.
+  // A slow, unbroken flight along the galaxy: out along one arm and back in along the
+  // next. Neighbouring companies alternate sides of their arm, so the camera follows the
+  // arm's own centre line at constant speed and lets each company drift past, rather
+  // than aiming at every company in turn and swinging from side to side.
   const tourPath=useMemo(()=>{
     if(!galaxyLayout?.nodes.length)return null;
+    const R=galaxyRadius,up=new Vector3(galaxyNormal.x,galaxyNormal.y,galaxyNormal.z);
     const arms=[...new Set(galaxyLayout.nodes.map(n=>n.galaxyArm))].sort((a,b)=>a-b);
-    const stops=arms.flatMap((arm,i)=>galaxyLayout.nodes.filter(n=>n.galaxyArm===arm).sort((a,b)=>i%2?b.galaxyT-a.galaxyT:a.galaxyT-b.galaxyT));
-    const up=new Vector3(galaxyNormal.x,galaxyNormal.y,galaxyNormal.z);
-    const targets=stops.map(n=>new Vector3(n.x,n.y,n.z));
-    // Each company is seen from just outside its arm, with the nebula and core behind it.
-    const eyes=targets.map(at=>at.clone().addScaledVector(at.clone().normalize(),galaxyRadius*.36).addScaledVector(up,galaxyRadius*.14));
-    if(stops.length===1){eyes.push(eyes[0].clone().addScaledVector(up,1));targets.push(targets[0].clone());}
-    return {ids:stops.map(n=>n.id),eyes:new CatmullRomCurve3(eyes,true,'centripetal'),targets:new CatmullRomCurve3(targets,true,'centripetal')};
+    const eyes:Vector3[]=[],targets:Vector3[]=[];
+    arms.forEach((arm,i)=>{
+      const ts=galaxyLayout.nodes.filter(n=>n.galaxyArm===arm).map(n=>n.galaxyT);
+      const radiusAt=(t:number)=>R*(.16+.8*Math.pow(t,.85));
+      const from=radiusAt(Math.min(...ts)),to=radiusAt(Math.max(...ts)),angle=galaxyLayout.arms[arm].angle;
+      const samples=to-from<R*.01?1:Math.max(2,Math.ceil((to-from)/(R*.08))+1);
+      for(let k=0;k<samples;k++){
+        const f=samples===1?0:k/(samples-1),r=from+(to-from)*(i%2?1-f:f),a=galaxyArmPoint(r,angle,R);
+        const p=galaxyToWorld(Math.cos(a)*r,0,Math.sin(a)*r),at=new Vector3(p.x,p.y,p.z);
+        // Seen from just outside the arm, with the nebula and core behind it.
+        targets.push(at);eyes.push(at.clone().addScaledVector(at.clone().normalize(),R*.36).addScaledVector(up,R*.14));
+      }
+    });
+    if(targets.length===1){eyes.push(eyes[0].clone().addScaledVector(up,1));targets.push(targets[0].clone());}
+    const companies=new Map(galaxyLayout.nodes.map(n=>[n.id,new Vector3(n.x,n.y,n.z)]));
+    const curve=(points:Vector3[])=>{const result=new CatmullRomCurve3(points,true,'centripetal');result.arcLengthDivisions=points.length*16;return result;};
+    return {count:galaxyLayout.nodes.length,companies,eyes:curve(eyes),targets:curve(targets)};
   },[galaxyLayout,galaxyRadius]);
   const tour=useRef<{t:number;elapsed:number;fromEye:Vector3;fromTarget:Vector3}|null>(null);
   const lastCameraRequest=useRef<{layout:string;request:number;reset:number;width:number;height:number}|null>(null);
@@ -635,13 +648,19 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
       tour.current??={t:0,elapsed:0,fromEye:c.getPosition(new Vector3()),fromTarget:c.getTarget(new Vector3())};
       const state=tour.current;
       state.elapsed+=dt;
-      state.t=(state.t+dt/(TOUR_STOP_SECONDS*tourPath.ids.length))%1;
-      const eye=tourPath.eyes.getPoint(state.t),target=tourPath.targets.getPoint(state.t);
+      state.t=(state.t+dt/(TOUR_STOP_SECONDS*tourPath.count))%1;
+      // Constant speed along the path: no surges between sparse and dense stretches.
+      const eye=tourPath.eyes.getPointAt(state.t),target=tourPath.targets.getPointAt(state.t);
+      // The company nearest the camera's focus comes up front; a margin keeps the
+      // label from flickering between two companies at similar distances.
+      let current=tourCompany,best=Infinity;
+      for(const [id,at] of tourPath.companies){const d=at.distanceToSquared(target);if(d<best){best=d;current=id;}}
+      const held=tourPath.companies.get(tourCompany);
+      if(held&&held.distanceToSquared(target)<best*1.5)current=tourCompany;
       // Ease from wherever the fly-in ended onto the path.
       const join=tourEase(Math.min(1,state.elapsed/TOUR_JOIN_SECONDS));
       eye.lerpVectors(state.fromEye,eye,join);target.lerpVectors(state.fromTarget,target,join);
       void c.setLookAt(...eye.toArray(),...target.toArray(),false);
-      const current=tourPath.ids[Math.round(state.t*tourPath.ids.length)%tourPath.ids.length];
       if(current!==tourCompany)setTourCompany(current);
       invalidate();
     }
