@@ -13,6 +13,9 @@ service=news-source-subscriber
 topic=news-source-requests
 subscription=news-source-worker
 dead=news-source-dead-letter
+snapshot_bucket="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-$GCP_PROJECT_ID-eodhd-bulk-eod}}"
+# Refuse to deploy a worker that would fall back to a full company scan.
+gcloud storage objects describe "gs://$snapshot_bucket/entity-snapshots/companies.sqlite" --project "$GCP_PROJECT_ID" >/dev/null
 number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
 [[ "$number" =~ ^[0-9]+$ ]] || { echo 'Missing project number' >&2; exit 1; }
 pipeline_agent="service-$number@gcp-sa-pubsub.iam.gserviceaccount.com"
@@ -37,12 +40,13 @@ if [[ "$FILING_PIPELINE_BOOTSTRAP_IAM" == 1 ]]; then
   pipeline_retained_subscription "$dead-audit" "$dead"
   pipeline_iam topic "$topic" roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
 fi
-# This fetch-only service receives no AI credential and loads one company record.
+# Company lookups share the SQLite snapshot and its watermark-based change feed.
+# Leave room for the snapshot download and decompression during cold starts.
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-intelligence-news.cjs --min-instances 0 --max-instances "$max_instances" \
-  --concurrency 1 --timeout 180 --memory 512Mi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|NEWS_SOURCE_SUBSCRIPTION=$subscription|INTELLIGENCE_NEWS_COLLECTOR_ENABLED=${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --concurrency 1 --timeout 180 --memory 1Gi --cpu 1 --cpu-throttling \
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|NEWS_SOURCE_SUBSCRIPTION=$subscription|INTELLIGENCE_NEWS_COLLECTOR_ENABLED=${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}|ENTITY_SNAPSHOT_BUCKET=$snapshot_bucket" --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format='value(status.url)')"
 [[ "$url" == https://* ]] || { echo 'Missing news subscriber URL' >&2; exit 1; }
