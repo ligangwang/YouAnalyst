@@ -51,9 +51,22 @@ test('routine deployment is private, bounded and reuses push identity without AI
   assert.match(result.calls,/run deploy news-source-subscriber .*--no-allow-unauthenticated/);
   assert.match(result.calls,/--max-instances 4 --concurrency 1 --timeout 180/);
   assert.match(result.calls,/--args dist\/serve-intelligence-news.cjs/);
+  assert.match(result.calls,/--memory 1Gi/);
+  assert.match(result.calls,/ENTITY_SNAPSHOT_BUCKET=demo-eodhd-bulk-eod/);
   assert.match(result.calls,/subscriptions update news-source-worker .*--push-auth-service-account directory-sync-scheduler@demo/);
   assert.match(result.calls,/--dead-letter-topic news-source-dead-letter/);
   assert.doesNotMatch(result.calls,/add-iam-policy-binding|OPENAI|allUsers|scheduler jobs|run jobs execute|projects add/);
+});
+
+test('snapshot preflight prevents scan fallback and preserves custom bucket configuration',()=>{
+  const missing=run({MISSING_RESOURCE:'gs://demo-eodhd-bulk-eod/entity-snapshots/companies.sqlite'});
+  assert.notEqual(missing.status,0);assert.doesNotMatch(missing.calls,mutations);
+  const overrides:Record<string,string>[]=[{ENTITY_SNAPSHOT_BUCKET:'custom-snapshots'},{EODHD_BULK_EOD_BUCKET:'custom-snapshots'}];
+  for(const extra of overrides){
+    const result=run(extra);assert.equal(result.status,0,result.stderr);
+    assert.match(result.calls,/storage objects describe gs:\/\/custom-snapshots\/entity-snapshots\/companies.sqlite/);
+    assert.match(result.calls,/ENTITY_SNAPSHOT_BUCKET=custom-snapshots/);
+  }
 });
 
 test('only explicit setup grants resource access; invalid bounds fail before mutations',()=>{
