@@ -108,6 +108,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
   const canWork = () => now() + OPERATION_RESERVE_MS < options.deadline;
   const result: SecCollectorResult = { companies: companies.length, inspected: 0, completed: 0,
     baselined: 0, discovered: 0, published: 0, deferred: 0, partial: 0, failed: 0, remaining: companies.length, outboxIncomplete: false };
+  let completion: {afterCompanyId:string;lastRunAt:string;result:SecCollectorResult}|undefined;
   const metadata = options.companyId?secDiscoveryCompanyState(db,options.companyId):secCollectorMetadata(db);
   if (!(options.companyId?await acquireSecDiscoveryCompanyLease(db,options.companyId,log.runId,now()):await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt()))) throw new Error("SEC filing collector is busy");
   try {
@@ -138,7 +139,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
       try { await options.beforeCollection(); }
       catch (error) { log.emit("WARNING", "optional_discovery_incomplete", { error: maintenanceError(error), financialDiscoveryContinues: true }); }
     }
-    const ordered = rotateCompanies(companies, (await metadata.get()).get("afterCompanyId"));
+    const ordered = options.companyId?companies:rotateCompanies(companies, (await metadata.get()).get("afterCompanyId"));
     for (const companyId of ordered) {
       if (!canWork() || result.inspected >= maxCompanies) break;
       result.inspected++;
@@ -236,14 +237,16 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
       }
       // Rotate even past a bad issuer; retries of its incomplete scan remain
       // durable and cannot starve every company after it in the map.
-      await metadata.set({ afterCompanyId: companyId }, { merge: true });
+      // A scoped task has no rotation to persist; include it in its final status.
+      if(!options.companyId)await metadata.set({ afterCompanyId: companyId }, { merge: true });
       result.remaining--;
       if (providerBlocked) break; // The shared SEC gate persists the cooldown.
       }finally{if(!options.companyId)await releaseSecDiscoveryCompanyLease(db,companyId,log.runId);}
     }
     await drain();
     const lastRunAt = new Date(now()).toISOString();
-    await db.runTransaction(async tx => {
+    if(options.companyId)completion={afterCompanyId:options.companyId,lastRunAt,result};
+    else await db.runTransaction(async tx => {
       // Keep the previous status fields for admin/older revisions during rollout.
       tx.set(metadata, { lastRunAt, result }, { merge: true });
       if(!options.companyId)tx.set(secCollectorFreshness(db), {
@@ -254,7 +257,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
     });
     return result;
   } finally {
-    if(options.companyId)await releaseSecDiscoveryCompanyLease(db,options.companyId,log.runId);
+    if(options.companyId)await releaseSecDiscoveryCompanyLease(db,options.companyId,log.runId,completion);
     else await releaseSecCollectorLease(db, log.runId);
   }
 }

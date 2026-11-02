@@ -275,3 +275,14 @@ test('SEC identity summary is unchanged by repeated scan progress',async()=>{
  assert.deepEqual(fx.rows.get('collectors/sec-identity-US:MU'),{companyId:'US:MU',cik:'0000723125'});
  assert.equal(fx.writes.filter(path=>path==='collectors/sec-identity-US:MU').length,1);
 });
+
+
+test('empty incremental SEC disclosure check uses one completion write and keeps freshness',async()=>{
+ const fx=earningsFirestore(),companyId='US:MU',cik='0000723125',path='collectors/sec-US:MU';
+ fx.rows.set(path,{companyId,cik,identitySummaryCik:cik,linkCoverageVersion:SEC_LINK_COVERAGE_VERSION,lastCompleteAt:'2026-10-01T11:00:00.000Z',status:'complete'});
+ const observer=createMapSecObserver(fx.db,new Map([[cik,[companyId]]]),{deadline:fx.now()+60000,now:fx.now});
+ await observer.observe(cik,{cik:723125,filings:{files:[],recent:{accessionNumber:[],form:[],filingDate:[],primaryDocument:[]}}},async()=>{throw Error('unexpected archive');});
+ assert.equal(observer.failed.size,0);assert.deepEqual(fx.writes,[path]);
+ const state=fx.rows.get(path)!;assert.equal(state.status,'complete');assert.equal(state.linkScan,null);
+ assert.equal(state.lastCompleteAt,new Date(fx.now()).toISOString());assert.equal(state.lastSuccessAt,state.lastCompleteAt);
+});

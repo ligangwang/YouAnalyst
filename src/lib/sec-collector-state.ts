@@ -21,7 +21,15 @@ export async function acquireSecDiscoveryCompanyLease(db:Firestore,ticker:string
     return true;
   });
 }
-export function releaseSecDiscoveryCompanyLease(db:Firestore,ticker:string,owner:string){return releaseMaintenanceLease(secDiscoveryCompanyState(db,ticker),owner);}
+/** Commit the final single-company status with the owner-checked lease release. */
+export async function releaseSecDiscoveryCompanyLease(db:Firestore,ticker:string,owner:string,completion?:{afterCompanyId:string;lastRunAt:string;result:unknown}){
+  const ref=secDiscoveryCompanyState(db,ticker);
+  if(!completion)return releaseMaintenanceLease(ref,owner);
+  await db.runTransaction(async tx=>{
+    if((await tx.get(ref)).get('leaseOwner')!==owner)return;
+    tx.set(ref,{...completion,leaseOwner:FieldValue.delete(),leaseExpiresAtMs:FieldValue.delete(),leaseTask:FieldValue.delete()},{merge:true});
+  });
+}
 // Retirement is a one-way migration. Never cache an active bridge: another
 // process may retire it while this worker is running.
 const retiredBridges = new WeakSet<Firestore>();
