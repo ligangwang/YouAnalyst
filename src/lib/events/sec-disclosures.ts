@@ -90,7 +90,10 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
         };
         if(!scan.recentComplete){
           await persist(secDisclosureRows(companyId,cik,payload),scan.recentAfter,key=>{scan.recentAfter=key;});
-          scan.recentComplete=true;await progress();
+          scan.recentComplete=true;
+          // If no archive remains, the completion write below persists this
+          // boundary. Otherwise save it before starting another provider read.
+          if(scan.baseline||files.some(file=>!scan.completedArchives.includes(file.name)))await progress();
         }
         let fetched=0;
         for(const file of files){

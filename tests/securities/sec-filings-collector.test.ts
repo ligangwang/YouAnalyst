@@ -10,7 +10,7 @@ import { collectSecFilings, inspectSecFilingCollection,repairSecDiscoveryOutbox 
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "../../src/lib/sec-filings/event";
 import { persistSecFilingDiscovery, readSecCollectorCursor,markSecFilingPublished, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
 import type { SecFiling, SecFilingsSource, SecSubmissions, SecSubmissionsFile } from "../../src/lib/sec-filings/source";
-import {acquireSecCollectorLease} from '../../src/lib/sec-collector-state';
+import {acquireSecCollectorLease,releaseSecDiscoveryCompanyLease} from '../../src/lib/sec-collector-state';
 
 type Data = Record<string, unknown>;
 const CIK = "0000002488";
@@ -533,4 +533,56 @@ test("diagnostic cache eligibility exactly matches production for incomplete and
     assert.equal(await hasCurrentCompanyGraph("AMD", f.db), expected);
     assert.equal(f.writes(), 0);
   }
+});
+
+
+test('empty scoped scan combines final status and release while retaining both cursor checkpoints',async()=>{
+ const f=fixture({[COMPANY]:{secFilingsCollector:cursor()}});
+ f.setSubmissions({recent:[],files:[]});
+ const writes:Array<{path:string;data:Data}>=[];f.onWrite((path,data)=>writes.push({path,data}));
+ const options={...f.options(),companyId:'AMD'};
+ const result=await collectSecFilings(f.db,['AMD'],f.log,options);
+ assert.equal(result.completed,1);assert.equal(result.discovered,0);
+ assert.equal(writes.length,4,'acquire, scan-start, completed cursor, combined status/release');
+ const state=f.documents.get('sec_collector_state/_discovery_AMD')!;
+ assert.deepEqual(state.result,result);assert.equal(state.afterCompanyId,'AMD');assert.equal(state.lastRunAt,iso);
+ assert.equal(state.leaseOwner,undefined);
+ const saved=await readSecCollectorCursor(f.db,'AMD');assert.equal(saved?.scan,null);assert(saved!.nextPollAfterMs>f.now());
+ const requests=f.requests.length;writes.length=0;
+ const second=await collectSecFilings(f.db,['AMD'],f.log,options);
+ assert.equal(second.deferred,1);assert.equal(f.requests.length,requests,'not-due retry does not re-read provider data');
+ assert.equal(writes.length,2,'only acquire and combined status/release when not due');
+});
+
+test('failed final status commit preserves the completed cursor for a later retry',async()=>{
+ const f=fixture({[COMPANY]:{secFilingsCollector:cursor()}});f.setSubmissions({recent:[],files:[]});
+ f.onWrite((path,data)=>{if(path==='sec_collector_state/_discovery_AMD'&&data.result)throw Error('final commit failed');});
+ await assert.rejects(collectSecFilings(f.db,['AMD'],f.log,{...f.options(),companyId:'AMD'}),/final commit failed/);
+ assert.equal((await readSecCollectorCursor(f.db,'AMD'))?.scan,null);
+ assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.leaseOwner,f.log.runId);
+ f.onWrite();await releaseSecDiscoveryCompanyLease(f.db,'AMD',f.log.runId);
+ const requests=f.requests.length;
+ await collectSecFilings(f.db,['AMD'],f.log,{...f.options(),companyId:'AMD'});
+ assert.equal(f.requests.length,requests);
+});
+
+test('combined completion cannot overwrite a newer company lease or status',async()=>{
+ const f=fixture({'sec_collector_state/_discovery_AMD':{leaseOwner:'new-owner',lastRunAt:'new-status'}});
+ const before=f.writes();
+ await releaseSecDiscoveryCompanyLease(f.db,'AMD','old-owner',{afterCompanyId:'AMD',lastRunAt:iso,result:{}});
+ assert.equal(f.writes(),before);assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.leaseOwner,'new-owner');
+ assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.lastRunAt,'new-status');
+});
+
+
+test('queryable discovery summary is committed in the existing owner-checked completion write',async()=>{
+ const f=fixture({[COMPANY]:{secFilingsCollector:cursor()}});f.setSubmissions({recent:[],files:[]});
+ const before=f.writes();
+ await collectSecFilings(f.db,['AMD'],f.log,{...f.options(),companyId:'AMD',discoveryCompletion:(result,completeAt)=>{
+  assert.equal(result.completed,1);assert.equal(completeAt,iso);
+  return {discoveryStatus:'complete',discoveryNextPollAtMs:f.now()+900000,discoveryCompleteAt:completeAt!};
+ }});
+ assert.equal(f.writes()-before,4,'summary does not add a per-company write');
+ assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.discoveryStatus,'complete');
+ assert.equal(f.documents.get('sec_collector_state/_discovery_AMD')?.leaseOwner,undefined);
 });
