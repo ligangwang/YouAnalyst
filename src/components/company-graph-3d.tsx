@@ -11,13 +11,13 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, NormalBlending, BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
+import { AdditiveBlending, NormalBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
 import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
-import { galaxyArmPoint, galaxyToWorld, layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
-const galaxyNormal = galaxyToWorld(0, 1, 0);
+import { layoutGalaxy } from "@/lib/ui/knowledge-graph/layout-galaxy";
+import { galaxyTour } from "@/lib/ui/knowledge-graph/galaxy-tour";
 import { densitySelection } from "@/lib/knowledge-graph/density";
 import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -411,31 +411,14 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
   // Live data refreshes (prices, follows) rebuild the graph object without moving any
   // company. Only a real change of positions may reframe the camera or cancel the tour.
   const layoutKey=useMemo(()=>layout.nodes.map(n=>`${n.id}:${n.x.toFixed(1)},${n.y.toFixed(1)},${n.z.toFixed(1)}`).join('|'),[layout]);
-  // A slow, unbroken flight along the galaxy: out along one arm and back in along the
-  // next. Neighbouring companies alternate sides of their arm, so the camera follows the
-  // arm's own centre line at constant speed and lets each company drift past, rather
-  // than aiming at every company in turn and swinging from side to side.
+  // A slow, unbroken flight that only ever turns one way: out along each arm, then on
+  // round and back in to the next. The camera follows the arms themselves, so companies
+  // drift past on either side instead of the view swinging to aim at each in turn.
   const tourPath=useMemo(()=>{
     if(!galaxyLayout?.nodes.length)return null;
-    const R=galaxyRadius,up=new Vector3(galaxyNormal.x,galaxyNormal.y,galaxyNormal.z);
-    const arms=[...new Set(galaxyLayout.nodes.map(n=>n.galaxyArm))].sort((a,b)=>a-b);
-    const eyes:Vector3[]=[],targets:Vector3[]=[];
-    arms.forEach((arm,i)=>{
-      const ts=galaxyLayout.nodes.filter(n=>n.galaxyArm===arm).map(n=>n.galaxyT);
-      const radiusAt=(t:number)=>R*(.16+.8*Math.pow(t,.85));
-      const from=radiusAt(Math.min(...ts)),to=radiusAt(Math.max(...ts)),angle=galaxyLayout.arms[arm].angle;
-      const samples=to-from<R*.01?1:Math.max(2,Math.ceil((to-from)/(R*.08))+1);
-      for(let k=0;k<samples;k++){
-        const f=samples===1?0:k/(samples-1),r=from+(to-from)*(i%2?1-f:f),a=galaxyArmPoint(r,angle,R);
-        const p=galaxyToWorld(Math.cos(a)*r,0,Math.sin(a)*r),at=new Vector3(p.x,p.y,p.z);
-        // Seen from just outside the arm, with the nebula and core behind it.
-        targets.push(at);eyes.push(at.clone().addScaledVector(at.clone().normalize(),R*.36).addScaledVector(up,R*.14));
-      }
-    });
-    if(targets.length===1){eyes.push(eyes[0].clone().addScaledVector(up,1));targets.push(targets[0].clone());}
-    const companies=new Map(galaxyLayout.nodes.map(n=>[n.id,new Vector3(n.x,n.y,n.z)]));
-    const curve=(points:Vector3[])=>{const result=new CatmullRomCurve3(points,true,'centripetal');result.arcLengthDivisions=points.length*16;return result;};
-    return {count:galaxyLayout.nodes.length,companies,eyes:curve(eyes),targets:curve(targets)};
+    const path=galaxyTour(galaxyLayout.nodes,galaxyLayout.arms,galaxyRadius);
+    if(!path)return null;
+    return {path,count:galaxyLayout.nodes.length};
   },[galaxyLayout,galaxyRadius]);
   const tour=useRef<{t:number;elapsed:number;fromEye:Vector3;fromTarget:Vector3}|null>(null);
   const lastCameraRequest=useRef<{layout:string;request:number;reset:number;width:number;height:number}|null>(null);
@@ -645,18 +628,21 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
       // the camera comes up front with its name, ticker and latest change.
       rotation='tour';
       const c=controls.current,dt=tourDelta(delta,speed);
-      tour.current??={t:0,elapsed:0,fromEye:c.getPosition(new Vector3()),fromTarget:c.getTarget(new Vector3())};
+      if(!tour.current){
+        // Join the loop where it passes closest to the camera, so the flight carries
+        // straight on from the fly-in instead of turning back to a fixed start.
+        const from=c.getPosition(new Vector3()),eye=new Vector3(),target=new Vector3();
+        let t=0,best=Infinity;
+        for(let i=0;i<240;i++){tourPath.path.at(i/240,eye,target);const d=eye.distanceToSquared(from);if(d<best){best=d;t=i/240;}}
+        tour.current={t,elapsed:0,fromEye:from,fromTarget:c.getTarget(new Vector3())};
+      }
       const state=tour.current;
       state.elapsed+=dt;
       state.t=(state.t+dt/(TOUR_STOP_SECONDS*tourPath.count))%1;
-      // Constant speed along the path: no surges between sparse and dense stretches.
-      const eye=tourPath.eyes.getPointAt(state.t),target=tourPath.targets.getPointAt(state.t);
-      // The company nearest the camera's focus comes up front; a margin keeps the
-      // label from flickering between two companies at similar distances.
-      let current=tourCompany,best=Infinity;
-      for(const [id,at] of tourPath.companies){const d=at.distanceToSquared(target);if(d<best){best=d;current=id;}}
-      const held=tourPath.companies.get(tourCompany);
-      if(held&&held.distanceToSquared(target)<best*1.5)current=tourCompany;
+      const eye=new Vector3(),target=new Vector3();
+      tourPath.path.at(state.t,eye,target);
+      // Each company of the arm being ridden comes up front in turn, once per loop.
+      const current=tourPath.path.company(state.t,target,tourCompany);
       // Ease from wherever the fly-in ended onto the path.
       const join=tourEase(Math.min(1,state.elapsed/TOUR_JOIN_SECONDS));
       eye.lerpVectors(state.fromEye,eye,join);target.lerpVectors(state.fromTarget,target,join);
