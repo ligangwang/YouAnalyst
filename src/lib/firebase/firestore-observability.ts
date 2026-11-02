@@ -223,9 +223,13 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         // Leave other collections and transaction reads on the SDK path.
         if(method==='getAll'&&kind==='db'&&Array.isArray(args.at(-1)?.fieldMask)){
           const refs=args.slice(0,-1),fields=args.at(-1).fieldMask;
-          if(refs.length&&fields.every((field:unknown)=>typeof field==='string')&&refs.every(ref=>ref?.path&&documentCollection(ref.path)==='companies')){
-            const reads=refs.map(ref=>companySourceSnapshot(observed,ref,fields));
-            if(reads.every(Boolean))return Promise.all(reads);
+          if(refs.length&&fields.every((field:unknown)=>typeof field==='string')&&refs.every(ref=>ref?.path)){
+            const reads=refs.map(ref=>documentCollection(ref.path)==='companies'?companySourceSnapshot(observed,ref,fields):undefined);
+            if(reads.some(Boolean)){
+              const live=refs.filter((_ref,index)=>!reads[index]);
+              return Promise.all([Promise.all(reads),live.length?proxy.getAll(...live,args.at(-1)):[]])
+                .then(([cached,fresh])=>{let index=0;return cached.map((doc:any)=>doc??fresh[index++]);});
+            }
           }
         }
         if(method==='getAll'&&kind==='db'&&args.length&&args.every(ref=>ref?.path)){
