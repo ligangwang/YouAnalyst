@@ -70,6 +70,8 @@ export function galaxyTourFocus(nodes: readonly TourNode[], arms: readonly Galax
 }
 
 export type GalaxyTour = {
+  /** The central star's company id, or empty when the layout has none. */
+  core: string;
   /** Writes the eye and target for loop progress 0..1 into the given vectors. */
   at(progress: number, eye: Vector3, target: Vector3): void;
   /**
@@ -123,6 +125,7 @@ export function galaxyTour(nodes: readonly TourCompany[], arms: readonly GalaxyA
   const core = nodes.find(node => node.galaxyCore)?.id ?? '';
   const rotationDegrees = rotation * 180 / Math.PI;
   return {
+    core,
     loopSeconds: perCompany => Math.max(perCompany * nodes.length, rotationDegrees / GALAXY_TOUR_MAX_TURN_DEGREES),
     at(progress, eyeOut, targetOut) {
       const u = curveAt(progress);
