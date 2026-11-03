@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
+export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
+: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
+gcloud storage objects describe "gs://$ENTITY_SNAPSHOT_BUCKET/entity-snapshots/companies.sqlite" --project "$GCP_PROJECT_ID" >/dev/null
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE to a built image digest}"
 region="${GCP_REGION:-us-central1}"
 job="refresh-cn-fundamentals-production"
@@ -15,7 +18,7 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
   --command node --args dist/refresh-cn-fundamentals.cjs \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 # Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
 ensure_maintenance_job_iam "$job"
 # Weekdays after the China EOD job (08:00 New York). A new schedule is created
