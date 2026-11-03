@@ -118,7 +118,8 @@ test('galaxy tour camera never reverses its turn and keeps a slow, steady pace',
 
 test('galaxy tour passes close by every company', () => {
   const frames = sample(8000), R = galaxy.galaxyRadius;
-  for (const node of galaxy.nodes) {
+  // The central star is seen straight ahead from every glide, not passed beside.
+  for (const node of galaxy.nodes.filter(n => !n.galaxyCore)) {
     const at = new Vector3(node.x, node.y, node.z);
     const nearest = Math.min(...frames.map(frame => frame.target.distanceTo(at)));
     assert.ok(nearest < R * .2, `${node.id} is ${(nearest / R).toFixed(2)}R from the tour`);
@@ -149,4 +150,27 @@ test('galaxy tour stays slow when a search leaves only a few companies', () => {
     const mean = turned * 180 / Math.PI / seconds;
     assert.ok(mean <= 2.6 && fastest < 3.5, `${count} companies: mean ${mean.toFixed(2)}°/s, fastest ${fastest.toFixed(2)}°/s over ${seconds.toFixed(0)}s`);
   }
+});
+
+test('the best-connected company is the central star of the galaxy', () => {
+  const base = us as unknown as KnowledgeGraph, layout = layoutGalaxy(base), cores = layout.nodes.filter(n => n.galaxyCore);
+  const degree = (id: string) => layout.edges.filter(e => e.source === id || e.target === id).length;
+  const most = Math.max(...layout.nodes.map(n => degree(n.id)));
+  assert.equal(cores.length, 1);
+  assert.equal(degree(cores[0].id), most);
+  assert.deepEqual([cores[0].x, cores[0].y, cores[0].z], [0, 0, 0]);
+  // Every other company stays on an arm, clear of the centre.
+  for (const n of layout.nodes.filter(n => !n.galaxyCore)) assert.ok(Math.hypot(n.x, n.y, n.z) > layout.galaxyRadius * .1, n.id);
+  // Connections decide, even against a far larger company; market cap only breaks ties.
+  const companies = base.nodes.filter(n => n.kind === 'COMPANY'), giant = companies.find(n => degree(n.id) < most)!;
+  const sized = { ...base, nodes: base.nodes.map(n => n.id === giant.id ? { ...n, marketCap: { value: 9e12, currency: 'USD' as const, priceDate: '2026-11-01' } } : n) };
+  assert.equal(layoutGalaxy(sized).nodes.find(n => n.galaxyCore)!.id, cores[0].id);
+  const tied = companies.filter(n => degree(n.id) === most);
+  if (tied.length > 1) {
+    const larger = tied[tied.length - 1];
+    const sizedTie = { ...base, nodes: base.nodes.map(n => n.id === larger.id ? { ...n, marketCap: { value: 9e12, currency: 'USD' as const, priceDate: '2026-11-01' } } : n) };
+    assert.equal(layoutGalaxy(sizedTie).nodes.find(n => n.galaxyCore)!.id, larger.id);
+  }
+  // Too few companies for arms: nobody is moved to the centre.
+  assert.equal(layoutGalaxy({ ...base, nodes: companies.slice(0, 2) }).nodes.filter(n => n.galaxyCore).length, 0);
 });

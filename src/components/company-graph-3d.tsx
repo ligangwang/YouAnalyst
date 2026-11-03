@@ -5,6 +5,8 @@ import { TOUR_IDLE_RESUME_MS, tourDelta, tourEase } from '@/lib/ui/knowledge-gra
 // Cinematic pace of the galaxy tour: seconds of travel per company at 1x speed.
 const TOUR_STOP_SECONDS = 12;
 const TOUR_JOIN_SECONDS = 5;
+// The tour opens on the central star, the best-connected company, while the fly-in still faces the core.
+const TOUR_CORE_SECONDS = 12;
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -642,7 +644,7 @@ function Scene({ universe = "ball", light, companyFocus, intelligence, showAllEd
       const eye=new Vector3(),target=new Vector3();
       tourPath.path.at(state.t,eye,target);
       // Each company of the arm being ridden comes up front in turn, once per loop.
-      const current=tourPath.path.company(state.t,target,tourCompany);
+      const current=state.elapsed<TOUR_CORE_SECONDS&&tourPath.path.core?tourPath.path.core:tourPath.path.company(state.t,target,tourCompany);
       // Ease from wherever the fly-in ended onto the path.
       const join=tourEase(Math.min(1,state.elapsed/TOUR_JOIN_SECONDS));
       eye.lerpVectors(state.fromEye,eye,join);target.lerpVectors(state.fromTarget,target,join);
