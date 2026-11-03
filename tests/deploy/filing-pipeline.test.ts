@@ -12,6 +12,7 @@ function run(script: string, extra: Record<string, string> = {}) {
       gcloud() {
         echo "$*" >> "$CALLS"
         case "$*" in
+          "storage objects describe"*) [[ "\${MISSING_SNAPSHOT:-0}" != 1 ]] || return 1 ;;
           "storage buckets get-iam-policy"*)
             [[ "$*" != *"--filter"* ]] || return 2
             if [[ "\${MISSING_IAM:-0}" == 1 ]]; then echo '{"bindings":[]}';
@@ -141,6 +142,7 @@ test('graph subscriber keeps request and filing delivery isolated and processing
   assert.match(r.calls, /subscriptions update company-graph-filings.*--dead-letter-topic company-graph-filings-dead-letter/);
   assert.match(r.calls, /subscriptions describe company-graph-filings.*value\(topic\)/);
   assert.deepEqual(r.workerEnv, {
+    ENTITY_SNAPSHOT_BUCKET:'demo-snapshots',
     SEC_INCREMENTAL_DOWNLOADS_ENABLED:'0',SEC_DOCUMENT_CACHE_BUCKET:'',
     CENTRAL_CACHE_URL: '',
     GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit', SEC_USER_AGENT: 'test contact',
@@ -274,4 +276,13 @@ test('SEC collector requires and passes the SQLite snapshot bucket', () => {
  const missing=run('scripts/deploy-sec-filings.sh',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''});
  assert.notEqual(missing.status,0);
  assert.equal(missing.calls,'');
+});
+
+test('graph snapshots fail closed before deployment and support the existing bucket fallback',()=>{
+  const normal=run('scripts/deploy-company-graph-pubsub.sh');assert.equal(normal.status,0,normal.stderr);
+  assert.match(normal.calls,/storage objects describe gs:\/\/demo-snapshots\/entity-snapshots\/companies.sqlite/);
+  const fallback=run('scripts/deploy-company-graph-pubsub.sh',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:'fallback'});
+  assert.equal(fallback.status,0,fallback.stderr);assert.equal(fallback.workerEnv.ENTITY_SNAPSHOT_BUCKET,'fallback');
+  const failures:Record<string,string>[]=[{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''},{MISSING_SNAPSHOT:'1'}];
+  for(const extra of failures){const r=run('scripts/deploy-company-graph-pubsub.sh',extra);assert.notEqual(r.status,0);assert.doesNotMatch(r.calls,/run deploy|subscriptions (create|update)|topics create|add-iam-policy-binding/);}
 });
