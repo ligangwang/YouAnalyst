@@ -152,15 +152,25 @@ test('galaxy tour stays slow when a search leaves only a few companies', () => {
   }
 });
 
-test('the largest company is the central star of the galaxy', () => {
-  const companies = (us as unknown as KnowledgeGraph).nodes.filter(n => n.kind === 'COMPANY');
-  const sized = { ...(us as unknown as KnowledgeGraph), nodes: (us as unknown as KnowledgeGraph).nodes.map(n => n.kind === 'COMPANY'
-    ? { ...n, marketCap: { value: n.id === companies[5].id ? 5e12 : 1e11, currency: 'USD' as const, priceDate: '2026-11-01' } } : n) } as KnowledgeGraph;
-  const layout = layoutGalaxy(sized), cores = layout.nodes.filter(n => n.galaxyCore);
-  assert.deepEqual(cores.map(n => n.id), [companies[5].id]);
+test('the best-connected company is the central star of the galaxy', () => {
+  const base = us as unknown as KnowledgeGraph, layout = layoutGalaxy(base), cores = layout.nodes.filter(n => n.galaxyCore);
+  const degree = (id: string) => layout.edges.filter(e => e.source === id || e.target === id).length;
+  const most = Math.max(...layout.nodes.map(n => degree(n.id)));
+  assert.equal(cores.length, 1);
+  assert.equal(degree(cores[0].id), most);
   assert.deepEqual([cores[0].x, cores[0].y, cores[0].z], [0, 0, 0]);
   // Every other company stays on an arm, clear of the centre.
   for (const n of layout.nodes.filter(n => !n.galaxyCore)) assert.ok(Math.hypot(n.x, n.y, n.z) > layout.galaxyRadius * .1, n.id);
+  // Connections decide, even against a far larger company; market cap only breaks ties.
+  const companies = base.nodes.filter(n => n.kind === 'COMPANY'), giant = companies.find(n => degree(n.id) < most)!;
+  const sized = { ...base, nodes: base.nodes.map(n => n.id === giant.id ? { ...n, marketCap: { value: 9e12, currency: 'USD' as const, priceDate: '2026-11-01' } } : n) };
+  assert.equal(layoutGalaxy(sized).nodes.find(n => n.galaxyCore)!.id, cores[0].id);
+  const tied = companies.filter(n => degree(n.id) === most);
+  if (tied.length > 1) {
+    const larger = tied[tied.length - 1];
+    const sizedTie = { ...base, nodes: base.nodes.map(n => n.id === larger.id ? { ...n, marketCap: { value: 9e12, currency: 'USD' as const, priceDate: '2026-11-01' } } : n) };
+    assert.equal(layoutGalaxy(sizedTie).nodes.find(n => n.galaxyCore)!.id, larger.id);
+  }
   // Too few companies for arms: nobody is moved to the centre.
-  assert.equal(layoutGalaxy({ ...sized, nodes: sized.nodes.filter(n => n.kind === 'COMPANY').slice(0, 2) }).nodes.filter(n => n.galaxyCore).length, 0);
+  assert.equal(layoutGalaxy({ ...base, nodes: companies.slice(0, 2) }).nodes.filter(n => n.galaxyCore).length, 0);
 });

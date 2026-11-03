@@ -5,7 +5,7 @@ import { TOUR_IDLE_RESUME_MS, tourDelta, tourEase } from '@/lib/ui/knowledge-gra
 // Cinematic pace of the galaxy tour: seconds of travel per company at 1x speed.
 const TOUR_STOP_SECONDS = 12;
 const TOUR_JOIN_SECONDS = 5;
-// The tour opens on the central star, the largest company, while the fly-in still faces the core.
+// The tour opens on the central star, the best-connected company, while the fly-in still faces the core.
 const TOUR_CORE_SECONDS = 12;
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";

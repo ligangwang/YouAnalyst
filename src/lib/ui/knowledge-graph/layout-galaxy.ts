@@ -39,8 +39,11 @@ export function layoutGalaxy(graph: KnowledgeGraph) {
   // Largest (or, without market caps, best connected) companies sit nearest the core.
   const rank = (a: (typeof companies)[number], b: (typeof companies)[number]) =>
     weight(b) - weight(a) || (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.id.localeCompare(b.id);
-  // The single largest company is the galaxy's central star; the rest form the arms.
-  const core = companies.length >= 3 ? [...companies].sort(rank)[0] : undefined;
+  // The best-connected company, the hub of the relationship graph, is the galaxy's
+  // central star; ties go to the larger company. The rest form the arms.
+  const hub = (a: (typeof companies)[number], b: (typeof companies)[number]) =>
+    (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || weight(b) - weight(a) || a.id.localeCompare(b.id);
+  const core = companies.length >= 3 ? [...companies].sort(hub)[0] : undefined;
   const groups = sectors.map(sector => companies.filter(n => n !== core && companySector(n).id === sector.id).sort(rank))
     .map((members, i) => ({ sector: sectors[i], members })).filter(group => group.members.length);
   const arms: GalaxyArm[] = groups.map((group, i) => ({ sector: group.sector.id, color: group.sector.color, angle: i / groups.length * Math.PI * 2 }));

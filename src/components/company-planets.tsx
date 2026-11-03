@@ -13,7 +13,7 @@ const vertex = `attribute vec3 center; attribute vec3 tint; attribute float emph
   varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim; varying float vSun;
   void main() {
     float depth = -(viewMatrix * vec4(center, 1.)).z;
-    // The largest company sits at the very centre: the galaxy's own star.
+    // The best-connected company sits at the very centre: the galaxy's own star.
     vSun = step(length(center), baseRadius * .01);
     float fade = 1. - smoothstep(range.x, range.y, depth);
     float focus = smoothstep(1., 2., emphasis);
