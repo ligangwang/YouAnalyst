@@ -67,13 +67,14 @@ test('only explicit setup grants resource access; invalid bounds fail before mut
   }
 });
 
- test('company snapshots are required and passed to the CN discovery worker',()=>{
+test('company snapshots are required and passed to the CN discovery worker',()=>{
   const normal=run();assert.equal(normal.status,0,normal.stderr);
   assert.match(normal.calls,/storage objects describe gs:\/\/demo-snapshots\/entity-snapshots\/companies.sqlite/);
   assert.match(normal.calls,/run deploy cn-company-discovery-subscriber .*ENTITY_SNAPSHOT_BUCKET=demo-snapshots/);
   const fallback=run({ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:'fallback-snapshots'});
   assert.equal(fallback.status,0,fallback.stderr);assert.match(fallback.calls,/ENTITY_SNAPSHOT_BUCKET=fallback-snapshots/);
-  for(const extra of [{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''},{MISSING_RESOURCE:'gs://demo-snapshots/entity-snapshots/companies.sqlite'}]){
+  const failures:Record<string,string>[]=[{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''},{MISSING_RESOURCE:'gs://demo-snapshots/entity-snapshots/companies.sqlite'}];
+  for(const extra of failures){
     const rejected=run(extra);assert.notEqual(rejected.status,0);assert.doesNotMatch(rejected.calls,mutations);
   }
 });
