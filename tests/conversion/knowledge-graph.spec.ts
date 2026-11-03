@@ -1262,7 +1262,11 @@ test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
   await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
   await page.locator('[data-company-id="US:NVDA"]').evaluate((el:HTMLButtonElement)=>el.click());
-  const label=page.locator('button[class*="label3d"]').filter({hasText:"TSMC"}).locator("strong");
+  // NVIDIA is the galaxy's central star, so its innermost neighbours sit behind its
+  // selection card: follow whichever connected company's label is on show.
+  const neighbor=page.locator('[data-company-focus="connected"][data-visible="true"]').first();
+  await expect(neighbor).toBeVisible();
+  const label=page.locator(`[data-company-id="${await neighbor.getAttribute("data-company-id")}"] strong`);
   await expect(label).toBeVisible();
   const fontSize=()=>label.evaluate(el=>el.getBoundingClientRect().height);
   const baseSize=await label.evaluate(el=>({width:(el as HTMLElement).offsetWidth,height:(el as HTMLElement).offsetHeight}));
