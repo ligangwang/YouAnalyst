@@ -118,7 +118,8 @@ test('galaxy tour camera never reverses its turn and keeps a slow, steady pace',
 
 test('galaxy tour passes close by every company', () => {
   const frames = sample(8000), R = galaxy.galaxyRadius;
-  for (const node of galaxy.nodes) {
+  // The central star is seen straight ahead from every glide, not passed beside.
+  for (const node of galaxy.nodes.filter(n => !n.galaxyCore)) {
     const at = new Vector3(node.x, node.y, node.z);
     const nearest = Math.min(...frames.map(frame => frame.target.distanceTo(at)));
     assert.ok(nearest < R * .2, `${node.id} is ${(nearest / R).toFixed(2)}R from the tour`);
@@ -149,4 +150,17 @@ test('galaxy tour stays slow when a search leaves only a few companies', () => {
     const mean = turned * 180 / Math.PI / seconds;
     assert.ok(mean <= 2.6 && fastest < 3.5, `${count} companies: mean ${mean.toFixed(2)}°/s, fastest ${fastest.toFixed(2)}°/s over ${seconds.toFixed(0)}s`);
   }
+});
+
+test('the largest company is the central star of the galaxy', () => {
+  const companies = (us as unknown as KnowledgeGraph).nodes.filter(n => n.kind === 'COMPANY');
+  const sized = { ...(us as unknown as KnowledgeGraph), nodes: (us as unknown as KnowledgeGraph).nodes.map(n => n.kind === 'COMPANY'
+    ? { ...n, marketCap: { value: n.id === companies[5].id ? 5e12 : 1e11, currency: 'USD' as const, priceDate: '2026-11-01' } } : n) } as KnowledgeGraph;
+  const layout = layoutGalaxy(sized), cores = layout.nodes.filter(n => n.galaxyCore);
+  assert.deepEqual(cores.map(n => n.id), [companies[5].id]);
+  assert.deepEqual([cores[0].x, cores[0].y, cores[0].z], [0, 0, 0]);
+  // Every other company stays on an arm, clear of the centre.
+  for (const n of layout.nodes.filter(n => !n.galaxyCore)) assert.ok(Math.hypot(n.x, n.y, n.z) > layout.galaxyRadius * .1, n.id);
+  // Too few companies for arms: nobody is moved to the centre.
+  assert.equal(layoutGalaxy({ ...sized, nodes: sized.nodes.filter(n => n.kind === 'COMPANY').slice(0, 2) }).nodes.filter(n => n.galaxyCore).length, 0);
 });

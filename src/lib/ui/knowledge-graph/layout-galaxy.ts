@@ -36,9 +36,12 @@ export function layoutGalaxy(graph: KnowledgeGraph) {
   for (const e of edges) for (const id of [e.source, e.target]) degree.set(id, (degree.get(id) ?? 0) + 1);
   const weight = (n: (typeof companies)[number]) => n.marketCap?.value ?? 0;
   const radius = Math.max(260, Math.sqrt(companies.length) * 60);
-  const groups = sectors.map(sector => companies.filter(n => companySector(n).id === sector.id)
-    // Largest (or, without market caps, best connected) companies sit nearest the core.
-    .sort((a, b) => weight(b) - weight(a) || (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.id.localeCompare(b.id)))
+  // Largest (or, without market caps, best connected) companies sit nearest the core.
+  const rank = (a: (typeof companies)[number], b: (typeof companies)[number]) =>
+    weight(b) - weight(a) || (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.id.localeCompare(b.id);
+  // The single largest company is the galaxy's central star; the rest form the arms.
+  const core = companies.length >= 3 ? [...companies].sort(rank)[0] : undefined;
+  const groups = sectors.map(sector => companies.filter(n => n !== core && companySector(n).id === sector.id).sort(rank))
     .map((members, i) => ({ sector: sectors[i], members })).filter(group => group.members.length);
   const arms: GalaxyArm[] = groups.map((group, i) => ({ sector: group.sector.id, color: group.sector.color, angle: i / groups.length * Math.PI * 2 }));
   const nodes = groups.flatMap((group, arm) => {
@@ -52,8 +55,13 @@ export function layoutGalaxy(graph: KnowledgeGraph) {
       const angle = galaxyArmPoint(r, arms[arm].angle, radius) + (j % 2 ? 1 : -1) * (.05 + hash(node.id, 1) * .1) * (1 - t * .4);
       const thickness = (hash(node.id, 2) - .5) * radius * .08 * (1 - t * .5);
       const world = galaxyToWorld(Math.cos(angle) * r, thickness, Math.sin(angle) * r);
-      return { ...node, ...world, ax: anchor.x, ay: anchor.y, az: anchor.z, galaxyArm: arm, galaxyT: t };
+      return { ...node, ...world, ax: anchor.x, ay: anchor.y, az: anchor.z, galaxyArm: arm, galaxyT: t, galaxyCore: false };
     });
   });
+  if (core) {
+    // It keeps its sector's colour; -1 when its sector has no other company.
+    const arm = groups.findIndex(group => group.sector.id === companySector(core).id);
+    nodes.unshift({ ...core, x: 0, y: 0, z: 0, ax: 0, ay: 0, az: 0, galaxyArm: arm, galaxyT: 0, galaxyCore: true });
+  }
   return { nodes, edges, radius: Math.max(60, ...nodes.map(n => Math.hypot(n.x, n.y, n.z))), arms, galaxyRadius: radius };
 }

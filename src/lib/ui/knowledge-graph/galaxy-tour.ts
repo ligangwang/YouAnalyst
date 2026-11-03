@@ -1,10 +1,12 @@
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { galaxyArmPoint, galaxyToWorld, type GalaxyArm } from './layout-galaxy';
 
-type TourNode = { galaxyArm: number; galaxyT: number };
+type TourNode = { galaxyArm: number; galaxyT: number; galaxyCore?: boolean };
 type TourCompany = TourNode & { id: string; x: number; y: number; z: number };
-// arm: the arm being ridden at this point, or -1 while gliding between arms.
+// arm: the arm being ridden at this point, -1 while gliding between arms, or CORE on
+// the glide back towards the first arm, when the camera faces the central star.
 type Focus = { r: number; angle: number; arm: number };
+const CORE = -2;
 
 const TAU = Math.PI * 2;
 // The glide back towards the core always turns at least this far onwards.
@@ -24,8 +26,9 @@ const smooth = (x: number) => x * x * (3 - 2 * x);
  */
 export function galaxyTourFocus(nodes: readonly TourNode[], arms: readonly GalaxyArm[], galaxyRadius: number): Focus[] {
   const R = galaxyRadius, radiusAt = (t: number) => R * (.16 + .8 * Math.pow(t, .85));
-  const legs = [...new Set(nodes.map(n => n.galaxyArm))].sort((a, b) => a - b).map(arm => {
-    const ts = nodes.filter(n => n.galaxyArm === arm).map(n => n.galaxyT), base = arms[arm]?.angle ?? 0;
+  const armNodes = nodes.filter(n => !n.galaxyCore), hasCore = armNodes.length < nodes.length;
+  const legs = [...new Set(armNodes.map(n => n.galaxyArm))].sort((a, b) => a - b).map(arm => {
+    const ts = armNodes.filter(n => n.galaxyArm === arm).map(n => n.galaxyT), base = arms[arm]?.angle ?? 0;
     const from = radiusAt(Math.min(...ts)), to = radiusAt(Math.max(...ts));
     return { arm, from, to, base, start: galaxyArmPoint(from, base, R) };
   });
@@ -40,12 +43,12 @@ export function galaxyTourFocus(nodes: readonly TourNode[], arms: readonly Galax
   };
   // Unwrap a start angle so it lies at least MIN_RETURN_TURN ahead of the current one.
   const ahead = (angle: number, after: number) => angle + TAU * Math.ceil((after + MIN_RETURN_TURN - angle) / TAU);
-  const glide = (from: Focus, to: Focus) => {
+  const glide = (from: Focus, to: Focus, arm = -1) => {
     const samples = Math.max(2, Math.ceil((to.angle - from.angle) / (Math.PI / 12)));
     // Interior points only: the leg ends are already on the path.
     for (let k = 1; k < samples; k++) {
       const f = k / samples;
-      points.push({ r: from.r + (to.r - from.r) * smooth(f), angle: from.angle + (to.angle - from.angle) * f, arm: -1 });
+      points.push({ r: from.r + (to.r - from.r) * smooth(f), angle: from.angle + (to.angle - from.angle) * f, arm });
     }
   };
   const remaining = legs.slice(1);
@@ -61,7 +64,8 @@ export function galaxyTourFocus(nodes: readonly TourNode[], arms: readonly Galax
   }
   // Close the loop by gliding on to the first arm, a whole number of turns later.
   const last = points[points.length - 1];
-  glide(last, { r: points[0].r, angle: ahead(points[0].angle, last.angle), arm: points[0].arm });
+  // The camera looks in at the core on every glide; this last one presents the central star.
+  glide(last, { r: points[0].r, angle: ahead(points[0].angle, last.angle), arm: points[0].arm }, hasCore ? CORE : -1);
   return points;
 }
 
@@ -71,7 +75,7 @@ export type GalaxyTour = {
   /**
    * The company to present at this point of the loop: the one nearest the target on
    * the arm being ridden, so each company comes up front once per loop, from the core
-   * outwards. Empty while gliding between arms. `held` keeps the current company until
+   * outwards, and the central star once on the last glide. Empty while gliding between arms. `held` keeps the current company until
    * another is clearly nearer, so the label does not flicker between neighbours.
    */
   company(progress: number, target: Vector3, held: string): string;
@@ -115,7 +119,8 @@ export function galaxyTour(nodes: readonly TourCompany[], arms: readonly GalaxyA
     return (low + (want - pace[low]) / Math.max(1e-9, pace[high] - pace[low])) / samples;
   };
   const members = new Map<number, { id: string; at: Vector3 }[]>();
-  for (const node of nodes) members.set(node.galaxyArm, [...members.get(node.galaxyArm) ?? [], { id: node.id, at: new Vector3(node.x, node.y, node.z) }]);
+  for (const node of nodes) if (!node.galaxyCore) members.set(node.galaxyArm, [...members.get(node.galaxyArm) ?? [], { id: node.id, at: new Vector3(node.x, node.y, node.z) }]);
+  const core = nodes.find(node => node.galaxyCore)?.id ?? '';
   const rotationDegrees = rotation * 180 / Math.PI;
   return {
     loopSeconds: perCompany => Math.max(perCompany * nodes.length, rotationDegrees / GALAXY_TOUR_MAX_TURN_DEGREES),
@@ -127,6 +132,7 @@ export function galaxyTour(nodes: readonly TourCompany[], arms: readonly GalaxyA
       // The closed curve has one segment per focus point; a segment touching a ridden
       // point belongs to that arm, which also covers arms with a single company.
       const segment = Math.min(focus.length - 1, Math.floor(curveAt(progress) * focus.length));
+      if (focus[segment].arm === CORE) return core;
       const arm = focus[segment].arm >= 0 ? focus[segment].arm : focus[(segment + 1) % focus.length].arm;
       const candidates = members.get(arm);
       if (arm < 0 || !candidates) return '';

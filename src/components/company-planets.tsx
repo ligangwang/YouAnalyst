@@ -10,20 +10,22 @@ import { InstancedBufferAttribute, InstancedBufferGeometry, SphereGeometry, Vect
 // neighbours and labels remain readable; from afar they fade back into points.
 const vertex = `attribute vec3 center; attribute vec3 tint; attribute float emphasis; attribute float capScale; attribute float seed;
   uniform vec2 range; uniform float baseRadius; uniform vec2 nearRange;
-  varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim;
+  varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim; varying float vSun;
   void main() {
     float depth = -(viewMatrix * vec4(center, 1.)).z;
+    // The largest company sits at the very centre: the galaxy's own star.
+    vSun = step(length(center), baseRadius * .01);
     float fade = 1. - smoothstep(range.x, range.y, depth);
     float focus = smoothstep(1., 2., emphasis);
     // Dimmed companies stay solid but darker; planets right beside the camera fade
     // out instead of filling the lens.
     vAlpha = fade * smoothstep(nearRange.x, nearRange.y, depth);
-    vDim = mix(.3, 1., clamp(emphasis, 0., 1.));
+    vDim = max(mix(.3, 1., clamp(emphasis, 0., 1.)), vSun * .7);
     if (vAlpha < .01) { gl_Position = vec4(2., 2., 2., 1.); return; }
     // Companies outside the current focus shrink so they recede instead of crowding it.
     float radius = baseRadius * clamp(sqrt(capScale), .85, 1.35) * mix(1., 1.2, focus) * mix(.55, 1., clamp(emphasis, 0., 1.));
     // Cap the on-screen size so planets passing the camera never fill the frame.
-    radius = min(radius, depth * mix(.022, .032, focus) / projectionMatrix[1][1]);
+    radius = min(radius * mix(1., 1.8, vSun), depth * mix(.022, .032, focus) * mix(1., 1.6, vSun) / projectionMatrix[1][1]);
     vec3 world = center + position * radius;
     vNormal = normalize(position);
     vLocal = position;
@@ -33,7 +35,7 @@ const vertex = `attribute vec3 center; attribute vec3 tint; attribute float emph
     vTint = tint; vSeed = seed;
     gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.);
   }`;
-const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim;
+const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight; varying vec3 vTint; varying vec3 vLocal; varying float vAlpha; varying float vSeed; varying float vDim; varying float vSun;
   void main() {
     // Tilted cloud bands with a little turbulence, different for every company.
     vec3 axis = normalize(vec3(sin(vSeed * 6.3) * .35, 1., cos(vSeed * 4.1) * .35));
@@ -49,6 +51,9 @@ const fragment = `varying vec3 vNormal; varying vec3 vView; varying vec3 vLight;
     // A thin atmosphere glows at the rim, brighter on the lit side.
     float rim = pow(1. - max(dot(vNormal, vView), 0.), 2.5);
     color += vTint * rim * (.35 + .65 * light) * .9;
+    // The central star shines by its own light: a hot, banded face with a glowing limb.
+    vec3 star = mix(mix(vTint, vec3(1., .95, .85), .55), vec3(1.), .25 * bands) * (.95 + .25 * fill) + mix(vTint, vec3(1.), .5) * rim * 1.4;
+    color = mix(color, star, vSun);
     gl_FragColor = vec4(color * vDim, vAlpha);
   }`;
 
