@@ -175,6 +175,8 @@ test('A-share subscriber is provisioned before publication and preserves schedul
   assert.match(r.calls,/CN_FUNDAMENTALS_SUBSCRIPTION=cn-fundamentals-worker/);
   assert.match(r.calls,/--dead-letter-topic cn-fundamentals-dead-letter/);
   assert.match(r.calls,/CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests/);
+  assert.match(r.calls,/run jobs deploy refresh-cn-fundamentals-production .*ENTITY_SNAPSHOT_BUCKET=demo-snapshots/);
+  assert.match(r.calls,/storage objects describe gs:\/\/demo-snapshots\/entity-snapshots\/companies.sqlite/);
   assert.ok(r.calls.indexOf('subscriptions update cn-fundamentals-worker') < r.calls.indexOf('run jobs deploy refresh-cn-fundamentals-production'));
   assert.doesNotMatch(r.calls,/scheduler jobs (pause|resume)|iam service-accounts add-iam-policy-binding/);
 });

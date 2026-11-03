@@ -61,6 +61,7 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
           "builds submit"*) echo build-id ;;
           "builds describe"*) echo SUCCESS ;;
           "artifacts docker images describe"*) echo example/image@sha256:abcdef ;;
+          "storage objects describe gs://demo-snapshots/entity-snapshots/companies.sqlite"*) ;;
           *"add-iam-policy-binding"*|"pubsub topics create"*|"pubsub subscriptions create"*|"pubsub subscriptions update"*|"pubsub subscriptions modify-push-config"*|"run deploy"*|"run jobs deploy"*|"run jobs update"*|"scheduler jobs create"*|"scheduler jobs update"*|"scheduler jobs pause"*|"services enable"*|"beta services identity create"*) ;;
           *) echo "Unexpected mock gcloud command: $*" >&2; return 2 ;;
         esac
