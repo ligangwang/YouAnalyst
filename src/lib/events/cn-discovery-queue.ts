@@ -69,7 +69,9 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
   const companies=[...sorted.slice(start),...sorted.slice(0,start)];
   await Promise.all(Array.from({length:Math.min(8,companies.length)},async()=>{while(next<companies.length){
     const id=companies[next++];
-    if(now()+30000>=options.deadline){result.deferred++;continue;}
+    // Once the next paced publication cannot fit, further status reads cannot
+    // produce work. Leave those companies eligible for the next rotated run.
+    if(Math.max(now(),nextPublishAt)+30000>=options.deadline){result.deferred++;continue;}
     try{
       const state=await options.readState(id,mode);
       if(state?.manualRequired===true){result.skipped++;continue;}

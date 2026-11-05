@@ -198,3 +198,15 @@ test('successful manual discovery cannot clear a newer failure',async()=>{
   await runCnDiscoveryForAdmin(manual,fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph,announcements:async()=>{fx.advance(1000);fx.rows.set(ref,{manualRequired:true,lastAttemptAt:new Date(fx.now()).toISOString()});return {failed:0};}});
   assert.equal(fx.rows.get(ref)?.manualRequired,true);
 });
+
+for(const mode of ['announcements','earnings-fallback'] as const)test(`${mode} stops status reads when no paced publication fits`,async()=>{
+  const ids=Array.from({length:1060},(_,i)=>`XSHG:${600000+i}`);
+  let now=0,reads=0;const sent:string[]=[];
+  const result=await publishCnDiscoveryTasks(ids,mode,async task=>{sent.push(task.companyId);},{
+    execution:'bounded',deadline:360000,now:()=>now,earningsEnabled:true,
+    readState:async()=>{reads++;return undefined;},sleep:async ms=>{now+=ms;}});
+  assert.equal(result.requested,11);
+  assert.equal(result.deferred,1049);
+  assert.equal(new Set(sent).size,11);
+  assert(reads<= (11+8)*(mode==='earnings-fallback'?2:1),`Unpublishable companies caused ${reads} status reads`);
+});
