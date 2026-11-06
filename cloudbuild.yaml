@@ -51,6 +51,8 @@ steps:
       - managed
       - --region
       - ${_REGION}
+      - --memory
+      - ${_WEB_MEMORY}
       - --no-traffic
       # Next opens its TCP socket before handler/SDK initialization completes.
       # A data-free HTTP response, not an open port, gates each new instance.
@@ -71,6 +73,7 @@ substitutions:
   _PREVIOUS_WEB_IMAGE: empty-assets
   _RETAINED_WEB_IMAGE: empty-assets
   _BOOTSTRAP_WEB_IMAGE: empty-assets
+  _WEB_MEMORY: 4Gi
   _SERVICE_NAME: ifindata-web
   _REGION: us-central1
   _MUSIC_STORAGE_BUCKET: ""
