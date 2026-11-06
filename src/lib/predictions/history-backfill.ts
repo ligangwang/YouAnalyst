@@ -4,6 +4,8 @@ import type { Bucket } from '@google-cloud/storage';
 import { predictionInstrument } from './instrument';
 import {OnboardingCapacityDeferred} from '../instrument-onboarding/capacity-control';
 export {historyThrough} from './history-range';
+import {historyBars} from './history-bars';
+export {historyBars} from './history-bars';
 
 export const HISTORY_START = '2025-12-31';
 export function historyProviderSymbol(ticker: string) {
@@ -11,28 +13,19 @@ export function historyProviderSymbol(ticker: string) {
   if(!instrument)throw Error('Unsupported historical symbol');
   return instrument.market==='US' ? `${instrument.ticker.replaceAll('.','-')}.US` : instrument.providerSymbol;
 }
-type Bar = { date: string; open: number; high: number; low: number; close: number; adjusted_close: number; volume: number };
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
 
-export function historyBars(value: unknown, from: string, through: string): Bar[] {
-  if (!validDate(from) || !validDate(through) || through < from) throw Error('Invalid history range');
-  if (!Array.isArray(value) || !value.length || value.length > 10000) throw Error('Empty or invalid historical response');
-  const dates = new Set<string>();
-  for (const row of value) {
-    if (!row || !validDate(row.date) || row.date < from || row.date > through || dates.has(row.date)
-      || !['open','high','low','close','adjusted_close'].every(key => Number.isFinite(row[key]) && row[key] > 0)
-      || !Number.isFinite(row.volume) || row.volume < 0 || row.high < Math.max(row.open,row.close,row.low)
-      || row.low > Math.min(row.open,row.close)) throw Error('Invalid historical bar');
-    dates.add(row.date);
-  }
-  return [...value].sort((a,b) => a.date.localeCompare(b.date));
+async function existingPriceHistory(db:Firestore,ticker:string,market:string,from:string,through:string){
+  const saved=await db.collection('eod_prices').where('ticker','==',ticker).select('market','ticker','tradingDate','close','rawClose','open','high','low','adjustedClose','volume','source','isFinal').limit(10000).get();
+  const rows=saved.docs.map(doc=>doc.data()).filter(row=>row.market===market&&row.ticker===ticker&&row.isFinal!==false&&typeof row.source==='string'&&row.source.startsWith('eodhd')).map(row=>({date:row.tradingDate,close:row.rawClose??row.close,open:row.open,high:row.high,low:row.low,adjusted_close:row.adjustedClose,volume:row.volume}));
+  try{return historyBars(rows,from,through,true);}catch{return null;}
 }
 
 /** No prediction scoring or latest-price mutation: only fill missing historical documents. */
 export async function backfillPriceHistory(input: {
   db: Firestore; bucket: Bucket; tickers: string[]; through: string; from?: string; limit?: number;
   writeBatchSize?: number; createFirst?: boolean; beforeBatch?: () => Promise<void>; afterBatch?: () => Promise<void>;
-  token: string; apiUrl?: string; fetcher?: typeof fetch; now?: () => number;
+  token: string; apiUrl?: string; fetcher?: typeof fetch; now?: () => number;allowPartial?:boolean;
 }) {
   const { db, bucket, token, through } = input;
   const from=input.from??HISTORY_START,batchSize=input.writeBatchSize??100;
@@ -69,15 +62,20 @@ export async function backfillPriceHistory(input: {
         const url = new URL(`/api/eod/${providerSymbol}`, (input.apiUrl ?? process.env.EODHD_API_URL?.trim()) || 'https://eodhd.com');
         url.search = new URLSearchParams({api_token:token,fmt:'json',period:'d',order:'a',from:from,to:claim.end}).toString();
         result.requested++;
-        let response: Response;
-        try { response = await fetcher(url, {signal:AbortSignal.timeout(30000),redirect:'error'}); }
-        catch { throw Error('Historical provider request failed'); }
-        if (!response.ok) throw Error(`Historical provider HTTP ${response.status}`);
-        raw = await response.json();
-        historyBars(raw,from,claim.end);
-        await file.save(JSON.stringify(raw), {resumable:false,contentType:'application/json',preconditionOpts:{ifGenerationMatch:0}});
+        try{
+          let response: Response;
+          try { response = await fetcher(url, {signal:AbortSignal.timeout(30000),redirect:'error'}); }
+          catch { throw Error('Historical provider request failed'); }
+          if (!response.ok) throw Error(`Historical provider HTTP ${response.status}`);
+          raw = await response.json();
+          historyBars(raw,from,claim.end,input.allowPartial);
+        }catch(error){
+          const stored=input.allowPartial?await existingPriceHistory(db,ticker,instrument.market,from,claim.end):null;
+          if(!stored)throw error;raw=stored;
+        }
+        await file.save(JSON.stringify(input.allowPartial?historyBars(raw,from,claim.end,true):raw), {resumable:false,contentType:'application/json',preconditionOpts:{ifGenerationMatch:0}});
       }
-      const bars = historyBars(raw,from,claim.end);
+      const bars = historyBars(raw,from,claim.end,input.allowPartial);
       const loadedAt = new Date(now()).toISOString();
       for (let offset=0;offset<bars.length;offset+=batchSize) {
         await input.beforeBatch?.();
@@ -90,7 +88,7 @@ export async function backfillPriceHistory(input: {
               source:'eodhd-eod',providerSymbol,exchange:instrument.exchange,
               exchangeTimezone:instrument.timeZone,micCode:instrument.exchange,loadedAt,isFinal:true,
               previousClose:previous?.close ?? null,previousTradingDate:previous?.date ?? null,
-              dailyReturn:previous ? (row.close-previous.close)/previous.close : null}};
+              dailyReturn:previous&&!input.allowPartial ? (row.close-previous.close)/previous.close : null}};
         });
         let written:{created:number;existing:number};
         try { written=await createCachedPriceBatch(db,rows,{createFirst:input.createFirst}); }
@@ -102,7 +100,7 @@ export async function backfillPriceHistory(input: {
       await db.runTransaction(async tx => {
         const current=await tx.get(ref);
         if (current.data()?.leaseUntil !== claim.lease) throw Error('History lease lost');
-        tx.set(ref,{status:'completed',leaseUntil:0,retryAfter:0,firstTradingDate:bars[0].date,
+        tx.set(ref,{status:'completed',leaseUntil:0,retryAfter:0,lastError:null,firstTradingDate:bars[0].date,
           lastTradingDate:bars.at(-1)!.date,bars:bars.length,cachePath:file.name,updatedAt:loadedAt},{merge:true});
       });
       result.completed++;

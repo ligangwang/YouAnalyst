@@ -16,7 +16,7 @@ chmod 600 "$env_file"
 trap 'rm -f "$env_file"' EXIT
 node - "$env_file" <<'NODE'
 const fs=require('node:fs');
-fs.writeFileSync(process.argv[2],JSON.stringify({GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA,
+fs.writeFileSync(process.argv[2],JSON.stringify({GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA,SEC_USER_AGENT:process.env.SEC_USER_AGENT,
   EODHD_API_TOKEN:process.env.EODHD_API_TOKEN,EODHD_API_URL:process.env.EODHD_API_URL||'',EODHD_BULK_EOD_BUCKET:process.env.EODHD_BULK_EOD_BUCKET,
   CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL||'',OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_MODEL:process.env.OPENAI_MODEL||'gpt-6-luna',INSTRUMENT_ONBOARDING_MAINTENANCE_READY:'1',THEME_EVIDENCE_FIRST_ENABLED:'1'}),{mode:0o600});
 NODE

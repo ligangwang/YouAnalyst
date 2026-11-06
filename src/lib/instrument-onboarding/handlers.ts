@@ -3,7 +3,7 @@ import type {Bucket} from '@google-cloud/storage';
 import {loadThemeCatalog} from '../company-themes/catalog';
 import {catalogThemeIds} from '../company-themes/catalog-model';
 import {catalogGraphSectors} from '../company-themes/catalog-graph';
-import {activeThemeIds,type ThemedCompany} from '../company-themes/model';
+import {activeThemeIds,isCollectionCompany,type ThemedCompany} from '../company-themes/model';
 import {planEnrollment,type EnrollmentBatch} from '../company-themes/enrollment';
 import {isSupportedCompany} from '../company-support/model';
 import type {Instrument} from '../instruments/model';
@@ -18,12 +18,13 @@ import type {ThemeCatalog} from '../company-themes/catalog-model';
 import {LEGACY_NO_THEME_MATCH} from './progress';
 
 /** Adapters use existing provider workers and existing feature storage only. */
-export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>;requireCapacity?:()=>Promise<void>}) :OnboardingHandlers{
+export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>;requireCapacity?:()=>Promise<void>;requireTheme?:boolean}) :OnboardingHandlers{
   const {db,bucket,log}=options;
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
     const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
     const ids=activeThemeIds(company).filter(id=>allowed.includes(id));
+    if(options.requireTheme&&!ids.length&&!(allowed.includes('ai')&&isCollectionCompany({...company,id},['ai'])))throw new OnboardingBlocked('At least one closest existing theme is required');
     for(const id of ids){
       const membership=company.themeMemberships[id];
       if(typeof membership.primarySector!=='string'||!validDay(membership.reviewedAt)||membership.reviewedAt>new Date().toISOString().slice(0,10)||!membership.sources?.length||membership.sources.some((source:{url:string;title:string;summary:string})=>!/^https:\/\//.test(source.url)||!source.title?.trim()||!source.summary?.trim()))throw new OnboardingBlocked('Published themes need reviewed classification evidence');
@@ -38,11 +39,12 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     if(receipt?.status!=='completed'||receipt.from!==ONBOARDING_START||receipt.through!==request.targetThrough||!receipt.cachePath)throw Error('Historical price receipt is incomplete');
     const expected=`eod-history/${instrument.market}/${encodeURIComponent(instrument.ticker)}/${ONBOARDING_START}_${request.targetThrough}.json`;
     if(receipt.cachePath!==expected)throw Error('Historical price receipt identity mismatch');
-    const bars=historyBars(JSON.parse((await bucket.file(expected).download())[0].toString('utf8')),ONBOARDING_START,request.targetThrough);
+    const bars=historyBars(JSON.parse((await bucket.file(expected).download())[0].toString('utf8')),ONBOARDING_START,request.targetThrough,true);
     return {instrument,bars};
   };
   const ready=async(request:OnboardingRequest,record:Instrument,guard:()=>Promise<void>)=>{
     if(!isSupportedCompany(await current(request.companyId)))throw Error('Company is not ready');
+    if(options.requireTheme)await themes(request.companyId);
     if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
     const {instrument,bars}=await priceHistory(request,record);
     await verifyOnboardingActions({db,bucket,ticker:instrument.ticker,market:instrument.market,providerSymbol:historyProviderSymbol(instrument.ticker),through:request.targetThrough,guard});
@@ -57,7 +59,8 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   return {
     identity:async({instrument:record,company,guard})=>{instrumentOnboardingIdentity(record,company);await guard();},
     themes:async({request,guard})=>{
-      if(isSupportedCompany(await current(request.companyId)))return;
+      const saved=await current(request.companyId);
+      if(isSupportedCompany(saved)&&(!options.requireTheme||isCollectionCompany({...saved,id:request.companyId})))return;
       const catalog=await loadThemeCatalog(db);
       for(const batch of options.themeBatches??[]){
         const companies=batch.companies.filter(row=>row.id===request.companyId);if(!companies.length)continue;
@@ -106,7 +109,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await guard();
       // Bound the aggregate write burst when up to ten workers run in parallel.
-      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,createFirst:true,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
+      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,createFirst:true,allowPartial:true,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
         afterBatch:async()=>{await guard();await new Promise<void>(resolve=>setTimeout(resolve,1000));}});
       if(result.failures.length)throw Error('Historical price backfill incomplete');
       const {bars}=await priceHistory(request,record),last=bars.at(-1)!;

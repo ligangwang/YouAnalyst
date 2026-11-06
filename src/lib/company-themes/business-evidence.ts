@@ -2,6 +2,7 @@ import type {Firestore} from 'firebase-admin/firestore';
 import {gunzipSync} from 'node:zlib';
 import {sha256,sourceIdentity,stableId,type EarningsSource} from '../earnings/model';
 import type {ThemedCompany} from './model';
+import {officialSourceUrl,secSourceMatchesIssuer} from './source-url';
 
 export type BusinessEvidence={url:string;title:string;publishedAt:string;kind:'annual_business'|'earnings';text:string};
 export function officialThemeDomains(company:ThemedCompany){
@@ -13,8 +14,8 @@ export function officialThemeDomains(company:ThemedCompany){
   return [...new Set(domains)];
 }
 export function isOfficialBusinessUrl(company:ThemedCompany,value:string){
-  try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||value.length>2048||!officialThemeDomains(company).some(d=>u.hostname===d||u.hostname.endsWith('.'+d)))return false;
-    if(u.hostname==='sec.gov'||u.hostname.endsWith('.sec.gov')){const cik=String(company.cik);return /^\d{1,10}$/.test(cik)&&Number(cik)>0&&(u.pathname.includes(`/data/${Number(cik)}/`)||u.pathname.includes(`CIK${cik.padStart(10,'0')}.json`)||Number(u.searchParams.get('CIK'))===Number(cik));}
+  try{const u=new URL(officialSourceUrl(value));if(u.protocol!=='https:'||u.username||u.password||value.length>2048||!officialThemeDomains(company).some(d=>u.hostname===d||u.hostname.endsWith('.'+d)))return false;
+    if(u.hostname==='sec.gov'||u.hostname.endsWith('.sec.gov')){return secSourceMatchesIssuer(u.href,company.cik);}
     return true;
   }catch{return false;}
 }
