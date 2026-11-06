@@ -4,7 +4,9 @@ import {once} from 'node:events';
 import type {AddressInfo} from 'node:net';
 import {onboardingFixture} from '../helpers/instrument-onboarding';
 import {drainInstrumentOnboarding} from '../../src/lib/instrument-onboarding/worker';
-import {retryInstrumentOnboarding,wakeInstrumentOnboarding} from '../../src/lib/instrument-onboarding/queue';
+import {inspectOnboardingDelivery,processInstrumentOnboarding,retryInstrumentOnboarding,wakeInstrumentOnboarding} from '../../src/lib/instrument-onboarding/queue';
+import {onboardingLeaseOwner} from '../../src/lib/instrument-onboarding/delivery-lease';
+import {instrumentId} from '../../src/lib/instruments/model';
 import {ONBOARDING_STEPS} from '../../src/lib/instrument-onboarding/model';
 import {createOnboardingSubscriber,onboardingEventId} from '../../src/lib/instrument-onboarding/subscriber';
 import {onboardingDeliveryProbeId,verifyOnboardingDelivery} from '../../src/lib/instrument-onboarding/delivery-check';
@@ -20,7 +22,8 @@ test('one message advances consecutive checkpoints; duplicate delivery never rep
 test('budget continuation resumes the next unfinished checkpoint without polling',async()=>{
   const f=onboardingFixture();await f.enqueue();
   const first=await drainInstrumentOnboarding(f.db,f.id,{...f.handlers,identity:async()=>{f.calls.push('identity');f.advance(1000);}},{clock:f.clock,budgetMs:500});
-  assert.equal(first.status,'CONTINUE');assert.deepEqual(f.request().steps,{identity:'COMPLETE'});
+  assert.equal(first.status,'YIELDED');assert.deepEqual(f.request().steps,{identity:'COMPLETE'});
+  assert.equal(f.request().status,'QUEUED');assert.equal(f.request().leaseOwner,null);
   assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock})).status,'SUPPORTED');
   assert.deepEqual(f.calls,ONBOARDING_STEPS);
 });
@@ -84,27 +87,87 @@ test('private subscriber restricts document routing and acknowledges failed chec
 test('rollout probe refuses existing work and stale revisions before sending a provider-free message',async()=>{
   const sha='a'.repeat(40),calls:string[]=[];let exists=false,healthSha=sha;
   const input={url:'https://onboarding.example.run.app',project:'test',sha,exists:async()=>exists,
-    send:async(url:string,headers?:Record<string,string>)=>{calls.push(url);if(headers){assert.match(headers['ce-subject'],/^documents\/instrument_onboarding_requests\/INS_[a-f0-9]{32}$/);return {status:204,data:null};}return {status:200,data:{sha:healthSha}};}};
-  assert.equal((await verifyOnboardingDelivery(input)).providerCalls,0);assert.equal(calls.length,2);
+    send:async(url:string,headers?:Record<string,string>,body?:Uint8Array)=>{calls.push(url);if(headers){assert.match(headers['ce-subject'],/^documents\/instrument_onboarding_requests\/INS_[a-f0-9]{32}$/);return {status:204,data:null,disposition:body?'claim_event':undefined};}return {status:200,data:{sha:healthSha}};}};
+  assert.equal((await verifyOnboardingDelivery(input)).providerCalls,0);assert.equal(calls.length,3);
   exists=true;calls.length=0;await assert.rejects(()=>verifyOnboardingDelivery(input),/unexpectedly exists/);assert.equal(calls.length,0);
   exists=false;healthSha='b'.repeat(40);await assert.rejects(()=>verifyOnboardingDelivery(input),/reviewed revision/);assert.equal(calls.length,1);
+  healthSha=sha;await assert.rejects(()=>verifyOnboardingDelivery({...input,send:async(url,headers,body)=>({...await input.send(url,headers,body),disposition:undefined})}),/protobuf filter/);
 });
 
 test('busy worker serves health and a safe probe without processing another stock',async()=>{
  const f=onboardingFixture(),sha='a'.repeat(40);let started!:()=>void,release!:()=>void,calls=0,absent=true;
  const entered=new Promise<void>(resolve=>{started=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
- const server=createOnboardingSubscriber({project:'test',sha,probe:async()=>absent,process:async()=>{calls++;started();await hold;return {status:'SUPPORTED'};}});
+ const server=createOnboardingSubscriber({project:'test',sha,probe:async()=>absent,admit:async()=>calls?'retry':'ready',process:async()=>{calls++;started();await hold;return {status:'SUPPORTED'};}});
  server.listen(0,'127.0.0.1');await once(server,'listening');const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
  const headers={'ce-type':'google.cloud.firestore.document.v1.written','ce-source':'//firestore.googleapis.com/projects/test/databases/(default)','ce-specversion':'1.0','ce-id':'event-1','ce-subject':`documents/instrument_onboarding_requests/${f.id}`};
  try{
   const first=fetch(url+'/events',{method:'POST',headers});await entered;
   assert.equal((await fetch(url+'/health')).status,200);
-  assert.equal((await fetch(url+'/events',{method:'POST',headers})).status,503);assert.equal(calls,1);
+  const duplicate=fetch(url+'/events',{method:'POST',headers});assert.equal(calls,1);
   const probe={...headers,'ce-id':'delivery-check-'+sha,'ce-subject':`documents/instrument_onboarding_requests/${onboardingDeliveryProbeId(sha)}`};
   assert.equal((await fetch(url+'/events',{method:'POST',headers:probe})).status,204);assert.equal(calls,1);
   absent=false;assert.equal((await fetch(url+'/events',{method:'POST',headers:probe})).status,503);assert.equal(calls,1);
-  release();assert.equal((await first).status,204);
+  release();assert.equal((await first).status,204);assert.equal((await duplicate).status,204);assert.equal(calls,1);
  }finally{release();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
+test('one delivery retains its fenced lease and publishes no intermediate QUEUED checkpoints',async()=>{
+  const f=onboardingFixture();await f.enqueue();
+  await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,eventId:'original-event'});
+  assert.equal(f.states[0].status,'QUEUED');assert.equal(f.states.at(-1)!.status,'SUPPORTED');
+  const intermediate=f.states.slice(1,-1);
+  assert(intermediate.length>=ONBOARDING_STEPS.length);
+  assert(intermediate.every(row=>row.status==='PROCESSING'));
+  assert.equal(new Set(intermediate.map(row=>row.leaseOwner)).size,1);
+});
+
+test('acknowledges other deliveries without discarding the owning event retry after a crash',async()=>{
+  const f=onboardingFixture();await f.enqueue();const owner=onboardingLeaseOwner('original-event');
+  await processInstrumentOnboarding(f.db,f.id,f.handlers,f.clock,{leaseOwner:owner,retainLease:true,eventId:'original-event'});
+  assert.equal(await inspectOnboardingDelivery(f.db,f.id,'checkpoint-event',f.clock()),'duplicate');
+  assert.equal(await inspectOnboardingDelivery(f.db,f.id,'original-event',f.clock()),'retry');
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,eventId:'checkpoint-event'})).status,'IN_FLIGHT');
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,eventId:'original-event'})).status,'CONTINUE');
+  assert.deepEqual(f.calls,['identity']);
+  f.advance(21*60_000);
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,eventId:'original-event'})).status,'BLOCKED');
+  assert.deepEqual(f.calls,['identity']);
+});
+
+test('terminal delivery inspection never occupies a provider slot',async()=>{
+  const f=onboardingFixture();await f.enqueue();
+  for(const state of ['SUPPORTED','BLOCKED']){f.request().status=state;assert.equal(await inspectOnboardingDelivery(f.db,f.id,'old-event',f.clock()),'terminal');}
+  assert.deepEqual(f.calls,[]);
+});
+
+test('issuer exclusion starts before retaining identity and never strands another listing lease',async()=>{
+  const f=onboardingFixture();f.rows.set('companies/US:ALT',{name:'Other class',status:'DIRECTORY',cik:'123',supersededByCompanyId:'US:NEW'});
+  await f.enqueue();await f.enqueue('US:ALT');const second=instrumentId('US:ALT');
+  let entered!:()=>void,release!:()=>void;
+  const started=new Promise<void>(resolve=>{entered=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
+  const first=drainInstrumentOnboarding(f.db,f.id,{...f.handlers,identity:async()=>{f.calls.push('identity');entered();await hold;}},{clock:f.clock,eventId:'issuer-owner'});
+  try{
+    await started;
+    assert.equal((await drainInstrumentOnboarding(f.db,second,f.handlers,{clock:f.clock,eventId:'other-listing'})).status,'CONTINUE');
+    assert.equal(f.request(second).status,'QUEUED');assert.equal(f.request(second).leaseOwner,null);
+    release();assert.equal((await first).status,'SUPPORTED');
+    assert.equal((await drainInstrumentOnboarding(f.db,second,f.handlers,{clock:f.clock,eventId:'other-listing'})).status,'SUPPORTED');
+    assert.equal(f.calls.filter(step=>step==='themes').length,1);
+  }finally{release();await first;}
+});
+
+test('distinct ready deliveries queue locally without busy 503 responses or concurrent provider work',async()=>{
+  const f=onboardingFixture();let entered!:()=>void,release!:()=>void,active=0,peak=0,calls=0;
+  const started=new Promise<void>(resolve=>{entered=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;});
+  const server=createOnboardingSubscriber({project:'test',process:async()=>{calls++;active++;peak=Math.max(peak,active);if(calls===1){entered();await hold;}active--;return {status:'SUPPORTED'};}});
+  server.listen(0,'127.0.0.1');await once(server,'listening');const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}/events`;
+  const headers={'ce-type':'google.cloud.firestore.document.v1.written','ce-source':'//firestore.googleapis.com/projects/test/databases/(default)','ce-specversion':'1.0','ce-id':'first','ce-subject':`documents/instrument_onboarding_requests/${f.id}`};
+  try{
+    const first=fetch(url,{method:'POST',headers});await started;
+    const second=fetch(url,{method:'POST',headers:{...headers,'ce-id':'second'}});
+    release();assert.equal((await first).status,204);assert.equal((await second).status,204);
+    assert.equal(calls,2);assert.equal(peak,1);
+  }finally{release();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
 
 for(const status of ['SUPPORTED','BLOCKED'] as const)test(`terminal ${status} delivery reuses its claim read without a second lookup`,async()=>{

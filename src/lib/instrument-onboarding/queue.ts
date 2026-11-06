@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto';
+import {isDuplicateLease,onboardingLeaseOwner} from './delivery-lease';
 import {isDeepStrictEqual} from 'node:util';
 import {Timestamp,type Firestore,type Transaction} from 'firebase-admin/firestore';
 import {isSupportedCompany} from '../company-support/model';
@@ -66,16 +66,17 @@ async function readiness(tx:Transaction,db:Firestore,request:OnboardingRequest){
 }
 
 /** One checkpoint, fenced leases, with issuer work serialized across its instruments. */
-export async function processInstrumentOnboarding(db:Firestore,id:string,handlers:OnboardingHandlers,clock=Date.now){
+export async function processInstrumentOnboarding(db:Firestore,id:string,handlers:OnboardingHandlers,clock=Date.now,options:{leaseOwner?:string;retainLease?:boolean;eventId?:string}={}){
   if(!validInstrumentId(id))throw Error('Invalid instrument ID');
-  const ref=db.collection(ONBOARDING_COLLECTION).doc(id),owner=randomUUID();
+  const ref=db.collection(ONBOARDING_COLLECTION).doc(id),owner=options.leaseOwner??onboardingLeaseOwner(options.eventId);
   const claimed=await db.runTransaction(async tx=>{
     const saved=await tx.get(ref);if(!saved.exists)return null;
     const request=parseOnboardingRequest(saved.data());if(request.instrumentId!==id)throw Error('Request identity mismatch');
     if(request.status==='SUPPORTED'||request.status==='BLOCKED')return {terminalStatus:request.status};
-    if(request.leaseExpiresAt>clock())return null;
+    const ownsLease=request.leaseOwner===owner&&request.leaseExpiresAt>clock();
+    if(request.leaseExpiresAt>clock()&&!ownsLease)return isDuplicateLease(request.leaseOwner,options.eventId)?{duplicateLease:true as const}:null;
     // A failed or interrupted step needs explicit admin retry, even on redelivery.
-    if(request.lastError||request.status==='PROCESSING'){
+    if(request.lastError||(request.status==='PROCESSING'&&!ownsLease)){
       const [inst,company]=await tx.getAll(db.collection('instruments').doc(id),db.collection('companies').doc(request.companyId));
       const reason=request.lastError??'Worker interrupted; inspect before retrying';
       tx.set(ref,{...request,status:'BLOCKED',lastError:reason,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(clock()).toISOString()});
@@ -97,9 +98,11 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     const through=createOnboardingRequest(id,context.instrument,context.company,request.requestedByUid,new Date(clock())).targetThrough;
     if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','verify'] as const)delete current.steps[key];}
     const step=ONBOARDING_STEPS.find(key=>current.steps[key]!=='COMPLETE')??'verify';
-    if(companyStep(step)){
+    // The retained lease makes the next company checkpoint visible immediately.
+    // Acquire issuer exclusion at identity too, before retaining that lease.
+    if(step==='identity'||companyStep(step)){
       const siblings=await tx.get(db.collection(ONBOARDING_COLLECTION).where('companyId','==',request.companyId));
-      if(siblings.docs.some(doc=>{const r=parseOnboardingRequest(doc.data());const active=ONBOARDING_STEPS.find(key=>r.steps[key]!=='COMPLETE');return doc.id!==id&&r.status==='PROCESSING'&&r.leaseExpiresAt>clock()&&active&&companyStep(active);}))return null;
+      if(siblings.docs.some(doc=>{const r=parseOnboardingRequest(doc.data());const active=ONBOARDING_STEPS.find(key=>r.steps[key]!=='COMPLETE');return doc.id!==id&&r.status==='PROCESSING'&&r.leaseExpiresAt>clock()&&active&&(active==='identity'||companyStep(active));}))return null;
     }
     tx.set(ref,current);
     tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary('PROCESSING',clock(),request.requestedAt,context.instrument.onboarding),updatedAt:Timestamp.fromMillis(clock())});
@@ -108,6 +111,7 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
   });
   if(!claimed)return {status:'SKIPPED' as const};
   if('terminalStatus' in claimed)return {status:'SKIPPED' as const,terminalStatus:claimed.terminalStatus};
+  if('duplicateLease' in claimed)return {status:'IN_FLIGHT' as const};
   const {step}=claimed;
   const guard=async()=>db.runTransaction(async tx=>{
     const current=parseOnboardingRequest((await tx.get(ref)).data());
@@ -127,7 +131,8 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
       if((step==='events'||done)&&!isDeepStrictEqual(companyFingerprint(fresh.company),companyFingerprint(claimed.company)))throw Error('Company readiness changed during verification');
       if(done&&(!isSupportedCompany(fresh.company)||step!=='verify'))throw Error('Company must be ready before instrument admission');
       if(done&&createOnboardingRequest(id,fresh.instrument,fresh.company,current.requestedByUid,new Date(clock())).targetThrough>current.targetThrough)throw Error('Onboarding needs a latest-session catchup');
-      tx.set(ref,{...current,steps,status:done?'SUPPORTED':'QUEUED',attemptCount:0,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:null,updatedAt:new Date(clock()).toISOString()});
+      const retained=options.retainLease&&!done;
+      tx.set(ref,{...current,steps,status:done?'SUPPORTED':retained?'PROCESSING':'QUEUED',attemptCount:0,nextAttemptAt:0,leaseOwner:retained?owner:null,leaseExpiresAt:retained?current.leaseExpiresAt:0,lastError:null,updatedAt:new Date(clock()).toISOString()});
       tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary(done?'SUPPORTED':'PROCESSING',clock(),current.requestedAt,fresh.instrument.onboarding),updatedAt:Timestamp.fromMillis(clock())});
       if(step==='events'&&COMPANY_STEPS.every(key=>steps[key]==='COMPLETE')&&!isSupportedCompany(fresh.company))tx.update(db.collection('companies').doc(current.companyId),{onboarding:onboardingSummary('SUPPORTED',clock(),current.requestedAt,fresh.company.onboarding),updatedAt:Timestamp.fromMillis(clock())});
     });
@@ -155,6 +160,28 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     });
     return {status:'INCOMPLETE' as const,step};
   }
+}
+
+/** One durable continuation, after a committed checkpoint, before acknowledging a budget yield. */
+export async function yieldInstrumentOnboarding(db:Firestore,id:string,owner:string,now=Date.now()){
+  const ref=db.collection(ONBOARDING_COLLECTION).doc(id);
+  return db.runTransaction(async tx=>{
+    const saved=await tx.get(ref),current=parseOnboardingRequest(saved.data());
+    if(current.status!=='PROCESSING'||current.leaseOwner!==owner||current.leaseExpiresAt<=now)throw Error('Onboarding lease lost before yield');
+    tx.update(ref,{status:'QUEUED',leaseOwner:null,leaseExpiresAt:0,updatedAt:new Date(Math.max(now,Date.parse(current.updatedAt)+1)).toISOString()});
+  });
+}
+
+/** Fast path runs before the instance work slot, so stale deliveries cannot crowd out ready work. */
+export async function inspectOnboardingDelivery(db:Firestore,id:string,eventId:string,now=Date.now()){
+  if(!validInstrumentId(id))throw Error('Invalid instrument ID');
+  const saved=await db.collection(ONBOARDING_COLLECTION).doc(id).get();
+  if(!saved.exists)return 'missing' as const;
+  const row=parseOnboardingRequest(saved.data());
+  if(row.instrumentId!==id)throw Error('Onboarding identity mismatch');
+  if(row.status==='SUPPORTED'||row.status==='BLOCKED')return 'terminal' as const;
+  if(row.leaseExpiresAt>now)return isDuplicateLease(row.leaseOwner,eventId)?'duplicate' as const:'retry' as const;
+  return 'ready' as const;
 }
 
 /** Explicit one-time migration wake for a pre-trigger ready request. Never retries errors. */
