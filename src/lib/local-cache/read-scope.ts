@@ -83,11 +83,10 @@ const policies: Record<string, readonly [number, number]> = {
   // bounds live across rollover instead of evicting/reloading each twelve-bar
   // query on the next visit. Retain the existing byte bound and LRU eviction.
   eod_prices: [1024, 32 * 1024 * 1024],
-  // Production browsing opened 1,531 company queries in two hours (875 distinct
-  // nonempty results plus 623 empty opens). Keep that observed cycle bounded.
-  // A bounded 32-document sample averaged 1,015 bytes: 875 thirty-event pages
-  // need ~25 MiB. Retain them within 32 MiB, with byte and entry eviction intact.
-  events: [2048, 32 * 1024 * 1024],
+  // The Nov 6 overnight trace retained >8,248 distinct company result sets,
+  // totaling >92 MiB, and proved entry-limit reopen churn at 2,048 entries.
+  // Bound the longer browsing cycle; keep byte eviction and exact-query identity.
+  events: [16384, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
   if(isSnapshotCollection(collection)){
