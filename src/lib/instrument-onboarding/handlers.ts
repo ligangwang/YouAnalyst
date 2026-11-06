@@ -3,7 +3,7 @@ import type {Bucket} from '@google-cloud/storage';
 import {loadThemeCatalog} from '../company-themes/catalog';
 import {catalogThemeIds} from '../company-themes/catalog-model';
 import {catalogGraphSectors} from '../company-themes/catalog-graph';
-import {activeThemeIds,type ThemedCompany} from '../company-themes/model';
+import {activeThemeIds,isCollectionCompany,type ThemedCompany} from '../company-themes/model';
 import {planEnrollment,type EnrollmentBatch} from '../company-themes/enrollment';
 import {isSupportedCompany} from '../company-support/model';
 import type {Instrument} from '../instruments/model';
@@ -24,7 +24,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   const themes=async(id:string)=>{
     const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
     const ids=activeThemeIds(company).filter(id=>allowed.includes(id));
-    if(options.requireTheme&&!ids.length)throw new OnboardingBlocked('At least one closest existing theme is required');
+    if(options.requireTheme&&!ids.length&&!(allowed.includes('ai')&&isCollectionCompany({...company,id},['ai'])))throw new OnboardingBlocked('At least one closest existing theme is required');
     for(const id of ids){
       const membership=company.themeMemberships[id];
       if(typeof membership.primarySector!=='string'||!validDay(membership.reviewedAt)||membership.reviewedAt>new Date().toISOString().slice(0,10)||!membership.sources?.length||membership.sources.some((source:{url:string;title:string;summary:string})=>!/^https:\/\//.test(source.url)||!source.title?.trim()||!source.summary?.trim()))throw new OnboardingBlocked('Published themes need reviewed classification evidence');
@@ -60,7 +60,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     identity:async({instrument:record,company,guard})=>{instrumentOnboardingIdentity(record,company);await guard();},
     themes:async({request,guard})=>{
       const saved=await current(request.companyId);
-      if(isSupportedCompany(saved)&&(!options.requireTheme||activeThemeIds(saved).length))return;
+      if(isSupportedCompany(saved)&&(!options.requireTheme||isCollectionCompany({...saved,id:request.companyId})))return;
       const catalog=await loadThemeCatalog(db);
       for(const batch of options.themeBatches??[]){
         const companies=batch.companies.filter(row=>row.id===request.companyId);if(!companies.length)continue;

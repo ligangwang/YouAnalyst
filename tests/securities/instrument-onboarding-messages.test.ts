@@ -214,3 +214,9 @@ test('closest policy blocks an empty theme handler result once instead of loopin
   assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,requireTheme:true})).status,'INCOMPLETE');
   assert.equal(f.request().status,'BLOCKED');assert.equal(f.calls.filter(step=>step==='themes').length,1);
 });
+test('closest policy retains an already published legacy AI decision without another classification',async()=>{
+  const f=onboardingFixture();await f.enqueue();
+  Object.assign(f.rows.get('companies/US:NEW')!,{onboarding:{status:'SUPPORTED'},inGraph:{status:'PUBLISHED'}});
+  f.request().steps={identity:'COMPLETE',themes:'COMPLETE',profile:'COMPLETE',events:'COMPLETE',corporateActions:'COMPLETE'};
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,requireTheme:true})).status,'SUPPORTED');assert.deepEqual(f.calls,['prices','verify']);
+});

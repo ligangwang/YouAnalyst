@@ -77,6 +77,8 @@ Reviewed theme batches use the existing enrollment format. Automatic onboarding
 must select at least one closest existing theme, even if the fit is broad. It uses
 verified annual/business evidence or the issuer's SEC profile and industry, keeps
 the issuer identity and source checks, and normalizes redundant roles and AI stages.
+When external evidence is unavailable, it categorizes the stored company profile
+and explicitly labels the fit approximate; it does not invent an official source.
 It never invents business activities or commercial relationships. Existing published
 or withdrawn decisions are preserved. The SEC user-agent configuration is shared
 with the existing provider workers.

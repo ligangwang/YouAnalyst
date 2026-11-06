@@ -2,7 +2,7 @@ import {isDuplicateLease,onboardingLeaseOwner} from './delivery-lease';
 import {isDeepStrictEqual} from 'node:util';
 import {Timestamp,type Firestore,type Transaction} from 'firebase-admin/firestore';
 import {isSupportedCompany} from '../company-support/model';
-import {activeThemeIds} from '../company-themes/model';
+import {isCollectionCompany} from '../company-themes/model';
 import {instrumentId,validInstrumentId,instrumentFromCompany,validateInstrument,type Instrument} from '../instruments/model';
 import {maintenanceError} from '../maintenance-log';
 import {REQUESTERS_COLLECTION,requesterId} from './requesters';
@@ -98,7 +98,7 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     const current={...request,steps:{...request.steps},status:'PROCESSING' as const,leaseOwner:owner,leaseExpiresAt:clock()+LEASE_MS,updatedAt:new Date(clock()).toISOString()};
     // Earlier admissions allowed an empty theme outcome. The new onboarding
     // policy invalidates only that empty proof, preserving financial checkpoints.
-    if(options.requireTheme&&!activeThemeIds(context.company).length)delete current.steps.themes;
+    if(options.requireTheme&&!isCollectionCompany({...context.company,id:request.companyId}))delete current.steps.themes;
     const through=createOnboardingRequest(id,context.instrument,context.company,request.requestedByUid,new Date(clock())).targetThrough;
     if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','verify'] as const)delete current.steps[key];}
     const step=ONBOARDING_STEPS.find(key=>current.steps[key]!=='COMPLETE')??'verify';
@@ -126,13 +126,13 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
   try{
     await guard();
     // Admission certifies enrollment and the shared presentation/routing steps.
-    const sharedReady=isSupportedCompany(claimed.company)&&(!options.requireTheme||activeThemeIds(claimed.company).length>0);
+    const sharedReady=isSupportedCompany(claimed.company)&&(!options.requireTheme||isCollectionCompany({...claimed.company,id:claimed.request.companyId}));
     if(!(sharedReady&&companyStep(step)))await handlers[step]({...claimed,guard});
     await db.runTransaction(async tx=>{
       const current=parseOnboardingRequest((await tx.get(ref)).data());
       if(current.leaseOwner!==owner||current.leaseExpiresAt<=clock()||current.status!=='PROCESSING')throw Error('Onboarding lease lost');
       const fresh=await readiness(tx,db,current),steps={...current.steps,[step]:'COMPLETE' as const},done=ONBOARDING_STEPS.every(key=>steps[key]==='COMPLETE');
-      if(options.requireTheme&&(step==='themes'||done)&&!activeThemeIds(fresh.company).length)throw new OnboardingBlocked('At least one closest existing theme is required');
+      if(options.requireTheme&&(step==='themes'||done)&&!isCollectionCompany({...fresh.company,id:current.companyId}))throw new OnboardingBlocked('At least one closest existing theme is required');
       if(!isDeepStrictEqual(instrumentFingerprint(fresh.instrument),instrumentFingerprint(claimed.instrument)))throw new OnboardingBlocked('Instrument identity changed during onboarding');
       if((step==='events'||done)&&!isDeepStrictEqual(companyFingerprint(fresh.company),companyFingerprint(claimed.company)))throw Error('Company readiness changed during verification');
       if(done&&(!isSupportedCompany(fresh.company)||step!=='verify'))throw Error('Company must be ready before instrument admission');

@@ -4,8 +4,16 @@ import type {ThemeCatalog} from './catalog-model';
 import {catalogGraphSectors} from './catalog-graph';
 import type {ThemeAssignment} from './classification';
 import {officialSourceUrl,secSourceMatchesIssuer} from './source-url';
+import {companyPageUrl} from '../market-companies/routes';
 
 export type VerifiedIssuerProfile={companyId:string;cik:string;name:string;industry:string;url:string;checkedAt:string};
+/** An explicit approximate-categorization fallback, not a fabricated official filing. */
+export function storedCompanyContext(company:ThemedCompany){
+  const market=company.id.startsWith('US:')?'US':/^(XSHG|XSHE):/.test(company.id)?'CN_A':'GLOBAL';
+  const target=new URL(companyPageUrl(company.id,market,company.slug),'https://youanalyst.com');assert(target.origin==='https://youanalyst.com','Invalid company profile reference');const url=target.href;
+  const facts=Object.fromEntries(['id','name','symbol','cik','description','industry','sector'].filter(key=>typeof company[key]==='string').map(key=>[key,String(company[key]).slice(0,4000)]));
+  return {url,title:'Existing YouAnalyst company profile — approximate closest-theme categorization',kind:'company_profile' as const,text:JSON.stringify(facts)};
+}
 /** Facts returned by the issuer's own SEC submissions endpoint, not model memory. */
 export function secIssuerProfile(company:ThemedCompany,value:unknown,now=Date.now()):VerifiedIssuerProfile|undefined{
   if(!value||typeof value!=='object'||!company.id.startsWith('US:'))return;
