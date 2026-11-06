@@ -51,6 +51,8 @@ test('routine deployment is private, bounded and reuses push identity without AI
   assert.match(result.calls,/run deploy cn-company-discovery-subscriber .*--no-allow-unauthenticated/);
   assert.match(result.calls,/--max-instances 4 --concurrency 10 --timeout 600/);
   assert.match(result.calls,/--args dist\/serve-cn-discovery.cjs/);
+  assert.match(result.calls,/--memory 2Gi --cpu 1/);
+  assert.match(result.calls,/NODE_OPTIONS=--max-old-space-size=1536/);
   assert.match(result.calls,/subscriptions update cn-company-discovery-worker .*--push-auth-service-account directory-sync-scheduler@demo/);
   assert.match(result.calls,/--dead-letter-topic cn-company-discovery-dead-letter/);
   assert.doesNotMatch(result.calls,/add-iam-policy-binding|OPENAI|allUsers|scheduler jobs|run jobs execute|projects add/);
