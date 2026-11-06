@@ -7,6 +7,7 @@ import {instrumentId} from '../../src/lib/instruments/model';
 export function onboardingFixture(initialNow=Date.parse('2026-10-25T12:00:00Z')){
   const rows=new Map<string,Record<string,unknown>>([['companies/US:NEW',{name:'New',status:'DIRECTORY',cik:'123'}],['companies/XSHE:000001',{name:'A-share',status:'DIRECTORY'}]]);
   const reads:string[]=[];
+  const states:Record<string,unknown>[]=[];
   const ref=(path:string)=>({path,id:path.split('/').at(-1),get:async()=>{reads.push(`direct:${path}`);return snapshot(path);},collection:(name:string)=>collection(`${path}/${name}`)});
   const snapshot=(path:string)=>({ref:ref(path),id:path.split('/').at(-1),exists:rows.has(path),data:()=>rows.get(path),get:(key:string)=>rows.get(path)?.[key]});
   const collection=(name:string)=>{
@@ -19,7 +20,7 @@ export function onboardingFixture(initialNow=Date.parse('2026-10-25T12:00:00Z'))
     const run=tail.then(async()=>{const writes:(()=>void)[]=[];const value=await work({get:read,getAll:async(...refs:{path:string}[])=>refs.map(r=>snapshot(r.path)),
       create:(r:{path:string},data:Record<string,unknown>)=>{assert(!rows.has(r.path));writes.push(()=>rows.set(r.path,data));},
       set:(r:{path:string},data:Record<string,unknown>,options?:{merge?:boolean})=>writes.push(()=>rows.set(r.path,options?.merge?{...rows.get(r.path),...data}:data)),
-      update:(r:{path:string},data:Record<string,unknown>)=>writes.push(()=>rows.set(r.path,{...rows.get(r.path),...data})),});writes.forEach(write=>write());return value;});tail=run.then(()=>undefined,()=>undefined);return run;
+      update:(r:{path:string},data:Record<string,unknown>)=>writes.push(()=>rows.set(r.path,{...rows.get(r.path),...data})),});writes.forEach(write=>write());if(writes.length&&rows.has(`${ONBOARDING_COLLECTION}/${id}`))states.push(structuredClone(rows.get(`${ONBOARDING_COLLECTION}/${id}`)!));return value;});tail=run.then(()=>undefined,()=>undefined);return run;
   }} as unknown as Firestore;
   let now=initialNow;const clock=()=>now,calls:string[]=[];
   const handlers=Object.fromEntries(ONBOARDING_STEPS.map(step=>[step,async()=>{calls.push(step);}])) as unknown as OnboardingHandlers;
@@ -27,5 +28,5 @@ export function onboardingFixture(initialNow=Date.parse('2026-10-25T12:00:00Z'))
   const request=(key=id)=>rows.get(`${ONBOARDING_COLLECTION}/${key}`)!;
   const enqueue=(listing='US:NEW')=>requestInstrumentOnboarding(db,instrumentId(listing),'requester-one',listing,clock());
   const process=(custom=handlers,key=id)=>processInstrumentOnboarding(db,key,custom,clock);
-  return {db,rows,reads,calls,handlers,clock,id,request,enqueue,process,advance:(ms:number)=>{now+=ms;}};
+  return {db,rows,reads,states,calls,handlers,clock,id,request,enqueue,process,advance:(ms:number)=>{now+=ms;}};
 }

@@ -156,11 +156,23 @@ The old onboarding schedule is removed only after the subscriber and trigger are
 ready and an authenticated, provider-free message delivery check passes against
 the exact reviewed revision. The manual Cloud Run job remains available for operator preview/inspection.
 
-A message processes consecutive checkpoints within a bounded run. Each completed
-step is committed before the next starts; messages read current state rather than
-stale payloads. Checkpoint writes also emit durable continuation messages. Duplicate
-messages and issuer contention respect the existing fenced leases. Transport
-redelivery may continue **unfinished ready work**, but never a failed provider step.
+A message processes consecutive checkpoints within a bounded run under one fenced
+lease, retaining PROCESSING through intermediate checkpoints. Each completed step
+is committed before the next starts. At a budget yield, the owner commits QUEUED
+and releases its lease before acknowledging, emitting one durable continuation.
+The receiver decodes Firestore protobuf/JSON snapshots and acknowledges claim,
+terminal and delete notifications before admission or provider work. Older queued
+events use a fresh lightweight read before entering the local work slot. Same-event
+deliveries coalesce within an instance; other events for an active instrument may
+acknowledge only when the existing lease identifies a different owning event. The
+owner's retry remains unacknowledged across crashes until its lease expires, so
+ambiguous provider work still blocks for inspection. Identity/issuer exclusion
+prevents competing share classes from retaining conflicting leases. Normal busy
+requests wait for the instance's single work slot instead of returning 503.
+Capacity pauses, unknown legacy leases and genuine issuer contention retain
+transport redelivery. Redelivery may continue **unfinished ready work**, but never
+a failed provider step. Candidate verification exercises the real protobuf filter
+with an absent request and requires its early-acknowledgement response header.
 All step errors become BLOCKED with `nextAttemptAt=0`; only explicit admin retry
 clears them. Expired PROCESSING leases are blocked for inspection because the last
 provider operation may have had an unknown outcome. Old queued failures and legacy
