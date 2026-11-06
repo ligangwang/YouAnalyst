@@ -224,3 +224,34 @@ test('latest range advances after new shared closes and preserves the chosen per
   await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-10-30');
   await expect.poll(() => new URL(page.url()).searchParams.get('end')).toBe(latest);
 });
+
+test('a pending latest-date refresh cannot replace a newly applied period', async ({ page }) => {
+  let count = 0;
+  let release!: () => void;
+  let started!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const refreshStarted = new Promise<void>(resolve => { started = resolve; });
+  await page.route('**/*', async route => {
+    const url = new URL(route.request().url());
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+    if (url.pathname === '/api/compare') {
+      count++;
+      if (count === 4) { started(); await pending; }
+      return route.fulfill({ json: { dates: ['2026-10-30', count >= 4 ? '2026-11-06' : '2026-11-05'], series: [{ symbol: 'AAPL', values: [0, 20] }], frequency: 'Daily', source: 'Fixture' } }).catch(() => {});
+    }
+    return route.fulfill({ json: { items: [], total: 0 } });
+  });
+  await page.goto('http://playback.test/en/compare');
+  await expect(page.getByTestId('comparison-date')).toBeVisible();
+  await page.getByRole('button', { name: 'Latest trading date', exact: true }).click();
+  await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-11-05');
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  await expect.poll(() => count).toBe(3);
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await refreshStarted;
+  await page.getByRole('button', { name: '1W', exact: true }).click();
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  release();
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-10-29');
+  await expect.poll(() => new URL(page.url()).searchParams.get('start')).toBe('2026-10-29');
+});

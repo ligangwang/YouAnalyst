@@ -166,6 +166,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     return { ...config, colors: Object.fromEntries(config.symbols.map(symbol => [symbol, linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light")])) };
   }
   function apply() {
+    latestRequest.current?.abort();
     const invalid = validatePlaybackConfig(draft);
     if (invalid) { setNotice(invalid); return; }
     setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...draft, style });
@@ -247,7 +248,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         <label>{text("To", "结束日期")}<input type="date" value={draft.end} min={draft.start > EARLIEST_PLAYBACK_DATE ? draft.start : EARLIEST_PLAYBACK_DATE} max={latestCompareDate()} onChange={e => { clearLatestDate(); setDraft({ ...draft, end: e.target.value }); }}/></label>
         <button type="button" className={styles.primary} onClick={apply} disabled={!draft.symbols.length}>{text("Compare", "开始对比")} <span aria-hidden="true">→</span></button>
       </div>
-      <div className={styles.presets}><button type="button" disabled={resolvingLatest || !draft.symbols.length} onClick={() => void findLatestTradingDate(false)}>{resolvingLatest ? text("Finding latest…", "正在查找最新日期…") : text("Latest trading date", "最新交易日期")}</button>{latestDate && <span role="status">{text("Latest shared close", "最新共同收盘日期")}: {latestDate}</span>}<span>{text("Quick range", "快捷区间")}</span>{[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} onClick={() => { latestPeriod.current = period; setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
+      <div className={styles.presets}><button type="button" disabled={resolvingLatest || !draft.symbols.length} onClick={() => void findLatestTradingDate(false)}>{resolvingLatest ? text("Finding latest…", "正在查找最新日期…") : text("Latest trading date", "最新交易日期")}</button>{latestDate && <span role="status">{text("Latest shared close", "最新共同收盘日期")}: {latestDate}</span>}<span>{text("Quick range", "快捷区间")}</span>{[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} onClick={() => { latestRequest.current?.abort(); latestPeriod.current = period; setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
       <button type="button" className={styles.collapseEditor} onClick={() => { setEditorOpen(false); editor.current?.querySelector("summary")?.focus(); }}>{text("Collapse stock selection", "收起股票选择")} <span aria-hidden="true">▴</span></button>
       </div>
       </details>
