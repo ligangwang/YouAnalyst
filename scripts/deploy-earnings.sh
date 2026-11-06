@@ -140,7 +140,7 @@ if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discove
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"),e=process.env; fs.writeFileSync(process.argv[1],JSON.stringify({CN_DISCOVERY_REQUEST_TOPIC:e.CN_DISCOVERY_QUEUE_ENABLED==="1"?"cn-company-discovery-requests":"",SEC_INCREMENTAL_DOWNLOADS_ENABLED:e.SEC_INCREMENTAL_DOWNLOADS_ENABLED||"0",SEC_DOCUMENT_CACHE_BUCKET:e.SEC_DOCUMENT_CACHE_BUCKET||"",ENTITY_SNAPSHOT_BUCKET:e.ENTITY_SNAPSHOT_BUCKET,EARNINGS_DELIVERY_MODE:e.EARNINGS_DELIVERY_MODE,GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,EARNINGS_TOPIC:"earnings-sources-discovered",EARNINGS_SUBSCRIPTION:"earnings-worker",EARNINGS_COLLECTION_ENABLED:e.EARNINGS_COLLECTION_ENABLED||"0",EARNINGS_PROCESSING_ENABLED:e.EARNINGS_PROCESSING_ENABLED||"0",EARNINGS_CANARY_ONLY:"0",INTELLIGENCE_NEWS_COLLECTOR_ENABLED:e.INTELLIGENCE_NEWS_COLLECTOR_ENABLED||"0",...(e.CENTRAL_CACHE_URL?{CENTRAL_CACHE_URL:e.CENTRAL_CACHE_URL}:{})}));' "$env_file"
+node -e 'const fs=require("fs"),e=process.env; fs.writeFileSync(process.argv[1],JSON.stringify({CN_DISCOVERY_REQUEST_TOPIC:e.CN_DISCOVERY_QUEUE_ENABLED==="1"?"cn-company-discovery-requests":"",SEC_INCREMENTAL_DOWNLOADS_ENABLED:e.SEC_INCREMENTAL_DOWNLOADS_ENABLED||"0",SEC_DOCUMENT_CACHE_BUCKET:e.SEC_DOCUMENT_CACHE_BUCKET||"",ENTITY_SNAPSHOT_BUCKET:e.ENTITY_SNAPSHOT_BUCKET,EARNINGS_DELIVERY_MODE:e.EARNINGS_DELIVERY_MODE,GCP_PROJECT_ID:e.GCP_PROJECT_ID,NODE_OPTIONS:"--max-old-space-size=1536",GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,EARNINGS_TOPIC:"earnings-sources-discovered",EARNINGS_SUBSCRIPTION:"earnings-worker",EARNINGS_COLLECTION_ENABLED:e.EARNINGS_COLLECTION_ENABLED||"0",EARNINGS_PROCESSING_ENABLED:e.EARNINGS_PROCESSING_ENABLED||"0",EARNINGS_CANARY_ONLY:"0",INTELLIGENCE_NEWS_COLLECTOR_ENABLED:e.INTELLIGENCE_NEWS_COLLECTOR_ENABLED||"0",...(e.CENTRAL_CACHE_URL?{CENTRAL_CACHE_URL:e.CENTRAL_CACHE_URL}:{})}));' "$env_file"
 # Admission keeps one source operation active and at most eight waiting,
 # leaving HTTP capacity for provider-free probes and fast overflow responses.
 # CPU headroom keeps Cloud Run's CPU admission target from starving those probes.
@@ -151,7 +151,7 @@ fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-earnings.cjs --max-instances 1 \
-  --concurrency 80 --timeout 600 --memory 1Gi --cpu 2 "${capacity_args[@]}" --env-vars-file "$env_file" --quiet
+  --concurrency 80 --timeout 600 --memory 2Gi --cpu 2 "${capacity_args[@]}" --env-vars-file "$env_file" --quiet
 if [[ "$bootstrap" == 1 ]]; then
   earnings_iam service "$service" roles/run.invoker "serviceAccount:$scheduler"
 fi
@@ -180,7 +180,7 @@ if [[ "$bootstrap" == 1 ]]; then
 fi
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
-  --max-retries 0 --task-timeout 20m --memory 1Gi --cpu 1 \
+  --max-retries 0 --task-timeout 20m --memory 2Gi --cpu 1 \
   --command node --args dist/collect-earnings.cjs,--apply --env-vars-file "$env_file" --quiet
 if [[ "$bootstrap" == 1 ]]; then
   earnings_iam job "$job" roles/run.invoker "serviceAccount:$scheduler"
