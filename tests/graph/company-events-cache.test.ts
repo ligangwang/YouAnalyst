@@ -22,7 +22,7 @@ test('company events share loads, receive changes and remain bounded', async t =
     limit(count: number) { assert.equal(count, 30); return this; },
     get: async () => { throw Error('Unexpected repeated query'); },
     onSnapshot(next: (snapshot: unknown) => void) {
-      opens++; listeners.set(id, next); queueMicrotask(() => next({ docs: /^US:C\d+$/.test(id)&&Number(id.slice(4))<875
+      opens++; listeners.set(id, next); queueMicrotask(() => next({ docs: /^US:C\d+$/.test(id)&&Number(id.slice(4))<4000
         ? Array.from({length:30},(_,i)=>({id:`${id}-${i}`,data:()=>({title:'x'.repeat(1000)})})) : [] }));
       return () => { listeners.delete(id); };
     },
@@ -41,19 +41,19 @@ test('company events share loads, receive changes and remain bounded', async t =
   listeners.get('US:AMD')!({ docs: [] });
   assert.equal((await load()).docs.length, 0);
   assert.equal(opens, 1, 'empty results and deletions remain cached');
-  // Replay the observed 1,531-query company working set twice without reopening reads.
-  for(let visit=0;visit<2;visit++)for(let i=0;i<1531;i++)await loadCompanyEventSnapshot(db, `US:C${i}`);
+  // Replay 12,000 queries, covering the observed 10,996-company overnight cycle.
+  for(let visit=0;visit<2;visit++)for(let i=0;i<12000;i++)await loadCompanyEventSnapshot(db, `US:C${i}`);
   await load();
-  assert.equal(opens,1532);
+  assert.equal(opens,12001);
   assert(cacheLogs.some(log=>log.action==='hit'&&log.companyId==='US:AMD'));
-  for (let i = 1531; i < 2048; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
-  assert.equal(listeners.size, 2048);
+  for (let i = 12000; i < 16384; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
+  assert.equal(listeners.size, 16384);
   assert.equal(listeners.has('US:C0'), false);
   assert(cacheLogs.some(log=>log.action==='evict'&&log.reason==='entry_limit'&&log.companyId==='US:C0'));
   const before = opens;
   await loadCompanyEventSnapshot(db,'US:C0'); assert.equal(opens, before + 1);
   // The byte ceiling still applies independently of the larger entry budget.
-  for(let i=0;i<40;i++){
+  for(let i=0;i<180;i++){
     const id=`US:BIG${i}`;await loadCompanyEventSnapshot(db,id);
     listeners.get(id)!({docs:[{data:()=>({text:'x'.repeat(1_000_000)})}]});
     await Promise.resolve();

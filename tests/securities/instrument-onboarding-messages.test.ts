@@ -106,3 +106,14 @@ test('busy worker serves health and a safe probe without processing another stoc
   release();assert.equal((await first).status,204);
  }finally{release();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+for(const status of ['SUPPORTED','BLOCKED'] as const)test(`terminal ${status} delivery reuses its claim read without a second lookup`,async()=>{
+  const f=onboardingFixture();await f.enqueue();f.request().status=status;f.reads.length=0;
+  const result=await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock});
+  assert.equal(result.status,status);assert.equal('statusRead' in result&&result.statusRead,'claim_transaction');
+  assert.deepEqual(f.reads,[`transaction:instrument_onboarding_requests/${f.id}`]);assert.deepEqual(f.calls,[]);
+  // A later explicit requeue must be read afresh and processed, not memoized.
+  f.request().status='QUEUED';
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock})).status,'SUPPORTED');
+  assert.deepEqual(f.calls,ONBOARDING_STEPS);
+});

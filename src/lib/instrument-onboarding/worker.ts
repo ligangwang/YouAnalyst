@@ -14,6 +14,9 @@ export async function drainInstrumentOnboarding(db:Firestore,id:string,handlers:
       return {status:'CONTINUE' as const,checkpoints};
     }
     if(result.status==='SUPPORTED'||result.status==='INCOMPLETE')return {...result,checkpoints};
+    // The successful claim transaction already read the terminal state. A later
+    // explicit retry writes its own durable event; never cache this across deliveries.
+    if('terminalStatus' in result&&result.terminalStatus)return {status:result.terminalStatus,checkpoints,statusRead:'claim_transaction' as const};
     const saved=await db.collection(ONBOARDING_COLLECTION).doc(id).get();
     if(!saved.exists)return {status:'IGNORED' as const,checkpoints};
     const row=parseOnboardingRequest(saved.data());

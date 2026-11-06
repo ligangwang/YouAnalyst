@@ -72,7 +72,8 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
   const claimed=await db.runTransaction(async tx=>{
     const saved=await tx.get(ref);if(!saved.exists)return null;
     const request=parseOnboardingRequest(saved.data());if(request.instrumentId!==id)throw Error('Request identity mismatch');
-    if(['SUPPORTED','BLOCKED'].includes(request.status)||request.leaseExpiresAt>clock())return null;
+    if(request.status==='SUPPORTED'||request.status==='BLOCKED')return {terminalStatus:request.status};
+    if(request.leaseExpiresAt>clock())return null;
     // A failed or interrupted step needs explicit admin retry, even on redelivery.
     if(request.lastError||request.status==='PROCESSING'){
       const [inst,company]=await tx.getAll(db.collection('instruments').doc(id),db.collection('companies').doc(request.companyId));
@@ -106,6 +107,7 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     return {...context,request:current,step};
   });
   if(!claimed)return {status:'SKIPPED' as const};
+  if('terminalStatus' in claimed)return {status:'SKIPPED' as const,terminalStatus:claimed.terminalStatus};
   const {step}=claimed;
   const guard=async()=>db.runTransaction(async tx=>{
     const current=parseOnboardingRequest((await tx.get(ref)).data());
