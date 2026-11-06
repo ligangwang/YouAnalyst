@@ -166,7 +166,7 @@ clears them. Expired PROCESSING leases are blocked for inspection because the la
 provider operation may have had an unknown outcome. Old queued failures and legacy
 theme blockers are never automatically resumed.
 
-The subscriber is configured with ten warm instances and two HTTP slots per instance, with at most one onboarding operation per instance. Warm instances incur baseline infrastructure costs even when the queue is idle. Historical price writes are capped at
+The subscriber uses operator-selected warm-instance and maximum-instance counts and two HTTP slots per instance, with at most one onboarding operation per instance. Deployments preserve both counts from the serving revision; missing or invalid capacity blocks the rollout rather than silently resetting it. The current bulk run uses 20 workers, with a planned reduction to 2 after all requests finish (SUPPORTED or BLOCKED). Warm instances incur baseline infrastructure costs even when the queue is idle. Historical price writes are capped at
 200 records per batch with the existing one-second pause; corporate actions
 retain their five-record batches. Workers check a shared safety signal before
 starting and before each price or corporate-action batch. If monitoring reports

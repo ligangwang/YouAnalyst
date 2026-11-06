@@ -33,10 +33,14 @@ invoker="$maintenance_scheduler_account"
 serving_revision="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json | node -e '
 let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const active=(JSON.parse(s).status?.traffic||[]).filter(t=>t.percent>0);if(active.length!==1||active[0].percent!==100||!active[0].revisionName)process.exit(1);console.log(active[0].revisionName);});')"
 [[ -n "$serving_revision" ]] || { echo 'No stable serving onboarding revision' >&2; exit 1; }
+# Preserve the serving revision's operator-selected capacity. A release must not
+# undo the temporary 20-worker onboarding burst or the later reduction to two.
+onboarding_capacity="$(gcloud run revisions describe "$serving_revision" --project "$GCP_PROJECT_ID" --region "$region" --format=json | node scripts/onboarding-worker-capacity.mjs)"
+read -r onboarding_min onboarding_max <<< "$onboarding_capacity"
 gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --region "$region" --update-tags "prev=$serving_revision" --quiet
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
-  --command node --args dist/serve-instrument-onboarding.cjs --min-instances 10 --max-instances 10 \
+  --command node --args dist/serve-instrument-onboarding.cjs --min-instances "$onboarding_min" --max-instances "$onboarding_max" \
   --concurrency 2 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --no-traffic --tag candidate --quiet
 for account in "$invoker" "$maintenance_runtime_account"; do
   gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
