@@ -10,7 +10,9 @@ export function validLatestPrice(value: unknown): value is LatestEodPrice {
 }
 export function shouldReplaceLatest(previous: unknown, next: LatestEodPrice) {
   return validLatestPrice(next) && (!validLatestPrice(previous) || (previous.market === next.market
-    && previous.ticker === next.ticker && next.tradingDate >= previous.tradingDate));
+    && previous.ticker === next.ticker && next.tradingDate >= previous.tradingDate
+    && (previous.tradingDate !== next.tradingDate || previous.close !== next.close
+      || previous.currency !== next.currency || previous.source !== next.source || previous.loadedAt !== next.loadedAt)));
 }
 
 // Preserve exchange-specific catalog IDs. Missing listings get a price-only record
@@ -28,7 +30,9 @@ export async function saveLatestEodPrice(db: Firestore, price: LatestEodPrice) {
   for (const ref of refs) {
     for (let attempt = 0; ; attempt++) {
       try {
-        const doc = await ref.get();
+        // Query snapshots carry the same update-time precondition as get(). Only
+        // reread after a conflict, so a concurrent newer price still wins.
+        const doc = (attempt === 0 ? matching.find(d => d.ref.path === ref.path) : undefined) ?? await ref.get();
         if (!shouldReplaceLatest(doc.data()?.latestEodPrice, price)) break;
         if (doc.exists) await ref.update({latestEodPrice:price}, {lastUpdateTime:doc.updateTime!});
         else await ref.create({latestEodPrice:price,symbol,market:price.market,
@@ -49,11 +53,12 @@ export async function saveLatestEodPrice(db: Firestore, price: LatestEodPrice) {
 
 export async function readLatestUsPrices(db: Firestore, tickers: string[]) {
   const prices = new Map<string, LatestEodPrice>();
-  for (let i = 0; i < tickers.length; i += 30) {
-    const page = await db.collection("tickers").where("symbol", "in", tickers.slice(i, i + 30)).select("latestEodPrice").get();
+  const unique = [...new Set(tickers)], requested = new Set(unique);
+  for (let i = 0; i < unique.length; i += 30) {
+    const page = await db.collection("tickers").where("symbol", "in", unique.slice(i, i + 30)).select("latestEodPrice").get();
     for (const doc of page.docs) {
       const p = doc.data().latestEodPrice;
-      if (validLatestPrice(p) && p.market === "US" && tickers.includes(p.ticker)
+      if (validLatestPrice(p) && p.market === "US" && requested.has(p.ticker)
         && (!prices.has(p.ticker) || p.tradingDate > prices.get(p.ticker)!.tradingDate)) prices.set(p.ticker, p);
     }
   }

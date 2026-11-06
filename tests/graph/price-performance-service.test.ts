@@ -9,7 +9,7 @@ import type {IntelligenceEvent} from '../../src/lib/intelligence/model';
 
 function fixture(){
  type Row=Record<string,unknown>;type Ref={path:string};
- const data=new Map<string,Row>(),queries:Array<{limit:number;through:string}>=[];
+ const data=new Map<string,Row>(),queries:Array<{limit:number;through:string}>=[],reads:string[]=[];
  let chain=Promise.resolve(),fail=false,versions=0;
  const snap=(r:Ref)=>{const row=structuredClone(data.get(r.path));return {id:r.path.split('/').at(-1)!,exists:!!row,data:()=>row,get:(k:string)=>row?.[k]};};
  function client(){
@@ -26,7 +26,7 @@ function fixture(){
   return {collection,getAll:async(...refs:Ref[])=>refs.map(snap),runTransaction:<T>(fn:(tx:unknown)=>Promise<T>)=>{
    const task=chain.then(async()=>{
     const writes:Array<()=>void>=[];
-    const tx={get:async(r:Ref&{get?:()=>unknown})=>r.path?snap(r):r.get!(),getAll:async(...refs:Ref[])=>refs.map(snap),
+    const tx={get:async(r:Ref&{get?:()=>unknown})=>{if(r.path){reads.push(r.path);return snap(r);}return r.get!();},getAll:async(...refs:Ref[])=>refs.map(snap),
      set:(r:Ref,row:Row,opts?:{merge:boolean})=>{const copy=structuredClone(row);writes.push(()=>{if(r.path==='collectors/_graph_prices_v1')versions++;const previous=data.get(r.path)??{};data.set(r.path,opts?.merge?{...previous,...copy,...(copy.buckets?{buckets:{...(previous.buckets as Row),...(copy.buckets as Row)}}:{})}:copy);});},
      create:(r:Ref,row:Row)=>{if(data.has(r.path))throw {code:6};writes.push(()=>data.set(r.path,structuredClone(row)));},
      update:(r:Ref,row:Row)=>writes.push(()=>data.set(r.path,{...data.get(r.path),...row})),};
@@ -34,12 +34,27 @@ function fixture(){
    });chain=task.then(()=>{},()=>{});return task;}} as unknown as Firestore;
  }
  const seed=(day:string,close:number)=>data.set(`eod_prices/US_UNIT_${day}`,{ticker:'UNIT',market:'US',isFinal:true,tradingDate:day,rawClose:close});
- return {data,queries,client,seed,fail:()=>{fail=true;},versions:()=>versions};
+ return {data,queries,reads,client,seed,fail:()=>{fail=true;},versions:()=>versions};
 }
 const graph:KnowledgeGraph={nodes:[{id:'US:UNIT',kind:'COMPANY',order:0},{id:'ORG:PRIVATE',kind:'COMPANY',order:1}],relationships:[],sources:[],asOf:'2026-10-05'};
 const now=new Date('2026-10-06T16:00:00Z');
 const event:IntelligenceEvent={id:'e',origin:'US:UNIT',companyIds:['US:UNIT'],edgeIds:[],category:'BUSINESS',title:'News',summary:'',published_at:null,publication_date:'2026-10-02',eventDate:null,planned:false,evidence:[]};
 const publish=(db:Firestore,date:string,rawClose:number)=>writeCachedPrice(db,db.collection('eod_prices').doc(`US_UNIT_${date}`),{ticker:'UNIT',market:'US',isFinal:true,tradingDate:date,rawClose});
+
+test('metadata updates avoid graph bucket reads while price corrections still update the cache',async()=>{
+ const f=fixture(),db=f.client();f.seed('2026-10-02',110);f.seed('2026-10-05',121);
+ await attachPricePerformance(db,graph,[],now);
+ const versions=f.versions();f.reads.length=0;
+ const ref=db.collection('eod_prices').doc('US_UNIT_2026-10-05');
+ await writeCachedPrice(db,ref,{loadedAt:'2026-10-06T16:00:00Z'});
+ assert.deepEqual(f.reads,['eod_prices/US_UNIT_2026-10-05']);
+ assert.equal(f.data.get(ref.path)?.loadedAt,'2026-10-06T16:00:00Z');
+ assert.equal(f.versions(),versions);
+ f.reads.length=0;
+ await publish(db,'2026-10-05',122);
+ assert.equal(f.reads.length,2);assert.match(f.reads[1],/^collectors\/_graph_prices_v1_/);
+ assert.equal((await attachPricePerformance(db,graph,[],now)).graph.nodes[0].dailyPrice?.close,122);
+});
 
 test('history batch preserves existing prices and changes the graph cache version once',async()=>{
  const f=fixture(),db=f.client();f.seed('2026-10-01',100);f.seed('2026-10-02',110);f.seed('2026-10-05',121);

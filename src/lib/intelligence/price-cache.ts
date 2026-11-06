@@ -93,12 +93,15 @@ export async function writeCachedPrice(db:Firestore,ref:DocumentReference,patch:
   const source=await tx.get(ref),previous=source.data()??{},next={...previous,...patch};
   const ticker=String(next.ticker??''),instrument=predictionInstrument(ticker);
   const key=instrument?keyFor(ticker):'',id=instrument?bucketFor(key):'';
-  const bucket=instrument?await tx.get(refFor(db,id)):undefined;
+  const priceChanged=Boolean(instrument)&&JSON.stringify(barFrom(previous,ticker))!==JSON.stringify(barFrom(next,ticker));
+  // Metadata-only writes cannot change graph closes or baselines. Avoid reading
+  // (and contending on) the shared bucket unless its price input changed.
+  const bucket=priceChanged?await tx.get(refFor(db,id)):undefined;
   const entries=(bucket?.get('entries')??{}) as Bucket['entries'],entry=entries[key];
   if(options.create)tx.create(ref,patch);
   else if(options.precondition)tx.update(ref,patch,options.precondition);
   else tx.set(ref,patch,{merge:true});
-  if(!entry||JSON.stringify(barFrom(previous,ticker))===JSON.stringify(barFrom(next,ticker)))return;
+  if(!entry)return;
   const bar=barFrom(next,ticker),oldBar=barFrom(previous,ticker);
   if(!bar&&entry.bars.some(item=>item.date===oldBar?.date))delete entries[key];
   else {

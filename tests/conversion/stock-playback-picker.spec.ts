@@ -177,3 +177,50 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('stock-picker.png'), fullPage: true });
 });
+
+test('latest trading date anchors quick ranges to the latest shared close', async ({ page }) => {
+  const requests: URL[] = [];
+  await page.route('**/*', route => {
+    const url = new URL(route.request().url());
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+    if (url.pathname === '/api/compare') {
+      requests.push(url);
+      return route.fulfill({ json: { dates: ['2025-11-05', '2026-11-05'], series: [{ symbol: 'AAPL', values: [0, 20] }], frequency: 'Daily', source: 'Fixture' } });
+    }
+    return route.fulfill({ json: { items: [], total: 0 } });
+  });
+  await page.goto('http://playback.test/en/compare');
+  await expect(page.getByTestId('comparison-date')).toBeVisible();
+  await page.getByRole('button', { name: 'Latest trading date', exact: true }).click();
+  await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-11-05');
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue('2025-11-05');
+  await page.getByRole('button', { name: '1W', exact: true }).click();
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-10-29');
+  await page.getByRole('button', { name: '3Y', exact: true }).click();
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue('2023-11-05');
+  expect(requests).toHaveLength(2);
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(3);
+  expect(requests[2].searchParams.get('end')).toBe('2026-11-05');
+  expect(requests[2].searchParams.get('start')).toBe('2023-11-05');
+});
+
+test('latest range advances after new shared closes and preserves the chosen period', async ({ page }) => {
+  let latest = '2026-11-05';
+  await page.route('**/*', route => {
+    const url = new URL(route.request().url());
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+    if (url.pathname === '/api/compare') return route.fulfill({ json: { dates: ['2026-10-30', latest], series: [{ symbol: 'AAPL', values: [0, 20] }], frequency: 'Daily', source: 'Fixture' } });
+    return route.fulfill({ json: { items: [], total: 0 } });
+  });
+  await page.goto('http://playback.test/en/compare');
+  await page.getByRole('button', { name: 'Latest trading date', exact: true }).click();
+  await expect(page.getByLabel('To', { exact: true })).toHaveValue(latest);
+  await page.getByRole('button', { name: '1W', exact: true }).click();
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  latest = '2026-11-06';
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByLabel('To', { exact: true })).toHaveValue(latest);
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-10-30');
+  await expect.poll(() => new URL(page.url()).searchParams.get('end')).toBe(latest);
+});
