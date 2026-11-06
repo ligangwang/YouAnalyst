@@ -35,6 +35,7 @@ function run(target:string,extra:Record<string,string>={}) {
           "run services describe instrument-onboarding-subscriber"*"value(status.url)"*) echo https://onboarding.example.run.app ;;
           "run jobs execute onboard-instruments-production"*) if [[ "\${ONBOARDING_DELIVERY_FAIL:-0}" == 1 || ( "\${ONBOARDING_CAPACITY_FAIL:-0}" == 1 && "$*" == *"--verify-capacity"* ) ]]; then return 1; fi ;;
           "run services describe instrument-onboarding-subscriber"*) echo '{"status":{"conditions":[{"type":"Ready","status":"True"}],"traffic":[{"percent":100,"revisionName":"onboarding-old"},{"tag":"candidate","revisionName":"onboarding-new","url":"https://candidate.example.run.app"}]}}' ;;
+          "run revisions describe onboarding-old"*) printf '{"metadata":{"annotations":{"autoscaling.knative.dev/minScale":"%s","autoscaling.knative.dev/maxScale":"%s"}}}' "\${ONBOARDING_SCALE:-20}" "\${ONBOARDING_SCALE:-20}" ;;
           "scheduler jobs describe onboard-instruments-production"*) if [[ "\${NEW_ONBOARDING:-0}" == 1 ]]; then return 1; fi ;;
           *"get-iam-policy"*)
             local arg
@@ -96,7 +97,7 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.match(r.calls,/--max-retries 0 --task-timeout 20m/);
   assert.match(r.calls,/run deploy instrument-onboarding-subscriber .*--no-allow-unauthenticated/);
   assert.match(r.calls,/themeEvidenceFirst=1/);
-  assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--max-instances 10 --concurrency 2/);
+  assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--min-instances 20 --max-instances 20 --concurrency 2/);
   assert.match(r.calls,/eventarc triggers describe instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/eventarc triggers (create|update|delete) instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/scheduler jobs (create|update) http onboard-instruments-production/);
@@ -105,6 +106,12 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.equal(existing.status,0,existing.stderr);
   assert.doesNotMatch(existing.calls,/scheduler jobs (delete|pause|resume)/);
   assert.match(existing.calls,/--no-traffic --tag candidate/);
+  const scaledDown=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_SCALE:'2'});
+  assert.equal(scaledDown.status,0,scaledDown.stderr);
+  assert.match(scaledDown.calls,/--min-instances 2 --max-instances 2 --concurrency 2/);
+  const invalidCapacity=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_SCALE:'unknown'});
+  assert.notEqual(invalidCapacity.status,0);
+  assert.doesNotMatch(invalidCapacity.calls,/run deploy instrument-onboarding-subscriber|--to-revisions/);
   assert.match(existing.calls,/run jobs update onboard-instruments-production .*--update-env-vars ONBOARDING_SUBSCRIBER_URL=https:\/\/onboarding.example.run.app/);
   assert.match(existing.calls,/ONBOARDING_SUBSCRIBER_URL=https:\/\/candidate.example.run.app,ONBOARDING_SUBSCRIBER_AUDIENCE=https:\/\/onboarding.example.run.app/);
   assert(existing.calls.indexOf('--verify-delivery')<existing.calls.indexOf('--to-revisions onboarding-new=100'));
