@@ -6,5 +6,5 @@ import { EVENTS_COLLECTION } from './model';
 export function loadCompanyEventSnapshot(db: Firestore, companyId: string): Promise<QuerySnapshot> {
   const query = db.collection(EVENTS_COLLECTION).where('companyId', '==', companyId)
     .orderBy('publication_date', 'desc').limit(30);
-  return withSourceCache(() => collectionSourceSnapshot(db, query, EVENTS_COLLECTION) ?? query.get());
+  return withSourceCache(() => collectionSourceSnapshot(db, query, EVENTS_COLLECTION, {collection:EVENTS_COLLECTION,companyId}) ?? query.get());
 }

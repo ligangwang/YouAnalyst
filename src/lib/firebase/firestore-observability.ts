@@ -236,7 +236,9 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
           const reads=args.map(ref=>isSnapshotCollection(documentCollection(ref.path))?companySourceSnapshot(observed,ref):undefined);
           if(reads.some(Boolean))return Promise.all(args.map((ref,index)=>reads[index]??ref.get()));
         }
-        if (method === 'get' && (kind === 'doc' || kind === 'query') && !shape.clauses.some(clause => clause.startsWith('select('))) {
+        const closedFeedDelta=kind==='query'&&shape.steps?.some(step=>step.method==='where'&&step.args[0]==='feedCacheChangedAt'&&step.args[1]==='>')
+          &&shape.steps.some(step=>step.method==='where'&&step.args[0]==='feedCacheChangedAt'&&step.args[1]==='<=');
+        if (method === 'get' && (kind === 'doc' || kind === 'query') && !closedFeedDelta && !shape.clauses.some(clause => clause.startsWith('select('))) {
           const cached = collectionSourceSnapshot(observed, proxy, shape.collection);
           if (cached) return cached;
         }
