@@ -21,6 +21,13 @@ import styles from "./stock-compare.module.css";
 import {FloatingEventWindow,eventWindowAnchor,type EventWindowAnchor} from './event-details-window';
 import toolStyles from './chart-stock-review.module.css';
 
+function rangeStart(end: string, period: number): string {
+  if (period !== 0) return playbackStartDate(end, period);
+  const date = new Date(`${end}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 7);
+  return date.toISOString().slice(0, 10) < EARLIEST_PLAYBACK_DATE ? EARLIEST_PLAYBACK_DATE : date.toISOString().slice(0, 10);
+}
+
 function ChartLoading() {
   const { text } = useLocale();
   return <p className="p-10 text-slate-400">{text("Loading chart…", "正在加载图表…")}</p>;
@@ -32,6 +39,11 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
   const [notice, setNotice] = useState(""), [shareNotice, setShareNotice] = useState("");
+  const [resolvingLatest, setResolvingLatest] = useState(false);
+  const [latestDate, setLatestDate] = useState<string | null>(null);
+  const latestRequest = useRef<AbortController | null>(null);
+  const latestRefresh = useRef<() => void>(() => {});
+  const latestPeriod = useRef(1);
   const [editorOpen, setEditorOpen] = useState(true);
   const [colorSymbol, setColorSymbol] = useState<string | null>(null);
   const [data, setData] = useState<CompareData | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
@@ -87,12 +99,59 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   }, [playing, speed]);
   useEffect(() => { if (progress >= 1) setPlaying(false); }, [progress]);
 
+  const draftSymbolsKey = draft.symbols.join(",");
+  useEffect(() => () => { latestRequest.current?.abort(); }, [draftSymbolsKey]);
+
+  useEffect(() => {
+    if (!latestDate) return;
+    const timer = window.setInterval(() => latestRefresh.current(), 3600000);
+    const refreshOnReturn = () => { if (!document.hidden) latestRefresh.current(); };
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshOnReturn); };
+  }, [latestDate]);
+
+  async function findLatestTradingDate(refresh = false) {
+    latestRequest.current?.abort();
+    const controller = new AbortController();
+    latestRequest.current = controller;
+    setResolvingLatest(true); setNotice("");
+    const end = latestCompareDate();
+    const params = new URLSearchParams({ symbols: draft.symbols.join(","), start: playbackStartDate(end, 1), end });
+    try {
+      const response = await fetch(`/api/compare?${params}`, { signal: controller.signal });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to find the latest trading date.");
+      const latest = (payload as CompareData).dates.at(-1);
+      if (!latest) throw new Error("Unable to find the latest trading date.");
+      if (!controller.signal.aborted) {
+        setLatestDate(latest);
+        if (!refresh) latestPeriod.current = 1;
+        setDraft(current => refresh && current.end !== latestDate ? current : ({ ...current, end: latest, start: rangeStart(latest, latestPeriod.current) }));
+        if (refresh && latestDate && latest !== latestDate) {
+          const appliedPeriod = [0, 1, 3, MAX_PLAYBACK_YEARS].find(period => applied.end === latestDate && applied.start === rangeStart(latestDate, period));
+          if (appliedPeriod !== undefined) {
+            const next = { ...applied, end: latest, start: rangeStart(latest, appliedPeriod) };
+            setApplied(next); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress(next);
+          }
+        }
+      }
+    } catch {
+      if (!controller.signal.aborted) setNotice(text("Could not find a recent shared trading date for these stocks. Try another selection.", "无法找到这些股票近期共同的交易日期，请尝试其他股票。"));
+    } finally {
+      if (latestRequest.current === controller) { latestRequest.current = null; setResolvingLatest(false); }
+    }
+  }
+
+  latestRefresh.current = () => { if (!latestRequest.current) void findLatestTradingDate(true); };
+
+  function clearLatestDate() { latestRequest.current?.abort(); setLatestDate(null); }
+
   function addStock(raw: string) {
     const symbol = raw.trim().toUpperCase().replace(/^\$/, "").replace(/^US:/, "");
     if (!compareSymbol(symbol)) { setNotice(text("Choose a listed stock ticker.", "请选择上市股票代码。")); return; }
     if (draft.symbols.includes(symbol)) { setNotice(text("This stock is already selected.", "已选择此股票。")); return; }
     if (draft.symbols.length >= 10) { setNotice(text("You can compare up to 10 stocks.", "最多可对比 10 只股票。")); return; }
-    setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); setColorSymbol(symbol); setNotice("");
+    setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); clearLatestDate(); setColorSymbol(symbol); setNotice("");
   }
   function changeAppearance(next: CompareAppearance) {
     preferences.change(next); setLinkColors({}); setShareUrl(""); setShareNotice(""); setShowEmbed(false);
@@ -107,6 +166,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     return { ...config, colors: Object.fromEntries(config.symbols.map(symbol => [symbol, linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light")])) };
   }
   function apply() {
+    latestRequest.current?.abort();
     const invalid = validatePlaybackConfig(draft);
     if (invalid) { setNotice(invalid); return; }
     setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...draft, style });
@@ -169,7 +229,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       <div id="comparison-settings" className={styles.editorBody}>
       <div className={styles.chips}>{draft.symbols.map(symbol => <div key={symbol} className={styles.stockChip}>
         <button type="button" onClick={() => setColorSymbol(colorSymbol === symbol ? null : symbol)} aria-expanded={colorSymbol === symbol} aria-controls="company-color-editor" aria-label={text(`Choose color for ${symbol}`, `选择 ${symbol} 的颜色`)}><i style={{ background: linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light") }}/>{symbol}</button>
-        <button type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); if (colorSymbol === symbol) setColorSymbol(null); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><span aria-hidden="true">×</span></button>
+        <button type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); clearLatestDate(); if (colorSymbol === symbol) setColorSymbol(null); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><span aria-hidden="true">×</span></button>
       </div>)}</div>
       <p className={styles.colorHint}>{text("Click a company to choose its color or restore its saved custom color.", "点击公司名称即可选色；“恢复自选色”还原你保存的自选颜色，“系统默认颜色”恢复模板配色。")}</p>
       {colorSymbol && draft.symbols.includes(colorSymbol) && <section id="company-color-editor" className={styles.inlineColor} aria-label={text(`Customize ${colorSymbol}`, `自定义 ${colorSymbol}`)}>
@@ -184,11 +244,11 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       </section>}
       <div className={styles.settings}>
         <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
-        <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => setDraft({ ...draft, start: e.target.value })}/></label>
-        <label>{text("To", "结束日期")}<input type="date" value={draft.end} min={draft.start > EARLIEST_PLAYBACK_DATE ? draft.start : EARLIEST_PLAYBACK_DATE} max={latestCompareDate()} onChange={e => setDraft({ ...draft, end: e.target.value })}/></label>
+        <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => { clearLatestDate(); setDraft({ ...draft, start: e.target.value }); }}/></label>
+        <label>{text("To", "结束日期")}<input type="date" value={draft.end} min={draft.start > EARLIEST_PLAYBACK_DATE ? draft.start : EARLIEST_PLAYBACK_DATE} max={latestCompareDate()} onChange={e => { clearLatestDate(); setDraft({ ...draft, end: e.target.value }); }}/></label>
         <button type="button" className={styles.primary} onClick={apply} disabled={!draft.symbols.length}>{text("Compare", "开始对比")} <span aria-hidden="true">→</span></button>
       </div>
-      <div className={styles.presets}><span>{text("Quick range", "快捷区间")}</span>{[1, 3, MAX_PLAYBACK_YEARS].map(years => <button type="button" key={years} onClick={() => setDraft({ ...draft, start: playbackStartDate(draft.end || initial.end, years) })}>{years}Y</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
+      <div className={styles.presets}><button type="button" disabled={resolvingLatest || !draft.symbols.length} onClick={() => void findLatestTradingDate(false)}>{resolvingLatest ? text("Finding latest…", "正在查找最新日期…") : text("Latest trading date", "最新交易日期")}</button>{latestDate && <span role="status">{text("Latest shared close", "最新共同收盘日期")}: {latestDate}</span>}<span>{text("Quick range", "快捷区间")}</span>{[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} onClick={() => { latestRequest.current?.abort(); latestPeriod.current = period; setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
       <button type="button" className={styles.collapseEditor} onClick={() => { setEditorOpen(false); editor.current?.querySelector("summary")?.focus(); }}>{text("Collapse stock selection", "收起股票选择")} <span aria-hidden="true">▴</span></button>
       </div>
       </details>
