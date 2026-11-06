@@ -223,6 +223,7 @@ test('EOD deployment is private, retained before publication, and reuses scoped 
   assert.ok(r.calls.indexOf('subscriptions create eod-maintenance-worker') < r.calls.indexOf('run deploy eod-maintenance-subscriber'));
   assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-eod-maintenance.cjs.*--concurrency 1/);
   assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--max-instances 4/);
+  assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--memory 2Gi --cpu 1/);
   assert.match(r.calls,/pubsub topics add-iam-policy-binding eod-maintenance-requests.*--member serviceAccount:directory-sync-runtime@demo.iam.gserviceaccount.com.*roles\/pubsub.publisher/);
   assert.match(r.calls,/--dead-letter-topic eod-maintenance-dead-letter/);
   assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/existing-bulk-cache.*roles\/storage.objectUser/);

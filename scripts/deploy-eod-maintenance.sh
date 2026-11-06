@@ -52,11 +52,11 @@ fi
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"); const e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",EOD_SUBSCRIPTION:"eod-maintenance-worker",EOD_COMPANY_BATCHES:"100"}; for(const key of ["CENTRAL_CACHE_URL","TWELVE_DATA_API_KEY","TWELVE_DATA_API_URL","EODHD_API_TOKEN","EODHD_API_URL","EODHD_BULK_EOD_BUCKET"]) if(e[key]) values[key]=e[key]; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
+node -e 'const fs=require("fs"); const e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,NODE_OPTIONS:"--max-old-space-size=1536",GIT_SHA:e.GIT_SHA||"unknown",EOD_SUBSCRIPTION:"eod-maintenance-worker",EOD_COMPANY_BATCHES:"100"}; for(const key of ["CENTRAL_CACHE_URL","TWELVE_DATA_API_KEY","TWELVE_DATA_API_URL","EODHD_API_TOKEN","EODHD_API_URL","EODHD_BULK_EOD_BUCKET"]) if(e[key]) values[key]=e[key]; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-eod-maintenance.cjs --min-instances 0 --max-instances 4 \
-  --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
+  --concurrency 1 --timeout 600 --memory 2Gi --cpu 1 --cpu-throttling \
   --env-vars-file "$env_file" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null

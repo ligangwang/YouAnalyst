@@ -113,7 +113,7 @@ test("approved earnings setup grants only five resource bindings and leaves a di
   }
   assert.match(r.calls, /subscriptions create earnings-dead-letter-audit .*--topic earnings-dead-letter.*--message-retention-duration 7d --expiration-period never/);
   assert.match(r.calls, /run deploy earnings-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-earnings.cjs.*--max-instances 1 --concurrency 80 --timeout 600/);
-  assert.match(r.calls, /run deploy earnings-subscriber.*--memory 1Gi --cpu 2 --min-instances 0 --cpu-throttling/);
+  assert.match(r.calls, /run deploy earnings-subscriber.*--memory 2Gi --cpu 2 --min-instances 0 --cpu-throttling/);
   assert.match(r.calls, /subscriptions create earnings-worker --topic earnings-sources-discovered.*--push-auth-service-account directory-sync-scheduler@demo.iam.gserviceaccount.com.*--push-auth-token-audience https:\/\/subscriber.example.run.app.*--ack-deadline 600.*--dead-letter-topic earnings-dead-letter.*--max-delivery-attempts 100/);
   assert.match(r.calls, /run jobs deploy collect-earnings-production.*--tasks 1 --parallelism 1.*--args dist\/collect-earnings.cjs,--apply/);
   assert.match(r.calls, /scheduler jobs create http collect-earnings-production.*--schedule \*\/15 \* \* \* \* --time-zone UTC/);
@@ -124,6 +124,7 @@ test("approved earnings setup grants only five resource bindings and leaves a di
     assert.equal(config.EARNINGS_COLLECTION_ENABLED, "0");
     assert.equal(config.EARNINGS_PROCESSING_ENABLED, "0");
     assert.equal(config.EARNINGS_CANARY_ONLY, "0");
+    assert.equal(config.NODE_OPTIONS, "--max-old-space-size=1536");
     assert.equal(config.INTELLIGENCE_NEWS_COLLECTOR_ENABLED, "0");
     assert.equal(config.EARNINGS_TOPIC, "earnings-sources-discovered");
     assert.equal(config.EARNINGS_SUBSCRIPTION, "earnings-worker");
@@ -145,6 +146,7 @@ test("routine earnings deployment verifies all scoped IAM before revisions and p
     assert.equal(config.INTELLIGENCE_NEWS_COLLECTOR_ENABLED, "1");
     assert.equal(config.EARNINGS_PROCESSING_ENABLED, "1");
     assert.equal(config.EARNINGS_CANARY_ONLY, "0");
+    assert.equal(config.NODE_OPTIONS, "--max-old-space-size=1536");
   }
   assert.match(r.calls, /scheduler jobs update http collect-earnings-production/);
   assert.doesNotMatch(r.calls, /add-iam-policy-binding|iam service-accounts|projects add-iam|(?:topics|subscriptions) create|scheduler jobs (create|pause|resume|delete)|run jobs execute/);
