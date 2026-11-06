@@ -85,8 +85,9 @@ const policies: Record<string, readonly [number, number]> = {
   eod_prices: [1024, 32 * 1024 * 1024],
   // Production browsing opened 1,531 company queries in two hours (875 distinct
   // nonempty results plus 623 empty opens). Keep that observed cycle bounded.
-  // Retain that working set; the existing byte budget still bounds retained data.
-  events: [2048, 16 * 1024 * 1024],
+  // A bounded 32-document sample averaged 1,015 bytes: 875 thirty-event pages
+  // need ~25 MiB. Retain them within 32 MiB, with byte and entry eviction intact.
+  events: [2048, 32 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
   if(isSnapshotCollection(collection)){

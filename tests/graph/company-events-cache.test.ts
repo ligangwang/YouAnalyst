@@ -22,7 +22,8 @@ test('company events share loads, receive changes and remain bounded', async t =
     limit(count: number) { assert.equal(count, 30); return this; },
     get: async () => { throw Error('Unexpected repeated query'); },
     onSnapshot(next: (snapshot: unknown) => void) {
-      opens++; listeners.set(id, next); queueMicrotask(() => next({ docs: [] }));
+      opens++; listeners.set(id, next); queueMicrotask(() => next({ docs: /^US:C\d+$/.test(id)&&Number(id.slice(4))<875
+        ? Array.from({length:30},(_,i)=>({id:`${id}-${i}`,data:()=>({title:'x'.repeat(1000)})})) : [] }));
       return () => { listeners.delete(id); };
     },
   });
@@ -52,7 +53,7 @@ test('company events share loads, receive changes and remain bounded', async t =
   const before = opens;
   await loadCompanyEventSnapshot(db,'US:C0'); assert.equal(opens, before + 1);
   // The byte ceiling still applies independently of the larger entry budget.
-  for(let i=0;i<20;i++){
+  for(let i=0;i<40;i++){
     const id=`US:BIG${i}`;await loadCompanyEventSnapshot(db,id);
     listeners.get(id)!({docs:[{data:()=>({text:'x'.repeat(1_000_000)})}]});
     await Promise.resolve();
