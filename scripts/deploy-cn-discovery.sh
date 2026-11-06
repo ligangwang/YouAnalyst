@@ -46,12 +46,14 @@ if [[ "$FILING_PIPELINE_BOOTSTRAP_IAM" == 1 ]]; then
   pipeline_retained_subscription "$dead-audit" "$dead"
   pipeline_iam topic "$topic" roles/pubsub.publisher "serviceAccount:$maintenance_runtime_account"
 fi
-# Discovery loads one enrolled company and uses the shared CNINFO request gate.
+# Company point reads initialize the shared SQLite directory and watermark cache.
+# The default ~512 MiB V8 heap exhausted during warmup and replayed Pub/Sub work.
+# Keep native/SQLite headroom outside the explicitly bounded JavaScript heap.
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-cn-discovery.cjs --min-instances 0 --max-instances "$max_instances" \
-  --concurrency 10 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|CN_DISCOVERY_SUBSCRIPTION=$subscription|CN_DISCOVERY_QUEUE_ENABLED=${CN_DISCOVERY_QUEUE_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=${EARNINGS_COLLECTION_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --concurrency 10 --timeout 600 --memory 2Gi --cpu 1 --cpu-throttling \
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|NODE_OPTIONS=--max-old-space-size=1536|GIT_SHA=${GIT_SHA:-unknown}|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|CN_DISCOVERY_SUBSCRIPTION=$subscription|CN_DISCOVERY_QUEUE_ENABLED=${CN_DISCOVERY_QUEUE_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=${EARNINGS_COLLECTION_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format='value(status.url)')"
 [[ "$url" == https://* ]] || { echo 'Missing A-share subscriber URL' >&2; exit 1; }
