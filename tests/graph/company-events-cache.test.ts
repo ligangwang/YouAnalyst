@@ -6,6 +6,8 @@ import { closeLocalCaches } from '../../src/lib/local-cache/watch';
 
 test('company events share loads, receive changes and remain bounded', async t => {
   t.after(closeLocalCaches);
+  const cacheLogs:Record<string,unknown>[]=[];
+  t.mock.method(console,'info',(line:string)=>cacheLogs.push(JSON.parse(line)));
   const listeners = new Map<string, (snapshot: unknown) => void>();
   let opens = 0;
   const query = (id = '') => ({
@@ -38,9 +40,22 @@ test('company events share loads, receive changes and remain bounded', async t =
   listeners.get('US:AMD')!({ docs: [] });
   assert.equal((await load()).docs.length, 0);
   assert.equal(opens, 1, 'empty results and deletions remain cached');
-  for (let i = 0; i < 256; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
-  assert.equal(listeners.size, 256);
-  assert.equal(listeners.has('US:AMD'), false);
+  // Replay the observed 1,531-query company working set twice without reopening reads.
+  for(let visit=0;visit<2;visit++)for(let i=0;i<1531;i++)await loadCompanyEventSnapshot(db, `US:C${i}`);
+  await load();
+  assert.equal(opens,1532);
+  assert(cacheLogs.some(log=>log.action==='hit'&&log.companyId==='US:AMD'));
+  for (let i = 1531; i < 2048; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
+  assert.equal(listeners.size, 2048);
+  assert.equal(listeners.has('US:C0'), false);
+  assert(cacheLogs.some(log=>log.action==='evict'&&log.reason==='entry_limit'&&log.companyId==='US:C0'));
   const before = opens;
-  await load(); assert.equal(opens, before + 1);
+  await loadCompanyEventSnapshot(db,'US:C0'); assert.equal(opens, before + 1);
+  // The byte ceiling still applies independently of the larger entry budget.
+  for(let i=0;i<20;i++){
+    const id=`US:BIG${i}`;await loadCompanyEventSnapshot(db,id);
+    listeners.get(id)!({docs:[{data:()=>({text:'x'.repeat(1_000_000)})}]});
+    await Promise.resolve();
+  }
+  assert(cacheLogs.some(log=>log.action==='evict'&&log.reason==='byte_limit'));
 });

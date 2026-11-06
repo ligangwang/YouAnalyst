@@ -10,7 +10,12 @@ declare global {
 const scope = globalThis.__youAnalystReadScopeV1 ??= new AsyncLocalStorage<boolean>();
 export const withSourceCache = <T>(work: () => Promise<T>): Promise<T> => scope.run(true, work);
 type Source = { isEqual(other: any): boolean; onSnapshot(next: (snapshot: any) => void, error: (error: Error) => void): () => void };
-type Entry = { source: Source; watch: Watch<any>; users: number; bytes: number };
+type CacheContext = {collection:string; companyId?:string};
+type Entry = { source: Source; watch: Watch<any>; users: number; bytes: number; context?:CacheContext };
+function cacheLog(action:string, entry:Entry, fields:Record<string,unknown>={}) {
+  if(entry.context?.collection!=='events')return;
+  try {console.info(JSON.stringify({event:'source_cache',action,...entry.context,processRunId:globalThis.__youAnalystFirestoreObserverV1?.processRunId,revision:process.env.K_REVISION,bytes:entry.bytes,...fields}));}catch {/* Logging must not affect reads. */}
+}
 const stores = globalThis.__youAnalystSourceStoresV1 ??= new WeakMap<object, Set<Entry>>();
 const MAX_LISTENERS = 128, MAX_BYTES = 4 * 1024 * 1024;
 // Estimate retained user data without serializing SDK document references (which
@@ -32,7 +37,7 @@ export function dataBytes(value: unknown, limit = MAX_BYTES): number {
 }
 /** Cache the exact query/document, including its filters and authorization scope.
  * No global version document, TTL, or request-time refresh query. */
-export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX_LISTENERS, maxBytes = MAX_BYTES): Promise<any> | undefined {
+export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX_LISTENERS, maxBytes = MAX_BYTES, context?:CacheContext): Promise<any> | undefined {
   if (!scope.getStore() || typeof source.onSnapshot !== 'function' || typeof source.isEqual !== 'function') return undefined;
   let entries = stores.get(owner);
   if (!entries) { entries = new Set(); stores.set(owner, entries); }
@@ -42,13 +47,14 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
     for (const entry of cache) {
       if (cache.size <= maxListeners && bytes <= maxBytes) break;
       if (entry.users) continue;
+      cacheLog('evict',entry,{reason:cache.size>maxListeners?'entry_limit':'byte_limit',entries:cache.size,totalBytes:bytes,maxEntries:maxListeners,maxBytes});
       bytes -= entry.bytes; entry.watch.close();
     }
   };
   let entry = [...cache].find(candidate => source.isEqual(candidate.source));
   if (!entry) {
     // SDK delivers asynchronously; the microtask also supports synchronous adapters.
-    entry = {source, users: 0, bytes: 0, watch: undefined as unknown as Watch<any>};
+    entry = {source, context, users: 0, bytes: 0, watch: undefined as unknown as Watch<any>};
     const created = entry;
     created.watch = track(new Watch<any>((next, error) => source.onSnapshot(value => {
       const docs = Array.isArray(value.docs) ? value.docs : [value];
@@ -58,7 +64,8 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
     const close = created.watch.close.bind(created.watch);
     created.watch.close = () => {cache.delete(created); close();};
     cache.add(created);
-  }
+    cacheLog('miss',created,{entries:cache.size,maxEntries:maxListeners,maxBytes});
+  }else cacheLog('hit',entry,{entries:cache.size});
   entry.users++; cache.delete(entry); cache.add(entry);
   const selected = entry;
   return selected.watch.read().finally(() => {selected.users--; evict();});
@@ -76,9 +83,12 @@ const policies: Record<string, readonly [number, number]> = {
   // bounds live across rollover instead of evicting/reloading each twelve-bar
   // query on the next visit. Retain the existing byte bound and LRU eviction.
   eod_prices: [1024, 32 * 1024 * 1024],
-  events: [256, 16 * 1024 * 1024],
+  // Production browsing opened 1,531 company queries in two hours (875 distinct
+  // nonempty results plus 623 empty opens). Keep that observed cycle bounded.
+  // Retain that working set; the existing byte budget still bounds retained data.
+  events: [2048, 16 * 1024 * 1024],
 };
-export function collectionSourceSnapshot(owner: object, source: Source, collection: string): Promise<any> | undefined {
+export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
   if(isSnapshotCollection(collection)){
     if(liveCompanyReads())return undefined;
     const cached=companySourceSnapshot(owner as import('firebase-admin/firestore').Firestore,source);
@@ -90,5 +100,5 @@ export function collectionSourceSnapshot(owner: object, source: Source, collecti
   if (!partitions) { partitions = new Map(); owners.set(owner, partitions); }
   let partition = partitions.get(collection);
   if (!partition) { partition = {}; partitions.set(collection, partition); }
-  return sourceSnapshot(partition, source, policy[0], policy[1]);
+  return sourceSnapshot(partition, source, policy[0], policy[1], context);
 }

@@ -168,3 +168,25 @@ test('documents delivered by listeners retain write instrumentation on their ref
  await received.docs[0].ref.set({name:'B'});
  assert.equal(logs.at(-1)?.operation,'set');assert.equal(logs.at(-1)?.documentsWritten,1);
 });
+
+
+test('closed feed delta ranges perform one-time reads instead of retaining obsolete listeners',async t=>{
+  const {withSourceCache}=await import('../src/lib/local-cache/read-scope');
+  const {closeLocalCaches}=await import('../src/lib/local-cache/watch');t.after(closeLocalCaches);
+  let gets=0,listens=0;
+  class Query {
+    path='events';
+    constructor(readonly filters:unknown[][]=[]){}
+    where(...args:unknown[]){return new Query([...this.filters,args]);}
+    isEqual(other:Query){return JSON.stringify(this.filters)===JSON.stringify(other.filters);}
+    async get(){gets++;return {docs:[]};}
+    onSnapshot(next:(value:unknown)=>void){listens++;queueMicrotask(()=>next({docs:[],docChanges:()=>[]}));return ()=>{};}
+  }
+  const db=observeFirestore({collection:()=>new Query()} as unknown as Firestore,()=>{});
+  const closed=db.collection('events').where('feedCacheChangedAt','>',1).where('feedCacheChangedAt','<=',2);
+  await withSourceCache(async()=>{await closed.get();await closed.get();});
+  assert.equal(gets,2);assert.equal(listens,0);
+  const live=db.collection('events').where('companyId','==','US:AMD');
+  await withSourceCache(async()=>{await live.get();await live.get();});
+  assert.equal(gets,2);assert.equal(listens,1,'Live company events still receive corrections and deletions');
+});
