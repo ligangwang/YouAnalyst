@@ -275,3 +275,11 @@ test('news worker receives the SQLite bucket including legacy fallback and rejec
  const missing=run('intelligence-news',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''});
  assert.notEqual(missing.status,0);assert.doesNotMatch(missing.calls,/run jobs deploy/);
 });
+
+ test("snapshot-backed SEC and news collector jobs retain heap and native headroom",()=>{
+  for(const file of ["scripts/deploy-sec-filings.sh","scripts/deploy-intelligence-news.sh"]){
+    const source=readFileSync(file,"utf8");
+    assert.match(source,/--memory 2Gi --cpu 1/);
+    assert.match(source,/NODE_OPTIONS[=:].*--max-old-space-size=1536/);
+  }
+});
