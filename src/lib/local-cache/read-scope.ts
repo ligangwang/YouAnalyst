@@ -83,8 +83,8 @@ const policies: Record<string, readonly [number, number]> = {
   // bounds live across rollover instead of evicting/reloading each twelve-bar
   // query on the next visit. Retain the existing byte bound and LRU eviction.
   eod_prices: [1024, 32 * 1024 * 1024],
-  // The Nov 6 overnight trace retained >8,248 distinct company result sets,
-  // totaling >92 MiB, and proved entry-limit reopen churn at 2,048 entries.
+  // The Nov 6 overnight trace covered 10,996 distinct company/process pairs,
+  // with >103 MiB measured data, and proved reopen churn at 2,048 entries.
   // Bound the longer browsing cycle; keep byte eviction and exact-query identity.
   events: [16384, 160 * 1024 * 1024],
 };

@@ -41,7 +41,7 @@ test('company events share loads, receive changes and remain bounded', async t =
   listeners.get('US:AMD')!({ docs: [] });
   assert.equal((await load()).docs.length, 0);
   assert.equal(opens, 1, 'empty results and deletions remain cached');
-  // Replay the observed 12,000-query company working set twice without reopening reads.
+  // Replay 12,000 queries, covering the observed 10,996-company overnight cycle.
   for(let visit=0;visit<2;visit++)for(let i=0;i<12000;i++)await loadCompanyEventSnapshot(db, `US:C${i}`);
   await load();
   assert.equal(opens,12001);
