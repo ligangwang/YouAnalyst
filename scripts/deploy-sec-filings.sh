@@ -41,9 +41,9 @@ fi
 if [[ "${SEC_DISCOVERY_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh sec; fi
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
-  --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
+  --max-retries 1 --task-timeout 20m --memory 2Gi --cpu 1 \
   --command node --args dist/collect-sec-filings.cjs,--apply \
-  --set-env-vars "^|^ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|SEC_USER_AGENT=$SEC_USER_AGENT|SEC_FILINGS_TOPIC=$filing_topic|SEC_DISCOVERY_REQUEST_TOPIC=|SEC_FILINGS_COLLECTOR_ENABLED=${SEC_FILINGS_COLLECTOR_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=$earnings_collection|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}$sec_download_env" --quiet
+  --set-env-vars "^|^NODE_OPTIONS=--max-old-space-size=1536|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|SEC_USER_AGENT=$SEC_USER_AGENT|SEC_FILINGS_TOPIC=$filing_topic|SEC_DISCOVERY_REQUEST_TOPIC=|SEC_FILINGS_COLLECTOR_ENABLED=${SEC_FILINGS_COLLECTOR_ENABLED:-0}|EARNINGS_COLLECTION_ENABLED=$earnings_collection|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}$sec_download_env" --quiet
 if [[ "${SEC_DISCOVERY_QUEUE_ENABLED:-0}" == 1 ]]; then
   bash scripts/lib/drain-sec-discovery.sh
   gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --update-env-vars SEC_DISCOVERY_REQUEST_TOPIC=sec-company-discovery-requests --quiet

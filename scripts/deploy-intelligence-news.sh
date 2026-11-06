@@ -31,7 +31,7 @@ chmod 600 "$env_file"
 trap 'rm -f "$env_file"' EXIT
 node - "$env_file" <<'NODE'
 const fs = require('node:fs');
-const env = {ENTITY_SNAPSHOT_BUCKET:process.env.ENTITY_SNAPSHOT_BUCKET,CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL || '',GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
+const env = {NODE_OPTIONS:"--max-old-space-size=1536",ENTITY_SNAPSHOT_BUCKET:process.env.ENTITY_SNAPSHOT_BUCKET,CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL || '',GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
   SEC_USER_AGENT:process.env.SEC_USER_AGENT || '',
   INTELLIGENCE_NEWS_COLLECTOR_ENABLED:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED || '0',
   CN_DISCOVERY_REQUEST_TOPIC:process.env.CN_DISCOVERY_QUEUE_ENABLED === '1' ? 'cn-company-discovery-requests' : '',
@@ -46,7 +46,7 @@ fs.writeFileSync(process.argv[2],JSON.stringify(env),{mode:0o600});
 NODE
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
-  --max-retries 0 --task-timeout 20m --memory 512Mi --cpu 1 \
+  --max-retries 0 --task-timeout 20m --memory 2Gi --cpu 1 \
   --command node --args dist/collect-intelligence-news.cjs,--apply \
   --env-vars-file "$env_file" --quiet
 ensure_maintenance_job_iam "$job"
