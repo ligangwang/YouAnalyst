@@ -11,6 +11,7 @@ import {requestInstrumentOnboarding,retryInstrumentOnboarding,wakeInstrumentOnbo
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,parseOnboardingRequest} from '../src/lib/instrument-onboarding/model';
 import type {EnrollmentBatch} from './enroll-theme-companies';
 import {requireOnboardingCapacity} from '../src/lib/instrument-onboarding/capacity-control';
+import {verifyOnboardingCapacity} from '../src/lib/instrument-onboarding/capacity-verification';
 
 async function main(){
   const projectId=process.env.GCP_PROJECT_ID;if(!projectId)throw Error('GCP_PROJECT_ID is required');
@@ -19,7 +20,8 @@ async function main(){
   const enqueue=args.includes('--enqueue'),processQueue=args.includes('--process');
   if(args.includes('--verify-capacity')){
     if(enqueue||processQueue||instrumentId||args.includes('--retry')||args.includes('--wake'))throw Error('Capacity verification must run alone');
-    await requireOnboardingCapacity(db);console.log(JSON.stringify({status:'capacity-monitor-ready',providerCalls:0}));return;
+    const attempts=await verifyOnboardingCapacity(()=>requireOnboardingCapacity(db));
+    console.log(JSON.stringify({status:'capacity-monitor-ready',attempts,providerCalls:0}));return;
   }
   if(args.includes('--verify-delivery')){
     if(enqueue||processQueue||instrumentId||args.includes('--retry')||args.includes('--wake'))throw Error('Verification must run alone');
