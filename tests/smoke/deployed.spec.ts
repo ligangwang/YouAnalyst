@@ -210,8 +210,9 @@ test("retired feed opens Explore and retired institutional features stay unavail
 });
 
 test("homepage defaults to graph and supports all four industry views", async ({ page, request }) => {
-  // Software WebGL on CI can spend several seconds mounting and disposing each view.
-  test.setTimeout(60_000);
+  // Live traces show the lazy WebGL canvas mounting after the default 5s
+  // assertion window on software renderers. Still require each canvas to mount.
+  test.setTimeout(120_000);
   const response = await request.get("/api/knowledge-graph");
   expect(response.ok()).toBeTruthy();
   const graph = await response.json();
@@ -224,14 +225,14 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await expect(page.getByRole('region',{name:'Theme activity summary'})).toHaveAttribute('aria-busy','false',{timeout:20_000});
   await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
   await expect(page.getByRole("tab", { name: "Relationship graph", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.locator("canvas")).toBeVisible({timeout:30_000});
   await page.getByRole("button", { name: "Reset universe view", exact: true }).click();
   await page.getByRole("tab", { name: "Company list", exact: true }).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(Math.min(count,50));
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText(`of ${count} companies`);
   await page.getByRole("tab", { name: "Industry tree", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toHaveCount(1);
-  await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
+  await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible({timeout:30_000});
   await page.getByRole("tab", { name: "Company hierarchy", exact: true }).click();
   const hierarchy=page.locator('[data-industry-tree="hierarchy"]');
   await expect(hierarchy.getByRole('navigation',{name:'Industry sectors'})).toBeVisible({timeout:15_000});
