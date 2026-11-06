@@ -169,6 +169,10 @@ owner's retry remains unacknowledged across crashes until its lease expires, so
 ambiguous provider work still blocks for inspection. Identity/issuer exclusion
 prevents competing share classes from retaining conflicting leases. Normal busy
 requests wait for the instance's single work slot instead of returning 503.
+The receiver holds at most two work deliveries (including coalesced waiters),
+while Cloud Run allows four HTTP requests. Excess ready deliveries defer without
+provider calls, leaving room for health checks, probes and quick duplicate ACKs
+even when every worker is processing. HTTP capacity never increases provider concurrency.
 Capacity pauses, unknown legacy leases and genuine issuer contention retain
 transport redelivery. Redelivery may continue **unfinished ready work**, but never
 a failed provider step. Candidate verification exercises the real protobuf filter

@@ -134,6 +134,26 @@ test('acknowledges other deliveries without discarding the owning event retry af
   assert.deepEqual(f.calls,['identity']);
 });
 
+test('full work slots preserve probe capacity and defer excess deliveries without provider calls',async()=>{
+  const f=onboardingFixture(),sha='a'.repeat(40);let entered!:()=>void,release!:()=>void,queued!:()=>void,calls=0;
+  const started=new Promise<void>(resolve=>{entered=resolve;}),hold=new Promise<void>(resolve=>{release=resolve;}),secondSeen=new Promise<void>(resolve=>{queued=resolve;});
+  const server=createOnboardingSubscriber({project:'test',sha,probe:async()=>true,admit:async(_id,event)=>{if(event==='second')queued();return 'ready';},process:async()=>{calls++;if(calls===1){entered();await hold;}return {status:'SUPPORTED'};}});
+  server.listen(0,'127.0.0.1');await once(server,'listening');const url=`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const headers={'ce-type':'google.cloud.firestore.document.v1.written','ce-source':'//firestore.googleapis.com/projects/test/databases/(default)','ce-specversion':'1.0','ce-id':'first','ce-subject':`documents/instrument_onboarding_requests/${f.id}`};
+  try{
+    const first=fetch(url+'/events',{method:'POST',headers});await started;
+    const second=fetch(url+'/events',{method:'POST',headers:{...headers,'ce-id':'second'}});await secondSeen;await new Promise(resolve=>setImmediate(resolve));
+    assert.equal((await fetch(url+'/events',{method:'POST',headers:{...headers,'ce-id':'third'}})).status,503);
+    assert.equal((await fetch(url+'/events',{method:'POST',headers})).status,503);assert.equal(calls,1);
+    assert.equal((await fetch(url+'/health')).status,200);
+    assert.equal((await fetch(url+'/events',{method:'POST',headers:{...headers,'ce-id':'delivery-check-'+sha,'ce-subject':`documents/instrument_onboarding_requests/${onboardingDeliveryProbeId(sha)}`}})).status,204);
+    const claim=JSON.stringify({value:{name:`projects/test/databases/(default)/documents/instrument_onboarding_requests/${f.id}`,fields:{status:{stringValue:'PROCESSING'}}}});
+    assert.equal((await fetch(url+'/events',{method:'POST',headers:{...headers,'content-type':'application/json'},body:claim})).status,204);assert.equal(calls,1);
+    release();assert.equal((await first).status,204);assert.equal((await second).status,204);assert.equal(calls,2);
+    assert.equal((await fetch(url+'/events',{method:'POST',headers:{...headers,'ce-id':'third'}})).status,204);assert.equal(calls,3);
+  }finally{release();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});
+
 test('terminal delivery inspection never occupies a provider slot',async()=>{
   const f=onboardingFixture();await f.enqueue();
   for(const state of ['SUPPORTED','BLOCKED']){f.request().status=state;assert.equal(await inspectOnboardingDelivery(f.db,f.id,'old-event',f.clock()),'terminal');}

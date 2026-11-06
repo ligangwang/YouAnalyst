@@ -41,7 +41,7 @@ gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --regi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-instrument-onboarding.cjs --min-instances "$onboarding_min" --max-instances "$onboarding_max" \
-  --concurrency 2 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --no-traffic --tag candidate --quiet
+  --concurrency 4 --timeout 1200 --memory 1Gi --cpu 1 --cpu-throttling --env-vars-file "$env_file" --no-traffic --tag candidate --quiet
 for account in "$invoker" "$maintenance_runtime_account"; do
   gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
     --member "serviceAccount:$account" --role roles/run.invoker --quiet >/dev/null

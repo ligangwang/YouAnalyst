@@ -97,7 +97,7 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.match(r.calls,/--max-retries 0 --task-timeout 20m/);
   assert.match(r.calls,/run deploy instrument-onboarding-subscriber .*--no-allow-unauthenticated/);
   assert.match(r.calls,/themeEvidenceFirst=1/);
-  assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--min-instances 20 --max-instances 20 --concurrency 2/);
+  assert.match(r.calls,/--args dist\/serve-instrument-onboarding.cjs .*--min-instances 20 --max-instances 20 --concurrency 4/);
   assert.match(r.calls,/eventarc triggers describe instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/eventarc triggers (create|update|delete) instrument-onboarding-requests/);
   assert.doesNotMatch(r.calls,/scheduler jobs (create|update) http onboard-instruments-production/);
@@ -108,7 +108,7 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.match(existing.calls,/--no-traffic --tag candidate/);
   const scaledDown=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_SCALE:'2'});
   assert.equal(scaledDown.status,0,scaledDown.stderr);
-  assert.match(scaledDown.calls,/--min-instances 2 --max-instances 2 --concurrency 2/);
+  assert.match(scaledDown.calls,/--min-instances 2 --max-instances 2 --concurrency 4/);
   const invalidCapacity=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_SCALE:'unknown'});
   assert.notEqual(invalidCapacity.status,0);
   assert.doesNotMatch(invalidCapacity.calls,/run deploy instrument-onboarding-subscriber|--to-revisions/);

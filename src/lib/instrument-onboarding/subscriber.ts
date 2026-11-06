@@ -19,8 +19,10 @@ export function onboardingEventId(headers:IncomingHttpHeaders,project:string){
 }
 
 export function createOnboardingSubscriber(options:{project:string;process:(id:string,eventId?:string)=>Promise<{status:string}>;admit?:(id:string,eventId:string)=>Promise<'ready'|'missing'|'terminal'|'duplicate'|'retry'|'capacity'>;probe?:(id:string)=>Promise<boolean>;sha?:string}){
-  // Cloud Run admits two HTTP requests per instance, but only one provider
-  // operation runs here. The second request waits instead of creating a 503 storm.
+  // Cloud Run admits four HTTP requests; at most two wait on provider work.
+  // Leave room for health/probes and quick duplicate acknowledgements at full load.
+  // Only one provider operation runs here; the second held delivery waits locally.
+  let held=0;
   let slot=Promise.resolve();
   const active=new Map<string,Promise<{status:string}>>();
   const serialize=(work:()=>Promise<{status:string}>)=>{
@@ -31,6 +33,7 @@ export function createOnboardingSubscriber(options:{project:string;process:(id:s
     if(req.method==='GET'&&req.url==='/health'){res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({sha:options.sha??process.env.GIT_SHA??'unknown'}));return;}
     if(req.method!=='POST'||req.url!=='/events'){res.writeHead(404);res.end();return;}
     let id:string,body:Buffer;
+    let holding=false;
     try{
       id=onboardingEventId(req.headers,options.project);
       let size=0;const chunks:Buffer[]=[];
@@ -64,11 +67,17 @@ export function createOnboardingSubscriber(options:{project:string;process:(id:s
           if(admission!=='ready'){
             log.emit('INFO','message_ignored',{reason:admission});res.writeHead(204);res.end();return;
           }
+          if(held>=2){log.emit('INFO','message_deferred',{reason:'capacity'});res.writeHead(503);res.end('Work slots full');return;}
+          held++;holding=true;
           work=serialize(()=>res.destroyed?Promise.resolve({status:'CONTINUE'}):options.process(id,eventId));
           active.set(key,work);
           void work.finally(()=>{active.delete(key);}).catch(()=>{});
         }else log.emit('INFO','message_coalesced');
       }else log.emit('INFO','message_coalesced');
+      if(!holding){
+        if(held>=2){log.emit('INFO','message_deferred',{reason:'capacity'});res.writeHead(503);res.end('Work slots full');return;}
+        held++;holding=true;
+      }
       const result=await work;
       log.emit('INFO','message_completed',result);
       // Redelivery continues ready work/lease contention. A failed checkpoint is
@@ -77,6 +86,6 @@ export function createOnboardingSubscriber(options:{project:string;process:(id:s
     }catch(error){
       log.emit('ERROR','message_failed',{error:maintenanceError(error)});
       if(!res.destroyed){res.writeHead(503);res.end('Inspect durable checkpoint');}
-    }
+    }finally{if(holding)held--;}
   });
 }
