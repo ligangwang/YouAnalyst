@@ -58,7 +58,7 @@ async function main(){
   if(!Array.isArray(themeBatches))throw Error('Theme review file must contain an array of enrollment batches');
   const {handlers,log}=onboardingRuntime(db,themeBatches);
   for(const id of ids){
-    const result=await drainInstrumentOnboarding(db,id,handlers);
+    const result=await drainInstrumentOnboarding(db,id,handlers,{requireTheme:true});
     log.emit('INFO','checkpoint',{instrumentId:id,...result});
     if(result.status==='INCOMPLETE')process.exitCode=1;
   }

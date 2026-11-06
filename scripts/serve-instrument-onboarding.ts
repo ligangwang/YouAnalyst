@@ -19,5 +19,5 @@ createOnboardingSubscriber({project,probe:id=>withLiveCompanyReads(async()=>!(aw
 }),process:(id,eventId)=>withLiveCompanyReads(async()=>{
   try { await requireOnboardingCapacity(db); } catch { return {status:'CONTINUE'}; }
   const {handlers}=onboardingRuntime(db);
-  return drainInstrumentOnboarding(db,id,handlers,{eventId});
+  return drainInstrumentOnboarding(db,id,handlers,{eventId,requireTheme:true});
 })}).listen(Number(process.env.PORT||8080),'0.0.0.0');

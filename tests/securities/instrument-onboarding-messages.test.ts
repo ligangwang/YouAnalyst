@@ -200,3 +200,17 @@ for(const status of ['SUPPORTED','BLOCKED'] as const)test(`terminal ${status} de
   assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock})).status,'SUPPORTED');
   assert.deepEqual(f.calls,ONBOARDING_STEPS);
 });
+
+test('closest policy reopens an old empty theme proof without repeating completed financial work',async()=>{
+  const f=onboardingFixture();await f.enqueue();
+  const company=f.rows.get('companies/US:NEW')!;company.onboarding={status:'SUPPORTED'};
+  f.request().steps={identity:'COMPLETE',themes:'COMPLETE',profile:'COMPLETE',events:'COMPLETE',corporateActions:'COMPLETE'};
+  const handlers={...f.handlers,themes:async()=>{f.calls.push('themes');company.themeMemberships={robotics:{status:'PUBLISHED'}};}};
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,handlers,{clock:f.clock,requireTheme:true})).status,'SUPPORTED');
+  assert.deepEqual(f.calls,['themes','prices','verify']);
+});
+test('closest policy blocks an empty theme handler result once instead of looping paid work',async()=>{
+  const f=onboardingFixture();await f.enqueue();
+  assert.equal((await drainInstrumentOnboarding(f.db,f.id,f.handlers,{clock:f.clock,requireTheme:true})).status,'INCOMPLETE');
+  assert.equal(f.request().status,'BLOCKED');assert.equal(f.calls.filter(step=>step==='themes').length,1);
+});

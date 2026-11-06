@@ -4,13 +4,13 @@ import {processInstrumentOnboarding,yieldInstrumentOnboarding,type OnboardingHan
 import {onboardingLeaseOwner} from './delivery-lease';
 
 /** Every successful checkpoint is durable before advancing. Failed steps never loop. */
-export async function drainInstrumentOnboarding(db:Firestore,id:string,handlers:OnboardingHandlers,options:{clock?:()=>number;budgetMs?:number;eventId?:string}={}){
+export async function drainInstrumentOnboarding(db:Firestore,id:string,handlers:OnboardingHandlers,options:{clock?:()=>number;budgetMs?:number;eventId?:string;requireTheme?:boolean}={}){
   const clock=options.clock??Date.now,deadline=clock()+(options.budgetMs??4*60_000);
   const checkpoints:string[]=[];
   const owner=onboardingLeaseOwner(options.eventId);
   const yieldWork=async()=>{await yieldInstrumentOnboarding(db,id,owner,clock());return {status:'YIELDED' as const,checkpoints};};
   for(let count=0;count<ONBOARDING_STEPS.length*2;count++){
-    const result=await processInstrumentOnboarding(db,id,handlers,clock,{leaseOwner:owner,retainLease:true,eventId:options.eventId});
+    const result=await processInstrumentOnboarding(db,id,handlers,clock,{leaseOwner:owner,retainLease:true,eventId:options.eventId,requireTheme:options.requireTheme});
     if(result.status==='CHECKPOINTED'){
       checkpoints.push(result.step);
       if(clock()<deadline)continue;

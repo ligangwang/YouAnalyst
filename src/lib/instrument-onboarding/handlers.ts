@@ -18,12 +18,13 @@ import type {ThemeCatalog} from '../company-themes/catalog-model';
 import {LEGACY_NO_THEME_MATCH} from './progress';
 
 /** Adapters use existing provider workers and existing feature storage only. */
-export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>;requireCapacity?:()=>Promise<void>}) :OnboardingHandlers{
+export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;token:string;log:MaintenanceLog;themeBatches?:EnrollmentBatch[];classify?:(company:ThemedCompany,catalog:ThemeCatalog)=>Promise<ThemeClassification>;maintenanceReady:()=>Promise<boolean>;requireCapacity?:()=>Promise<void>;requireTheme?:boolean}) :OnboardingHandlers{
   const {db,bucket,log}=options;
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
     const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
     const ids=activeThemeIds(company).filter(id=>allowed.includes(id));
+    if(options.requireTheme&&!ids.length)throw new OnboardingBlocked('At least one closest existing theme is required');
     for(const id of ids){
       const membership=company.themeMemberships[id];
       if(typeof membership.primarySector!=='string'||!validDay(membership.reviewedAt)||membership.reviewedAt>new Date().toISOString().slice(0,10)||!membership.sources?.length||membership.sources.some((source:{url:string;title:string;summary:string})=>!/^https:\/\//.test(source.url)||!source.title?.trim()||!source.summary?.trim()))throw new OnboardingBlocked('Published themes need reviewed classification evidence');
@@ -43,6 +44,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   };
   const ready=async(request:OnboardingRequest,record:Instrument,guard:()=>Promise<void>)=>{
     if(!isSupportedCompany(await current(request.companyId)))throw Error('Company is not ready');
+    if(options.requireTheme)await themes(request.companyId);
     if(!await options.maintenanceReady())throw new OnboardingBlocked('Regular supported-company maintenance is not enabled');
     const {instrument,bars}=await priceHistory(request,record);
     await verifyOnboardingActions({db,bucket,ticker:instrument.ticker,market:instrument.market,providerSymbol:historyProviderSymbol(instrument.ticker),through:request.targetThrough,guard});
@@ -57,7 +59,8 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   return {
     identity:async({instrument:record,company,guard})=>{instrumentOnboardingIdentity(record,company);await guard();},
     themes:async({request,guard})=>{
-      if(isSupportedCompany(await current(request.companyId)))return;
+      const saved=await current(request.companyId);
+      if(isSupportedCompany(saved)&&(!options.requireTheme||activeThemeIds(saved).length))return;
       const catalog=await loadThemeCatalog(db);
       for(const batch of options.themeBatches??[]){
         const companies=batch.companies.filter(row=>row.id===request.companyId);if(!companies.length)continue;

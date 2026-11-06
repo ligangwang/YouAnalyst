@@ -80,6 +80,10 @@ the issuer identity and source checks, and normalizes redundant roles and AI sta
 It never invents business activities or commercial relationships. Existing published
 or withdrawn decisions are preserved. The SEC user-agent configuration is shared
 with the existing provider workers.
+The subscriber and manual worker enforce the nonempty-theme policy even for an
+issuer admitted under the earlier empty-theme rules. They reopen only an empty
+theme checkpoint and preserve completed instrument work. An empty result blocks
+once rather than entering a repeated classification loop.
 Prices and actions start at **2020-12-30**, naturally beginning at listing inception
 when later. Both split/dividend responses must validate before publishing actions;
 empty successful responses are valid. Existing corporate-action storage retains raw
