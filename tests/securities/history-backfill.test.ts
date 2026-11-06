@@ -25,6 +25,27 @@ test('history cutoff excludes unfinished sessions in each market timezone',()=>{
   assert.equal(historyThrough('US',now),'2026-10-05');
   assert.equal(historyThrough('CN_A',now),'2026-10-06');
 });
+test('partial onboarding writes a valid close and leaves unavailable quote fields null',async()=>{
+  const f=fixture();let calls=0;
+  const result=await backfillPriceHistory({...f,tickers:['MU'],from:'2020-12-30',through:'2026-10-05',token:'fixture',allowPartial:true,fetcher:async()=>{calls++;return Response.json([{date:'2026-01-02',close:11},{date:'2026-01-03',close:0}]);}});
+  assert.equal(result.completed,1);assert.equal(calls,1);assert.equal(f.docs.get('eod_prices/US_MU_2026-01-02')?.close,11);assert.equal(f.docs.get('eod_prices/US_MU_2026-01-02')?.open,null);assert(!f.docs.has('eod_prices/US_MU_2026-01-03'));
+});
+test('partial onboarding can use an existing final same-instrument EOD price after an empty response',async()=>{
+  const f=fixture();let calls=0;
+  f.docs.set('eod_prices/US_MU_2026-01-02',{market:'US',ticker:'MU',source:'eodhd-eod',tradingDate:'2026-01-02',close:11,isFinal:true});
+  f.docs.set('eod_prices/CN_MU_2026-01-03',{market:'CN_A',ticker:'MU',source:'eodhd-eod',tradingDate:'2026-01-03',close:500,isFinal:true});
+  f.docs.set('eod_prices/US_MU_2026-01-04',{market:'US',ticker:'MU',source:'unverified',tradingDate:'2026-01-04',close:600,isFinal:true});
+  const input={...f,tickers:['MU'],from:'2020-12-30',through:'2026-10-05',token:'fixture',allowPartial:true,fetcher:async()=>{calls++;return Response.json([]);}};
+  const result=await backfillPriceHistory(input);assert.equal(result.completed,1);assert.equal(calls,1);
+  const saved=JSON.parse([...f.files.values()][0]);assert.equal(saved.length,1);assert.equal(saved[0].close,11);assert.equal(saved[0].open,null);
+  assert.equal(f.docs.get('collectors/eod-history_US_MU_2020-12-30_2026-10-05')?.bars,1);
+  assert.equal((await backfillPriceHistory(input)).skipped,1);assert.equal(calls,1);
+});
+test('empty partial history still blocks when no verified stored price exists',async()=>{
+  const f=fixture();const result=await backfillPriceHistory({...f,tickers:['MU'],from:'2020-12-30',through:'2026-10-05',token:'fixture',allowPartial:true,fetcher:async()=>Response.json([])});
+  assert.equal(result.completed,0);assert.equal(result.failures.length,1);assert.equal(result.failures[0].reason,'Empty or invalid historical response');
+});
+
 for(const createFirst of [false,true])test(`new mapped stocks fetch once, preserve prices and deduplicate repeated enrollment (createFirst=${createFirst})`,async()=>{
   const f=fixture();let calls=0;
   f.docs.set('eod_prices/US_MU_2025-12-31',{close:99});

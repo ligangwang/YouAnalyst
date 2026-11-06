@@ -38,7 +38,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     if(receipt?.status!=='completed'||receipt.from!==ONBOARDING_START||receipt.through!==request.targetThrough||!receipt.cachePath)throw Error('Historical price receipt is incomplete');
     const expected=`eod-history/${instrument.market}/${encodeURIComponent(instrument.ticker)}/${ONBOARDING_START}_${request.targetThrough}.json`;
     if(receipt.cachePath!==expected)throw Error('Historical price receipt identity mismatch');
-    const bars=historyBars(JSON.parse((await bucket.file(expected).download())[0].toString('utf8')),ONBOARDING_START,request.targetThrough);
+    const bars=historyBars(JSON.parse((await bucket.file(expected).download())[0].toString('utf8')),ONBOARDING_START,request.targetThrough,true);
     return {instrument,bars};
   };
   const ready=async(request:OnboardingRequest,record:Instrument,guard:()=>Promise<void>)=>{
@@ -106,7 +106,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
       const {instrument}=instrumentOnboardingIdentity(record,await current(request.companyId));
       await guard();
       // Bound the aggregate write burst when up to ten workers run in parallel.
-      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,createFirst:true,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
+      const result=await backfillPriceHistory({db,bucket,token:options.token,tickers:[instrument.ticker],from:ONBOARDING_START,through:request.targetThrough,limit:1,writeBatchSize:200,createFirst:true,allowPartial:true,beforeBatch:async()=>{await guard();await options.requireCapacity?.();},
         afterBatch:async()=>{await guard();await new Promise<void>(resolve=>setTimeout(resolve,1000));}});
       if(result.failures.length)throw Error('Historical price backfill incomplete');
       const {bars}=await priceHistory(request,record),last=bars.at(-1)!;

@@ -10,6 +10,7 @@ import {getOpenAiApiKey} from '../openai-runtime';
 import {safeRecordOpenAiUsageEvent} from '../openai/usage';
 import type {EnrollmentBatch} from '../company-themes/enrollment';
 import {requireOnboardingCapacity} from './capacity-control';
+import {secIssuerProfile,type VerifiedIssuerProfile} from '../company-themes/closest-policy';
 
 export function onboardingRuntime(db:Firestore,themeBatches:EnrollmentBatch[]=[]){
   const bucketName=process.env.EODHD_BULK_EOD_BUCKET,token=process.env.EODHD_API_TOKEN;
@@ -19,8 +20,10 @@ export function onboardingRuntime(db:Firestore,themeBatches:EnrollmentBatch[]=[]
     classify:async(company,catalog)=>{
       const evidence=await loadBusinessEvidence(db,company);
       // Deployments explicitly opt in; other runtimes keep the search fallback.
-      const verifiedAnnual=process.env.THEME_EVIDENCE_FIRST_ENABLED==='1' ? await loadOfficialAnnual(company,officialAnnualTransport(db),Date.now(),decision=>log.emit('INFO','theme_evidence_decision',{companyId:company.id,decision})) : null;
-      return classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),evidence,verifiedAnnual:verifiedAnnual??undefined,recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})});
+      const transport=officialAnnualTransport(db);let verifiedIssuerProfile:VerifiedIssuerProfile|undefined;
+      const source={...transport,secIndex:async(cik:string)=>{const index=await transport.secIndex(cik);verifiedIssuerProfile=secIssuerProfile(company,index);return index;}};
+      const verifiedAnnual=process.env.THEME_EVIDENCE_FIRST_ENABLED==='1' ? await loadOfficialAnnual(company,source,Date.now(),decision=>log.emit('INFO','theme_evidence_decision',{companyId:company.id,decision})) : null;
+      return classifyOfficialThemes(company,catalog,{key:getOpenAiApiKey(),closestMatch:true,verifiedIssuerProfile,evidence,verifiedAnnual:verifiedAnnual??undefined,recordUsage:value=>safeRecordOpenAiUsageEvent({...value,purpose:'company_theme_classification',metadata:{companyId:company.id}})});
     },
     maintenanceReady:async()=>process.env.INSTRUMENT_ONBOARDING_MAINTENANCE_READY==='1'});
   return {handlers,log};

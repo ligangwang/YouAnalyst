@@ -73,12 +73,23 @@ Company work is serialized across requests for that issuer through transactional
 checks of existing request leases. Another listing cannot overwrite a supported
 company's status with QUEUED or BLOCKED. No extra coordination fields are added.
 
-Reviewed theme batches use the existing enrollment format. Missing classifications
-block for review; the worker never fabricates themes or commercial relationships.
+Reviewed theme batches use the existing enrollment format. Automatic onboarding
+must select at least one closest existing theme, even if the fit is broad. It uses
+verified annual/business evidence or the issuer's SEC profile and industry, keeps
+the issuer identity and source checks, and normalizes redundant roles and AI stages.
+It never invents business activities or commercial relationships. Existing published
+or withdrawn decisions are preserved. The SEC user-agent configuration is shared
+with the existing provider workers.
 Prices and actions start at **2020-12-30**, naturally beginning at listing inception
 when later. Both split/dividend responses must validate before publishing actions;
 empty successful responses are valid. Existing corporate-action storage retains raw
 dividend values in sourcePayload. Price history preserves existing historical keys.
+Onboarding accepts partial coverage with at least one valid dated positive close.
+Missing or unusable OHLC, adjusted-close and volume values stay null, and partial
+coverage does not fabricate daily returns. Invalid dates/prices and conflicting
+duplicate closes are excluded. When the provider has no usable history, existing
+verified EOD prices for that exact instrument may satisfy admission. Empty coverage
+still blocks. Other backfill callers retain strict history validation.
 Issuer reports are shared, but one share class never inherits another class's
 market cap, share assessment, or corporate actions.
 
