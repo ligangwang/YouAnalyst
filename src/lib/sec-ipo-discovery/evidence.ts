@@ -61,7 +61,7 @@ export function resolveProspectuses(submission:unknown,filings:Filing[],cik:stri
 /** Restrict affirmative evidence to the prospectus cover; historical IPO mentions are insufficient. */
 export function confirmsIpoCover(html:string,listing:Listing){
   const cover=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ')
-    .replace(/&#(?:160|xA0);|&nbsp;/gi,' ').replace(/&#(?:34|x22);|&quot;|[“”]/gi,'"').replace(/\s+/g,' ').slice(0,12000);
+    .replace(/&#(?:160|xA0);|&nbsp;/gi,' ').replace(/&#(?:34|147|148|8220|8221|x22|x93|x94|x201c|x201d);|&(?:quot|ldquo|rdquo);|[“”]/gi,'"').replace(/\s+/g,' ').slice(0,12000);
   if(!/\bThis is (?:our|the|an) initial public offering\b/i.test(cover))return false;
   if(/\b(?:units? consist(?:ing|s)?|each unit|warrants? included|blank[- ]check company|special purpose acquisition company)\b/i.test(cover))return false;
   const micText=listing.exchangeMic==='XNAS'?'Nasdaq':listing.exchangeMic==='XNYS'?'New York Stock Exchange|NYSE':'NYSE American';
