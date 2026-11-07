@@ -14,7 +14,7 @@ if [[ "$kind" == sec ]]; then
   source "$(dirname "${BASH_SOURCE[0]}")/lib/sec-download-config.sh"
   service=sec-company-discovery-subscriber; topic=sec-company-discovery-requests; subscription=sec-company-discovery-worker; dead=sec-company-discovery-dead-letter; bundle=serve-sec-discovery
 else
-  concurrency=1; memory=1Gi
+  concurrency=1; memory=2Gi
   service=news-article-enrichment-subscriber; topic=news-article-enrichment-requests; subscription=news-article-enrichment-worker; dead=news-article-enrichment-dead-letter; bundle=serve-news-enrichment
 fi
 number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
@@ -49,8 +49,8 @@ fi
 env_file="$(mktemp)"; chmod 600 "$env_file"; trap 'rm -f "$env_file"' EXIT
 node - "$env_file" "$kind" <<'NODE'
 const fs=require('node:fs'),p=process.env,kind=process.argv[3];
-const env={GCP_PROJECT_ID:p.GCP_PROJECT_ID,GIT_SHA:p.GIT_SHA||'unknown',ENTITY_SNAPSHOT_BUCKET:p.ENTITY_SNAPSHOT_BUCKET,CENTRAL_CACHE_URL:p.CENTRAL_CACHE_URL||''};
-if(kind==='sec')Object.assign(env,{NODE_OPTIONS:'--max-old-space-size=1536',SEC_DISCOVERY_SUBSCRIPTION:'sec-company-discovery-worker',SEC_DISCOVERY_QUEUE_ENABLED:p.SEC_DISCOVERY_QUEUE_ENABLED||'0',SEC_USER_AGENT:p.SEC_USER_AGENT,EARNINGS_COLLECTION_ENABLED:p.EARNINGS_PIPELINE_ENABLED==='1'?(p.EARNINGS_COLLECTION_ENABLED||'0'):'0',SEC_INCREMENTAL_DOWNLOADS_ENABLED:p.SEC_INCREMENTAL_DOWNLOADS_ENABLED||'0',SEC_DOCUMENT_CACHE_BUCKET:p.SEC_DOCUMENT_CACHE_BUCKET||''});
+const env={NODE_OPTIONS:'--max-old-space-size=1536',GCP_PROJECT_ID:p.GCP_PROJECT_ID,GIT_SHA:p.GIT_SHA||'unknown',ENTITY_SNAPSHOT_BUCKET:p.ENTITY_SNAPSHOT_BUCKET,CENTRAL_CACHE_URL:p.CENTRAL_CACHE_URL||''};
+if(kind==='sec')Object.assign(env,{SEC_DISCOVERY_SUBSCRIPTION:'sec-company-discovery-worker',SEC_DISCOVERY_QUEUE_ENABLED:p.SEC_DISCOVERY_QUEUE_ENABLED||'0',SEC_USER_AGENT:p.SEC_USER_AGENT,EARNINGS_COLLECTION_ENABLED:p.EARNINGS_PIPELINE_ENABLED==='1'?(p.EARNINGS_COLLECTION_ENABLED||'0'):'0',SEC_INCREMENTAL_DOWNLOADS_ENABLED:p.SEC_INCREMENTAL_DOWNLOADS_ENABLED||'0',SEC_DOCUMENT_CACHE_BUCKET:p.SEC_DOCUMENT_CACHE_BUCKET||''});
 else Object.assign(env,{NEWS_ENRICHMENT_SUBSCRIPTION:'news-article-enrichment-worker',NEWS_ENRICHMENT_QUEUE_ENABLED:p.NEWS_ENRICHMENT_QUEUE_ENABLED||'0',CALENDAR_EXTRACTION_ENABLED:p.CALENDAR_EXTRACTION_ENABLED||'0',OPENAI_API_KEY:p.OPENAI_API_KEY,OPENAI_CALENDAR_MODEL:p.OPENAI_CALENDAR_MODEL||'gpt-6-luna',NEWS_ANALYSIS_MONTHLY_BUDGET_USD:p.NEWS_ANALYSIS_MONTHLY_BUDGET_USD||'5'});
 fs.writeFileSync(process.argv[2],JSON.stringify(env),{mode:0o600});
 NODE
