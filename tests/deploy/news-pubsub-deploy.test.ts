@@ -51,7 +51,8 @@ test('routine deployment is private, bounded and reuses push identity without AI
   assert.match(result.calls,/run deploy news-source-subscriber .*--no-allow-unauthenticated/);
   assert.match(result.calls,/--max-instances 4 --concurrency 1 --timeout 180/);
   assert.match(result.calls,/--args dist\/serve-intelligence-news.cjs/);
-  assert.match(result.calls,/--memory 1Gi/);
+  assert.match(result.calls,/--memory 2Gi/);
+  assert.match(result.calls,/NODE_OPTIONS=--max-old-space-size=1536/);
   assert.match(result.calls,/ENTITY_SNAPSHOT_BUCKET=demo-eodhd-bulk-eod/);
   assert.match(result.calls,/subscriptions update news-source-worker .*--push-auth-service-account directory-sync-scheduler@demo/);
   assert.match(result.calls,/--dead-letter-topic news-source-dead-letter/);

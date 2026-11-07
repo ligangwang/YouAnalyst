@@ -45,8 +45,8 @@ fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-intelligence-news.cjs --min-instances 0 --max-instances "$max_instances" \
-  --concurrency 1 --timeout 180 --memory 1Gi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|NEWS_SOURCE_SUBSCRIPTION=$subscription|INTELLIGENCE_NEWS_COLLECTOR_ENABLED=${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}|ENTITY_SNAPSHOT_BUCKET=$snapshot_bucket" --quiet
+  --concurrency 1 --timeout 180 --memory 2Gi --cpu 1 --cpu-throttling \
+  --set-env-vars "^|^NODE_OPTIONS=--max-old-space-size=1536|GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|NEWS_SOURCE_SUBSCRIPTION=$subscription|INTELLIGENCE_NEWS_COLLECTOR_ENABLED=${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}|ENTITY_SNAPSHOT_BUCKET=$snapshot_bucket" --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format='value(status.url)')"
 [[ "$url" == https://* ]] || { echo 'Missing news subscriber URL' >&2; exit 1; }
