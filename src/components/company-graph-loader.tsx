@@ -1,10 +1,15 @@
 "use client";
 
 import {lazy,useEffect} from 'react';
+import {parseIndustryView} from '@/lib/knowledge-graph/views';
 
 let request:Promise<typeof import('./company-graph-3d')>|undefined;
 function loadCompanyGraph(){
   return request??=import('./company-graph-3d').catch(error=>{request=undefined;throw error;});
+}
+// Begin at module evaluation, before hydration/effects can wait on streamed data.
+if(typeof window!=='undefined'&&(parseIndustryView(new URLSearchParams(window.location.search).get('view'))??'graph')==='graph'){
+  void loadCompanyGraph().catch(()=>{});
 }
 export const CompanyGraph3D=lazy(loadCompanyGraph);
 

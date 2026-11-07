@@ -180,6 +180,13 @@ candidate_json="$(gcloud run services describe "$service_name" --project "$proje
 candidate_url="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.url)process.exit(1);console.log(t.url);})')"
 candidate_revision="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);})')"
 CANDIDATE_URL="$candidate_url" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/verify-release-candidate.mjs
+if [[ "$target" == production && "${GITHUB_ACTIONS:-}" == true ]]; then
+  # Measure before promotion, with the current site still serving all users.
+  # HTTP success alone cannot detect a hydration or graph-loading regression.
+  bash scripts/setup-playwright-browser.sh
+  baseline_url="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>console.log(JSON.parse(s).status.url))')"
+  CANDIDATE_URL="$candidate_url" BASELINE_URL="$baseline_url" node scripts/verify-candidate-performance.mjs
+fi
 # Preparing a no-traffic candidate may overlap additive worker rollout. Only
 # the same run/attempt's successful worker gate permits production promotion.
 if [[ "$target" == production && "${GITHUB_ACTIONS:-}" == true ]]; then

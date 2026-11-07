@@ -31,6 +31,9 @@ test('encoded snapshots keep graph versions and complete feed facts; API encodin
  const snapshot={graph,graphVersion:'original-version',events:[],sourceDocuments:[],eventsLimited:true} as unknown as IntelligenceSnapshot;
  const encoded=encodeIntelligenceSnapshot(snapshot);
  assert.deepEqual(decodeIntelligenceSnapshot(encoded),snapshot);
+ const serverProps=encodeIntelligenceSnapshot(snapshot,true);
+ assert.ok('encoding' in serverProps.graph&&serverProps.graph.encoding==='columns-json-v1');
+ assert.deepEqual(decodeIntelligenceSnapshot(JSON.parse(JSON.stringify(serverProps))),snapshot);
  assert.equal(intelligencePayload(snapshot,false,false).graph,graph);
  const compact=intelligencePayload(snapshot,false,false,true);
  assert.equal(compact.graph&&'encoding' in compact.graph,true);
@@ -43,4 +46,5 @@ test('invalid dictionary references and unsupported encodings are rejected',()=>
  assert.throws(()=>expandGraph(packed),/reference/);
  const unsupported={...compactGraph(graph),encoding:'future'};
  assert.throws(()=>expandGraph(unsupported as never),/Unsupported/);
+ assert.throws(()=>expandGraph({encoding:'columns-json-v1',data:'null'}),/Invalid serialized/);
 });

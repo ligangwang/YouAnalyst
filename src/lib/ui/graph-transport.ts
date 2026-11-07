@@ -4,7 +4,8 @@ import type {KnowledgeGraph} from '../knowledge-graph/model';
 // references without removing any graph facts. This is a wire format only.
 type Table = {keys:string[]; values:unknown[][]; rows:number[][]};
 export type CompactGraph = {encoding:'columns-v1'; asOf:string; nodes:Table; relationships:Table; sources:Table};
-export type GraphTransport = KnowledgeGraph | CompactGraph;
+export type CompactGraphText = {encoding:'columns-json-v1';data:string};
+export type GraphTransport = KnowledgeGraph | CompactGraph | CompactGraphText;
 
 function packTable(records:object[]):Table {
   const keys=[...new Set(records.flatMap(Object.keys))];
@@ -42,6 +43,11 @@ export function compactGraph(graph:KnowledgeGraph):CompactGraph {
 
 export function expandGraph(graph:GraphTransport):KnowledgeGraph {
   if(!('encoding' in graph))return graph;
+  if(graph.encoding==='columns-json-v1'){
+    const value:CompactGraph=JSON.parse(graph.data);
+    if(value?.encoding!=='columns-v1')throw Error('Invalid serialized graph');
+    return expandGraph(value);
+  }
   if(graph.encoding!=='columns-v1')throw Error('Unsupported graph encoding');
   return {asOf:graph.asOf,nodes:unpackTable(graph.nodes),relationships:unpackTable(graph.relationships),sources:unpackTable(graph.sources)} as KnowledgeGraph;
 }
