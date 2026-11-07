@@ -1407,6 +1407,16 @@ export async function readBulkEodPrices(db:FirebaseFirestore.Firestore,tickers:s
   return prices;
 }
 
+/** Daily coverage checks never fan out into individual requests for the whole
+ * catalog. Prediction valuation separately retries only its required bars. */
+export async function persistDailyBulkEodPrices(input:DailyEodMaintenanceInput,ids:string[],retry:boolean,db=getAdminFirestore()) {
+  if(!retry)return persistBulkEodPrices(input,ids,false,db);
+  if(input.loadPrices===false)return [];
+  const market=input.market??'US',tickers=ids.map(id=>market==='US'?id.slice(3):id);
+  const prices=await readBulkEodPrices(db,tickers,resolveRunDate(input.runDate,market));
+  return ids.filter((_,i)=>!prices.has(tickers[i]));
+}
+
 /** One bulk exchange file per delivery, bounded atomic commits, no company
  * receipts or sleeps. Only a failed-only cleanup pass uses individual requests. */
 export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:string[],retry:boolean,db=getAdminFirestore()) {

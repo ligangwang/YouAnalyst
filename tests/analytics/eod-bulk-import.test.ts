@@ -2,9 +2,16 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import * as admin from 'firebase-admin';
 import {getStorage} from 'firebase-admin/storage';
-import {persistBulkEodPrices} from '../../src/lib/predictions/eod-prices';
+import {persistBulkEodPrices,persistDailyBulkEodPrices} from '../../src/lib/predictions/eod-prices';
 import {withEodWorkScope} from '../../src/lib/predictions/eod-work-scope';
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
+
+test('daily coverage checks 1000 absent symbols without individual provider calls',async t=>{
+ const f=pubsubFirestore(),ids=Array.from({length:1000},(_,i)=>`US:T${i}`);
+ const fetch=t.mock.method(globalThis,'fetch',async()=>{throw Error('Daily coverage must not call the provider');});
+ assert.deepEqual(await persistDailyBulkEodPrices({market:'US',runDate:'2026-11-06'},ids,true,f.db),ids);
+ assert.equal(fetch.mock.callCount(),0);
+});
 
 test('bulk cleanup advances past absent provider symbols but retries outages',async t=>{
  const before=process.env.EODHD_API_TOKEN;process.env.EODHD_API_TOKEN='synthetic';
