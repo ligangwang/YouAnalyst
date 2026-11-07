@@ -52,7 +52,7 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
           await guard();const html=await source.cover(filing.sourceUrl);
           for(const listing of listings){
             if(!confirmsIpoCover(html,listing))continue;
-            if(counts.created>=5)throw new OnboardingCapacityDeferred('IPO listing admission limit reached');
+            if(counts.created>=5||counts.queued>=5)throw new OnboardingCapacityDeferred('IPO listing admission limit reached');
             await guard();
             try{const result=await importConfirmedIpo(db,listing,[filing],clock());counts.created+=Number(result.created);counts.queued+=Number(result.queued);confirmed=true;}
             catch(error){if(!(error instanceof IpoIdentityReview))throw error;await doc.ref.update({status:'REVIEW',lastError:error.message,lastCheckedAt:at(),nextCheckAt:FieldValue.delete()});counts.review++;confirmed=true;break;}

@@ -103,3 +103,14 @@ test('caught-up checkpoint waits for tomorrow instead of restarting the initial 
   await runSecIpoDiscovery(f.db,source,{clock:()=>Date.parse('2026-11-07T16:00:00Z'),capacity:async()=>{},pause:async()=>{}});
   assert.deepEqual(days,['2026-11-06','2026-11-05','2026-11-04']);assert.equal(f.rows.get('sec_ipo_discovery/scan')?.cursor,'2026-11-07');
 });
+
+test('a large confirmed batch stops at five admissions and retains the rest for later runs',async()=>{
+  const f=ipoFixture(),now=Date.parse('2026-11-07T16:00:00Z');
+  const entries=Array.from({length:6},(_,i)=>({cik:String(123+i),symbol:`NEW${i}`}));
+  const many=header+entries.map(e=>`${e.cik}|Issuer|424B4|2026-11-06|edgar/data/${e.cik}/${filing.accessionNumber}.txt`).join('\n');
+  const source={daily:async(day:string)=>day==='2026-11-06'?many:header,mapping:async()=>({...mapping,data:entries.map(e=>[Number(e.cik),'Issuer',e.symbol,'Nasdaq'])}),submission:async(cik:string)=>({...submission,cik:Number(cik),tickers:[entries.find(e=>Number(e.cik)===Number(cik))!.symbol]}),cover:async(url:string)=>cover.replace('NEW.',entries.find(e=>url.includes(`/data/${e.cik}/`))!.symbol+'.')};
+  await assert.rejects(runSecIpoDiscovery(f.db,source,{clock:()=>now,capacity:async()=>{},pause:async()=>{}}),OnboardingCapacityDeferred);
+  assert.equal([...f.rows.keys()].filter(key=>key.startsWith('instrument_onboarding_requests/')).length,5);
+  assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000128')?.status,'PENDING');
+  assert.equal((await runSecIpoDiscovery(f.db,source,{clock:()=>now,capacity:async()=>{},pause:async()=>{}})).created,1);
+});
