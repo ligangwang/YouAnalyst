@@ -31,3 +31,21 @@ test('write probes are never replayed',async()=>{
  const r=await taggedReleaseRequest('https://tag.invalid/api/write',{method:'POST'},{request:async()=>{calls++;return new Response('',{status:404});},sleep:async()=>{},log:()=>{}});
  assert.equal(r.status,404);assert.equal(calls,1);
 });
+
+import {taggedUnauthenticatedProbe} from '../../scripts/tagged-release-request.mjs';
+test('only explicit bodyless authentication probes retry a generic HTML routing miss',async()=>{
+ let calls=0;
+ const response=await taggedUnauthenticatedProbe('https://candidate.invalid/api/compare/community',{sleep:async()=>{},log:()=>{},request:async(_url,options)=>{
+  calls++;assert.equal(options?.method,'POST');assert.equal(options?.credentials,'omit');assert.equal(options?.body,undefined);assert.equal(options?.headers,undefined);
+  return calls===1?new Response('The requested URL was not found on this server',{status:404,headers:{'content-type':'text/html'}}):new Response('{}',{status:401});
+ }});
+ assert.equal(response.status,401);assert.equal(calls,2);
+ await assert.rejects(taggedUnauthenticatedProbe('https://candidate.invalid/api/something-else'),/Unsupported authentication probe/);
+});
+test('authentication probe retries are bounded and never treat an app error as authentication success',async()=>{
+ for(const [status,body,type,expected] of [[404,'The requested URL was not found on this server','text/html',3],[404,'Application not found','text/html',1],[404,'{}','application/json',1],[500,'error','text/html',1]] as const){
+  let calls=0;
+  const response=await taggedUnauthenticatedProbe('https://candidate.invalid/api/compare/community',{attempts:3,sleep:async()=>{},log:()=>{},request:async()=>{calls++;return new Response(body,{status,headers:{'content-type':type}});}});
+  assert.equal(response.status,status);assert.equal(calls,expected);
+ }
+});

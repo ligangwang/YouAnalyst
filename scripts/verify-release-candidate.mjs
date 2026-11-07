@@ -1,4 +1,4 @@
-import {taggedReleaseRequest} from './tagged-release-request.mjs';
+import {taggedReleaseRequest,taggedUnauthenticatedProbe} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now(),warn=console.warn}) {
@@ -65,7 +65,7 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
   assert(Array.isArray(community.items), 'Candidate community response is invalid');
   // These requests must fail before any write, even on an empty community board.
   for (const path of ['/api/compare/community', `/api/compare/community/${'a'.repeat(64)}/vote`, `/api/compare/community/${'a'.repeat(64)}/comments`]) {
-    const response = await request(`${url}${path}`, {method:'POST',signal:AbortSignal.timeout(60000)});
+    const response = await taggedUnauthenticatedProbe(`${url}${path}`,{request:rawRequest});
     assert.equal(response.status, 401, 'Candidate community write must require sign-in');
   }
   const preferences = await request(`${url}/api/preferences/compare`, {signal:AbortSignal.timeout(60000)});

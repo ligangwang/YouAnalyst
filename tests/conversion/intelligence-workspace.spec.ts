@@ -1947,28 +1947,35 @@ test('compact feed downloads the graph once and loads full events for filters an
  expect(all).toBe(1);
 });
 
-test('graph-free feed waits for the matching graph version before applying events',async({page})=>{
- const body=await workspaceFixture(false,snapshot,false);let release!:()=>void;
- const graphReady=new Promise<void>(resolve=>{release=resolve;});let graphReads=0;
+for(const serverGraph of [false,true])test(`graph version skew recovers one atomic snapshot (${serverGraph?'server graph':'bootstrap'})`,async({page,isMobile})=>{
+ const initial={...snapshot,graphVersion:'v1',generatedAt:'2026-10-05T16:00:00Z',events:[],eventsPending:true};
+ const body=await workspaceFixture(false,initial,serverGraph);let release!:()=>void;
+ const ready=new Promise<void>(resolve=>{release=resolve;});let graphReads=0,repairs=0,feeds=0;
  const replacement={...snapshot.graph,nodes:snapshot.graph.nodes.map(node=>({...node,name:node.id==='US:MU'?'Updated Micron':node.name}))};
  await page.route('**/*',async route=>{
   if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
   const url=new URL(route.request().url());
   if(url.pathname==='/api/intelligence'){
-   if(url.searchParams.get('section')==='universe'){
-    graphReads++;if(graphReads>1)await graphReady;
-    return route.fulfill({json:{...snapshot,graph:graphReads===1?snapshot.graph:replacement,graphVersion:graphReads===1?'v1':'v2',events:[],eventsPending:true}});
+   if(url.searchParams.get('section')==='universe'){graphReads++;return route.fulfill({json:initial});}
+   if(url.searchParams.get('graph')==='compact'){
+    repairs++;await ready;
+    return route.fulfill({json:encodeIntelligenceSnapshot({...snapshot,graph:replacement,graphVersion:'v2'})});
    }
-   await new Promise(resolve=>setTimeout(resolve,100));
-   const feed={...snapshot,graph:undefined};return route.fulfill({json:{...feed,graphVersion:'v2'}});
+   feeds++;return route.fulfill({json:{...snapshot,graph:undefined,graphVersion:'v2'}});
   }
   return route.fulfill({status:404,body:''});
  });
- await page.goto('http://workspace.test/?view=list');
- await expect.poll(()=>graphReads).toBe(2);
+ await page.goto('http://workspace.test/?view=table');
+ await expect.poll(()=>repairs).toBe(1);
+ expect(graphReads).toBe(serverGraph?0:1);
  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(0);
  release();
+ if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+ await page.evaluate(()=>dispatchEvent(new Event('focus')));
+ await expect.poll(()=>feeds).toBe(2);
+ await expect(page.getByRole('alert')).toHaveCount(0);
+ expect(repairs).toBe(1);expect(graphReads).toBe(serverGraph?0:1);
 });
 
 test('a transient graph failure recovers on focus without manual retry',async({page})=>{

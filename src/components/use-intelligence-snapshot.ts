@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
 import {decodeIntelligenceSnapshot,type IntelligencePayload,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
 import {expandGraph} from '@/lib/ui/graph-transport';
+import {intelligenceRequest} from '@/lib/ui/intelligence-request';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
 const clearedThemeSelection = { company: '', feedCompany: '', relationship: '', event: '', q: '', page: '' };
@@ -56,7 +57,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     // a complete feed or a response belonging to another theme/company.
     let universeRequest:Promise<IntelligenceSnapshot>|undefined;
     const universe=()=>universeRequest??=(async()=>{
-      const response=await fetch(`/api/intelligence?theme=${theme}&section=universe&graph=compact`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
+      const response=await intelligenceRequest(`/api/intelligence?theme=${theme}&section=universe&graph=compact`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
       if(!response.ok)throw Error('Graph unavailable');
       const data=decodeIntelligenceSnapshot(await response.json());
       if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw Error('Invalid graph');
@@ -80,24 +81,32 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       try {
         const url=`/api/intelligence?theme=${theme}&graph=omit${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
-        const response=await fetch(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
+        const response=await intelligenceRequest(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
         if (!response.ok&&response.status!==304) throw new Error();
-        const payload:IntelligencePayload=response.status===304&&saved?saved.data:await response.json();
-        let data:IntelligenceSnapshot;
+        let payload:IntelligencePayload=response.status===304&&saved?saved.data:await response.json();
+        let payloadEtag=response.headers.get('etag');
+        let data:IntelligenceSnapshot,repairedGraph=false;
         if(payload.graph)data={...payload,graph:expandGraph(payload.graph)};
         else {
           let graph=graphs.current.get(theme);
-          if(!graph||graph.graphVersion!==payload.graphVersion){
-            graph=await universe();
-            // A graph update may race independently completed feed and directory reads.
-            if(graph.graphVersion!==payload.graphVersion){
-              universeRequest=undefined;graph=await universe();
-              if(graph.graphVersion!==payload.graphVersion)throw Error('Graph changed during refresh');
-            }
+          if(!graph&&bootstrapRequired.current)graph=await universe();
+          if(graph?.graphVersion===payload.graphVersion)data={...payload,graph:graph.graph};
+          else {
+            // Feed and directory can land on independently warm instances. A
+            // single atomic snapshot repairs real version skew; repeating the
+            // directory may never match an older cached feed. Keep both models
+            // from the same response rather than mixing incompatible versions.
+            const coherent=await intelligenceRequest(url.replace('graph=omit','graph=compact'),{cache:'no-store',signal:controller.signal});
+            if(!coherent.ok)throw Error('Graph refresh unavailable');
+            payload=await coherent.json();
+            if(!payload.graph)throw Error('Graph refresh is incomplete');
+            data={...payload,graph:expandGraph(payload.graph)};
+            repairedGraph=true;
+            responses.current.delete(url);
+            payloadEtag=null; // This full-snapshot validator is not the omitted URL's ETag.
           }
-          data={...payload,graph:graph.graph};
         }
-        const etag=response.headers.get('etag');
+        const etag=payloadEtag;
         if(etag&&response.status!==304){
           if(responses.current.size>=30)responses.current.clear();
           responses.current.set(url,{etag,data});
@@ -105,7 +114,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         if ((data.theme ?? 'ai') !== theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt) throw new Error();
         if (isCurrentTheme()) {
           const cachedGraph=graphs.current.get(theme);
-          if(!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
+          if(repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
           const old = themeSnapshots.current.get(theme);
           // Preserve the graph object on unchanged polls so camera tours continue.
           const next = old?.graphVersion === data.graphVersion ? { ...data, graph: old.graph } : data;

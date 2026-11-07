@@ -4,8 +4,7 @@ import {CompanyGraph3D as Universe,PreloadCompanyGraph} from './company-graph-lo
 import { useThemeCatalog } from './use-theme-catalog';
 
 import { LoadingSpinner } from './loading-spinner';
-import { CompanyTimeline } from './company-timeline';
-import {WorkspaceStockTools} from './workspace-stock-tools';
+import {DeferredWorkspaceStockTools as WorkspaceStockTools} from './workspace-stock-tools-lazy';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { intelligenceTimelineEvents } from '@/lib/ui/company-timeline';
 import type {SearchSuggestion} from './ticker-search-input';
@@ -16,7 +15,6 @@ import { IntelligenceLoadingShell } from './intelligence-loading-shell';
 import { useNodeCardPosition } from './use-node-card-position';
 import {EventDetailsWindow, eventWindowAnchor, type EventWindowAnchor} from './event-details-window';
 import {eventPresentation} from '@/lib/events/classification';
-import { GraphCompanyOutlook } from "./company-outlook";
 import { UiText, useUiText } from "./ui-text";
 import { IntelligenceSectorLegend } from './intelligence-sector-legend';
 import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -59,6 +57,8 @@ import viewStyles from './intelligence-center-views.module.css';
 const Tree=lazy(()=>import('./industry-tree').then(module=>({default:module.IndustryStructure})));
 const Hierarchy=lazy(()=>import('./industry-hierarchy').then(module=>({default:module.IndustryHierarchy})));
 const CompanyTable=lazy(()=>import('./industry-company-views').then(module=>({default:module.IndustryCompanyTable})));
+const CompanyTimeline=lazy(()=>import('./company-timeline').then(module=>({default:module.CompanyTimeline})));
+const GraphCompanyOutlook=lazy(()=>import('./company-outlook').then(module=>({default:module.GraphCompanyOutlook})));
 type WorkspaceInitialState={initialTheme?:string;initialView?:string;initialCompany?:string;initialQuery?:string;initialEdge?:string;initialEvent?:string};
 const subscribeWidth=(notify:()=>void)=>{const media=matchMedia('(min-width:1440px)');media.addEventListener('change',notify);return()=>media.removeEventListener('change',notify);};
 const subscribeMobile=(notify:()=>void)=>{const media=matchMedia('(max-width:850px)');media.addEventListener('change',notify);return()=>media.removeEventListener('change',notify);};
@@ -256,10 +256,10 @@ function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,req
     {eventsPending||enrichment.pending('company',company.id)?<p role={error||enrichment.failed(company.id)?'alert':'status'}>{!error&&!enrichment.failed(company.id)&&<LoadingSpinner/>}{error||enrichment.failed(company.id)?<button onClick={()=>enrichment.request([],[company.id])}>{chinese?'重试价格':'Retry prices'}</button>:(chinese?'正在加载价格…':'Loading prices…')}</p>:<IntelligencePricePerformance price={company.dailyPrice} symbol={label}/>}
     <h2><UiText text="Relationships"/></h2><div className={styles.researchPaths}>{connections.map(edge=><button key={edge.id} aria-pressed={edgeId===edge.id} onClick={()=>setEdgeId(edge.id)}><span>{label(edge.source)} <i>→</i> {label(edge.target)}</span><small>{relationshipSummary(edge,locale)}</small></button>)}{!connections.length&&<p><UiText text="No documented relationship paths for this signal."/></p>}</div>
     <nav aria-label={ui('Relationship sources')} className={liveStyles.evidenceLinks}><Link href={researchCompanyUrl(company)}><UiText text="Relationship sources ↗"/></Link>{graph.sources.filter(source=>connections.some(edge=>edge.sourceIds.includes(source.id))||(theme!=='ai'&&company.sourceIds?.includes(source.id))).slice(0,8).map(source=><a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer">{relationshipSourceTitle(source,locale)} ↗</a>)}</nav>
-    <GraphCompanyOutlook company={company}/><p className={styles.evidenceNote}><UiText text="Source activity and research relevance do not indicate price direction or verify that an announced plan has been delivered."/></p>
+    <Suspense fallback={<LoadingSpinner/>}><GraphCompanyOutlook company={company}/></Suspense><p className={styles.evidenceNote}><UiText text="Source activity and research relevance do not indicate price direction or verify that an announced plan has been delivered."/></p>
   </section>:null;
 
-  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline stockToolsRequest={stockToolsRequest} onCloseStockToolsRequest={()=>setStockToolsRequest(null)} onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} closed={timelineClosed} onClosedChange={setTimelineClosed} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
+  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><Suspense fallback={<LoadingSpinner/>}><CompanyTimeline stockToolsRequest={stockToolsRequest} onCloseStockToolsRequest={()=>setStockToolsRequest(null)} onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} closed={timelineClosed} onClosedChange={setTimelineClosed} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></Suspense></div>:null;
   function openStockTools(event:React.MouseEvent<HTMLElement>){
     event.preventDefault();
     const target=event.target instanceof Element?event.target:null;
