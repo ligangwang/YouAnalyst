@@ -18,7 +18,7 @@ async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100,loadCatalog
     if(name==='@/components/live-investment-intelligence')return {LiveInvestmentIntelligence:(props:{initialSnapshot?:unknown;initialTheme:string;initialCompany:string})=>React.createElement('div',{'data-theme':props.initialTheme,'data-company':props.initialCompany},props.initialSnapshot?'Loaded snapshot':'Client API loader')};
     if(name==='@/components/intelligence-loading-shell')return {IntelligenceLoadingShell:()=> React.createElement('main',null,'Loading companies and recorded events…')};
     if(name==='@/lib/company-themes/catalog')return {loadThemeCatalog:loadCatalog};
-    if(name==='@/lib/intelligence/service')return {loadIntelligenceSnapshot:load};
+    if(name==='@/lib/intelligence/service')return {loadIntelligenceUniverse:load};
     if(name==='@/lib/intelligence/initial-snapshot')return {initialSnapshotWithinBudget:(request:Promise<unknown>)=>initialSnapshotWithinBudget(request,budget)};
     if(name==='@/lib/ui/i18n/server')return {localizedMetadata:async()=>({})};
     return realRequire(name);

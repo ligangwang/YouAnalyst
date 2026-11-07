@@ -4,7 +4,7 @@ import { IntelligenceLoadingShell } from '@/components/intelligence-loading-shel
 import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot';
 import { LiveInvestmentIntelligence } from '@/components/live-investment-intelligence';
 import { localizedMetadata } from '@/lib/ui/i18n/server';
-import { loadIntelligenceSnapshot } from '@/lib/intelligence/service';
+import { loadIntelligenceUniverse } from '@/lib/intelligence/service';
 import {parseCompanyTheme} from '@/lib/company-themes/model';
 import {loadThemeCatalog} from '@/lib/company-themes/catalog';
 import {resolveCatalogTheme} from '@/lib/company-themes/catalog-model';
@@ -25,6 +25,6 @@ async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>
   theme=resolved;
   // The shared read may outlive the HTML budget; retain its targeted scope
   // while it warms the same complete snapshot used by the browser API.
-  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(()=>loadIntelligenceSnapshot(new Date(),theme,undefined,undefined,true))):undefined;
+  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(()=>loadIntelligenceUniverse(new Date(),theme))):undefined;
   return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
 }

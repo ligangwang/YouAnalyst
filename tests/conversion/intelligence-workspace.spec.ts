@@ -1918,3 +1918,52 @@ test('wheel zoom at any pointer position stays anchored to the latest candle',as
  }
  await svg.focus();await page.keyboard.press('ArrowUp');await expect(candles).toHaveCount(14);await page.keyboard.press('ArrowLeft');await expect(candles.last()).not.toHaveAttribute('data-price-candle','2026-09-28');await page.keyboard.press('ArrowUp');await expect(candles.last()).toHaveAttribute('data-price-candle','2026-09-28');
 });
+
+test('compact feed downloads the graph once and loads full events for filters and more rows',async({page,isMobile})=>{
+ const body=await workspaceFixture(false,snapshot,false);let graphs=0,feeds=0,all=0;
+ await page.route('**/*',route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/intelligence'){
+   if(url.searchParams.get('section')==='universe'){graphs++;return route.fulfill({json:{...snapshot,events:[],eventsPending:true}});}
+   feeds++;const {graph:_graph,...feed}=snapshot;
+   if(url.searchParams.get('payload')==='compact')return route.fulfill({json:{...feed,events:events.slice(0,20),eventsLimited:true}});
+   all++;return route.fulfill({json:feed});
+  }
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=list');
+ if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+ expect(graphs).toBe(1);expect(feeds).toBe(1);expect(all).toBe(0);
+ await page.getByRole('button',{name:'Show 10 more',exact:true}).click();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(20);
+ expect(all).toBe(1);expect(graphs).toBe(1);
+ await page.getByRole('button',{name:'Show 10 more',exact:true}).click();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(30);
+ expect(all).toBe(1);
+});
+
+test('graph-free feed waits for the matching graph version before applying events',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);let release!:()=>void;
+ const graphReady=new Promise<void>(resolve=>{release=resolve;});let graphReads=0;
+ const replacement={...snapshot.graph,nodes:snapshot.graph.nodes.map(node=>({...node,name:node.id==='US:MU'?'Updated Micron':node.name}))};
+ await page.route('**/*',async route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/intelligence'){
+   if(url.searchParams.get('section')==='universe'){
+    graphReads++;if(graphReads>1)await graphReady;
+    return route.fulfill({json:{...snapshot,graph:graphReads===1?snapshot.graph:replacement,graphVersion:graphReads===1?'v1':'v2',events:[],eventsPending:true}});
+   }
+   await new Promise(resolve=>setTimeout(resolve,100));
+   const {graph:_graph,...feed}=snapshot;return route.fulfill({json:{...feed,graphVersion:'v2'}});
+  }
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=list');
+ await expect.poll(()=>graphReads).toBe(2);
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(0);
+ release();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+});

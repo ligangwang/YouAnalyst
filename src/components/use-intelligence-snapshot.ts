@@ -3,6 +3,7 @@
 import {useThemeCatalog} from './use-theme-catalog';
 import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
+import type {IntelligencePayload} from '@/lib/intelligence/transport';
 import type { IntelligenceSnapshot } from '@/lib/intelligence/model';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
@@ -22,7 +23,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const searchQuery = useIndustryBrowseParam('q');
   const searchRegion = useIndustryBrowseParam('region');
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
-  const bootstrapRequired = useRef(!initialSnapshot || Boolean(initialSnapshot.eventsPending));
+  const bootstrapRequired = useRef(!initialSnapshot);
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
   ));
@@ -37,6 +38,8 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const responses=useRef(new Map<string,{etag:string;data:IntelligenceSnapshot}>());
   const previousDay = useRef<string | undefined>(undefined);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [fullEvents,setFullEvents]=useState(false);
+  const loadFullEvents=()=>{if(!fullEvents)setFullEvents(true);};
 
   useEffect(() => {
     let disposed = false, inFlight = false;
@@ -48,19 +51,23 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     };
     // Start the directory independently. A late bootstrap must never replace
     // a complete feed or a response belonging to another theme/company.
+    let universeRequest:Promise<IntelligenceSnapshot>|undefined;
+    const universe=()=>universeRequest??=(async()=>{
+      const response=await fetch(`/api/intelligence?theme=${theme}&section=universe`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
+      if(!response.ok)throw Error('Graph unavailable');
+      const data:IntelligenceSnapshot=await response.json();
+      if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw Error('Invalid graph');
+      const previous=themeSnapshots.current.get(theme);
+      themeSnapshots.current.set(theme,previous?{...previous,graph:data.graph,graphVersion:data.graphVersion}:data);
+      return data;
+    })();
     if (bootstrapRequired.current) {
-      const universeTimeout = setTimeout(() => universeController.abort(), 15_000);
-      void fetch(`/api/intelligence?theme=${theme}&section=universe`, {cache:'no-store',signal:universeController.signal})
-        .then(async response => {
-          if (!response.ok) return;
-          const data:IntelligenceSnapshot = await response.json();
-          if ((data.theme??'ai')!==theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt || !isCurrentTheme()) return;
-          const cached=themeSnapshots.current.get(theme);
-          if(!cached||cached.eventsPending)themeSnapshots.current.set(theme,data);
-          setSnapshot(current => current && !current.eventsPending ? current : data);
-        })
-        .catch(() => {}) // The full request owns the retry/error state.
-        .finally(() => clearTimeout(universeTimeout));
+      void universe().then(data=>{
+        if(!isCurrentTheme())return;
+        const cached=themeSnapshots.current.get(theme);
+        if(!cached||cached.eventsPending)themeSnapshots.current.set(theme,data);
+        setSnapshot(current=>current&&!current.eventsPending?current:data);
+      }).catch(()=>{});
     }
     const refresh = async () => {
       if (disposed || inFlight || document.visibilityState === 'hidden') return;
@@ -68,11 +75,25 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       controller = new AbortController();
       const timeout = setTimeout(() => controller?.abort(), 15_000);
       try {
-        const url=`/api/intelligence?theme=${theme}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
+        const url=`/api/intelligence?theme=${theme}&graph=omit${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
         const response=await fetch(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
         if (!response.ok&&response.status!==304) throw new Error();
-        const data:IntelligenceSnapshot=response.status===304&&saved?saved.data:await response.json();
+        const payload:IntelligencePayload=response.status===304&&saved?saved.data:await response.json();
+        let data:IntelligenceSnapshot;
+        if(payload.graph)data=payload as IntelligenceSnapshot;
+        else {
+          let graph=themeSnapshots.current.get(theme);
+          if(!graph||graph.graphVersion!==payload.graphVersion){
+            graph=await universe();
+            // A graph update may race independently completed feed and directory reads.
+            if(graph.graphVersion!==payload.graphVersion){
+              universeRequest=undefined;graph=await universe();
+              if(graph.graphVersion!==payload.graphVersion)throw Error('Graph changed during refresh');
+            }
+          }
+          data={...payload,graph:graph.graph};
+        }
         const etag=response.headers.get('etag');
         if(etag&&response.status!==304){
           if(responses.current.size>=30)responses.current.clear();
@@ -115,10 +136,11 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [retry, theme, defaultTheme, company, query, region, scope]);
+  }, [retry, theme, defaultTheme, company, query, region, scope, fullEvents, selectedEvent, selectedRelationship]);
 
   const loadPreviousDay = () => {
     if(loadingOlder||!snapshot?.feedWindow?.hasMore)return;
+    setFullEvents(true);
     previousDay.current=snapshot.feedWindow.loadedFrom;
     setLoadingOlder(true);setRetry(value=>value+1);
   };
@@ -139,6 +161,6 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   // Clearing or switching a company immediately restores the theme feed while
   // its fresh company request is pending; stale scoped responses cannot win.
   const displayed = snapshotScope.current === scope ? snapshot : themeSnapshots.current.get(parseCompanyTheme(snapshot?.theme)) ?? snapshot;
-  const searching = Boolean((query||region)&&snapshotScope.current!==scope);
-  return { snapshot: searching&&displayed?{...displayed,eventsPending:true}:displayed, theme, error, changeTheme, reconnect, loadPreviousDay, loadingOlder };
+  const searching = Boolean((query||region)&&snapshotScope.current!==scope)||Boolean(fullEvents&&displayed?.eventsLimited);
+  return { snapshot: searching&&displayed?{...displayed,eventsPending:true}:displayed, theme, error, changeTheme, reconnect, loadPreviousDay, loadingOlder, loadFullEvents };
 }
