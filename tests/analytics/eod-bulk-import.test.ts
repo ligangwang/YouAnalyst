@@ -6,6 +6,17 @@ import {persistBulkEodPrices} from '../../src/lib/predictions/eod-prices';
 import {withEodWorkScope} from '../../src/lib/predictions/eod-work-scope';
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
 
+test('bulk cleanup advances past absent provider symbols but retries outages',async t=>{
+ const before=process.env.EODHD_API_TOKEN;process.env.EODHD_API_TOKEN='synthetic';
+ t.after(()=>{if(before===undefined)delete process.env.EODHD_API_TOKEN;else process.env.EODHD_API_TOKEN=before;});
+ const f=pubsubFirestore();let status=404;
+ t.mock.method(globalThis,'fetch',async()=>new Response('',{status}));
+ const input={market:'US' as const,runDate:'2026-11-06'};
+ assert.deepEqual(await persistBulkEodPrices(input,['US:EONR.WT'],true,f.db),['US:EONR.WT']);
+ for(status of [401,429,500])await assert.rejects(persistBulkEodPrices(input,['US:EONR.WT'],true,f.db),/cleanup remains incomplete/);
+ assert.equal(f.rows.size,0);
+});
+
 test('bulk import downloads once, writes only requested symbols, and repairs partial latest-pointer publication',async t=>{
  const before={app:globalThis.__adminApp,token:process.env.EODHD_API_TOKEN,bucket:process.env.EODHD_BULK_EOD_BUCKET};
  const app=admin.initializeApp({projectId:'synthetic-eod'},'eod-bulk-import');globalThis.__adminApp=app;
