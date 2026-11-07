@@ -46,17 +46,26 @@ export async function publishSecDiscoveryTasks(ids:readonly string[],publish:(ta
   }
   return result;
 }
-export async function processSecDiscoveryTask(input:unknown,db:Firestore,options:{enabled:boolean;run:(ticker:string)=>Promise<Record<string,unknown>>}){
+export async function processSecDiscoveryTask(input:unknown,db:Firestore,options:{enabled:boolean;run:(ticker:string)=>Promise<Record<string,unknown>>;now?:()=>number}){
   const task=parseSecDiscoveryTask(input);
   if(!options.enabled)throw new Error('SEC discovery worker disabled; retain task');
   const doc=await readSecCollectionCompany(db,task.companyId);
   const graph=supportedCompanyUniverse(doc?[doc]:[]);
   if(!graph.nodes.some(node=>node.id===task.companyId))return {status:'ineligible',companyId:task.companyId};
+  const ref=secDiscoveryCompanyState(db,task.companyId.slice(3));
+  const checkpoint=(await ref.get()).data(),now=options.now?.()??Date.now();
+  // Pub/Sub retries bypass the hourly due-query. Acknowledge only a saved
+  // partial retry: the scheduler will republish it when due. Never alter its
+  // cursor, failure status or an active owner's lease.
+  if(checkpoint?.discoveryStatus==='partial'&&Number(checkpoint.discoveryNextPollAtMs)>now
+    &&!(Number(checkpoint.leaseExpiresAtMs)>now)){
+    return {status:'deferred',companyId:task.companyId,retryAtMs:Number(checkpoint.discoveryNextPollAtMs)};
+  }
   try{return await options.run(task.companyId.slice(3));}
   catch(error){
     // Failures before the collector acquires its lease still need a retry time.
     // Do not overwrite a current lease or the completion already saved by it.
-    const ref=secDiscoveryCompanyState(db,task.companyId.slice(3)),now=Date.now();
+    const now=options.now?.()??Date.now();
     await db.runTransaction(async tx=>{
       const state=(await tx.get(ref)).data();
       if(Number(state?.leaseExpiresAtMs)>now||Number(state?.discoveryNextPollAtMs)>now)return;
