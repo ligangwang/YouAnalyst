@@ -9,7 +9,7 @@ export {COMPANY_STEPS,ONBOARDING_STEPS} from './progress';
 export type OnboardingStep=typeof ONBOARDING_STEPS[number];
 export type OnboardingRequest={
   instrumentId:string;companyId:string;version:1;status:'QUEUED'|'PROCESSING'|'BLOCKED'|'SUPPORTED';
-  requestedByUid:string;requestedAt:string;updatedAt:string;targetThrough:string;
+  requestedByUid:string|null;requestSource?:'SEC_IPO';requestedAt:string;updatedAt:string;targetThrough:string;
   steps:Partial<Record<OnboardingStep,'COMPLETE'>>;attemptCount:number;nextAttemptAt:number;
   leaseOwner:string|null;leaseExpiresAt:number;lastError:string|null;
 };
@@ -47,9 +47,15 @@ export function createOnboardingRequest(instrumentId:string,record:Instrument,co
     steps:{},attemptCount:0,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:null};
 }
 
+/** Session catch-up is independent of whether admission has a human requester. */
+export function onboardingTargetThrough(record:Instrument,company:Record<string,unknown>,now=new Date()){
+  return historyThrough(instrumentOnboardingIdentity(record,company).instrument.market,now);
+}
+
 export function parseOnboardingRequest(value:unknown):OnboardingRequest{
   const v=value as OnboardingRequest;
-  if(!v||v.version!==1||!validRequesterUid(v.requestedByUid)||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
+  const requesterValid=v?.requestSource==='SEC_IPO'?v.requestedByUid===null:v?.requestSource===undefined&&validRequesterUid(v?.requestedByUid);
+  if(!v||v.version!==1||!requesterValid||!validInstrumentId(v.instrumentId)||typeof v.companyId!=='string'||!v.companyId||v.companyId.includes('/')||!['QUEUED','PROCESSING','BLOCKED','SUPPORTED'].includes(v.status)
     ||!validDay(v.targetThrough)||v.targetThrough<ONBOARDING_START||!Number.isFinite(Date.parse(v.requestedAt))||!Number.isFinite(Date.parse(v.updatedAt))
     // Retain readability of staged checkpoints from before optional maintenance gates were removed.
     ||!v.steps||typeof v.steps!=='object'||Array.isArray(v.steps)||Object.entries(v.steps).some(([k,s])=>(!['graph','fundamentals','metrics'].includes(k)&&!ONBOARDING_STEPS.includes(k as OnboardingStep))||s!=='COMPLETE')

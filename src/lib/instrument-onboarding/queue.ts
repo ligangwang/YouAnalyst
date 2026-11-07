@@ -8,7 +8,7 @@ import {maintenanceError} from '../maintenance-log';
 import {REQUESTERS_COLLECTION,requesterId} from './requesters';
 import {isNoThemeOutcome} from './progress';
 import {OnboardingCapacityDeferred} from './capacity-control';
-import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
+import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,COMPANY_STEPS,createOnboardingRequest,onboardingTargetThrough,instrumentOnboardingIdentity,parseOnboardingRequest,validRequesterUid,OnboardingBlocked,type OnboardingRequest,type OnboardingStep} from './model';
 
 const LEASE_MS=20*60_000;
 const companyStep=(step:OnboardingStep)=>COMPANY_STEPS.includes(step as typeof COMPANY_STEPS[number]);
@@ -43,9 +43,11 @@ export async function requestInstrumentOnboarding(db:Firestore,id:string,request
     if(saved.exists){
       const current=parseOnboardingRequest(saved.data());if(current.instrumentId!==id||current.companyId!==companyId)throw new OnboardingBlocked('Onboarding identity mismatch');
       // Keep the original requester represented for staged/older job documents.
-      const originalRef=ref.collection(REQUESTERS_COLLECTION).doc(requesterId(current.requestedByUid));
-      const original=current.requestedByUid===requestedByUid?requester:await tx.get(originalRef);
-      if(!original.exists)tx.create(originalRef,{requestedByUid:current.requestedByUid,requestedAt:current.requestedAt});
+      if(current.requestedByUid!==null){
+        const originalRef=ref.collection(REQUESTERS_COLLECTION).doc(requesterId(current.requestedByUid));
+        const original=current.requestedByUid===requestedByUid?requester:await tx.get(originalRef);
+        if(!original.exists)tx.create(originalRef,{requestedByUid:current.requestedByUid,requestedAt:current.requestedAt});
+      }
       if(current.requestedByUid!==requestedByUid&&!requester.exists)tx.create(requesterRef,{requestedByUid,requestedAt:new Date(now).toISOString()});
       return {instrumentId:id,companyId,status:current.status,created:false};
     }
@@ -99,7 +101,7 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
     // Earlier admissions allowed an empty theme outcome. The new onboarding
     // policy invalidates only that empty proof, preserving financial checkpoints.
     if(options.requireTheme&&!isCollectionCompany({...context.company,id:request.companyId}))delete current.steps.themes;
-    const through=createOnboardingRequest(id,context.instrument,context.company,request.requestedByUid,new Date(clock())).targetThrough;
+    const through=onboardingTargetThrough(context.instrument,context.company,new Date(clock()));
     if(through>current.targetThrough){current.targetThrough=through;for(const key of ['corporateActions','prices','verify'] as const)delete current.steps[key];}
     const step=ONBOARDING_STEPS.find(key=>current.steps[key]!=='COMPLETE')??'verify';
     // The retained lease makes the next company checkpoint visible immediately.
@@ -136,7 +138,7 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
       if(!isDeepStrictEqual(instrumentFingerprint(fresh.instrument),instrumentFingerprint(claimed.instrument)))throw new OnboardingBlocked('Instrument identity changed during onboarding');
       if((step==='events'||done)&&!isDeepStrictEqual(companyFingerprint(fresh.company),companyFingerprint(claimed.company)))throw Error('Company readiness changed during verification');
       if(done&&(!isSupportedCompany(fresh.company)||step!=='verify'))throw Error('Company must be ready before instrument admission');
-      if(done&&createOnboardingRequest(id,fresh.instrument,fresh.company,current.requestedByUid,new Date(clock())).targetThrough>current.targetThrough)throw Error('Onboarding needs a latest-session catchup');
+      if(done&&onboardingTargetThrough(fresh.instrument,fresh.company,new Date(clock()))>current.targetThrough)throw Error('Onboarding needs a latest-session catchup');
       const retained=options.retainLease&&!done;
       tx.set(ref,{...current,steps,status:done?'SUPPORTED':retained?'PROCESSING':'QUEUED',attemptCount:0,nextAttemptAt:0,leaseOwner:retained?owner:null,leaseExpiresAt:retained?current.leaseExpiresAt:0,lastError:null,updatedAt:new Date(clock()).toISOString()});
       tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary(done?'SUPPORTED':'PROCESSING',clock(),current.requestedAt,fresh.instrument.onboarding),updatedAt:Timestamp.fromMillis(clock())});
