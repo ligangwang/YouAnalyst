@@ -1926,8 +1926,8 @@ test('compact feed downloads the graph once and loads full events for filters an
   const url=new URL(route.request().url());
   if(url.pathname==='/api/intelligence'){
    if(url.searchParams.get('section')==='universe'){graphs++;return route.fulfill({json:{...snapshot,events:[],eventsPending:true}});}
-   feeds++;const {graph:_graph,...feed}=snapshot;
-   if(url.searchParams.get('payload')==='compact')return route.fulfill({json:{...feed,events:events.slice(0,20),eventsLimited:true}});
+   feeds++;const feed={...snapshot,graph:undefined};
+   if(url.searchParams.get('payload')==='compact')return route.fulfill({json:{...feed,events:snapshot.events.slice(0,20),eventsLimited:true}});
    all++;return route.fulfill({json:feed});
   }
   return route.fulfill({status:404,body:''});
@@ -1957,7 +1957,7 @@ test('graph-free feed waits for the matching graph version before applying event
     return route.fulfill({json:{...snapshot,graph:graphReads===1?snapshot.graph:replacement,graphVersion:graphReads===1?'v1':'v2',events:[],eventsPending:true}});
    }
    await new Promise(resolve=>setTimeout(resolve,100));
-   const {graph:_graph,...feed}=snapshot;return route.fulfill({json:{...feed,graphVersion:'v2'}});
+   const feed={...snapshot,graph:undefined};return route.fulfill({json:{...feed,graphVersion:'v2'}});
   }
   return route.fulfill({status:404,body:''});
  });
@@ -1975,7 +1975,7 @@ test('a transient graph failure recovers on focus without manual retry',async({p
   const url=new URL(route.request().url());
   if(url.pathname==='/api/intelligence'){
    if(url.searchParams.get('section')==='universe'){graphReads++;return unavailable?route.fulfill({status:503,json:{error:'Temporary failure'}}):route.fulfill({json:{...snapshot,events:[],eventsPending:true}});}
-   const {graph:_graph,...feed}=snapshot;return route.fulfill({json:feed});
+   const feed={...snapshot,graph:undefined};return route.fulfill({json:feed});
   }
   return route.fulfill({status:404,body:''});
  });
@@ -1987,12 +1987,12 @@ test('a transient graph failure recovers on focus without manual retry',async({p
 });
 
 test('server-provided compact snapshot avoids duplicate initial requests',async({page,isMobile})=>{
- const initial={...snapshot,events:events.slice(0,20),eventsLimited:true};
+ const initial={...snapshot,events:snapshot.events.slice(0,20),eventsLimited:true};
  const body=await workspaceFixture(false,initial);let requests=0;
  await page.route('**/*',route=>{
   if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
   if(new URL(route.request().url()).pathname==='/api/intelligence'){
-   requests++;const {graph:_graph,...feed}=snapshot;return route.fulfill({json:feed});
+   requests++;const feed={...snapshot,graph:undefined};return route.fulfill({json:feed});
   }
   return route.fulfill({status:404,body:''});
  });
