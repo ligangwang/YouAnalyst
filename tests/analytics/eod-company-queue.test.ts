@@ -61,9 +61,11 @@ test('daily EOD routes one company and its prepared price per task, then finaliz
   await deliver(tasks[0]);await assert.rejects(deliver(tasks[1]),/incomplete/);
   await assert.rejects(deliver(root),/waiting for company receipts/);assert.equal(scores,0);
   assert.notEqual(f.rows.get('eod_runs/CN_A_2026-01-02')?.status,'COMPLETED');
+  assert.equal(f.rows.get('eod_runs/_latest_CN_A'),undefined);
   fail=false;await deliver(tasks[1]);await deliver(root);
   assert.equal(scores,1);
   assert.equal(f.rows.get('eod_runs/CN_A_2026-01-02')?.status,'COMPLETED');
+  assert.equal(f.rows.get('eod_runs/_latest_CN_A')?.runDate,'2026-01-02');
   assert.ok([...f.rows].filter(([path])=>path.startsWith('eod_runs/_dispatch_')).every(([,data])=>data.activeRequest===null));
   assert.deepEqual(scopes,[['XSHG:600000'],['XSHE:000001'],['XSHE:000001']]);
   assert.equal(executions[0].price?.ticker,'XSHG:600000');

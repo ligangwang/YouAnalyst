@@ -40,6 +40,8 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const [style, setStyle] = useState<CompareStyle>(initial.style);
   const [notice, setNotice] = useState(""), [shareNotice, setShareNotice] = useState("");
   const [resolvingLatest, setResolvingLatest] = useState(false);
+  const [rangeMode, setRangeMode] = useState<"latest" | "custom">("custom");
+  const [selectedPeriod, setSelectedPeriod] = useState(1);
   const [latestDate, setLatestDate] = useState<string | null>(null);
   const latestRequest = useRef<AbortController | null>(null);
   const latestRefresh = useRef<() => void>(() => {});
@@ -115,8 +117,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     const controller = new AbortController();
     latestRequest.current = controller;
     setResolvingLatest(true); setNotice("");
-    const end = latestCompareDate();
-    const params = new URLSearchParams({ symbols: draft.symbols.join(","), start: playbackStartDate(end, 1), end });
+    const params = new URLSearchParams({ symbols: draft.symbols.join(","), latest: "1" });
     try {
       const response = await fetch(`/api/compare?${params}`, { signal: controller.signal });
       const payload = await response.json();
@@ -125,7 +126,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       if (!latest) throw new Error("Unable to find the latest trading date.");
       if (!controller.signal.aborted) {
         setLatestDate(latest);
-        if (!refresh) latestPeriod.current = 1;
+
         setDraft(current => refresh && current.end !== latestDate ? current : ({ ...current, end: latest, start: rangeStart(latest, latestPeriod.current) }));
         if (refresh && latestDate && latest !== latestDate) {
           const appliedPeriod = [0, 1, 3, MAX_PLAYBACK_YEARS].find(period => applied.end === latestDate && applied.start === rangeStart(latestDate, period));
@@ -144,7 +145,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
 
   latestRefresh.current = () => { if (!latestRequest.current) void findLatestTradingDate(true); };
 
-  function clearLatestDate() { latestRequest.current?.abort(); setLatestDate(null); }
+  function clearLatestDate() { latestRequest.current?.abort(); setLatestDate(null); setRangeMode("custom"); }
 
   function addStock(raw: string) {
     const symbol = raw.trim().toUpperCase().replace(/^\$/, "").replace(/^US:/, "");
@@ -242,13 +243,22 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
           {preferences.status === "error" ? <p role="alert">{text("Could not load or save preferences. Your changes may not be saved.", "无法加载或保存偏好，修改可能尚未保存。")}{!preferences.ready && <button type="button" onClick={preferences.retry}>{text("Retry", "重试")}</button>}</p> : <p role="status">{preferences.status === "saved" ? text("Custom colors saved to your account.", "自选色已保存至账号。") : !preferences.ready ? text("Loading your preferences…", "正在加载偏好…") : text("Preview changes, then save your custom colors.", "预览修改后保存自选色。")}</p>}
         </>}
       </section>}
-      <div className={styles.settings}>
-        <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
-        <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => { clearLatestDate(); setDraft({ ...draft, start: e.target.value }); }}/></label>
-        <label>{text("To", "结束日期")}<input type="date" value={draft.end} min={draft.start > EARLIEST_PLAYBACK_DATE ? draft.start : EARLIEST_PLAYBACK_DATE} max={latestCompareDate()} onChange={e => { clearLatestDate(); setDraft({ ...draft, end: e.target.value }); }}/></label>
-        <button type="button" className={styles.primary} onClick={apply} disabled={!draft.symbols.length}>{text("Compare", "开始对比")} <span aria-hidden="true">→</span></button>
+      <div className={styles.stockSearch}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
+      <div className={styles.rangeControls}>
+        <div className={styles.rangeMode} role="group" aria-label={text("Date range mode", "日期范围模式")}>
+          <button type="button" aria-pressed={rangeMode === "latest"} disabled={resolvingLatest || !draft.symbols.length} onClick={() => { setRangeMode("latest"); void findLatestTradingDate(false); }}>{text("Latest trading date", "最新交易日期")}</button>
+          <button type="button" aria-pressed={rangeMode === "custom"} onClick={clearLatestDate}>{text("Custom dates", "自定义日期")}</button>
+        </div>
+        <div className={styles.rangePeriods} role="group" aria-label={text("Comparison period", "对比时长")}>
+          {[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} aria-pressed={selectedPeriod === period && draft.start === rangeStart(draft.end || initial.end, period)} onClick={() => { if (latestDate) latestRequest.current?.abort(); latestPeriod.current = period; setSelectedPeriod(period); setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}
+        </div>
       </div>
-      <div className={styles.presets}><button type="button" disabled={resolvingLatest || !draft.symbols.length} onClick={() => void findLatestTradingDate(false)}>{resolvingLatest ? text("Finding latest…", "正在查找最新日期…") : text("Latest trading date", "最新交易日期")}</button>{latestDate && <span role="status">{text("Latest shared close", "最新共同收盘日期")}: {latestDate}</span>}<span>{text("Quick range", "快捷区间")}</span>{[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} onClick={() => { latestRequest.current?.abort(); latestPeriod.current = period; setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
+      <div className={styles.settings}>
+        <label>{text("From", "起始日期")}<input type="date" readOnly={rangeMode === "latest"} value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => { clearLatestDate(); setDraft({ ...draft, start: e.target.value }); }}/></label>
+        <label>{text("To", "结束日期")}<input type="date" readOnly={rangeMode === "latest"} value={draft.end} min={draft.start > EARLIEST_PLAYBACK_DATE ? draft.start : EARLIEST_PLAYBACK_DATE} max={latestCompareDate()} onChange={e => { clearLatestDate(); setDraft({ ...draft, end: e.target.value }); }}/></label>
+        <button type="button" className={styles.primary} onClick={apply} disabled={!draft.symbols.length || resolvingLatest || (rangeMode === "latest" && !latestDate)}>{text("Compare", "开始对比")} <span aria-hidden="true">→</span></button>
+      </div>
+      <div className={styles.rangeHint} role="status">{rangeMode === "latest" ? resolvingLatest ? text("Finding the latest shared close…", "正在查找最新共同收盘日期…") : latestDate ? text(`Latest shared close: ${latestDate} · Updates automatically while this page is open.`, `最新共同收盘日期：${latestDate} · 页面打开时自动更新。`) : text("Choose Latest trading date to try again.", "选择「最新交易日期」重试。") : text("Choose exact dates, or use a period ending on your To date.", "选择具体日期，或选择截至结束日期的时间段。")}{dirty && <span>{text("Click Compare to apply.", "点击「开始对比」应用。")}</span>}</div>
       <button type="button" className={styles.collapseEditor} onClick={() => { setEditorOpen(false); editor.current?.querySelector("summary")?.focus(); }}>{text("Collapse stock selection", "收起股票选择")} <span aria-hidden="true">▴</span></button>
       </div>
       </details>

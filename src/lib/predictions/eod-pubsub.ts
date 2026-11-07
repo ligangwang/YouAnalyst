@@ -1,3 +1,4 @@
+import {completeMarketEodRun} from './latest-eod-run';
 import { randomUUID } from "node:crypto";
 import {withEodWorkScope} from './eod-work-scope';
 import type { Firestore } from "firebase-admin/firestore";
@@ -113,6 +114,8 @@ async function processEodDelivery(value: unknown, db: Firestore, log: Maintenanc
         const lease = (await tx.get(state)).data();
         const saved = (await tx.get(ref)).data() as Ledger;
         if (lease?.leaseOwner !== log.runId || Number(lease.leaseExpiresAtMs) <= Date.now() || saved.pages !== ledger!.pages) throw Error("EOD checkpoint lease/progress changed");
+        if(!result.hasMoreCandidatePredictions&&!request.input.tickers?.length&&request.input.loadPrices!==false&&!request.input.recompute&&result.latestTradingDate===result.runDate)
+          await completeMarketEodRun(db,request.input.market,result.runDate,'COMPLETED',null,true,tx);
         tx.set(ref, next);
       });
       ledger = next;
