@@ -2,6 +2,8 @@ import {expect,test} from '@playwright/test';
 import {componentFixtureHtml} from './fixtures/component-html';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
+import {createServer} from 'node:http';
+import type {AddressInfo} from 'node:net';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 import {encodeIntelligenceSnapshot,type EncodedIntelligenceSnapshot} from '../../src/lib/ui/intelligence-transport';
 import {companySearchRank} from '../../src/lib/knowledge-graph/model';
@@ -43,8 +45,8 @@ test('workspace locates AMD across tree hierarchy and paginated list without los
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
-async function workspaceFixture(realCharts=false,fixture:EncodedIntelligenceSnapshot=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean;initialFeed?:string}={}){
-  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';createRoot(document.getElementById('root')).render(<>${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence initialEvent={new URLSearchParams(location.search).get('event')??''} initialView={new URLSearchParams(location.search).get('view')??''} initialCompany={new URLSearchParams(location.search).get('company')??''} ${options.initialFeed?`initialFeed={${options.initialFeed}}`:''} ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+async function workspaceFixture(realCharts=false,fixture:EncodedIntelligenceSnapshot=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean;feedPreload?:boolean}={}){
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';${options.feedPreload?"import {PreloadIntelligenceFeed} from './src/components/intelligence-feed-preload';":''}createRoot(document.getElementById('root')).render(<>${options.feedPreload?'<PreloadIntelligenceFeed theme="ai"/>':''}${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence initialEvent={new URLSearchParams(location.search).get('event')??''} initialView={new URLSearchParams(location.search).get('view')??''} initialCompany={new URLSearchParams(location.search).get('company')??''} ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     if(options.scenery===false){
       build.onResolve({filter:/tree-meadow-environment$/},()=>({path:'meadow',namespace:'lifecycle-scenery'}));
       build.onLoad({filter:/.*/,namespace:'lifecycle-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
@@ -2011,57 +2013,33 @@ test('server graph renders while the independent feed is stalled without fetchin
  expect(graphReads).toBe(0);expect(feedReads).toBe(1);
 });
 
-test('streamed server feed updates the visible graph without an initial API request',async({page,isMobile})=>{
- const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false},true);
- // Flight thenables inherit catch but their then method returns undefined.
- const body=await workspaceFixture(false,initial,true,false,{initialFeed:'Object.assign(Object.create({catch:Promise.prototype.catch}),{then(resolve,reject){globalThis.__releaseFeed=resolve;globalThis.__rejectFeed=reject}})'});let requests=0;
- await page.route('**/*',route=>{
-  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
-  if(new URL(route.request().url()).pathname==='/api/intelligence'){requests++;return route.fulfill({json:{...snapshot,graph:undefined}});}
-  return route.fulfill({status:404,body:''});
- });
- await page.goto('http://workspace.test/?view=graph');
- await expect(page.getByText('Local interaction fixture')).toBeVisible();
- expect(requests).toBe(0);
- await page.evaluate(value=>(Reflect.get(window,'__releaseFeed') as (value:string)=>void)(value),JSON.stringify({...snapshot,graph:undefined,events:snapshot.events.slice(0,20),eventsLimited:true}));
- if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
- await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
- expect(requests).toBe(0);expect(await page.evaluate(()=>Reflect.get(window,'__workspaceGraphImports'))).toBe(1);
-});
-
-test('a failed server feed falls back to the graph-free API and keeps the graph usable',async({page,isMobile})=>{
+for(const failedPreload of [false,true])test(`the early no-store feed preload ${failedPreload?'can fail and recover on a fresh retry':'is reused by hydration with one graph-free request'}`,async({page,isMobile})=>{
  const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],eventsPending:true},true);
- const body=await workspaceFixture(false,initial,true,false,{initialFeed:'new Promise((_resolve,reject)=>{globalThis.__rejectFeed=reject})'});let reads=0;
- await page.route('**/*',route=>{
-  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
-  const url=new URL(route.request().url());
-  if(url.pathname==='/api/intelligence'){reads++;expect(url.searchParams.get('graph')).toBe('omit');expect(url.searchParams.has('section')).toBe(false);return route.fulfill({json:{...snapshot,graph:undefined}});}
-  return route.fulfill({status:404,body:''});
+ const body=await workspaceFixture(false,initial,true,false,{feedPreload:true});
+ const boundary=body.indexOf('<script>');let reads=0,scriptsSent=false,early=false;
+ const server=createServer((request,response)=>{
+  const url=new URL(request.url!,'http://fixture.test');
+  if(url.pathname==='/api/intelligence'){
+   reads++;early=early||!scriptsSent;expect(url.searchParams.get('graph')).toBe('omit');expect(url.searchParams.get('payload')).toBe('compact');
+   if(failedPreload&&reads===1){response.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store'});response.end('{"error":"Temporary failure"}');return;}
+   response.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
+   response.end(JSON.stringify({...snapshot,graph:undefined,events:snapshot.events.slice(0,20),eventsLimited:true}));return;
+  }
+  if(url.pathname==='/'){
+   response.writeHead(200,{'Content-Type':'text/html'});
+   response.write(body.slice(0,boundary).replace('</head>','<link rel="preload" as="fetch" href="/api/intelligence?theme=ai&amp;graph=omit&amp;payload=compact" crossorigin="anonymous" fetchpriority="low"></head>'));
+   setTimeout(()=>{scriptsSent=true;response.end(body.slice(boundary));},250);return;
+  }
+  response.writeHead(404);response.end();
  });
- await page.goto('http://workspace.test/?view=graph');
- await expect(page.getByText('Local interaction fixture')).toBeVisible();
- await page.evaluate(()=>(Reflect.get(window,'__rejectFeed') as (reason:Error)=>void)(new Error('Stream interrupted')));
- if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
- await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);expect(reads).toBe(1);
-});
-
-test('a late streamed feed cannot replace a newer company selection',async({page,isMobile})=>{
- const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],eventsPending:true},true);
- const body=await workspaceFixture(false,initial,true,false,{initialFeed:'new Promise(resolve=>{globalThis.__releaseFeed=resolve})'});let reads=0;
- await page.route('**/*',route=>{
-  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
-  const url=new URL(route.request().url());
-  if(url.pathname==='/api/intelligence'){reads++;expect(url.searchParams.get('company')).toBe('US:LITE');return route.fulfill({json:{...snapshot,graph:undefined,events:[snapshot.events[199]]}});}
-  return route.fulfill({status:404,body:''});
- });
- await page.goto('http://workspace.test/?view=graph');
- await expect(page.getByText('Local interaction fixture')).toBeVisible();
- await page.evaluate(()=>{history.replaceState(null,'','?view=graph&company=US%3ALITE');dispatchEvent(new Event('industry-browse-changed'));});
- if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
- await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(1);
- await page.evaluate(value=>(Reflect.get(window,'__releaseFeed') as (value:string)=>void)(value),JSON.stringify({...snapshot,graph:undefined,events:snapshot.events.slice(0,20)}));
- await expect(page.locator('#intelligence-event-stream')).toContainText('Lumentum communication update');
- await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(1);expect(reads).toBe(1);
+ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+ try{
+  await page.goto(`http://127.0.0.1:${(server.address() as AddressInfo).port}/?view=graph`);
+  if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
+  if(failedPreload){await expect(page.getByRole('alert').first()).toBeVisible();expect(reads).toBe(1);await page.evaluate(()=>dispatchEvent(new Event('focus')));}
+  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+  expect(early).toBe(true);expect(reads).toBe(failedPreload?2:1);
+ }finally{await page.goto('about:blank');server.closeAllConnections();await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });
 
 test('server-provided compact snapshot avoids duplicate initial requests',async({page,isMobile})=>{

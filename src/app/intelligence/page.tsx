@@ -1,4 +1,5 @@
-import {encodeIntelligenceSnapshot,intelligencePayload} from '@/lib/ui/intelligence-transport';
+import {encodeIntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {PreloadIntelligenceFeed} from '@/components/intelligence-feed-preload';
 import {PreloadGraphChunks as PreloadCompanyGraph} from '@/components/company-graph-preload';
 import {parseIndustryView} from '@/lib/knowledge-graph/views';
 import type { Metadata } from 'next';
@@ -7,7 +8,7 @@ import { IntelligenceLoadingShell } from '@/components/intelligence-loading-shel
 import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot';
 import { LiveInvestmentIntelligence } from '@/components/live-investment-intelligence';
 import { localizedMetadata } from '@/lib/ui/i18n/server';
-import { loadIntelligenceUniverse,loadIntelligenceSnapshot } from '@/lib/intelligence/service';
+import { loadIntelligenceUniverse } from '@/lib/intelligence/service';
 import {parseCompanyTheme} from '@/lib/company-themes/model';
 import {loadThemeCatalog} from '@/lib/company-themes/catalog';
 import {resolveCatalogTheme} from '@/lib/company-themes/catalog-model';
@@ -26,12 +27,14 @@ async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>
   const resolved=catalog?resolveCatalogTheme(catalog,value('theme')):theme;
   if(!resolved)return <IntelligenceLoadingShell error="Investment theme unavailable"/>;
   theme=resolved;
-  // Prepare the graph before starting feed work, so discovery cannot compete
-  // with the critical graph read/encoding. Start the same-instance feed before
-  // returning the workspace, rather than waiting for a browser API round trip.
+  // Let the browser schedule the public feed before hydration without adding
+  // discovery work to this graph response. Its later fetch reuses this preload.
   const scoped=['company','feedCompany','q','region','relationship','event'].some(key=>value(key));
+  return <>{catalog&&!scoped&&<PreloadIntelligenceFeed theme={theme}/>}<Suspense fallback={<IntelligenceLoadingShell theme={theme}/>}><GraphWorkspace theme={theme} enabled={Boolean(catalog)} value={value}/></Suspense></>;
+}
+
+async function GraphWorkspace({theme,enabled,value}:{theme:string;enabled:boolean;value:(key:string)=>string}){
   const now=new Date();
-  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>encodeIntelligenceSnapshot(await loadIntelligenceUniverse(now,theme),true))):undefined;
-  const feed=snapshot&&!scoped?initialSnapshotWithinBudget(withCompanyPageReads(async()=>JSON.stringify(intelligencePayload(await loadIntelligenceSnapshot(now,theme,undefined,undefined,true),true,true))),10_000):undefined;
-  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialFeed={feed} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
+  const snapshot=enabled?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>encodeIntelligenceSnapshot(await loadIntelligenceUniverse(now,theme),true))):undefined;
+  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
 }

@@ -69,9 +69,9 @@ const shortDate=(value:string)=>value.slice(5);
 type Panels={left:boolean|null;right:boolean};
 
 /** Failure never falls back to demo data. Polls pause in hidden tabs. */
-export function LiveInvestmentIntelligence({initialSnapshot:initialPayload,initialFeed,...initialState}:{initialSnapshot?:EncodedIntelligenceSnapshot;initialFeed?:Promise<string|undefined>}&WorkspaceInitialState={}){
+export function LiveInvestmentIntelligence({initialSnapshot:initialPayload,...initialState}:{initialSnapshot?:EncodedIntelligenceSnapshot}&WorkspaceInitialState={}){
   const [initialSnapshot]=useState(()=>initialPayload?decodeIntelligenceSnapshot(initialPayload):undefined);
-  const {snapshot,theme,error,changeTheme,reconnect,loadPreviousDay,loadingOlder,loadFullEvents}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme,initialFeed);
+  const {snapshot,theme,error,changeTheme,reconnect,loadPreviousDay,loadingOlder,loadFullEvents}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
   const {ids:guestSaved,change:changeGuestSaved}=useSessionCompanyWatchlist();
   const [panels,setPanels]=useState<Panels>({left:null,right:true});
   if(!snapshot)return <><PreloadCompanyGraph enabled={(parseIndustryView(initialState.initialView)??'graph')==='graph'}/><IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/></>;

@@ -3,7 +3,7 @@
 import {useThemeCatalog} from './use-theme-catalog';
 import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
-import {decodeIntelligenceSnapshot,resolveInitialIntelligenceFeed,type IntelligencePayload,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {decodeIntelligenceSnapshot,type IntelligencePayload,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
 import {expandGraph} from '@/lib/ui/graph-transport';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
@@ -12,7 +12,7 @@ const feedCompany = (params: URLSearchParams) => params.get('feedCompany')?.toUp
 const feedScope = (company:string,query:string,region:string) => JSON.stringify([company,company?'':query.normalize('NFKC').trim(),company?'':region==='US'||region==='CN_A'?region:'']);
 
 /** Keeps the displayed theme usable until a validated replacement is ready. */
-export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, initialTheme = 'ai',initialFeed?:Promise<string|undefined>) {
+export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, initialTheme = 'ai') {
   const {themes}=useThemeCatalog();
   const defaultTheme=themes[0]??initialTheme;
   const theme = parseCompanyTheme(useIndustryBrowseParam('theme', defaultTheme, initialTheme));
@@ -25,8 +25,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
   const bootstrapRequired = useRef(!initialSnapshot);
   const serverFeedAvailable=useRef(Boolean(initialSnapshot&&!initialSnapshot.eventsPending));
-  const serverFeedTheme=useRef(parseCompanyTheme(initialSnapshot?.theme??initialTheme));
-  const streamedFeed=useRef(initialFeed);
+  const serverFeedTheme=useRef(parseCompanyTheme(initialSnapshot?.theme));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
   ));
@@ -73,7 +72,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         setSnapshot(current=>current&&!current.eventsPending?current:data);
       }).catch(()=>{});
     }
-    const refresh = async (provided?:Promise<string|undefined>) => {
+    const refresh = async () => {
       if (disposed || inFlight || document.visibilityState === 'hidden') return;
       inFlight = true;
       controller = new AbortController();
@@ -81,11 +80,9 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       try {
         const url=`/api/intelligence?theme=${theme}&graph=omit${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
-        const encoded=await resolveInitialIntelligenceFeed(provided);
-        if(disposed)return;
-        const response=encoded?undefined:await fetch(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
-        if (response&&!response.ok&&response.status!==304) throw new Error();
-        const payload:IntelligencePayload=encoded?JSON.parse(encoded):response!.status===304&&saved?saved.data:await response!.json();
+        const response=await fetch(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
+        if (!response.ok&&response.status!==304) throw new Error();
+        const payload:IntelligencePayload=response.status===304&&saved?saved.data:await response.json();
         let data:IntelligenceSnapshot;
         if(payload.graph)data={...payload,graph:expandGraph(payload.graph)};
         else {
@@ -100,8 +97,8 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
           }
           data={...payload,graph:graph.graph};
         }
-        const etag=response?.headers.get('etag');
-        if(etag&&response?.status!==304){
+        const etag=response.headers.get('etag');
+        if(etag&&response.status!==304){
           if(responses.current.size>=30)responses.current.clear();
           responses.current.set(url,{etag,data});
         }
@@ -133,12 +130,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     };
     if(serverFeedAvailable.current&&serverFeedTheme.current===theme&&!company&&!query&&!region&&!selectedEvent&&!selectedRelationship&&!fullEvents&&!previousDay.current){
       serverFeedAvailable.current=false;
-    }else{
-      serverFeedAvailable.current=false;
-      const provided=serverFeedTheme.current===theme&&!company&&!query&&!region&&!selectedEvent&&!selectedRelationship&&!fullEvents&&!previousDay.current?streamedFeed.current:undefined;
-      streamedFeed.current=undefined;
-      void refresh(provided);
-    }
+    }else{serverFeedAvailable.current=false;void refresh();}
     const timer = setInterval(() => void refresh(), 60_000);
     const onVisible = () => void refresh();
     document.addEventListener('visibilitychange', onVisible);
