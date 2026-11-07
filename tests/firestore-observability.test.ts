@@ -190,3 +190,14 @@ test('closed feed delta ranges perform one-time reads instead of retaining obsol
   await withSourceCache(async()=>{await live.get();await live.get();});
   assert.equal(gets,2);assert.equal(listens,1,'Live company events still receive corrections and deletions');
 });
+
+
+test('document fingerprints distinguish actual IDs including missing reads without exposing paths', async () => {
+  const f=fixture(), a=f.db.doc('events/private-a'), b=f.db.doc('events/missing');
+  await f.db.getAll(a,b);await f.db.getAll(b,a);await f.db.getAll(a,f.db.doc('events/private-c'));
+  await a.get();await b.get();
+  const hashes=f.logs.map(row=>row.documentSetFingerprint);
+  assert.match(String(hashes[0]),/^[a-f0-9]{64}$/);
+  assert.equal(hashes[0],hashes[1]);assert.notEqual(hashes[0],hashes[2]);assert.notEqual(hashes[3],hashes[4]);
+  assert.equal(f.calls(),5);assert.doesNotMatch(JSON.stringify(f.logs),/private-a|private-c|events\/missing/);
+});

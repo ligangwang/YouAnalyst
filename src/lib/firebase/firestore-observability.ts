@@ -267,6 +267,12 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
                 const collection = documentCollection(doc.ref.path);
                 collections[collection] = (collections[collection] ?? 0) + 1;
               }
+              // Compare concrete document identities across reads without logging
+              // paths or contents. Missing point reads participate too; query
+              // results identify returned sets, not identical query parameters.
+              const paths = docs.map((doc: any) => doc.ref?.path);
+              if (paths.length && paths.every((path: unknown) => typeof path === 'string'))
+                counts.documentSetFingerprint = createHash('sha256').update(JSON.stringify(paths.sort())).digest('hex');
               counts.documentsByCollection = collections;
             } else if (aggregate) counts.documentsReturned = 0;
             else if (method !== 'commit') counts.documentsWritten = 1;
