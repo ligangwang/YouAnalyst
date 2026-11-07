@@ -20,3 +20,7 @@ test('a cold warm-up is reported separately and cannot mask steady graph perform
  assert(gate>=0);assert(gate<script.indexOf('node scripts/promote-release.mjs'));
  assert.match(script,/set -euo pipefail/);
 });
+
+test('a faster graph cannot hide a slower feed before promotion',async()=>{
+ await assert.rejects(verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async(url:string)=>({graphMs:url==='new'?800:1000,feedMs:url==='new'?2000:1000})}),/feed readiness regressed.*existing traffic stays unchanged/);
+});

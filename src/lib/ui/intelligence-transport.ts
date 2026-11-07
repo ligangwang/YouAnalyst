@@ -4,6 +4,10 @@ import {compactGraph,expandGraph,type GraphTransport} from './graph-transport';
 export type PresentationIntelligenceSnapshot=IntelligenceSnapshot&{eventsLimited?:boolean};
 export type EncodedIntelligenceSnapshot=Omit<PresentationIntelligenceSnapshot,'graph'>&{graph:GraphTransport};
 export type IntelligencePayload=Omit<PresentationIntelligenceSnapshot,'graph'>&{graph?:GraphTransport};
+/** Flight thenables inherit catch, but their then method does not chain. */
+export function resolveInitialIntelligenceFeed(feed?:PromiseLike<string|undefined>):Promise<string|undefined>{
+ return Promise.resolve(feed).catch(()=>undefined);
+}
 export function encodeIntelligenceSnapshot(snapshot:PresentationIntelligenceSnapshot,serverProps=false):EncodedIntelligenceSnapshot {
  const graph=compactGraph(snapshot.graph);
  // A text block avoids making React Flight serialize every dictionary cell.

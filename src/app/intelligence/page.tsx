@@ -1,4 +1,4 @@
-import {encodeIntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {encodeIntelligenceSnapshot,intelligencePayload} from '@/lib/ui/intelligence-transport';
 import {PreloadGraphChunks as PreloadCompanyGraph} from '@/components/company-graph-preload';
 import {parseIndustryView} from '@/lib/knowledge-graph/views';
 import type { Metadata } from 'next';
@@ -7,7 +7,7 @@ import { IntelligenceLoadingShell } from '@/components/intelligence-loading-shel
 import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot';
 import { LiveInvestmentIntelligence } from '@/components/live-investment-intelligence';
 import { localizedMetadata } from '@/lib/ui/i18n/server';
-import { loadIntelligenceUniverse } from '@/lib/intelligence/service';
+import { loadIntelligenceUniverse,loadIntelligenceSnapshot } from '@/lib/intelligence/service';
 import {parseCompanyTheme} from '@/lib/company-themes/model';
 import {loadThemeCatalog} from '@/lib/company-themes/catalog';
 import {resolveCatalogTheme} from '@/lib/company-themes/catalog-model';
@@ -26,9 +26,15 @@ async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>
   const resolved=catalog?resolveCatalogTheme(catalog,value('theme')):theme;
   if(!resolved)return <IntelligenceLoadingShell error="Investment theme unavailable"/>;
   theme=resolved;
-  // The graph must not wait for feed/news discovery or include its document index
-  // in the HTML. The client loads that feed independently, reusing this graph.
-  // A cold read retains its targeted scope after the HTML budget expires.
-  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>encodeIntelligenceSnapshot(await loadIntelligenceUniverse(new Date(),theme),true))):undefined;
-  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
+  // Start both reads together on this instance. Only graph readiness gates the
+  // workspace; the graph-free feed streams as text without another HTTP request.
+  const scoped=['company','feedCompany','q','region','relationship','event'].some(key=>value(key));
+  const reads=catalog?await withCompanyPageReads(async()=>{
+    const now=new Date(),graph=loadIntelligenceUniverse(now,theme);
+    const feed=scoped?undefined:initialSnapshotWithinBudget(loadIntelligenceSnapshot(now,theme,undefined,undefined,true)
+      .then(snapshot=>JSON.stringify(intelligencePayload(snapshot,true,true))),10_000);
+    return {graph,feed};
+  }):undefined;
+  const snapshot=reads?await initialSnapshotWithinBudget(reads.graph.then(graph=>encodeIntelligenceSnapshot(graph,true))):undefined;
+  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialFeed={reads?.feed} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
 }
