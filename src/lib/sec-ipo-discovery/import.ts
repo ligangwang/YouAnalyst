@@ -8,6 +8,7 @@ import {isSupportedCompany} from '../company-support/model';
 import {SEC_IPO_COLLECTION,symbolKey,type Filing,type Listing} from './evidence';
 
 export class IpoIdentityReview extends Error {}
+const storedCik=(value:unknown)=>{try{return normalizedCik(value);}catch{throw new IpoIdentityReview('Stored CIK requires review');}};
 export const listingClaimId=(listing:Listing)=>'listing_'+createHash('sha256').update(`${listing.cik}:${listing.exchangeMic}:${listing.symbol}`).digest('hex');
 
 /** Company, listing claims and onboarding intent commit together, so retries cannot orphan work. */
@@ -24,7 +25,7 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
     const records=new Map(matches.docs.map(doc=>[doc.id,doc.data()]));if(source.exists)records.set(source.id,source.data()!);
     const owners=new Set<string>();
     for(const [key,row] of records){
-      if(normalizedCik(row.cik)!==listing.cik)throw new IpoIdentityReview('Ticker belongs to another or unknown CIK');
+      if(storedCik(row.cik)!==listing.cik)throw new IpoIdentityReview('Ticker belongs to another or unknown CIK');
       if(row.isDeleted||row.listingStatus==='PRIVATE')throw new IpoIdentityReview('Existing issuer is private or deleted');
       if(key.startsWith('US:')&&key!==legacy&&(symbolKey(key.slice(3))===listing.symbol||typeof row.symbol==='string'&&symbolKey(row.symbol)===listing.symbol))throw new IpoIdentityReview('Existing listing notation or symbol history requires review');
       owners.add(typeof row.supersededByCompanyId==='string'?row.supersededByCompanyId:key);
@@ -35,15 +36,21 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
     const companyId=[...owners][0]??legacy;
     if(!companyId||companyId.includes('/'))throw new IpoIdentityReview('Invalid issuer claim');
     const ownerRef=db.collection('companies').doc(companyId),owner=await tx.get(ownerRef);
-    if(owner.exists&&(normalizedCik(owner.get('cik'))!==listing.cik||owner.get('supersededByCompanyId')||owner.get('isDeleted')||owner.get('listingStatus')==='PRIVATE'||!['DIRECTORY','PUBLISHED'].includes(owner.get('status'))))throw new IpoIdentityReview('Issuer is not eligible for automatic onboarding');
+    if(owner.exists&&(storedCik(owner.get('cik'))!==listing.cik||owner.get('supersededByCompanyId')||owner.get('isDeleted')||owner.get('listingStatus')==='PRIVATE'||!['DIRECTORY','PUBLISHED'].includes(owner.get('status'))))throw new IpoIdentityReview('Issuer is not eligible for automatic onboarding');
     if(!owner.exists&&companyId!==legacy)throw new IpoIdentityReview('Issuer claim references a missing company');
     if(claim.exists&&(claim.get('companyId')!==companyId||claim.get('instrumentId')!==id))throw new IpoIdentityReview('Listing identity claim conflict');
     const at=new Date(now).toISOString(),stamp=Timestamp.fromMillis(now);
     const fresh={name:listing.name,symbol:listing.symbol,cik:listing.cik,status:'DIRECTORY',market:'US',micCode:listing.exchangeMic,exchange_region:'US',source:'SEC IPO discovery',lastSyncedAt:at};
     const company:Record<string,unknown>=owner.exists?owner.data()!:fresh;
-    const record=inst.exists?validateInstrument(inst.data() as Instrument):instrumentFromCompany(legacy,source.exists?source.data()!:fresh,companyId)!;
-    if(record.companyId!==companyId||record.symbol!==listing.symbol||record.providerSymbols.youanalyst!==legacy||record.exchangeMic&&record.exchangeMic!==listing.exchangeMic||record.status==='DELISTED'||(inst.exists&&inst.get('isDeleted')))throw new IpoIdentityReview('Existing instrument identity requires review');
-    if(request.exists){const current=parseOnboardingRequest(request.data());if(current.companyId!==companyId||current.instrumentId!==id)throw new IpoIdentityReview('Onboarding identity mismatch');}
+    if(typeof company.name!=='string'||!company.name.trim())throw new IpoIdentityReview('Issuer name requires review');
+    let record:Instrument;
+    try{record=inst.exists?validateInstrument(inst.data() as Instrument):instrumentFromCompany(legacy,source.exists?source.data()!:fresh,companyId)!;}
+    catch{throw new IpoIdentityReview('Stored instrument requires review');}
+    if(!record||record.companyId!==companyId||record.symbol!==listing.symbol||record.providerSymbols.youanalyst!==legacy||record.exchangeMic&&record.exchangeMic!==listing.exchangeMic||record.status==='DELISTED'||(inst.exists&&inst.get('isDeleted')))throw new IpoIdentityReview('Existing instrument identity requires review');
+    if(request.exists){
+      let current;try{current=parseOnboardingRequest(request.data());}catch{throw new IpoIdentityReview('Stored onboarding request requires review');}
+      if(current.companyId!==companyId||current.instrumentId!==id)throw new IpoIdentityReview('Onboarding identity mismatch');
+    }
     const enqueue=!request.exists&&!(isSupportedCompany(company)&&record.onboarding?.status==='SUPPORTED');
     const intent=enqueue?createSecIpoOnboardingRequest(id,record,company,new Date(now)):null;
     if(!owner.exists)tx.create(ownerRef,{...fresh,createdAt:stamp,updatedAt:stamp,...(intent?{onboarding:onboardingSummary('QUEUED',now,at)}:{})});
