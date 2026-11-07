@@ -4,6 +4,7 @@ import {requireOnboardingCapacity,OnboardingCapacityDeferred} from '../instrumen
 import {SEC_IPO_COLLECTION,parseDailyIndex,confirmedMappings,resolveProspectuses,confirmsIpoCover,type Filing} from './evidence';
 import {importConfirmedIpo,IpoIdentityReview} from './import';
 import type {IpoSource} from './source';
+import {validDay} from '../instrument-onboarding/model';
 
 const DAY=86400_000;
 const shift=(day:string,days:number)=>new Date(Date.parse(day)+days*DAY).toISOString().slice(0,10);
@@ -21,7 +22,7 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
     // Latest completed calendar day in New York. Missing/late indexes are revisited.
     const local=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(start));
     const yesterday=shift(local,-1),floor=shift(yesterday,-30);
-    let cursor=typeof state.cursor==='string'&&state.cursor>=floor&&state.cursor<=yesterday?state.cursor:floor;
+    let cursor=typeof state.cursor==='string'&&validDay(state.cursor)&&state.cursor>=floor&&state.cursor<=shift(yesterday,1)?state.cursor:floor;
     const days=[yesterday,shift(yesterday,-1),shift(yesterday,-2),cursor,shift(cursor,1)].filter((day,i,all)=>day<=yesterday&&all.indexOf(day)===i);
     let writes=0;
     for(const day of days){

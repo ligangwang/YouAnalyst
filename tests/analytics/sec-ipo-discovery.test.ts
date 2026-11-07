@@ -96,3 +96,10 @@ test('provider rollout inspection validates evidence without using an importer o
   const result=await inspectIpoDiscovery(source,new Date('2026-11-07T16:00:00Z'));
   assert.equal(result.indexes,3);assert.equal(result.checked,1);assert.equal(result.confirmed[0].symbol,'NEW');
 });
+
+test('caught-up checkpoint waits for tomorrow instead of restarting the initial backfill',async()=>{
+  const f=ipoFixture(),days:string[]=[];f.rows.set('sec_ipo_discovery/scan',{cursor:'2026-11-07'});
+  const source={daily:async(day:string)=>{days.push(day);return header;},mapping:async()=>mapping,submission:async()=>submission,cover:async()=>cover};
+  await runSecIpoDiscovery(f.db,source,{clock:()=>Date.parse('2026-11-07T16:00:00Z'),capacity:async()=>{},pause:async()=>{}});
+  assert.deepEqual(days,['2026-11-06','2026-11-05','2026-11-04']);assert.equal(f.rows.get('sec_ipo_discovery/scan')?.cursor,'2026-11-07');
+});
