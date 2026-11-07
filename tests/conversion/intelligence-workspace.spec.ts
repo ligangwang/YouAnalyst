@@ -1985,3 +1985,22 @@ test('a transient graph failure recovers on focus without manual retry',async({p
  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
  expect(graphReads).toBeGreaterThan(failedReads);
 });
+
+test('server-provided compact snapshot avoids duplicate initial requests',async({page,isMobile})=>{
+ const initial={...snapshot,events:events.slice(0,20),eventsLimited:true};
+ const body=await workspaceFixture(false,initial);let requests=0;
+ await page.route('**/*',route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  if(new URL(route.request().url()).pathname==='/api/intelligence'){
+   requests++;const {graph:_graph,...feed}=snapshot;return route.fulfill({json:feed});
+  }
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=list');
+ if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+ expect(requests).toBe(0);
+ await page.getByRole('button',{name:'Show 10 more',exact:true}).click();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(20);
+ expect(requests).toBe(1);
+});

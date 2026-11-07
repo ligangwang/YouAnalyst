@@ -23,6 +23,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const searchRegion = useIndustryBrowseParam('region');
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
   const bootstrapRequired = useRef(!initialSnapshot);
+  const serverFeedAvailable=useRef(Boolean(initialSnapshot&&!initialSnapshot.eventsPending));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
   ));
@@ -39,7 +40,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const previousDay = useRef<string | undefined>(undefined);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [fullEvents,setFullEvents]=useState(false);
-  const loadFullEvents=()=>{if(!fullEvents)setFullEvents(true);};
+  const loadFullEvents=()=>{if(!fullEvents&&(!snapshot||snapshot.eventsPending||snapshot.eventsLimited))setFullEvents(true);};
 
   useEffect(() => {
     let disposed = false, inFlight = false;
@@ -125,7 +126,9 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         inFlight = false;
       }
     };
-    void refresh();
+    if(serverFeedAvailable.current&&!company&&!query&&!region&&!selectedEvent&&!selectedRelationship&&!fullEvents&&!previousDay.current){
+      serverFeedAvailable.current=false;
+    }else{serverFeedAvailable.current=false;void refresh();}
     const timer = setInterval(() => void refresh(), 60_000);
     const onVisible = () => void refresh();
     document.addEventListener('visibilitychange', onVisible);

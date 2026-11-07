@@ -1,6 +1,6 @@
 # Initial intelligence payload
 
-The homepage server render requests the graph-only bootstrap, so HTML does not embed a complete event feed. If the graph is already embedded, the client reuses it instead of downloading another bootstrap.
+The homepage server render embeds a compact snapshot when it is ready within the HTML budget. The browser reuses that fresh feed and graph without an immediate duplicate request. Slow reads release the HTML to parallel graph and compact-feed loaders. An embedded graph never triggers another bootstrap.
 
 The browser opts into `graph=omit&payload=compact` on its initial feed request. This response carries graphVersion and the first 20 detailed events, while retaining the complete sourceDocuments facts, coverage and source totals. Legacy API callers retain the complete response unless they explicitly opt in. No persisted schema changes are involved.
 
