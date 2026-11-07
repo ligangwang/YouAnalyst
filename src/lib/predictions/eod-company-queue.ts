@@ -8,6 +8,8 @@ import type {MaintenanceLog} from '../maintenance-log';
 import {parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsub';
 import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,readRollForwardDates,type EodPrice} from './eod-prices';
 import {retireExpiredEodRun} from './eod-recovery';
+import {processBulkEodRun,EOD_BULK_SIZE} from './eod-bulk-run';
+import {planBulkEodWork,persistBulkEodPrices,finalizeBulkEodScores} from './eod-prices';
 import {parseEodBatchRequest,processEodBatchedRun,processEodCompanyBatch,type EodBatchRequest} from './eod-batch-queue';
 
 export type EodCompanyRunRequest=Omit<EodRequest,'version'|'type'>&{version:2;type:'eod.company-run.requested'};
@@ -64,7 +66,7 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
   };
   if(message.type==='company.work.requested'){
     const retired=await parentRef(db,message.parentBatchId).get();
-    if(retired.get('batchVersion')===1)return {batchId:message.batchId,duplicate:true};
+    if([1,2].includes(retired.get('batchVersion')))return {batchId:message.batchId,duplicate:true};
     if(retired.get('completed')===true&&retired.get('status')==='FAILED')return {batchId:message.batchId,status:'FAILED',retired:true};
     return processCompanyWork<EodCompanyRunRequest>(message,{
       db,parent:parentRef(db,message.parentBatchId),state,collection:'eod_runs',owner:log.runId,publish,work:work(message),
@@ -109,6 +111,21 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     throw Error('Previous company run is unfinished; recovery requested');
   }
   const input={...message.input,...(prior?.result?.parentRequest?{skipHistoryBackfill:true}:{})};
+  // Version 1 upgrades only after acquiring its parent lease, preserving its
+  // frozen manifest. Delayed old batch messages become safe bulk continuations.
+  if(prior?.batchVersion===2||(!prior?.result?.parentRequest&&process.env.EOD_COMPANY_BATCHES==='1000'&&(!prior?.companyIds||prior?.batchVersion===1))){
+    const outcome=await processBulkEodRun(message,{db,owner:log.runId,publish,upgradeBatchedRun:true,
+      plan:()=>planBulkEodWork(input,db),prices:(ids,retry)=>persistBulkEodPrices(input,ids,retry,db),
+      predictions:async cursor=>{
+        if(input.markPredictions===false)return null;
+        const result=await runDailyEodMaintenance({...input,skipHistoryBackfill:true,limit:EOD_BULK_SIZE,afterPredictionId:cursor??undefined},
+          {taskId:`bulk_${message.batchId}`,bulk:true});
+        if(result.priceLoad.failed||result.marking.missingPrice||result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred)throw Error('Bulk EOD predictions remain incomplete');
+        if(result.hasMoreCandidatePredictions&&!result.nextPredictionId)throw Error('Missing EOD prediction cursor');
+        return result.hasMoreCandidatePredictions?result.nextPredictionId!:null;
+      },finalize:cursor=>finalizeBulkEodScores(input,cursor,db)});
+    log.emit('INFO','eod_bulk_progress',outcome);return outcome;
+  }
   const options={
     db,ref,state,collection:'eod_runs',kind:'eod' as const,owner:log.runId,publish,
     plan:async()=>{

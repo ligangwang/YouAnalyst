@@ -117,6 +117,44 @@ export async function writeCachedPrice(db:Firestore,ref:DocumentReference,patch:
  });
 }
 
+/** Daily imports commit source rows and initialized graph caches together.
+ * 200 rows plus at most 200 buckets and one version document stay bounded.
+ * Retries re-read both sources and caches, preserving concurrent corrections. */
+export async function writeCachedPrices(db:Firestore,rows:Array<{ref:DocumentReference;patch:Record<string,unknown>}>) {
+ for(let offset=0;offset<rows.length;offset+=200){
+  const page=rows.slice(offset,offset+200);
+  await db.runTransaction(async tx=>{
+   const sources=await tx.getAll(...page.map(row=>row.ref));
+   const changes=page.map((row,i)=>{
+    const previous=sources[i].data()??{},next={...previous,...row.patch},ticker=String(next.ticker??'');
+    const instrument=predictionInstrument(ticker),key=instrument?keyFor(ticker):'';
+    return {row,previous,next,ticker,key,id:instrument?bucketFor(key):'',changed:Boolean(instrument)&&JSON.stringify(barFrom(previous,ticker))!==JSON.stringify(barFrom(next,ticker))};
+   });
+   const ids=[...new Set(changes.filter(c=>c.changed).map(c=>c.id))];
+   const buckets=ids.length?await tx.getAll(...ids.map(id=>refFor(db,id))):[];
+   const entries=new Map(buckets.map((doc,i)=>[ids[i],(doc.get('entries')??{}) as Bucket['entries']]));
+   const dirty=new Set<string>();
+   for(const c of changes){
+    tx.set(c.row.ref,c.row.patch,{merge:true});
+    const bucket=entries.get(c.id),entry=c.changed?bucket?.[c.key]:undefined;
+    if(!entry||!bucket)continue;
+    const bar=barFrom(c.next,c.ticker),oldBar=barFrom(c.previous,c.ticker);
+    if(!bar&&entry.bars.some(item=>item.date===oldBar?.date))delete bucket[c.key];
+    else {
+     const changedDate=bar?.date??oldBar?.date;
+     const updated={bars:bar?priceBars([...entry.bars,bar],'9999-12-31').slice(-2):entry.bars,
+      baselines:Object.fromEntries(Object.entries(entry.baselines).filter(([through])=>!changedDate||through<changedDate))};
+     if(JSON.stringify(updated)===JSON.stringify(entry))continue;
+     bucket[c.key]=updated;
+    }
+    dirty.add(c.id);
+   }
+   for(const id of dirty)tx.set(refFor(db,id),{entries:entries.get(id)!});
+   if(dirty.size)tx.set(db.collection('collectors').doc(META),{buckets:Object.fromEntries([...dirty].map(id=>[id,randomUUID()]))},{merge:true});
+  });
+ }
+}
+
 /** Create missing history for one instrument in one transaction. The source
  * rows and the graph cache revision commit together, at most once per batch. */
 export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:DocumentReference;patch:Record<string,unknown>}>,options:{createFirst?:boolean}={}){

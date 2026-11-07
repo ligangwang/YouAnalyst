@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import type {Firestore} from 'firebase-admin/firestore';
 import {runDailyEodMaintenance,scanEodPredictions,type EodPrice} from '../../src/lib/predictions/eod-prices';
 
-test('a real company stage marks its prediction without reading other symbols or publishing portfolio scores',async t=>{
+for(const bulk of [false,true])test(`a real ${bulk?'bulk':'company'} stage marks predictions and defers portfolio scores`,async t=>{
   const previous=globalThis.__adminApp;
   t.after(()=>{globalThis.__adminApp=previous;});
   t.mock.method(console,'info',()=>{});
@@ -40,13 +40,21 @@ test('a real company stage marks its prediction without reading other symbols or
   } as unknown as Firestore;
   globalThis.__adminApp={firestore:()=>db} as unknown as NonNullable<typeof globalThis.__adminApp>;
   const price:EodPrice={ticker:'AMD',market:'US',requestedDate:'2026-01-02',tradingDate:'2026-01-02',open:10,high:12,low:9,close:11,volume:100,source:'eodhd-bulk-eod',providerSymbol:'AMD.US',exchange:'US',exchangeTimezone:'America/New_York',micCode:'US',loadedAt:'2026-01-03T00:00:00Z',isFinal:true,previousClose:null,previousTradingDate:null,dailyReturn:null};
-  const result=await runDailyEodMaintenance({market:'US',runDate:'2026-01-02',tickers:['AMD'],limit:50},{taskId:'amd-task',price});
-  assert.equal(result.marking.opened,1);
+  const token=process.env.EODHD_API_TOKEN;
+  if(bulk){
+    process.env.EODHD_API_TOKEN='test';t.after(()=>{if(token===undefined)delete process.env.EODHD_API_TOKEN;else process.env.EODHD_API_TOKEN=token;});
+    for(const ticker of ['AMD','MSFT']){
+      rows.set(`eod_prices/US_${ticker}_2026-01-02`,{...price,ticker});
+      rows.set(`collectors/split-history_US_${ticker}`,{historyComplete:true,schemaVersion:1,lastSuccessfulThrough:'2026-01-02'});
+    }
+  }
+  const result=await runDailyEodMaintenance({market:'US',runDate:'2026-01-02',...(bulk?{}:{tickers:['AMD']}),limit:1000},bulk?{taskId:'bulk-task',bulk:true}:{taskId:'amd-task',price});
+  assert.equal(result.marking.opened,bulk?2:1);
   assert.equal(rows.get('predictions/a')?.status,'OPEN');
-  assert.equal(rows.get('predictions/b')?.status,'CREATED');
+  assert.equal(rows.get('predictions/b')?.status,bulk?'OPEN':'CREATED');
   assert.equal((rows.get('users/owner')?.stats as {totalScore:number}).totalScore,123);
   assert.ok(!rows.has('eod_runs/US_2026-01-02'),'a company cannot mark the market run completed');
-  assert.ok(queries.some(q=>q.name==='predictions'&&q.filters.some(f=>f[0]==='ticker'&&f[2]==='AMD')));
+  assert.ok(queries.some(q=>q.name==='predictions'&&q.filters.some(f=>bulk?f[0]==='status':f[0]==='ticker'&&f[2]==='AMD')));
   await assert.rejects(runDailyEodMaintenance({market:'US',runDate:'2026-01-02',tickers:['AMD']},{taskId:'wrong',price:{...price,ticker:'MSFT'}}),/Invalid prepared company price/);
   const scan=await scanEodPredictions(db,'2026-01-02',50,['AMD'],'US');
   assert.ok(scan.candidatePredictions.every(p=>p.ticker==='AMD'));

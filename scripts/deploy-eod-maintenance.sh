@@ -52,12 +52,19 @@ fi
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"); const e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,NODE_OPTIONS:"--max-old-space-size=1536",GIT_SHA:e.GIT_SHA||"unknown",EOD_SUBSCRIPTION:"eod-maintenance-worker",EOD_COMPANY_BATCHES:"100"}; for(const key of ["CENTRAL_CACHE_URL","TWELVE_DATA_API_KEY","TWELVE_DATA_API_URL","EODHD_API_TOKEN","EODHD_API_URL","EODHD_BULK_EOD_BUCKET"]) if(e[key]) values[key]=e[key]; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
+node -e 'const fs=require("fs"); const e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,NODE_OPTIONS:"--max-old-space-size=1536",GIT_SHA:e.GIT_SHA||"unknown",EOD_SUBSCRIPTION:"eod-maintenance-worker",EOD_COMPANY_BATCHES:"1000"}; for(const key of ["CENTRAL_CACHE_URL","TWELVE_DATA_API_KEY","TWELVE_DATA_API_URL","EODHD_API_TOKEN","EODHD_API_URL","EODHD_BULK_EOD_BUCKET"]) if(e[key]) values[key]=e[key]; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-eod-maintenance.cjs --min-instances 0 --max-instances 4 \
   --concurrency 1 --timeout 600 --memory 2Gi --cpu 1 --cpu-throttling \
-  --env-vars-file "$env_file" --quiet
+  --startup-probe 'httpGet.path=/health,httpGet.port=8080,periodSeconds=10,timeoutSeconds=5,failureThreshold=24' \
+  --env-vars-file "$env_file" --no-traffic --tag candidate --quiet
+# Keep the current worker serving until the candidate has passed its startup
+# health check. Existing 100-company runs hand off at a fenced batch boundary.
+candidate_revision="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.latestReadyRevisionName)')"
+created_revision="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.latestCreatedRevisionName)')"
+[[ -n "$candidate_revision" && "$candidate_revision" == "$created_revision" ]] || { echo 'EOD candidate is not ready' >&2; exit 1; }
+gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --region "$region" --to-revisions "$candidate_revision=100" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"

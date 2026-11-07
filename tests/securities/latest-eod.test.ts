@@ -1,8 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {shouldReplaceLatest,readLatestUsPrices,saveLatestEodPrice} from "../../src/lib/predictions/latest-eod";
+import {shouldReplaceLatest,readLatestUsPrices,saveLatestEodPrice,saveLatestEodPrices} from "../../src/lib/predictions/latest-eod";
+import {pubsubFirestore} from '../helpers/pubsub-firestore';
 import type {Firestore} from "firebase-admin/firestore";
 const price={ticker:"MU",market:"US",tradingDate:"2026-09-18",close:100,currency:"USD",source:"test",loadedAt:"now"};
+test('bulk latest pointers preserve newer closes and exchange-specific listings',async()=>{
+ const f=pubsubFirestore(),collection=f.db.collection.bind(f.db);let queries=0;
+ f.rows.set('tickers/US_MU',{symbol:'MU',country:'United States',currency:'USD',latestEodPrice:{...price,tradingDate:'2026-09-21'}});
+ f.rows.set('tickers/US_AMD',{symbol:'AMD',country:'United States',currency:'USD'});
+ f.rows.set('tickers/OTHER_AMD',{symbol:'AMD',country:'Canada',currency:'CAD'});
+ f.db.collection=((name:string)=>({...collection(name),where:(_key:string,_op:string,symbols:string[])=>({get:async()=>{
+   queries++;return {docs:await Promise.all([...f.rows.entries()].filter(([path,row])=>path.startsWith(name+'/')&&symbols.includes(String(row.symbol)))
+    .map(async([path])=>{const ref=collection(name).doc(path.split('/')[1]);return {...await ref.get(),ref};}))};
+ }})})) as typeof f.db.collection;
+ await saveLatestEodPrices(f.db,[price,{...price,ticker:'AMD'},{...price,ticker:'NEW'}]);
+ assert.equal(queries,1);
+ assert.equal((f.rows.get('tickers/US_MU')?.latestEodPrice as typeof price).tradingDate,'2026-09-21');
+ assert.equal((f.rows.get('tickers/US_AMD')?.latestEodPrice as typeof price).close,100);
+ assert.equal(f.rows.get('tickers/OTHER_AMD')?.latestEodPrice,undefined);
+ assert.equal(f.rows.get('tickers/US_NEW')?.predictionSupported,false);
+ const writes=f.writes.length;await saveLatestEodPrices(f.db,[price,{...price,ticker:'AMD'}]);assert.equal(f.writes.length,writes);
+});
 test("latest prices accept same-date corrections but never roll backward or mix markets",()=>{
  assert.equal(shouldReplaceLatest(price,{...price,tradingDate:"2026-09-17"}),false);
  assert.equal(shouldReplaceLatest(price,{...price,close:101}),true);

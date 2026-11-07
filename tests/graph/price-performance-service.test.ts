@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
 import {attachPricePerformance} from '../../src/lib/intelligence/price-performance-service';
-import {loadPriceCache,createCachedPriceBatch,writeCachedPrice} from '../../src/lib/intelligence/price-cache';
+import {loadPriceCache,createCachedPriceBatch,writeCachedPrice,writeCachedPrices} from '../../src/lib/intelligence/price-cache';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import type {IntelligenceEvent} from '../../src/lib/intelligence/model';
 
@@ -164,4 +164,27 @@ test('scoped price cache reads only requested buckets and retains concurrent buc
  f.data.set(`collectors/_graph_prices_v1_${ids[0]}`,{entries:{US_AMD:entry(110)}});
  assert.equal((await loadPriceCache(db,['AMD'])).entries.US_AMD.bars[0].close,110);
  await loadPriceCache(db,['MU']);assert.equal(reads.length,3,'correction must reload only its own bucket');
+});
+
+
+test('bulk daily prices update graph bars atomically and roll back on failure',async()=>{
+ const f=fixture(),db=f.client();f.seed('2026-10-02',110);f.seed('2026-10-05',121);
+ await attachPricePerformance(db,graph,[event],now);
+ const version=f.versions();
+ const row={ref:db.collection('eod_prices').doc('US_UNIT_2026-10-05'),patch:{ticker:'UNIT',market:'US',isFinal:true,tradingDate:'2026-10-05',rawClose:132}};
+ f.fail();await assert.rejects(writeCachedPrices(db,[row]),/commit failed/);
+ assert.equal(f.data.get(row.ref.path)?.rawClose,121);assert.equal(f.versions(),version);
+ await writeCachedPrices(db,[row]);
+ assert.equal((await attachPricePerformance(db,graph,[],now)).graph.nodes[0].dailyPrice?.close,132);
+ assert.equal(f.versions(),version+1);
+ await writeCachedPrices(db,[row]);assert.equal(f.versions(),version+1,'replay must not invalidate unchanged graph prices');
+});
+
+test('1000 prices split into bounded atomic commits without dropping rows',async()=>{
+ const f=fixture(),db=f.client();
+ const rows=Array.from({length:1000},(_,i)=>({ref:db.collection('eod_prices').doc(`US_T${i}_2026-10-05`),
+  patch:{ticker:`T${i}`,market:'US',isFinal:true,tradingDate:'2026-10-05',rawClose:100+i}}));
+ await writeCachedPrices(db,rows);
+ assert.equal([...f.data.keys()].filter(k=>k.startsWith('eod_prices/')).length,1000);
+ assert.equal(f.versions(),0,'uninitialized graph entries need no version writes');
 });
