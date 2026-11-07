@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {intelligencePayload} from '../../src/lib/intelligence/transport';
+import {intelligencePayload} from '../../src/lib/ui/intelligence-transport';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 
 test('compact feed retains complete totals and graph identity while paging detailed events',()=>{

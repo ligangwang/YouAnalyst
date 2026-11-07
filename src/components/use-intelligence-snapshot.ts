@@ -3,8 +3,7 @@
 import {useThemeCatalog} from './use-theme-catalog';
 import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
-import type {IntelligencePayload} from '@/lib/intelligence/transport';
-import type { IntelligenceSnapshot } from '@/lib/intelligence/model';
+import type {IntelligencePayload,PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
 const clearedThemeSelection = { company: '', feedCompany: '', relationship: '', event: '', q: '', page: '' };

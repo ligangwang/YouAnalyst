@@ -1,4 +1,4 @@
-import {intelligencePayload} from '@/lib/intelligence/transport';
+import {intelligencePayload} from '@/lib/ui/intelligence-transport';
 import { loadCompanyIntelligenceSnapshot,loadIntelligenceUniverse } from '@/lib/intelligence/service';
 import { after } from 'next/server';
 import { createHash } from 'node:crypto';

@@ -1,4 +1,5 @@
 "use client";
+import type {PresentationIntelligenceSnapshot as IntelligenceSnapshot} from "@/lib/ui/intelligence-transport";
 import { useThemeCatalog } from './use-theme-catalog';
 
 import { LoadingSpinner } from './loading-spinner';
@@ -46,7 +47,7 @@ import { industryTree } from '@/lib/ui/knowledge-graph/industry-tree';
 import { matchesCompanySector, graphSectors } from '@/lib/knowledge-graph/sectors';
 import { researchCompanyUrl } from '@/lib/knowledge-graph/research-view';
 import { relationshipVerification } from '@/lib/knowledge-graph/relationship-status';
-import { intelligenceEventTitle, intelligenceEventMatchesId, sourceDocumentsForEvents, summarizeSourceDocuments, summarizeIntelligence, sourceChannel, type IntelligenceEvent, type IntelligenceSnapshot, type IntelligenceSource } from '@/lib/intelligence/model';
+import { intelligenceEventTitle, intelligenceEventMatchesId, sourceDocumentsForEvents, summarizeSourceDocuments, summarizeIntelligence, sourceChannel, type IntelligenceEvent,  type IntelligenceSource } from '@/lib/intelligence/model';
 import mobile from './intelligence-mobile.module.css';
 import styles from './investment-intelligence.module.css';
 import controls from './intelligence-workspace-controls.module.css';
