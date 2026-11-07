@@ -3,6 +3,7 @@ import {componentFixtureHtml} from './fixtures/component-html';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
+import {encodeIntelligenceSnapshot,type EncodedIntelligenceSnapshot} from '../../src/lib/ui/intelligence-transport';
 import {companySearchRank} from '../../src/lib/knowledge-graph/model';
 import {sourceDocumentsForEvents} from '../../src/lib/intelligence/model';
 import {mergeIntelligenceEvents} from '../../src/lib/intelligence/project';
@@ -42,14 +43,14 @@ test('workspace locates AMD across tree hierarchy and paginated list without los
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
-async function workspaceFixture(realCharts=false,fixture=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean}={}){
+async function workspaceFixture(realCharts=false,fixture:EncodedIntelligenceSnapshot=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean}={}){
   return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';createRoot(document.getElementById('root')).render(<>${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence initialEvent={new URLSearchParams(location.search).get('event')??''} initialView={new URLSearchParams(location.search).get('view')??''} initialCompany={new URLSearchParams(location.search).get('company')??''} ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     if(options.scenery===false){
       build.onResolve({filter:/tree-meadow-environment$/},()=>({path:'meadow',namespace:'lifecycle-scenery'}));
       build.onLoad({filter:/.*/,namespace:'lifecycle-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
     }
     build.onResolve({filter:realCharts?/(?:locale-provider|auth-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|auth-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
-    build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='auth-provider'?`export function useAuth(){return {user:null,getIdToken:async()=>null}}export const useOptionalAuth=useAuth;`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
+    build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`globalThis.__workspaceGraphImports=(globalThis.__workspaceGraphImports??0)+1;export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='auth-provider'?`export function useAuth(){return {user:null,getIdToken:async()=>null}}export const useOptionalAuth=useAuth;`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
   }},...(realCharts?[tourClockPlugin]:[])]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}');
 }
 test.beforeAll(async()=>{
@@ -2003,4 +2004,44 @@ test('server-provided compact snapshot avoids duplicate initial requests',async(
  await page.getByRole('button',{name:'Show 10 more',exact:true}).click();
  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(20);
  expect(requests).toBe(1);
+});
+
+
+test('compact server graph restores company names without a duplicate bootstrap',async({page,isMobile})=>{
+ const body=await workspaceFixture(false,encodeIntelligenceSnapshot({...snapshot,events:snapshot.events.slice(0,20)}));let requests=0;
+ await page.route('**/*',route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  if(new URL(route.request().url()).pathname==='/api/intelligence'){requests++;return route.fulfill({json:snapshot});}
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=table');
+ if(isMobile)await page.getByRole('button',{name:'Explore',exact:true}).click();
+ await expect(page.locator('[data-list-company="US:MU"]')).toContainText('Micron');
+ expect(requests).toBe(0);
+ expect(await page.evaluate(()=>Reflect.get(window,'__workspaceGraphImports'))).toBeUndefined();
+});
+
+test('3D import starts while compact graph and feed are still pending and is reused',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);let release!:()=>void;
+ const ready=new Promise<void>(resolve=>{release=resolve;});let graphReads=0;
+ await page.route('**/*',async route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/intelligence'){
+   await ready;
+   if(url.searchParams.get('section')==='universe'){
+    graphReads++;expect(url.searchParams.get('graph')).toBe('compact');
+    return route.fulfill({json:encodeIntelligenceSnapshot({...snapshot,events:[],eventsPending:true})});
+   }
+   return route.fulfill({json:{...snapshot,graph:undefined,events:snapshot.events.slice(0,20)}});
+  }
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=graph');
+ await expect.poll(()=>page.evaluate(()=>Reflect.get(window,'__workspaceGraphImports'))).toBe(1);
+ await expect(page.getByText('Local interaction fixture')).toHaveCount(0);
+ release();
+ await expect(page.getByText('Local interaction fixture')).toBeVisible();
+ expect(graphReads).toBe(1);
+ expect(await page.evaluate(()=>Reflect.get(window,'__workspaceGraphImports'))).toBe(1);
 });

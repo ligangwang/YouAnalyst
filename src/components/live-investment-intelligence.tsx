@@ -1,5 +1,6 @@
 "use client";
-import type {PresentationIntelligenceSnapshot as IntelligenceSnapshot} from "@/lib/ui/intelligence-transport";
+import {decodeIntelligenceSnapshot,type EncodedIntelligenceSnapshot,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from "@/lib/ui/intelligence-transport";
+import {CompanyGraph3D as Universe,PreloadCompanyGraph} from './company-graph-loader';
 import { useThemeCatalog } from './use-theme-catalog';
 
 import { LoadingSpinner } from './loading-spinner';
@@ -55,7 +56,6 @@ import summaryStyles from './intelligence-summary.module.css';
 import liveStyles from './intelligence-live.module.css';
 import viewStyles from './intelligence-center-views.module.css';
 
-const Universe=lazy(()=>import('./company-graph-3d'));
 const Tree=lazy(()=>import('./industry-tree').then(module=>({default:module.IndustryStructure})));
 const Hierarchy=lazy(()=>import('./industry-hierarchy').then(module=>({default:module.IndustryHierarchy})));
 const CompanyTable=lazy(()=>import('./industry-company-views').then(module=>({default:module.IndustryCompanyTable})));
@@ -69,11 +69,12 @@ const shortDate=(value:string)=>value.slice(5);
 type Panels={left:boolean|null;right:boolean};
 
 /** Failure never falls back to demo data. Polls pause in hidden tabs. */
-export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{initialSnapshot?:IntelligenceSnapshot}&WorkspaceInitialState={}){
+export function LiveInvestmentIntelligence({initialSnapshot:initialPayload,...initialState}:{initialSnapshot?:EncodedIntelligenceSnapshot}&WorkspaceInitialState={}){
+  const [initialSnapshot]=useState(()=>initialPayload?decodeIntelligenceSnapshot(initialPayload):undefined);
   const {snapshot,theme,error,changeTheme,reconnect,loadPreviousDay,loadingOlder,loadFullEvents}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
   const {ids:guestSaved,change:changeGuestSaved}=useSessionCompanyWatchlist();
   const [panels,setPanels]=useState<Panels>({left:null,right:true});
-  if(!snapshot)return <IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/>;
+  if(!snapshot)return <><PreloadCompanyGraph enabled={(parseIndustryView(initialState.initialView)??'graph')==='graph'}/><IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/></>;
   return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} changeGuestSaved={changeGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect} loadPreviousDay={loadPreviousDay} loadingOlder={loadingOlder} loadFullEvents={loadFullEvents}/>;
 }
 

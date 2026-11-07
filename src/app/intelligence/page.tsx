@@ -1,4 +1,6 @@
-import {compactIntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {compactIntelligenceSnapshot,encodeIntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {PreloadCompanyGraph} from '@/components/company-graph-loader';
+import {parseIndustryView} from '@/lib/knowledge-graph/views';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { IntelligenceLoadingShell } from '@/components/intelligence-loading-shell';
@@ -16,7 +18,7 @@ export default async function IntelligencePage({searchParams}:{searchParams:Prom
   const params=await searchParams;
   const value=(key:string)=>typeof params[key]==='string'?params[key]:'';
   const theme=parseCompanyTheme(value('theme'));
-  return <Suspense fallback={<IntelligenceLoadingShell theme={theme}/>}><InitialWorkspace theme={theme} value={value}/></Suspense>;
+  return <><PreloadCompanyGraph enabled={(parseIndustryView(value('view'))??'graph')==='graph'}/><Suspense fallback={<IntelligenceLoadingShell theme={theme}/>}><InitialWorkspace theme={theme} value={value}/></Suspense></>;
 }
 
 async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>string}){
@@ -26,6 +28,6 @@ async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>
   theme=resolved;
   // The shared read may outlive the HTML budget; retain its targeted scope
   // while it warms the same complete snapshot used by the browser API.
-  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>compactIntelligenceSnapshot(await loadIntelligenceSnapshot(new Date(),theme,undefined,undefined,true)))):undefined;
+  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>encodeIntelligenceSnapshot(compactIntelligenceSnapshot(await loadIntelligenceSnapshot(new Date(),theme,undefined,undefined,true))))):undefined;
   return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
 }

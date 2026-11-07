@@ -20,7 +20,7 @@ export async function GET(request:Request){
     // Complete published graphs need targeted members and valuations, not the
     // entire market's company/fundamentals snapshot files on a fresh instance.
     const snapshot=await withCompanyPageReads(()=>params.get('section')==='universe'?loadIntelligenceUniverse(new Date(),theme):loadCompanyIntelligenceSnapshot(new Date(),theme,params.get('company')??'',params.get('q')??'',params.get('region')??'',after,params.get('before')??undefined,true));
-    const body=JSON.stringify(intelligencePayload(snapshot,params.get('payload')==='compact',params.get('graph')==='omit'&&params.get('section')!=='universe'));
+    const body=JSON.stringify(intelligencePayload(snapshot,params.get('payload')==='compact',params.get('graph')==='omit'&&params.get('section')!=='universe',params.get('graph')==='compact'));
     const headers:Record<string,string>={'Cache-Control':'no-store','Content-Type':'application/json; charset=utf-8','Vary':'Accept-Encoding'};
     const etag=`W/"${createHash('sha256').update(body).digest('hex')}"`;
     headers.ETag=etag;
