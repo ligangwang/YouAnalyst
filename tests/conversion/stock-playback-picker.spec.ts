@@ -275,3 +275,22 @@ test('date range design preview', async ({ page }) => {
   await expect(page.getByLabel('To', { exact: true })).not.toHaveAttribute('readonly', '');
   await page.locator('#comparison-editor').screenshot({ path: test.info().outputPath('range-custom-preview.png') });
 });
+
+test('choosing a period during the initial latest-date lookup finishes automatically',async({page})=>{
+ let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/*',async route=>{
+  const url=new URL(route.request().url());
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body:html});
+  if(url.pathname==='/api/compare'){
+   if(url.searchParams.get('latest')==='1')await held;
+   return route.fulfill({json:{dates:['2025-11-05','2026-11-05'],series:[{symbol:'AAPL',values:[0,20]}],frequency:'Daily',source:'Fixture'}});
+  }
+  return route.fulfill({json:{items:[],total:0}});
+ });
+ await page.goto('http://playback.test/en/compare');await page.getByTestId('comparison-date').waitFor();
+ await page.getByRole('button',{name:'Latest trading date',exact:true}).click();
+ await page.getByRole('button',{name:'1W',exact:true}).click();release();
+ await expect(page.getByLabel('To',{exact:true})).toHaveValue('2026-11-05');
+ await expect(page.getByLabel('From',{exact:true})).toHaveValue('2026-10-29');
+ await expect(page.getByRole('button',{name:'Compare',exact:true})).toBeEnabled();
+});

@@ -250,7 +250,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
           <button type="button" aria-pressed={rangeMode === "custom"} onClick={clearLatestDate}>{text("Custom dates", "自定义日期")}</button>
         </div>
         <div className={styles.rangePeriods} role="group" aria-label={text("Comparison period", "对比时长")}>
-          {[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} aria-pressed={selectedPeriod === period && draft.start === rangeStart(draft.end || initial.end, period)} onClick={() => { latestRequest.current?.abort(); latestPeriod.current = period; setSelectedPeriod(period); setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}
+          {[0, 1, 3, MAX_PLAYBACK_YEARS].map(period => <button type="button" key={period} aria-pressed={selectedPeriod === period && draft.start === rangeStart(draft.end || initial.end, period)} onClick={() => { if (latestDate) latestRequest.current?.abort(); latestPeriod.current = period; setSelectedPeriod(period); setDraft({ ...draft, start: rangeStart(draft.end || initial.end, period) }); }}>{period === 0 ? "1W" : `${period}Y`}</button>)}
         </div>
       </div>
       <div className={styles.settings}>

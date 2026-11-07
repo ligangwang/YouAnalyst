@@ -137,3 +137,15 @@ test("worker reuses setup between pages but retries re-read after partial failur
  await processEodMaintenance(f.message,f.db,f.log,{run});
  assert.equal(reads,2);
 });
+
+test('legacy latest-date publication failure retries the final checkpoint atomically',async()=>{
+ const f=await fixture();let fail=true;
+ f.reject(path=>path==='eod_runs/_latest_US'&&fail);
+ const run=async()=>({...result(),latestTradingDate:input.runDate});
+ await assert.rejects(processEodMaintenance(f.message,f.db,f.log,{run}),/transaction failed/);
+ assert.equal(f.rows.get('eod_runs/_latest_US'),undefined);
+ assert.equal(f.rows.get(f.ref)?.dateIndex,0);
+ fail=false;await processEodMaintenance(f.message,f.db,f.log,{run});
+ assert.equal(f.rows.get('eod_runs/_latest_US')?.runDate,input.runDate);
+ assert.equal(f.rows.get(f.ref)?.completed,true);
+});
