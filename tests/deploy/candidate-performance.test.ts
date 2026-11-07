@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {readFileSync} from 'node:fs';
-import {verifyCandidatePerformance} from '../../scripts/verify-candidate-performance.mjs';
+import {verifyCandidatePerformance,navigateCandidatePage} from '../../scripts/verify-candidate-performance.mjs';
 
 test('performance gate interleaves fresh samples and rejects a slower candidate',async()=>{
  const calls:string[]=[];
@@ -41,4 +41,18 @@ test('complete readiness takes the later signal per load before computing the me
   return url==='new'?{graphMs:2400,feedMs:1800}:{graphMs:graph[reads[url]-2],feedMs:feed[reads[url]-2]};
  }});
  assert.equal(result.baselineReadyMedianMs,3000);assert.equal(result.candidateReadyMedianMs,2400);
+});
+
+test('browser navigation retries transient tagged-route 404s before timing the application',async()=>{
+ let calls=0,sleeps=0;const codes=[404,404,200];
+ const status=await navigateCandidatePage({goto:async()=>({status:()=>codes[calls++]})},'https://candidate.test/en',{sleep:async()=>{sleeps++;},log:()=>{}});
+ assert.equal(status,200);assert.equal(calls,3);assert.equal(sleeps,2);
+});
+
+test('persistent navigation 404s and non-404 failures cannot pass browser validation',async()=>{
+ for(const [status,expected] of [[404,7],[500,1],[429,1]]){
+  let calls=0;
+  await assert.rejects(navigateCandidatePage({goto:async()=>{calls++;return {status:()=>status};}},'https://candidate.test/en',{sleep:async()=>{},log:()=>{}}),new RegExp(`HTTP ${status}.*existing traffic stays unchanged`));
+  assert.equal(calls,expected);
+ }
 });

@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import probe from './graph-readiness-probe.cjs';
+import {taggedReleaseRequest} from './tagged-release-request.mjs';
 const {installGraphReadinessProbe}=probe;
 
 const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
+
+/** A completed error document is not an application timing sample. */
+export async function navigateCandidatePage(page,url,{sleep,log}={}){
+  const response=await taggedReleaseRequest(url,{method:'GET'},{sleep,log,request:async target=>{
+    const navigation=await page.goto(target,{waitUntil:'domcontentloaded',timeout:60000});
+    assert(navigation,'Candidate navigation returned no HTTP response');
+    return {status:navigation.status()};
+  }});
+  assert.equal(response.status,200,`Browser navigation returned HTTP ${response.status}; existing traffic stays unchanged`);
+  return response.status;
+}
 
 /** Interleave fresh browser contexts so deployment warmth/order cannot choose a winner. */
 export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measure,samples=5,maxRegressionRatio=1.1,maxGraphDelayMs=1000,log=console.log}) {
@@ -45,23 +57,24 @@ async function run() {
     await verifyCandidatePerformance({candidateUrl:process.env.CANDIDATE_URL,baselineUrl:process.env.BASELINE_URL,measure:async url=>{
       // Release the GPU process between samples, not just the page/context.
       const browser=await chromium.launch();
-      let page;const errors=[];
+      let page,navigationStatus;const errors=[];
       try {
         const context=await browser.newContext({viewport:{width:1440,height:1000}});
         page=await context.newPage();
-        page.on('pageerror',error=>errors.push(error.message.slice(0,160)));
+        page.on('pageerror',error=>{if(errors.length<20)errors.push(error.message.slice(0,160));});
+        page.on('requestfailed',request=>{if(errors.length<20)errors.push(`${new URL(request.url()).pathname}: ${request.failure()?.errorText??'request failed'}`.slice(0,180));});
         await page.addInitScript(installGraphReadinessProbe);
-        await page.goto(new URL('/en',url).href,{waitUntil:'domcontentloaded',timeout:60000});
+        navigationStatus=await navigateCandidatePage(page,new URL('/en',url).href);
         await page.waitForFunction(()=>window.__releaseGraphReadyAt!==null&&window.__releaseFeedReadyAt!==null,{},{timeout:45000});
         const duration=await page.evaluate(()=>({graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt}));
         await page.waitForTimeout(300);
         return duration;
       } catch(error) {
         const state=page?await Promise.race([
-          page.evaluate(()=>({graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt,canvases:document.querySelectorAll('canvas').length,feeds:document.querySelectorAll('#intelligence-event-stream').length})).catch(()=>({unavailable:true})),
+          page.evaluate(()=>({title:document.title,body:document.body?.innerText.slice(0,240),graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt,canvases:document.querySelectorAll('canvas').length,feeds:document.querySelectorAll('#intelligence-event-stream').length,scripts:document.scripts.length})).catch(()=>({unavailable:true})),
           new Promise(resolve=>setTimeout(()=>resolve({unresponsive:true}),2000)),
         ]):{pageUnavailable:true};
-        console.error(JSON.stringify({event:'candidate_browser_readiness_failure',url,state,errors}));
+        console.error(JSON.stringify({event:'candidate_browser_readiness_failure',url,navigationStatus:navigationStatus??error.actual,state,errors}));
         throw error;
       } finally {await browser.close();}
     }});
