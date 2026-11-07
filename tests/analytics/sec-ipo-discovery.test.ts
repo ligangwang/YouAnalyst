@@ -76,6 +76,7 @@ test('registration stays pending and failed provider runs release the lease with
   const f=ipoFixture(),now=Date.parse('2026-11-07T16:00:00Z'),options={clock:()=>now,capacity:async()=>{},pause:async()=>{}};
   const source={daily:async(day:string)=>day==='2026-11-06'?index.replace('424B4','S-1'):header,mapping:async()=>mapping,submission:async()=>submission,cover:async()=>cover};
   assert.equal((await runSecIpoDiscovery(f.db,source,options)).created,0);assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000123')?.status,'PENDING');
+  assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000123')?.nextCheckAt,now+7*86400000);
   const cursor=f.rows.get('sec_ipo_discovery/scan')?.cursor;
   await assert.rejects(runSecIpoDiscovery(f.db,{...source,daily:async()=>{throw Error('SEC unavailable');}},options));
   assert.equal(f.rows.get('sec_ipo_discovery/scan')?.cursor,cursor);assert.equal(f.rows.get('sec_ipo_discovery/scan')?.leaseOwner,null);

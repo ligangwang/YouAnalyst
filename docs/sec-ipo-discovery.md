@@ -45,8 +45,12 @@ deadline is reached. Provider/storage errors stop new IPO work; existing known-
 company SEC collection continues independently. SEC requests use the existing
 shared request budget and declared User-Agent. The first run starts a rolling
 30-day backfill, advancing at most two older calendar days per invocation, and
-rechecks the latest three days for late indexes. Pending issuers are revisited
-daily. The job's existing schedule determines discovery latency.
+rechecks the latest three days for late indexes. Recent final prospectuses awaiting
+confirmation are revisited daily; registrations without a final prospectus wait
+a week, and final evidence older than 30 days waits a month. New filing evidence
+always makes the candidate due immediately. This keeps old registrations and
+resales from crowding out fresh IPOs. The job's existing schedule determines
+discovery latency.
 
 Inspect `sec_ipo_discovery/scan` for `lastRunAt`, `lastError`, `counts` and `cursor`;
 inspect candidates for `filings`, `status`, `nextCheckAt` and `lastError`. Job logs

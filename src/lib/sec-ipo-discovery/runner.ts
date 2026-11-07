@@ -44,7 +44,8 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
       await guard();const candidate=doc.data();if(candidate.kind!=='CANDIDATE'||candidate.status==='REVIEW')continue;
       counts.checked++;const cik=String(candidate.cik),filings=candidate.filings as Filing[];
       try{
-      const submission=await source.submission(cik),prospectuses=resolveProspectuses(submission,filings,cik);
+      const hasFinal=filings.some(f=>['424B4','424B1'].includes(f.form));
+      const submission=hasFinal?await source.submission(cik):null,prospectuses=hasFinal?resolveProspectuses(submission,filings,cik):[];
       let confirmed=false;
       if(prospectuses.length){
         const listings=confirmedMappings(await source.mapping(),submission,cik);
@@ -62,7 +63,9 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
         }
       }
       const current=await doc.ref.get();
-      if(current.get('status')!=='REVIEW')await doc.ref.update({status:confirmed?'CONFIRMED':'PENDING',lastCheckedAt:at(),lastError:null,nextCheckAt:confirmed?FieldValue.delete():clock()+DAY});
+      const newest=Math.max(...filings.map(f=>Date.parse(f.filingDate)));
+      const retryDelay=!hasFinal?7*DAY:newest<start-30*DAY?30*DAY:DAY;
+      if(current.get('status')!=='REVIEW')await doc.ref.update({status:confirmed?'CONFIRMED':'PENDING',lastCheckedAt:at(),lastError:null,nextCheckAt:confirmed?FieldValue.delete():clock()+retryDelay});
       await pause(1000);
       }catch(error){
         if(error instanceof OnboardingCapacityDeferred)throw error;
