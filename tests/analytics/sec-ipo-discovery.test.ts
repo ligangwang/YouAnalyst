@@ -116,3 +116,31 @@ test('a large confirmed batch stops at five admissions and retains the rest for 
   assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000128')?.status,'PENDING');
   assert.equal((await runSecIpoDiscovery(f.db,source,{clock:()=>now,capacity:async()=>{},pause:async()=>{}})).created,1);
 });
+
+function multipleListingsSource(includeSecond:()=>boolean=()=>true){
+  const accession='0001193125-26-123457';
+  return {
+    daily:async(day:string)=>day==='2026-11-06'?index:day==='2026-11-05'?header+`123|New Issuer|424B4|2026-11-05|edgar/data/123/${accession}.txt\n`:header,
+    mapping:async()=>({...mapping,data:includeSecond()?[...mapping.data,[123,'New Issuer','NEWB','Nasdaq']]:mapping.data}),
+    submission:async()=>({...submission,tickers:includeSecond()?['NEW','NEWB']:['NEW'],exchanges:includeSecond()?['Nasdaq','Nasdaq']:['Nasdaq'],filings:{recent:{accessionNumber:[filing.accessionNumber,accession],form:['424B4','424B4'],filingDate:['2026-11-06','2026-11-05'],primaryDocument:['ipo.htm','ipo-b.htm']}}}),
+    cover:async(url:string)=>url.endsWith('ipo-b.htm')?cover.replace('NEW.','NEWB.'):cover,
+  };
+}
+test('one issuer can admit listings confirmed by separate prospectuses in the same run',async()=>{
+  const f=ipoFixture();const result=await runSecIpoDiscovery(f.db,multipleListingsSource(),{clock:()=>Date.parse('2026-11-07T16:00:00Z'),capacity:async()=>{},pause:async()=>{}});
+  assert.equal(result.created,2);assert.equal(result.queued,2);
+  assert.equal(f.rows.get('companies/US:NEWB')?.supersededByCompanyId,'US:NEW');
+  assert.equal([...f.rows.keys()].filter(key=>key.startsWith('instrument_onboarding_requests/')).length,2);
+});
+test('recent confirmed issuers are rechecked for delayed SEC listing metadata without duplicating existing work',async()=>{
+  const f=ipoFixture();let now=Date.parse('2026-11-07T16:00:00Z'),second=false;
+  const source=multipleListingsSource(()=>second),options={clock:()=>now,capacity:async()=>{},pause:async()=>{}};
+  assert.equal((await runSecIpoDiscovery(f.db,source,options)).created,1);
+  assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000123')?.nextCheckAt,now+86400000);
+  const [firstPath,first]=[...f.rows.entries()].find(([,row])=>row.instrumentId&&row.requestSource==='SEC_IPO')!;
+  const requestedAt=first.requestedAt;now+=86400001;second=true;
+  const result=await runSecIpoDiscovery(f.db,source,options);assert.equal(result.created,1);assert.equal(result.queued,1);
+  assert.equal(f.rows.get(firstPath)?.requestedAt,requestedAt);assert.equal([...f.rows.keys()].filter(key=>key.startsWith('instrument_onboarding_requests/')).length,2);
+  now+=8*86400000;assert.equal((await runSecIpoDiscovery(f.db,source,options)).created,0);
+  assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000123')?.nextCheckAt,undefined);
+});

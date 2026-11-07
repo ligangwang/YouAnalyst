@@ -51,6 +51,10 @@ a week, and final evidence older than 30 days waits a month. New filing evidence
 always makes the candidate due immediately. This keeps old registrations and
 resales from crowding out fresh IPOs. The job's existing schedule determines
 discovery latency.
+Confirmed issuers are also revisited daily for seven days after their latest
+prospectus, so a second listing whose SEC metadata arrives later can be admitted.
+All verified prospectuses in the bounded check are considered; existing listing
+claims and onboarding requests are reused.
 
 Inspect `sec_ipo_discovery/scan` for `lastRunAt`, `lastError`, `counts` and `cursor`;
 inspect candidates for `filings`, `status`, `nextCheckAt` and `lastError`. Job logs
