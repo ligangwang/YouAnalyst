@@ -26,15 +26,12 @@ async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>
   const resolved=catalog?resolveCatalogTheme(catalog,value('theme')):theme;
   if(!resolved)return <IntelligenceLoadingShell error="Investment theme unavailable"/>;
   theme=resolved;
-  // Start both reads together on this instance. Only graph readiness gates the
-  // workspace; the graph-free feed streams as text without another HTTP request.
+  // Prepare the graph before starting feed work, so discovery cannot compete
+  // with the critical graph read/encoding. Start the same-instance feed before
+  // returning the workspace, rather than waiting for a browser API round trip.
   const scoped=['company','feedCompany','q','region','relationship','event'].some(key=>value(key));
-  const reads=catalog?await withCompanyPageReads(async()=>{
-    const now=new Date(),graph=loadIntelligenceUniverse(now,theme);
-    const feed=scoped?undefined:initialSnapshotWithinBudget(loadIntelligenceSnapshot(now,theme,undefined,undefined,true)
-      .then(snapshot=>JSON.stringify(intelligencePayload(snapshot,true,true))),10_000);
-    return {graph,feed};
-  }):undefined;
-  const snapshot=reads?await initialSnapshotWithinBudget(reads.graph.then(graph=>encodeIntelligenceSnapshot(graph,true))):undefined;
-  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialFeed={reads?.feed} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
+  const now=new Date();
+  const snapshot=catalog?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>encodeIntelligenceSnapshot(await loadIntelligenceUniverse(now,theme),true))):undefined;
+  const feed=snapshot&&!scoped?initialSnapshotWithinBudget(withCompanyPageReads(async()=>JSON.stringify(intelligencePayload(await loadIntelligenceSnapshot(now,theme,undefined,undefined,true),true,true))),10_000):undefined;
+  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialFeed={feed} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
 }

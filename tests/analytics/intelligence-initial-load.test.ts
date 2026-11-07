@@ -60,13 +60,16 @@ test('a stalled snapshot finishes HTML with the existing API loader instead of h
   assert.match(rendered.html(),/Client API loader/);
 });
 
-test('unscoped homepage starts graph and feed together but does not await the feed or stream a second graph',async()=>{
- let graphStarted=false,feedStarted=false,release!:(value:unknown)=>void,props:Record<string,unknown>={};
+test('unscoped homepage prepares the graph before starting its streamed feed without awaiting it',async()=>{
+ let graphReady=false,feedStarted=false,releaseGraph!:(value:unknown)=>void,release!:(value:unknown)=>void,props:Record<string,unknown>={};
  const graph={asOf:'2026-11-07',nodes:[],relationships:[],sources:[]};
+ const graphRead=new Promise(resolve=>{releaseGraph=resolve;});
  const feed=new Promise(resolve=>{release=resolve;});
- const rendered=streamPage(await pageWithSnapshot(async()=>{graphStarted=true;return {graph,graphVersion:'v1',events:[],eventsPending:true};},100,async()=>legacyCatalog,{
-  params:{theme:'robotics',view:'graph'},feed:()=>{assert(graphStarted);feedStarted=true;return feed;},observe:value=>{props=value;},
+ const rendered=streamPage(await pageWithSnapshot(async()=>{const value=await graphRead;graphReady=true;return value;},1000,async()=>legacyCatalog,{
+  params:{theme:'robotics',view:'graph'},feed:()=>{assert(graphReady,'feed work cannot compete with the graph read');feedStarted=true;return feed;},observe:value=>{props=value;},
  }));
+ await rendered.shell;assert.equal(feedStarted,false);
+ releaseGraph({graph,graphVersion:'v1',events:[],eventsPending:true});
  await rendered.done;
  assert(feedStarted);assert.match(rendered.html(),/Loaded snapshot/);
  const pending=props.initialFeed as Promise<string|undefined>;
