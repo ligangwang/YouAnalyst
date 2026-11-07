@@ -433,8 +433,8 @@ function parseTwelveDataPrice(
   };
 }
 
-function eodhdBulkGcsPath(market: string, requestedDate: string): string {
-  return `${EODHD_BULK_GCS_PREFIX}/${market}/${requestedDate}.json`;
+function eodhdBulkGcsPath(market: string, requestedDate: string, scheduledBatch?:'1630'|'2000'): string {
+  return `${EODHD_BULK_GCS_PREFIX}/${market}/${requestedDate}${scheduledBatch?`-${scheduledBatch}`:''}.json`;
 }
 
 function parseEodhdBulkRows(rawJson: string): EodhdBulkEodRow[] {
@@ -474,13 +474,14 @@ async function writeTextToGcs(bucketName: string, path: string, contents: string
 async function readEodhdBulkRows(
   requestedDate: string,
   exchange = DEFAULT_MARKET,
+  scheduledBatch?:'1630'|'2000',
 ): Promise<{ rows: EodhdBulkEodRow[]; rawGcsPath: string; rawCacheHit: boolean } | null> {
   const config = getEodhdConfig();
   if (!config) {
     return null;
   }
 
-  const rawGcsPath = eodhdBulkGcsPath(exchange, requestedDate);
+  const rawGcsPath = eodhdBulkGcsPath(exchange, requestedDate, scheduledBatch);
   const cachedJson = await readTextFromGcs(config.bucketName, rawGcsPath);
   if (cachedJson) {
     return {
@@ -683,6 +684,7 @@ async function fetchEodhdBulkEodPrices(
   requestedDate: string,
   loadedAt: string,
   market: PredictionMarket = 'US',
+  scheduledBatch?:'1630'|'2000',
 ): Promise<EodPriceFetchResult | null> {
   if (tickers.length === 0) {
     return {
@@ -705,7 +707,7 @@ async function fetchEodhdBulkEodPrices(
       return instrument?.market === market && historyProviderSymbol(ticker).endsWith(`.${exchange}`);
     });
     if (!selected.length) continue;
-    const bulk = await eodWorkOnce(`bulk-file:${exchange}:${requestedDate}`,()=>readEodhdBulkRows(requestedDate, exchange));
+    const bulk = await eodWorkOnce(`bulk-file:${exchange}:${requestedDate}:${scheduledBatch??''}`,()=>readEodhdBulkRows(requestedDate, exchange,scheduledBatch));
     if (!bulk) return null;
     paths.push(bulk.rawGcsPath);
     rawCacheHit &&= bulk.rawCacheHit;
@@ -1438,7 +1440,11 @@ export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:st
         &&!f.reason.startsWith('trading_date_mismatch_')))throw Error('EOD price cleanup remains incomplete');
       fetched.prices.push(...page.prices);fetched.failures.push(...page.failures);
     }
-  }else fetched=await fetchEodhdBulkEodPrices(missing,date,now,market);
+  }else {
+    // Each scheduled pass gets its own raw file: 20:00 must see bars published
+    // after 16:30. Retries of that same pass reuse its file and committed prices.
+    fetched=await fetchEodhdBulkEodPrices(missing,date,now,market,market==='US'?input.scheduledBatch:undefined);
+  }
   if(!fetched)throw Error('EOD bulk provider is not configured');
   const prices=fetched.prices;
   // Read yesterday's closes in one RPC, then resolve weekends/new listings with

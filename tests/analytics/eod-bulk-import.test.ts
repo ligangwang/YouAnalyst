@@ -41,11 +41,11 @@ test('bulk import downloads once, writes only requested symbols, and repairs par
  f.db.collection=((name:string)=>({...collection(name),where:()=>({get:async()=>({docs:[],size:0})})})) as unknown as typeof f.db.collection;
  const tickers=Array.from({length:1001},(_,i)=>`T${i}`),date='2026-11-06';
  for(const ticker of tickers)f.rows.set(`eod_prices/US_${ticker}_2026-11-05`,{ticker,market:'US',requestedDate:'2026-11-05',tradingDate:'2026-11-05',open:10,high:10,low:10,close:10,isFinal:true});
- const files=new Map<string,string>(),storage=getStorage(app);let downloads=0;
+ const files=new Map<string,string>(),storage=getStorage(app);let downloads=0,includeLate=false;
  t.mock.method(storage,'bucket',()=>({file:(path:string)=>({exists:async()=>[files.has(path)],download:async()=>[Buffer.from(files.get(path)!)],save:async(value:string)=>{files.set(path,value);}})}) as ReturnType<typeof storage.bucket>);
  t.mock.method(globalThis,'fetch',async(value:URL)=>{
   assert.equal(new URL(value).pathname,'/api/eod-bulk-last-day/US');downloads++;
-  return Response.json([...tickers,'UNREQUESTED'].map(code=>({code,date,exchange_short_name:'US',open:11,high:11,low:11,close:11,adjusted_close:11})));
+  return Response.json([...tickers,'UNREQUESTED',...(includeLate?['LATE']:[])].map(code=>({code,date,exchange_short_name:'US',open:11,high:11,low:11,close:11,adjusted_close:11})));
  });
  const input={market:'US' as const,runDate:date};
  await withEodWorkScope(async()=>{
@@ -62,4 +62,17 @@ test('bulk import downloads once, writes only requested symbols, and repairs par
  await assert.rejects(persistBulkEodPrices(input,['US:T0'],false,f.db),/transaction failed/);
  f.reject(()=>false);await persistBulkEodPrices(input,['US:T0'],false,f.db);
  assert.equal((f.rows.get('tickers/US_T0')?.latestEodPrice as {tradingDate:string}).tradingDate,date);assert.equal(downloads,1);
+ // Both scheduled passes use fresh files, then retain the file on redelivery.
+ // A late bar missing at 16:30 must be imported from the 20:00 response.
+ const first=f.rows.get(`eod_prices/US_T0_${date}`);
+ f.rows.set('eod_prices/US_LATE_2026-11-05',{ticker:'LATE',market:'US',requestedDate:'2026-11-05',tradingDate:'2026-11-05',open:10,high:10,low:10,close:10,isFinal:true});
+ assert.deepEqual(await persistDailyBulkEodPrices({...input,scheduledBatch:'1630'},['US:T0','US:LATE'],false,f.db),['US:LATE']);
+ assert.equal(downloads,2);
+ includeLate=true;
+ assert.deepEqual(await persistDailyBulkEodPrices({...input,scheduledBatch:'2000'},['US:T0','US:LATE'],false,f.db),[]);
+ assert.equal(downloads,3);
+ assert.equal(f.rows.get(`eod_prices/US_LATE_${date}`)?.tradingDate,date);
+ assert.deepEqual(f.rows.get(`eod_prices/US_T0_${date}`),first);
+ assert.deepEqual(await persistDailyBulkEodPrices({...input,scheduledBatch:'2000'},['US:NEVER'],false,f.db),['US:NEVER']);
+ assert.equal(downloads,3,'redelivery must reuse the 20:00 file');
 });
