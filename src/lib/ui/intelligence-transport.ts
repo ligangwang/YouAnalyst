@@ -4,8 +4,10 @@ import {compactGraph,expandGraph,type GraphTransport} from './graph-transport';
 export type PresentationIntelligenceSnapshot=IntelligenceSnapshot&{eventsLimited?:boolean};
 export type EncodedIntelligenceSnapshot=Omit<PresentationIntelligenceSnapshot,'graph'>&{graph:GraphTransport};
 export type IntelligencePayload=Omit<PresentationIntelligenceSnapshot,'graph'>&{graph?:GraphTransport};
-export function encodeIntelligenceSnapshot(snapshot:PresentationIntelligenceSnapshot):EncodedIntelligenceSnapshot {
- return {...snapshot,graph:compactGraph(snapshot.graph)};
+export function encodeIntelligenceSnapshot(snapshot:PresentationIntelligenceSnapshot,serverProps=false):EncodedIntelligenceSnapshot {
+ const graph=compactGraph(snapshot.graph);
+ // A text block avoids making React Flight serialize every dictionary cell.
+ return {...snapshot,graph:serverProps?{encoding:'columns-json-v1',data:JSON.stringify(graph)}:graph};
 }
 export function decodeIntelligenceSnapshot(snapshot:EncodedIntelligenceSnapshot):PresentationIntelligenceSnapshot {
  return {...snapshot,graph:expandGraph(snapshot.graph)};

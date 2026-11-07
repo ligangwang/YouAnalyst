@@ -2008,7 +2008,7 @@ test('server-provided compact snapshot avoids duplicate initial requests',async(
 
 
 test('compact server graph restores company names without a duplicate bootstrap',async({page,isMobile})=>{
- const body=await workspaceFixture(false,encodeIntelligenceSnapshot({...snapshot,events:snapshot.events.slice(0,20)}));let requests=0;
+ const body=await workspaceFixture(false,encodeIntelligenceSnapshot({...snapshot,events:snapshot.events.slice(0,20)},true));let requests=0;
  await page.route('**/*',route=>{
   if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
   if(new URL(route.request().url()).pathname==='/api/intelligence'){requests++;return route.fulfill({json:snapshot});}
