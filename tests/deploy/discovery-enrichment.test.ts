@@ -54,6 +54,8 @@ test('private bounded workers use retained authenticated queues and only article
  for(const kind of ['sec','article']){
   const r=run(kind);assert.equal(r.status,0,r.stderr);assert.match(r.calls,/--no-allow-unauthenticated/);assert.match(r.calls,new RegExp(`--max-instances 2 --concurrency ${kind==='sec'?10:1}`));assert.match(r.calls,/--timeout 600/);assert.match(r.calls,/--push-auth-service-account directory-sync-scheduler@demo/);
   assert.doesNotMatch(r.calls,/existing-approved-key|add-iam|allUsers|scheduler jobs|run jobs execute/);assert(r.removed);
+  assert.match(r.calls,new RegExp(`--memory ${kind==='sec'?'2Gi':'1Gi'} --cpu 1`));
+  assert.equal(r.env.NODE_OPTIONS,kind==='sec'?'--max-old-space-size=1536':undefined);
   if(kind==='article')assert.equal(r.env.OPENAI_API_KEY,'existing-approved-key');else{assert(!r.env.OPENAI_API_KEY);assert.equal(r.env.SEC_DOCUMENT_CACHE_BUCKET,'private-cache');}
  }
 });

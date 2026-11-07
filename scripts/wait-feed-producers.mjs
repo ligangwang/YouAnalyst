@@ -1,4 +1,5 @@
 import {execFileSync} from 'node:child_process';
+import {needsFeedProducerDrain} from './feed-producer-drain.mjs';
 const jobs=[];
 if(process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED==='1')jobs.push('collect-intelligence-news-production');
 if(process.env.ENABLE_SEC_FILING_PIPELINE==='1')jobs.push('collect-sec-filings-production');
@@ -10,8 +11,7 @@ for(let attempt=0;attempt<60;attempt++){
   for(const job of jobs){
     const executions=JSON.parse(execFileSync('gcloud',['run','jobs','executions','list','--job',job,'--project',process.env.GCP_PROJECT_ID,'--region',process.env.GCP_REGION||'us-central1','--limit=30','--format=json'],{encoding:'utf8'}));
     for(const execution of executions){
-      const completed=execution.status?.conditions?.find(condition=>condition.type==='Completed');
-      if(!execution.status?.completionTime&&(!completed||completed.status==='Unknown'))active.push(execution.metadata.name);
+      if(needsFeedProducerDrain(execution,process.env.GIT_SHA))active.push(execution.metadata.name);
     }
   }
   if(waitEod)for(const market of ['US','CN_A']){
