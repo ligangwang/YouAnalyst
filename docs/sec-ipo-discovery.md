@@ -61,7 +61,9 @@ shows automated provenance and any downstream blocked checkpoint.
    production smoke tests and unchanged onboarding maximum capacity of 2.
 2. Deploy discovery with its flag disabled. Keep the compatibility revision as
    the website rollback target. Verify the new candidate and worker delivery
-   checks, and wait for pre-compatibility onboarding executions to finish.
+   checks, and wait for pre-compatibility onboarding executions to finish. Run the
+   collector with `--verify-ipo-discovery` to validate live SEC transport, indexes,
+   mappings and prospectus parsing without creating discovery/onboarding records.
 3. Enable only the existing collector job's `SEC_IPO_DISCOVERY_ENABLED` variable,
    execute one bounded run, and inspect counts, candidate state, website errors
    and event backlog. This does not stop the website or any schedule.

@@ -25,9 +25,16 @@ import {publishEarningsIntake} from '../src/lib/sec-filings/intake-routing';
 import {runSecIpoDiscovery} from '../src/lib/sec-ipo-discovery/runner';
 import {createIpoSource} from '../src/lib/sec-ipo-discovery/source';
 import {OnboardingCapacityDeferred} from '../src/lib/instrument-onboarding/capacity-control';
+import {inspectIpoDiscovery} from '../src/lib/sec-ipo-discovery/inspect';
 
 const log = createMaintenanceLog("collect-sec-filings");
 async function main() {
+  if(process.argv.slice(2).join(' ')==='--verify-ipo-discovery'){
+    if(!process.env.GCP_PROJECT_ID)throw Error('GCP_PROJECT_ID is required');
+    initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
+    log.emit('INFO','sec_ipo_discovery_verified',await inspectIpoDiscovery(createIpoSource(process.env.SEC_USER_AGENT??'',AbortSignal.timeout(120_000))));
+    return;
+  }
   if(!['0','1'].includes(process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED??'0'))throw new Error('Invalid SEC incremental download flag');
   if(!['0','1'].includes(process.env.SEC_IPO_DISCOVERY_ENABLED??'0'))throw new Error('Invalid SEC IPO discovery flag');
   const { apply, companyId, baselineOnly, maxCompanies } = parseSecCollectorArgs(process.argv.slice(2));

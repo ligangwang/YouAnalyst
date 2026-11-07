@@ -5,6 +5,7 @@ import {confirmsIpoCover,confirmedMappings,parseDailyIndex,resolveProspectuses,d
 import {importConfirmedIpo,IpoIdentityReview} from '../../src/lib/sec-ipo-discovery/import';
 import {runSecIpoDiscovery} from '../../src/lib/sec-ipo-discovery/runner';
 import {OnboardingCapacityDeferred} from '../../src/lib/instrument-onboarding/capacity-control';
+import {inspectIpoDiscovery} from '../../src/lib/sec-ipo-discovery/inspect';
 
 const listing:Listing={cik:'0000000123',symbol:'NEW',exchangeMic:'XNAS',name:'New Issuer'};
 const filing:Filing={cik:listing.cik,form:'424B4',accessionNumber:'0001193125-26-123456',filingDate:'2026-11-06',primaryDocument:'ipo.htm',sourceUrl:'https://www.sec.gov/Archives/edgar/data/123/000119312526123456/ipo.htm'};
@@ -54,6 +55,10 @@ test('same CIK gets one issuer and distinct listing instruments without replacin
   assert.equal(a.companyId,'ORG:existing');assert.equal(a.companyId,b.companyId);assert.notEqual(a.instrumentId,b.instrumentId);
   assert.equal(f.rows.get('companies/ORG:existing')?.name,'Editorial Name');assert.equal(f.rows.get('companies/US:NEW')?.supersededByCompanyId,'ORG:existing');
 });
+test('alternate dot/dash listing notation is reviewed rather than creating a duplicate instrument',async()=>{
+  const f=ipoFixture();f.rows.set('companies/US:NEW-B',{cik:'123',name:'Existing class',status:'DIRECTORY',symbol:'NEW-B'});
+  await assert.rejects(importConfirmedIpo(f.db,{...listing,symbol:'NEW.B'},[filing]),IpoIdentityReview);assert.equal(f.writes(),0);
+});
 test('ticker reuse, ambiguous issuers, private and deleted entities require review without partial writes',async()=>{
   for(const seed of [new Map([['companies/US:NEW',{cik:'456',name:'Old',status:'DIRECTORY'}]]),new Map([['companies/US:A',{cik:'123',name:'A',status:'DIRECTORY'}],['companies/US:B',{cik:123,name:'B',status:'PUBLISHED'}]]),new Map([['companies/US:NEW',{cik:'123',name:'Deleted',status:'DIRECTORY',isDeleted:true}]]),new Map([['companies/US:NEW',{cik:'123',name:'Private',status:'DIRECTORY',listingStatus:'PRIVATE'}]])]){
     const f=ipoFixture();seed.forEach((value,key)=>f.rows.set(key,value));await assert.rejects(importConfirmedIpo(f.db,listing,[filing]),IpoIdentityReview);assert.equal(f.writes(),0);
@@ -84,4 +89,10 @@ test('overlapping discovery runs respect the lease and a capacity pause stops ad
   assert.equal((await runSecIpoDiscovery(f.db,source,options)).status,'leased');assert.equal(f.writes(),0);
   f.rows.clear();await assert.rejects(runSecIpoDiscovery(f.db,source,options),OnboardingCapacityDeferred);
   assert(![...f.rows.keys()].some(key=>key.startsWith('companies/')||key.startsWith('instruments/')));
+});
+
+test('provider rollout inspection validates evidence without using an importer or discovery store',async()=>{
+  const source={daily:async(day:string)=>day==='2026-11-06'?index:header,mapping:async()=>mapping,submission:async()=>submission,cover:async()=>cover};
+  const result=await inspectIpoDiscovery(source,new Date('2026-11-07T16:00:00Z'));
+  assert.equal(result.indexes,3);assert.equal(result.checked,1);assert.equal(result.confirmed[0].symbol,'NEW');
 });

@@ -5,7 +5,7 @@ import {instrumentFromCompany,instrumentId,validateInstrument,type Instrument} f
 import {createSecIpoOnboardingRequest,ONBOARDING_COLLECTION,parseOnboardingRequest} from '../instrument-onboarding/model';
 import {onboardingSummary} from '../instrument-onboarding/queue';
 import {isSupportedCompany} from '../company-support/model';
-import {SEC_IPO_COLLECTION,type Filing,type Listing} from './evidence';
+import {SEC_IPO_COLLECTION,symbolKey,type Filing,type Listing} from './evidence';
 
 export class IpoIdentityReview extends Error {}
 export const listingClaimId=(listing:Listing)=>'listing_'+createHash('sha256').update(`${listing.cik}:${listing.exchangeMic}:${listing.symbol}`).digest('hex');
@@ -26,6 +26,7 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
     for(const [key,row] of records){
       if(normalizedCik(row.cik)!==listing.cik)throw new IpoIdentityReview('Ticker belongs to another or unknown CIK');
       if(row.isDeleted||row.listingStatus==='PRIVATE')throw new IpoIdentityReview('Existing issuer is private or deleted');
+      if(key.startsWith('US:')&&key!==legacy&&(symbolKey(key.slice(3))===listing.symbol||typeof row.symbol==='string'&&symbolKey(row.symbol)===listing.symbol))throw new IpoIdentityReview('Existing listing notation or symbol history requires review');
       owners.add(typeof row.supersededByCompanyId==='string'?row.supersededByCompanyId:key);
     }
     if(issuer.exists)owners.add(String(issuer.get('companyId')));
