@@ -32,6 +32,8 @@ test('SEC dispatcher spaces deliveries and retains its rotation checkpoint at th
 });
 test('SEC worker checks shared company deltas before source work and cannot run when disabled',async()=>{
  const f=companySnapshotFixture(new Map());
+ const collection=f.db.collection.bind(f.db),state=earningsFirestore();
+ f.db.collection=((name:string)=>name==='sec_collector_state'?state.db.collection(name):collection(name)) as typeof f.db.collection;
  let runs=0;const opts={enabled:true,run:async(ticker:string)=>{assert.equal(ticker,'AMD');runs++;return {status:'verified'};}};
  try{
   assert.equal((await processSecDiscoveryTask(task,f.db,opts)).status,'ineligible');
@@ -96,7 +98,25 @@ test('pre-collector failures become due retries without overwriting active lease
  await assert.rejects(processSecDiscoveryTask(task,f.db,options),/setup failed/);
  assert.equal(f.rows.get(path)?.discoveryStatus,'partial');assert(Number(f.rows.get(path)?.discoveryNextPollAtMs)>Date.now());
  const saved=structuredClone(f.rows.get(path));
- await assert.rejects(processSecDiscoveryTask(task,f.db,options),/setup failed/);assert.deepEqual(f.rows.get(path),saved);
+ assert.equal((await processSecDiscoveryTask(task,f.db,options)).status,'deferred');assert.deepEqual(f.rows.get(path),saved);
  f.rows.set(path,{leaseOwner:'another',leaseExpiresAtMs:Date.now()+60000,discoveryStatus:'pending',discoveryNextPollAtMs:0});
  await assert.rejects(processSecDiscoveryTask(task,f.db,options),/setup failed/);assert.equal(f.rows.get(path)?.discoveryStatus,'pending');
+});
+
+
+test('redeliveries honor the saved retry time and resume at the boundary without losing progress',async()=>{
+ const f=earningsFirestore();
+ Object.assign(f.db,{getAll:async(ref:DocumentReference)=>[await ref.get()]});
+ f.rows.set('companies/US:AMD',{name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}});
+ const path='sec_collector_state/_discovery_AMD';
+ const checkpoint={discoveryStatus:'partial',discoveryNextPollAtMs:now()+60000,afterCompanyId:'AMD',result:{completed:3},leaseOwner:'previous',leaseExpiresAtMs:0};
+ f.rows.set(path,checkpoint);let calls=0;
+ const options={enabled:true,now,run:async()=>{calls++;return {status:'verified'};}};
+ for(let i=0;i<3;i++)assert.equal((await processSecDiscoveryTask(task,f.db,options)).status,'deferred');
+ assert.equal(calls,0);assert.deepEqual(f.rows.get(path),checkpoint);
+ assert.equal((await processSecDiscoveryTask(task,f.db,{...options,now:()=>now()+60000})).status,'verified');assert.equal(calls,1);
+ f.rows.delete(path);await processSecDiscoveryTask(task,f.db,options);assert.equal(calls,2,'missing status still runs');
+ f.rows.set(path,{...checkpoint,leaseOwner:'active',leaseExpiresAtMs:now()+120000});
+ await processSecDiscoveryTask(task,f.db,options);assert.equal(calls,3,'active lease remains subject to collector fencing');
+ assert.equal(f.rows.get(path)?.leaseOwner,'active');
 });
