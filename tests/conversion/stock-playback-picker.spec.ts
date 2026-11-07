@@ -255,3 +255,23 @@ test('a pending latest-date refresh cannot replace a newly applied period', asyn
   await expect(page.getByLabel('From', { exact: true })).toHaveValue('2026-10-29');
   await expect.poll(() => new URL(page.url()).searchParams.get('start')).toBe('2026-10-29');
 });
+
+test('date range design preview', async ({ page }) => {
+  await page.setViewportSize({ width: 1240, height: 820 });
+  await page.route('**/*', route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+    if (new URL(route.request().url()).pathname === '/api/compare') return route.fulfill({ json: { dates: ['2025-11-05', '2026-11-05'], series: [{ symbol: 'AAPL', values: [0, 20] }], frequency: 'Daily', source: 'Preview' } });
+    return route.fulfill({ json: { items: [], total: 11728 } });
+  });
+  await page.goto('http://playback.test/en/compare');
+  await page.getByTestId('comparison-date').waitFor();
+  await page.addStyleTag({content: ':root{--font-body:Arial,sans-serif;--font-data:Consolas,monospace;--border-subtle:#2f3d52;--border-control:#526882;--compare-surface:#1a2435;--surface-selected:#49d6e81f;--surface-hover:#49d6e812;--glow-cyan:#49d6e8;--text-secondary:#a3b2c4}button{border:0;font:inherit;cursor:pointer}'});
+  await page.getByRole('button', { name: 'Latest trading date', exact: true }).click();
+  await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-11-05');
+  await page.getByRole('button', { name: '1W', exact: true }).click();
+  await expect(page.getByLabel('To', { exact: true })).toHaveAttribute('readonly', '');
+  await page.locator('#comparison-editor').screenshot({ path: 'C:/dev/YouAnalyst-range-design/output/range-latest-preview.png' });
+  await page.getByRole('button', { name: 'Custom dates', exact: true }).click();
+  await expect(page.getByLabel('To', { exact: true })).not.toHaveAttribute('readonly', '');
+  await page.locator('#comparison-editor').screenshot({ path: 'C:/dev/YouAnalyst-range-design/output/range-custom-preview.png' });
+});
