@@ -270,8 +270,8 @@ test('date range design preview', async ({ page }) => {
   await expect(page.getByLabel('To', { exact: true })).toHaveValue('2026-11-05');
   await page.getByRole('button', { name: '1W', exact: true }).click();
   await expect(page.getByLabel('To', { exact: true })).toHaveAttribute('readonly', '');
-  await page.locator('#comparison-editor').screenshot({ path: 'C:/dev/YouAnalyst-range-design/output/range-latest-preview.png' });
+  await page.locator('#comparison-editor').screenshot({ path: test.info().outputPath('range-latest-preview.png') });
   await page.getByRole('button', { name: 'Custom dates', exact: true }).click();
   await expect(page.getByLabel('To', { exact: true })).not.toHaveAttribute('readonly', '');
-  await page.locator('#comparison-editor').screenshot({ path: 'C:/dev/YouAnalyst-range-design/output/range-custom-preview.png' });
+  await page.locator('#comparison-editor').screenshot({ path: test.info().outputPath('range-custom-preview.png') });
 });

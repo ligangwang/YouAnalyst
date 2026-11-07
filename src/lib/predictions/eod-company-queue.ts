@@ -1,3 +1,4 @@
+import {completeMarketEodRun} from './latest-eod-run';
 import type {Firestore} from 'firebase-admin/firestore';
 import {parseCompanyWorkRequest,processCompanyRun,processCompanyWork,type CompanyWorkRequest} from '../company-work-queue';
 import {publishEodMessage} from './eod-publisher';
@@ -127,7 +128,7 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
       if(next===null){
         const error=(await ref.get()).get('error')??null,status=error?'COMPLETED_WITH_ERRORS':'COMPLETED';
         await ref.set({status},{merge:true});
-        await db.collection('eod_runs').doc(`${input.market}_${input.runDate}`).set({status,completedAt:new Date().toISOString(),error},{merge:true});
+        await completeMarketEodRun(db,input.market,input.runDate,status,error,!input.tickers?.length&&!input.recompute&&((await ref.get()).get('companyIds')?.length>0));
         const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(message.input)}`);
         await db.runTransaction(async tx=>{
           if((await tx.get(dispatch)).get('activeRequest')?.batchId===message.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});

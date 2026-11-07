@@ -117,8 +117,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     const controller = new AbortController();
     latestRequest.current = controller;
     setResolvingLatest(true); setNotice("");
-    const end = latestCompareDate();
-    const params = new URLSearchParams({ symbols: draft.symbols.join(","), start: playbackStartDate(end, 1), end });
+    const params = new URLSearchParams({ symbols: draft.symbols.join(","), latest: "1" });
     try {
       const response = await fetch(`/api/compare?${params}`, { signal: controller.signal });
       const payload = await response.json();
