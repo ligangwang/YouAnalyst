@@ -27,7 +27,8 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
     let writes=0;
     for(const day of days){
       await guard();const text=await source.daily(day);if(text===null){counts.missingIndexes++;if(day===cursor){cursor=shift(cursor,1);await stateRef.update({cursor});}continue;}
-      const filings=parseDailyIndex(text,day);let complete=true;
+      // Dissemination indexes can replay historical filings. They are not new IPOs.
+      const filings=parseDailyIndex(text,day).filter(f=>f.filingDate>=floor);let complete=true;
       for(const cik of new Set(filings.map(f=>f.cik))){
         await guard();const ref=registry.doc(`candidate_${cik}`),saved=await ref.get(),previous=(saved.get('filings')??[]) as Filing[];
         const fresh=filings.filter(f=>f.cik===cik&&!previous.some(p=>p.accessionNumber===f.accessionNumber));if(!fresh.length)continue;

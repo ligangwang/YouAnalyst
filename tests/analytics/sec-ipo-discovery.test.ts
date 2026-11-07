@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import {ipoFixture} from '../helpers/sec-ipo';
 import {confirmsIpoCover,confirmedMappings,parseDailyIndex,resolveProspectuses,dailyIndexUrl,type Filing,type Listing} from '../../src/lib/sec-ipo-discovery/evidence';
 import {importConfirmedIpo,IpoIdentityReview} from '../../src/lib/sec-ipo-discovery/import';
@@ -21,6 +22,14 @@ test('daily index validates issuer folder and date while permitting filing-agent
   assert.throws(()=>parseDailyIndex(index,'2026-11-05'));
   assert.throws(()=>parseDailyIndex('SEC outage','2026-11-06'));
   assert.equal(dailyIndexUrl('2026-11-06'),'https://www.sec.gov/Archives/edgar/daily-index/2026/QTR4/master.20261106.idx');
+});
+test('actual SEC daily index header and compact dates are normalized to submissions ISO dates',()=>{
+  const text=readFileSync(new URL('../fixtures/sec-ipo-daily-index-20261106.idx',import.meta.url),'utf8');
+  const rows=parseDailyIndex(text,'2026-11-06');assert.equal(rows.length,4);
+  assert.equal(rows.filter(row=>row.filingDate==='2026-11-06').length,3);
+  assert.equal(rows.find(row=>row.cik==='0000777917')?.filingDate,'2026-05-11');
+  assert.equal(rows.find(row=>row.form==='424B4')?.cik,'0001826011');
+  assert.throws(()=>parseDailyIndex(text,'2026-11-05'),/Invalid IPO index identity/);
 });
 test('SEC mappings require matching CIK, symbol and exchange in both sources; collisions are not guessed',()=>{
   assert.deepEqual(confirmedMappings(mapping,submission,listing.cik),[listing]);
@@ -104,6 +113,13 @@ test('caught-up checkpoint waits for tomorrow instead of restarting the initial 
   const source={daily:async(day:string)=>{days.push(day);return header;},mapping:async()=>mapping,submission:async()=>submission,cover:async()=>cover};
   await runSecIpoDiscovery(f.db,source,{clock:()=>Date.parse('2026-11-07T16:00:00Z'),capacity:async()=>{},pause:async()=>{}});
   assert.deepEqual(days,['2026-11-06','2026-11-05','2026-11-04']);assert.equal(f.rows.get('sec_ipo_discovery/scan')?.cursor,'2026-11-07');
+});
+test('historical filing replays in a current daily index do not create fresh IPO candidates',async()=>{
+  const f=ipoFixture(),now=Date.parse('2026-11-07T16:00:00Z');
+  const old=header+'777917|PRUCO LIFE INSURANCE CO|S-1/A|20260511|edgar/data/777917/0000777917-26-000076.txt\n';
+  const source={daily:async(day:string)=>day==='2026-11-06'?old:header,mapping:async()=>mapping,submission:async()=>submission,cover:async()=>cover};
+  assert.equal((await runSecIpoDiscovery(f.db,source,{clock:()=>now,capacity:async()=>{},pause:async()=>{}})).observed,0);
+  assert(!f.rows.has('sec_ipo_discovery/candidate_0000777917'));
 });
 
 test('a large confirmed batch stops at five admissions and retains the rest for later runs',async()=>{

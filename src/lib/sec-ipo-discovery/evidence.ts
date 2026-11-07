@@ -13,13 +13,14 @@ export function dailyIndexUrl(day:string){
   return `https://www.sec.gov/Archives/edgar/daily-index/${day.slice(0,4)}/QTR${Math.ceil(Number(day.slice(5,7))/3)}/master.${day.replaceAll('-','')}.idx`;
 }
 export function parseDailyIndex(text:string,day:string):Filing[]{
-  if(!validDay(day)||!text.includes('CIK|Company Name|Form Type|Date Filed|Filename'))throw Error('Invalid SEC daily index');
+  if(!validDay(day)||!text.split(/\r?\n/).some(line=>['CIK|Company Name|Form Type|Date Filed|Filename','CIK|Company Name|Form Type|Date Filed|File Name'].includes(line.trim())))throw Error('Invalid SEC daily index');
   const rows:Filing[]=[];
   for(const line of text.split(/\r?\n/)){
-    const [rawCik,,form,filingDate,path]=line.split('|');
+    const [rawCik,,form,rawDate,path]=line.split('|');
     if(!IPO_FORMS.has(form))continue;
+    const filingDate=/^\d{8}$/.test(rawDate)?`${rawDate.slice(0,4)}-${rawDate.slice(4,6)}-${rawDate.slice(6,8)}`:rawDate;
     const cik=normalizedCik(rawCik),match=path?.match(/^edgar\/data\/(\d{1,10})\/(\d{10}-\d{2}-\d{6})\.txt$/);
-    if(!cik||!match||normalizedCik(match[1])!==cik||filingDate!==day)throw Error('Invalid IPO index identity');
+    if(!cik||!match||normalizedCik(match[1])!==cik||!validDay(filingDate)||filingDate>day)throw Error('Invalid IPO index identity');
     rows.push({cik,form,filingDate,accessionNumber:match[2],primaryDocument:'',sourceUrl:`https://www.sec.gov/Archives/${path}`});
   }
   return rows.sort((a,b)=>a.cik.localeCompare(b.cik)||a.accessionNumber.localeCompare(b.accessionNumber));
