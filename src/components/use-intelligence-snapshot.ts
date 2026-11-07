@@ -3,7 +3,8 @@
 import {useThemeCatalog} from './use-theme-catalog';
 import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
-import type {IntelligencePayload,PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {decodeIntelligenceSnapshot,type IntelligencePayload,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {expandGraph} from '@/lib/ui/graph-transport';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
 const clearedThemeSelection = { company: '', feedCompany: '', relationship: '', event: '', q: '', page: '' };
@@ -55,9 +56,9 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     // a complete feed or a response belonging to another theme/company.
     let universeRequest:Promise<IntelligenceSnapshot>|undefined;
     const universe=()=>universeRequest??=(async()=>{
-      const response=await fetch(`/api/intelligence?theme=${theme}&section=universe`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
+      const response=await fetch(`/api/intelligence?theme=${theme}&section=universe&graph=compact`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
       if(!response.ok)throw Error('Graph unavailable');
-      const data:IntelligenceSnapshot=await response.json();
+      const data=decodeIntelligenceSnapshot(await response.json());
       if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw Error('Invalid graph');
       const previous=graphs.current.get(theme);
       if(!previous||Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
@@ -83,7 +84,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         if (!response.ok&&response.status!==304) throw new Error();
         const payload:IntelligencePayload=response.status===304&&saved?saved.data:await response.json();
         let data:IntelligenceSnapshot;
-        if(payload.graph)data=payload as IntelligenceSnapshot;
+        if(payload.graph)data={...payload,graph:expandGraph(payload.graph)};
         else {
           let graph=graphs.current.get(theme);
           if(!graph||graph.graphVersion!==payload.graphVersion){
