@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
-import {assetObject,mergeAssetManifest,deployAssetVersion,assetPrefix,site} from '../../scripts/publish-web-assets.mjs';
+import {assetObject,mergeAssetManifest,deployAssetVersion,assetPrefix,site,cacheControl,verifyPublishedAsset} from '../../scripts/publish-web-assets.mjs';
 const commit='a'.repeat(40);
 test('only public build assets get immutable release paths and gzip content hashes',()=>{
  const asset=assetObject('chunks/new.js',Buffer.from('console.log("new")'),commit);
@@ -52,4 +52,14 @@ test('production publishes checked assets before candidate build and promotion',
  assert(script.indexOf('node scripts/publish-web-assets.mjs')<script.indexOf('gcloud builds submit'));
  assert(script.indexOf('node scripts/publish-web-assets.mjs')<script.indexOf('node scripts/promote-release.mjs'));
  assert.match(readFileSync('scripts/prepare-release.mjs','utf8'),/assetPrefix: expectedAssetPrefix/);
+});
+
+test('publication waits for edge propagation but still requires correct bytes and headers',async()=>{
+ const asset=assetObject('chunks/new.js',Buffer.from('new'),commit);let calls=0,pauses=0;
+ await verifyPublishedAsset(asset,async()=>++calls<3?new Response('',{status:404}):new Response('new',{headers:{'access-control-allow-origin':'*','cache-control':cacheControl}}),async()=>{pauses++;});
+ assert.equal(calls,3);assert.equal(pauses,2);
+ calls=0;await assert.rejects(verifyPublishedAsset(asset,async()=>{calls++;return new Response('',{status:404});},async()=>{}),/Public asset unavailable/);assert.equal(calls,8);
+ for(const response of [new Response('',{status:403}),new Response('wrong',{headers:{'access-control-allow-origin':'*','cache-control':cacheControl}}),new Response('new')]){
+  calls=0;await assert.rejects(verifyPublishedAsset(asset,async()=>{calls++;return response;},async()=>{throw Error('Must not retry integrity failures');}));assert.equal(calls,1);
+ }
 });
