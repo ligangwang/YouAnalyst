@@ -1414,9 +1414,18 @@ export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:st
   const market=input.market??'US',date=resolveRunDate(input.runDate,market);
   const tickers=ids.map(id=>market==='US'?id.slice(3):id),now=new Date().toISOString();
   const cached=await readBulkEodPrices(db,tickers,date),missing=tickers.filter(t=>!cached.has(t));
-  const fetched=retry?await fetchEodhdDailyPrices(missing,date,now,market):await fetchEodhdBulkEodPrices(missing,date,now,market);
+  let fetched:EodPriceFetchResult|null;
+  if(retry){
+    fetched={provider:'eodhd-eod',prices:[],failures:[],rawGcsPath:null,rawCacheHit:false};
+    for(const group of chunk(missing,8)){
+      const page=await fetchEodhdDailyPrices(group,date,now,market);
+      // Stop at the first transport/provider error instead of spending the
+      // request timeout on every remaining symbol during a provider outage.
+      if(page.failures.some(f=>f.reason!=='eodhd_no_dated_bar'))throw Error('EOD price cleanup remains incomplete');
+      fetched.prices.push(...page.prices);fetched.failures.push(...page.failures);
+    }
+  }else fetched=await fetchEodhdBulkEodPrices(missing,date,now,market);
   if(!fetched)throw Error('EOD bulk provider is not configured');
-  if(retry&&fetched.failures.some(f=>f.reason!=='eodhd_no_dated_bar'))throw Error('EOD price cleanup remains incomplete');
   const prices=fetched.prices;
   // Read yesterday's closes in one RPC, then resolve weekends/new listings with
   // bounded range queries instead of up to 30 point reads per symbol.

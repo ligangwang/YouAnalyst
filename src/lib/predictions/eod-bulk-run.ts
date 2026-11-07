@@ -63,7 +63,9 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
     if(run.phase==='bulk-prices'||run.phase==='bulk-retry'){
      const retry=run.phase==='bulk-retry',ids=retry?run.retryCompanyIds!:run.companyIds!,offset=run.dispatchCursor??0;
      if(offset<ids.length){
-      const page=ids.slice(offset,offset+EOD_BULK_SIZE),missing=await options.prices(page,retry);
+      // Individual-provider cleanup is separately bounded; the bulk import
+      // still uses 1000. Checkpoint gaps often enough to survive slow providers.
+      const page=ids.slice(offset,offset+(retry?32:EOD_BULK_SIZE)),missing=await options.prices(page,retry);
       if(new Set(missing).size!==missing.length||missing.some(id=>!page.includes(id)))throw Error('Invalid EOD missing-price result');
       const patch:Partial<Run>={dispatchCursor:offset+page.length,completedCompanies:(run.completedCompanies??0)+page.length-missing.length};
       if(!retry)patch.retryCompanyIds=[...run.retryCompanyIds!,...missing];
