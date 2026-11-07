@@ -79,7 +79,7 @@ export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{in
 
 function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,changeGuestSaved,error,reconnect,loadPreviousDay,loadingOlder,loadFullEvents,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];changeGuestSaved:(id:string,follow:boolean)=>void;error:string;reconnect:()=>void;loadPreviousDay:()=>void;loadingOlder:boolean;loadFullEvents:()=>void}&WorkspaceInitialState){
   const enrichment=useIntelligenceEnrichment(baseSnapshot);
-  const snapshot=enrichment.snapshot;
+  const snapshot:IntelligenceSnapshot=enrichment.snapshot;
   const {locale,chinese}=useLocale();
   const { themeName } = useThemeCatalog();
   const ui=useUiText();
