@@ -10,16 +10,16 @@ import { initialSnapshotWithinBudget } from '../../src/lib/intelligence/initial-
 import {enableCompanyDirectory,companyDirectoryEnabled} from '../../src/lib/local-cache/company-directory';
 import type {Firestore} from 'firebase-admin/firestore';
 
-async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100,loadCatalog=async()=>legacyCatalog,options:{params?:Record<string,string>;feed?:()=>Promise<unknown>;observe?:(props:Record<string,unknown>)=>void}={}){
+async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100,loadCatalog=async()=>legacyCatalog,options:{params?:Record<string,string>}={}){
   const external=['@/lib/company-themes/catalog','@/components/company-graph-preload','@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
   const result=await build({entryPoints:['src/app/intelligence/page.tsx'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external,jsx:'automatic'});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const injected=(name:string)=>{
     if(name==='@/components/company-graph-preload')return {PreloadGraphChunks:()=>React.createElement('span',{'data-graph-preload':true})};
-    if(name==='@/components/live-investment-intelligence')return {LiveInvestmentIntelligence:(props:{initialSnapshot?:unknown;initialTheme:string;initialCompany:string})=>{options.observe?.(props);return React.createElement('div',{'data-theme':props.initialTheme,'data-company':props.initialCompany},props.initialSnapshot?'Loaded snapshot':'Client API loader');}};
+    if(name==='@/components/live-investment-intelligence')return {LiveInvestmentIntelligence:(props:{initialSnapshot?:unknown;initialTheme:string;initialCompany:string})=>React.createElement('div',{'data-theme':props.initialTheme,'data-company':props.initialCompany},props.initialSnapshot?'Loaded snapshot':'Client API loader')};
     if(name==='@/components/intelligence-loading-shell')return {IntelligenceLoadingShell:()=> React.createElement('main',null,'Loading companies and recorded events…')};
     if(name==='@/lib/company-themes/catalog')return {loadThemeCatalog:loadCatalog};
-    if(name==='@/lib/intelligence/service')return {loadIntelligenceUniverse:load,loadIntelligenceSnapshot:options.feed??(()=>{throw Error('Scoped pages must not start the unscoped feed');})};
+    if(name==='@/lib/intelligence/service')return {loadIntelligenceUniverse:load,loadIntelligenceSnapshot:()=>{throw Error('The graph render must not read the feed');}};
     if(name==='@/lib/intelligence/initial-snapshot')return {initialSnapshotWithinBudget:(request:Promise<unknown>,explicit?:number)=>initialSnapshotWithinBudget(request,explicit??budget)};
     if(name==='@/lib/ui/i18n/server')return {localizedMetadata:async()=>({})};
     return realRequire(name);
@@ -60,22 +60,19 @@ test('a stalled snapshot finishes HTML with the existing API loader instead of h
   assert.match(rendered.html(),/Client API loader/);
 });
 
-test('unscoped homepage prepares the graph before starting its streamed feed without awaiting it',async()=>{
- let graphReady=false,feedStarted=false,releaseGraph!:(value:unknown)=>void,release!:(value:unknown)=>void,props:Record<string,unknown>={};
+test('unscoped homepage hints its graph-free feed before the graph is ready without reading the feed on the server',async()=>{
+ let releaseGraph!:(value:unknown)=>void;
  const graph={asOf:'2026-11-07',nodes:[],relationships:[],sources:[]};
  const graphRead=new Promise(resolve=>{releaseGraph=resolve;});
- const feed=new Promise(resolve=>{release=resolve;});
- const rendered=streamPage(await pageWithSnapshot(async()=>{const value=await graphRead;graphReady=true;return value;},1000,async()=>legacyCatalog,{
-  params:{theme:'robotics',view:'graph'},feed:()=>{assert(graphReady,'feed work cannot compete with the graph read');feedStarted=true;return feed;},observe:value=>{props=value;},
+ const rendered=streamPage(await pageWithSnapshot(()=>graphRead,1000,async()=>legacyCatalog,{
+  params:{theme:'robotics',view:'graph'},
  }));
- await rendered.shell;assert.equal(feedStarted,false);
+ await rendered.shell;
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.match(rendered.html(),/as="fetch"/);assert.match(rendered.html(),/theme=robotics/);assert.match(rendered.html(),/graph=omit/);
  releaseGraph({graph,graphVersion:'v1',events:[],eventsPending:true});
  await rendered.done;
- assert(feedStarted);assert.match(rendered.html(),/Loaded snapshot/);
- const pending=props.initialFeed as Promise<string|undefined>;
- release({graph,graphVersion:'v1',events:[{id:'actual-event'}],sourceDocuments:[]});
- const payload=JSON.parse((await pending)!);
- assert.equal(payload.graph,undefined);assert.equal(payload.graphVersion,'v1');assert.equal(payload.events[0].id,'actual-event');
+ assert.match(rendered.html(),/Loaded snapshot/);
 });
 
 test('homepage snapshot keeps targeted reads after the HTML budget expires without leaking scope',async()=>{
