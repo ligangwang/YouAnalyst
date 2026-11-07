@@ -86,6 +86,7 @@ export default async function RootLayout({
       className={`${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
+        {process.env.NEXT_PUBLIC_APP_ENVIRONMENT==='production'&&<link rel="preconnect" href="https://youanalyst-web-assets.web.app" crossOrigin="anonymous"/>}
         {!embedded && <script dangerouslySetInnerHTML={{ __html: displayPreferencesBootstrap }} />}
         <meta name="youanalyst-analytics" content="disabled" suppressHydrationWarning />
       </head>

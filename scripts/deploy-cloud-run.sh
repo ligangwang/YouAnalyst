@@ -24,6 +24,13 @@ case "$target" in
     ;;
 esac
 
+# Publishing immutable assets depends on the exact checked Linux compilation.
+# Refuse an unprepared production source build before touching infrastructure.
+if [[ "$target" == production && "${PREBUILT_RELEASE:-0}" != 1 ]]; then
+  echo 'Production requires the checked standalone release and its immutable assets.' >&2
+  exit 1
+fi
+
 echo "[1/5] Deploying Firestore indexes"
 if [[ "${APPLY_FIRESTORE_INDEXES:-1}" == "1" ]]; then
   FIRESTORE_PROJECT_ID="$firestore_project_id" npm run firestore:indexes:apply
@@ -86,6 +93,11 @@ fi
 # Runtime credentials are provisioned separately; never send values to Cloud Build.
 # Check presence only and preserve the existing revision's environment/secret references.
 node scripts/check-runtime-credentials.mjs "$project_id" "$region" "$service_name"
+if [[ "$target" == production ]]; then
+  # Publish and anonymously validate every immutable object before this image
+  # can receive traffic. Older releases are retained; this never deletes assets.
+  node scripts/publish-web-assets.mjs
+fi
 
 build_submit_args=(
   --project "$project_id"
@@ -185,6 +197,7 @@ if [[ "$target" == production && "${GITHUB_ACTIONS:-}" == true ]]; then
   # HTTP success alone cannot detect a hydration or graph-loading regression.
   bash scripts/setup-playwright-browser.sh
   baseline_url="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>console.log(JSON.parse(s).status.url))')"
+  CANDIDATE_URL="$candidate_url" BASELINE_URL="$baseline_url" GIT_SHA="${GIT_SHA:-local}" node scripts/verify-release-assets.mjs
   CANDIDATE_URL="$candidate_url" BASELINE_URL="$baseline_url" node scripts/verify-candidate-performance.mjs
 fi
 # Preparing a no-traffic candidate may overlap additive worker rollout. Only

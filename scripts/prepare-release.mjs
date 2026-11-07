@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
+import {assetPrefix as publicAssetPrefix} from './publish-web-assets.mjs';
 
 // Only CI's clean Linux checkout may supply a prebuilt deployment.
 assert.equal(process.platform, "linux", "Release artifacts must be built on Linux");
@@ -12,6 +13,9 @@ assert.equal(process.versions.node.split(".")[0], "20");
 assert.match(process.env.GIT_SHA ?? "", /^[a-f0-9]{40}$/);
 assert.ok(["staging", "production"].includes(process.env.APP_ENVIRONMENT));
 const root = resolve(".release");
+const builtConfig=JSON.parse(await readFile('.next/required-server-files.json','utf8')).config;
+const expectedAssetPrefix=process.env.APP_ENVIRONMENT==='production'?publicAssetPrefix(process.env.GIT_SHA):'';
+assert.equal(builtConfig.assetPrefix??'',expectedAssetPrefix,'Release compiled with incorrect asset origin');
 await mkdir(root); // Refuse to mix a previous release with the current build.
 await cp("Dockerfile.release", `${root}/Dockerfile.release`);
 // A dedicated context retains traced node_modules and .next files, which the
@@ -111,6 +115,10 @@ try {
     const response=await fetch(`${base}/en?view=${view}`);
     assert.equal(response.status,200);
     const html=await response.text();
+    if(expectedAssetPrefix){
+      assert(html.includes(`${expectedAssetPrefix}/_next/static/`),'Production HTML must use the immutable origin');
+      assert(!/<(?:script|link)\b[^>]*(?:src|href)="\/_next\/static\//.test(html),'A production static resource still targets the website revision');
+    }
     const hints=[response.headers.get('link')??'',...(html.match(/<link\b[^>]*>/g)??[])].join('\n');
     for(const file of graphScripts)assert.equal(hints.includes(file),expected,`Unexpected 3D preload for ${view}: ${file}`);
     assert(hints.replaceAll('&amp;','&').includes('/api/intelligence?theme=ai&graph=omit&payload=compact'),`Missing early graph-free feed preload for ${view}`);
@@ -170,6 +178,7 @@ try {
 await writeFile(`${root}/manifest.json`, JSON.stringify({
   commit: process.env.GIT_SHA,
   environment: process.env.APP_ENVIRONMENT,
+  assetPrefix: expectedAssetPrefix,
   node: process.versions.node,
   checked: true,
 }));

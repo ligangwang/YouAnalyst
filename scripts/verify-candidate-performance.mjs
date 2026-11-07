@@ -22,20 +22,25 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
   assert(candidateUrl&&baselineUrl&&typeof measure==='function');
   assert(Number.isInteger(samples)&&samples>=3&&samples%2===1);
   assert(Number.isFinite(maxGraphDelayMs)&&maxGraphDelayMs>=0);
-  const urls={baseline:baselineUrl,candidate:candidateUrl},results={baseline:[],candidate:[]},feeds={baseline:[],candidate:[]},ready={baseline:[],candidate:[]};
-  const timing=async url=>{const value=await measure(url);return typeof value==='number'?{graphMs:value}:value;};
-  for(const label of ['baseline','candidate']){const value=await timing(urls[label]);log(JSON.stringify({event:'candidate_browser_warmup',label,durationMs:value.graphMs,feedDurationMs:value.feedMs}));}
+  const urls={baseline:baselineUrl,candidate:candidateUrl},results={baseline:[],candidate:[]},feeds={baseline:[],candidate:[]},ready={baseline:[],candidate:[]},timeouts={baseline:0,candidate:0};
+  const timing=async(label)=>{
+    const measured=await measure(urls[label],label),value=typeof measured==='number'?{graphMs:measured}:measured;
+    assert(!(label==='candidate'&&value.feedTimedOut),'Candidate feed failed to settle; existing traffic stays unchanged');
+    return value;
+  };
+  for(const label of ['baseline','candidate']){const value=await timing(label);log(JSON.stringify({event:'candidate_browser_warmup',label,durationMs:value.graphMs,feedDurationMs:value.feedMs,...(value.feedTimedOut?{feedTimedOut:true,feedTimeIsLowerBound:true}:{})}));}
   for(let round=0;round<samples;round++) {
     for(const label of round%2?['candidate','baseline']:['baseline','candidate']) {
-      const {graphMs:durationMs,feedMs}=await timing(urls[label]);
+      const {graphMs:durationMs,feedMs,feedTimedOut}=await timing(label);
       assert(Number.isFinite(durationMs)&&durationMs>0,'Invalid browser timing');
       results[label].push(durationMs);
       if(feedMs!==undefined){assert(Number.isFinite(feedMs)&&feedMs>0,'Invalid feed timing');feeds[label].push(feedMs);}
       ready[label].push(Math.max(durationMs,feedMs??durationMs));
-      log(JSON.stringify({event:'candidate_browser_sample',label,round:round+1,durationMs,feedDurationMs:feedMs}));
+      if(feedTimedOut)timeouts[label]++;
+      log(JSON.stringify({event:'candidate_browser_sample',label,round:round+1,durationMs,feedDurationMs:feedMs,...(feedTimedOut?{feedTimedOut:true,feedTimeIsLowerBound:true}:{})}));
     }
   }
-  const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),samples,maxRegressionRatio,maxGraphDelayMs};
+  const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),baselineFeedTimeouts:timeouts.baseline,baselineReadyMedianIsLowerBound:timeouts.baseline>=Math.ceil(samples/2),samples,maxRegressionRatio,maxGraphDelayMs};
   log(JSON.stringify(summary));
   if(feeds.baseline.length||feeds.candidate.length){
     assert(feeds.baseline.length===samples&&feeds.candidate.length===samples,'Incomplete feed performance samples');
@@ -54,7 +59,7 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
 async function run() {
   const {chromium}=await import('@playwright/test');
   try {
-    await verifyCandidatePerformance({candidateUrl:process.env.CANDIDATE_URL,baselineUrl:process.env.BASELINE_URL,measure:async url=>{
+    await verifyCandidatePerformance({candidateUrl:process.env.CANDIDATE_URL,baselineUrl:process.env.BASELINE_URL,measure:async(url,label)=>{
       // Release the GPU process between samples, not just the page/context.
       const browser=await chromium.launch();
       let page,navigationStatus;const errors=[];
@@ -71,10 +76,16 @@ async function run() {
         return duration;
       } catch(error) {
         const state=page?await Promise.race([
-          page.evaluate(()=>({title:document.title,body:document.body?.innerText.slice(0,240),graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt,canvases:document.querySelectorAll('canvas').length,feeds:document.querySelectorAll('#intelligence-event-stream').length,scripts:document.scripts.length})).catch(()=>({unavailable:true})),
+          page.evaluate(()=>({elapsedMs:performance.now(),title:document.title,body:document.body?.innerText.slice(0,240),graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt,canvases:document.querySelectorAll('canvas').length,feeds:document.querySelectorAll('#intelligence-event-stream').length,scripts:document.scripts.length})).catch(()=>({unavailable:true})),
           new Promise(resolve=>setTimeout(()=>resolve({unresponsive:true}),2000)),
         ]):{pageUnavailable:true};
         console.error(JSON.stringify({event:'candidate_browser_readiness_failure',url,navigationStatus:navigationStatus??error.actual,state,errors}));
+        // A known broken serving feed must not prevent its repair. Preserve
+        // its actual observation window as a right-censored lower bound, never
+        // a successful sample or a dropped visit. Candidate failures still fail.
+        if(label==='baseline'&&error.name==='TimeoutError'&&navigationStatus===200&&state.canvases>0&&Number.isFinite(state.graphMs)&&state.graphMs>0&&state.feedMs===null&&state.elapsedMs>=45000){
+          return {graphMs:state.graphMs,feedMs:state.elapsedMs,feedTimedOut:true};
+        }
         throw error;
       } finally {await browser.close();}
     }});

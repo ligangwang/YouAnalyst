@@ -56,3 +56,12 @@ test('persistent navigation 404s and non-404 failures cannot pass browser valida
   assert.equal(calls,expected);
  }
 });
+
+test('a broken serving feed is retained as a lower bound while a candidate must settle',async()=>{
+ const events:{event?:string;feedTimedOut?:boolean}[]=[];
+ const result=await verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:(line:string)=>events.push(JSON.parse(line)),measure:async(url:string)=>url==='old'?{graphMs:1000,feedMs:46000,feedTimedOut:true}:{graphMs:900,feedMs:1800}});
+ assert.equal(result.baselineFeedTimeouts,3);assert.equal(result.baselineReadyMedianIsLowerBound,true);
+ assert.equal(result.baselineReadyMedianMs,46000);assert.equal(result.candidateReadyMedianMs,1800);
+ assert.equal(events.filter(event=>event.event==='candidate_browser_sample'&&event.feedTimedOut).length,3);
+ await assert.rejects(verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async()=>({graphMs:1000,feedMs:46000,feedTimedOut:true})}),/Candidate feed failed to settle/);
+});

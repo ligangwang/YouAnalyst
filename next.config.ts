@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
   deploymentId: process.env.GIT_SHA,
+  // A new document must never ask a draining predecessor for new chunks.
+  // These public build assets are published and verified before promotion.
+  assetPrefix: process.env.NEXT_PUBLIC_APP_ENVIRONMENT === 'production'
+    ? `https://youanalyst-web-assets.web.app/releases/${process.env.GIT_SHA}`
+    : undefined,
   // Loading every API/page entry after readiness competes with the first
   // visitors on Cloud Run. Load only the entries those visitors actually use.
   experimental: { preloadEntriesOnStart: false },

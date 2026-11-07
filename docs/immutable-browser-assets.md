@@ -1,0 +1,13 @@
+# Immutable browser assets
+
+Production builds set Next.js assetPrefix to https://youanalyst-web-assets.web.app/releases/<commit>. Only .next/static is published; server files, credentials, source maps and user data are excluded. The dedicated Firebase Hosting site is in project ifindata-80905. It does not change youanalyst.com routing or DNS.
+
+The deployment service account github-deploy-production-sa@ifindata-80905.iam.gserviceaccount.com has roles/firebasehosting.admin for publishing. No website runtime storage permissions are needed. Initial site provisioning is an administrative operation; ordinary deployments reuse it.
+
+Use the production workflow's checked Linux standalone artifact. Source-only production deployments fail before infrastructure mutations. The manifest and compiled Next configuration must agree on commit, environment and asset prefix. Before building the candidate image, publish-web-assets.mjs reads every file from the latest CDN version, retains all existing paths, and adds the new commit directory. Changing bytes at an existing path is rejected. Uploads are bounded to four; only a finalized Hosting version is released. Concurrent CDN changes abort activation. No old release paths or versions are deleted.
+
+After publishing, every new file is fetched anonymously and verified against the original bytes, with immutable caching and cross-origin headers checked. Any failed upload or public check prevents website promotion. Timing-Allow-Origin enables accurate cross-origin resource measurements. The dedicated CDN avoids Cloud Run instance startup for browser assets.
+
+The image still carries legacy predecessor chunks: old documents can request old local assets during routing convergence. New documents request release-pinned CDN assets and never depend on an old website revision containing new chunks. Before promotion, verify-release-assets.mjs renders the candidate with website-local static requests forced to the predecessor, checks a late company-list import, and renders the predecessor using retained assets. CDN requests remain anonymous. The predecessor's independently broken feed is not treated as an asset failure; the candidate must settle both graph and feed.
+
+Readiness comparisons retain every serving-baseline visit. A serving feed that remains pending after at least 45 seconds, with a valid rendered graph and HTTP200 document, is a right-censored observation, not a success or a dropped sample. Its actual observation window is reported as a lower bound. Every candidate sample must complete. The existing complete-readiness/feed ratio and one-second graph-delay limits remain enforced. Do not describe censored values as measured completion times.
