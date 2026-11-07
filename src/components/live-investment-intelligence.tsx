@@ -1,4 +1,5 @@
 "use client";
+import type {PresentationIntelligenceSnapshot as IntelligenceSnapshot} from "@/lib/ui/intelligence-transport";
 import { useThemeCatalog } from './use-theme-catalog';
 
 import { LoadingSpinner } from './loading-spinner';
@@ -46,7 +47,7 @@ import { industryTree } from '@/lib/ui/knowledge-graph/industry-tree';
 import { matchesCompanySector, graphSectors } from '@/lib/knowledge-graph/sectors';
 import { researchCompanyUrl } from '@/lib/knowledge-graph/research-view';
 import { relationshipVerification } from '@/lib/knowledge-graph/relationship-status';
-import { intelligenceEventTitle, intelligenceEventMatchesId, sourceDocumentsForEvents, summarizeSourceDocuments, summarizeIntelligence, sourceChannel, type IntelligenceEvent, type IntelligenceSnapshot, type IntelligenceSource } from '@/lib/intelligence/model';
+import { intelligenceEventTitle, intelligenceEventMatchesId, sourceDocumentsForEvents, summarizeSourceDocuments, summarizeIntelligence, sourceChannel, type IntelligenceEvent,  type IntelligenceSource } from '@/lib/intelligence/model';
 import mobile from './intelligence-mobile.module.css';
 import styles from './investment-intelligence.module.css';
 import controls from './intelligence-workspace-controls.module.css';
@@ -69,16 +70,16 @@ type Panels={left:boolean|null;right:boolean};
 
 /** Failure never falls back to demo data. Polls pause in hidden tabs. */
 export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{initialSnapshot?:IntelligenceSnapshot}&WorkspaceInitialState={}){
-  const {snapshot,theme,error,changeTheme,reconnect,loadPreviousDay,loadingOlder}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
+  const {snapshot,theme,error,changeTheme,reconnect,loadPreviousDay,loadingOlder,loadFullEvents}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
   const {ids:guestSaved,change:changeGuestSaved}=useSessionCompanyWatchlist();
   const [panels,setPanels]=useState<Panels>({left:null,right:true});
   if(!snapshot)return <IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/>;
-  return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} changeGuestSaved={changeGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect} loadPreviousDay={loadPreviousDay} loadingOlder={loadingOlder}/>;
+  return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} changeGuestSaved={changeGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect} loadPreviousDay={loadPreviousDay} loadingOlder={loadingOlder} loadFullEvents={loadFullEvents}/>;
 }
 
-function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,changeGuestSaved,error,reconnect,loadPreviousDay,loadingOlder,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];changeGuestSaved:(id:string,follow:boolean)=>void;error:string;reconnect:()=>void;loadPreviousDay:()=>void;loadingOlder:boolean}&WorkspaceInitialState){
+function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,changeGuestSaved,error,reconnect,loadPreviousDay,loadingOlder,loadFullEvents,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];changeGuestSaved:(id:string,follow:boolean)=>void;error:string;reconnect:()=>void;loadPreviousDay:()=>void;loadingOlder:boolean;loadFullEvents:()=>void}&WorkspaceInitialState){
   const enrichment=useIntelligenceEnrichment(baseSnapshot);
-  const snapshot=enrichment.snapshot;
+  const snapshot:IntelligenceSnapshot=enrichment.snapshot;
   const {locale,chinese}=useLocale();
   const { themeName } = useThemeCatalog();
   const ui=useUiText();
@@ -101,13 +102,16 @@ function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,req
   const setLeftOpen=(left:boolean)=>setPanels(current=>({...current,left}));
   const setRightOpen=(right:boolean)=>setPanels(current=>({...current,right}));
   const leftOpen=leftChoice??wide;
-  const [sector,setSector]=useState(''),[tab,setTab]=useState('all');
+  const [sector,setSector]=useState(''),[tab,setTabState]=useState('all');
   const query=useIndustryBrowseParam('q','',initialQuery);
   const defaultView='graph';
   const view=parseIndustryView(useIndustryBrowseParam('view',defaultView,initialView||defaultView))??defaultView;
   const viewId=useId();
   const changeView=(next:IndustryView)=>{updateIndustryBrowse({view:next});};
-  const [sourceFilter,setSourceFilter]=useState<IntelligenceSource|''>(''),[activeOnly,setActiveOnly]=useState(false);
+  const [sourceFilter,setSourceFilterState]=useState<IntelligenceSource|''>(''),[activeOnly,setActiveOnlyState]=useState(false);
+  const setTab:typeof setTabState=value=>{loadFullEvents();setTabState(value);};
+  const setSourceFilter:typeof setSourceFilterState=value=>{loadFullEvents();setSourceFilterState(value);};
+  const setActiveOnly:typeof setActiveOnlyState=value=>{loadFullEvents();setActiveOnlyState(value);};
   const requestedRegion=useIndustryBrowseParam('region');
   const region=requestedRegion==='US'||requestedRegion==='CN_A'?requestedRegion:'';
   const eventsPending=Boolean(snapshot.eventsPending);
@@ -115,7 +119,7 @@ function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,req
   const [period,setPeriod]=useState(()=>({value:eventsPending?'today' as const:defaultPeriod(),pending:eventsPending}));
   if(period.pending&&!eventsPending)setPeriod({value:defaultPeriod(),pending:false});
   const window=period.value;
-  const setWindow=(value:'today'|'recent')=>{setPeriod({value,pending:false});setVisibleCount(10);};
+  const setWindow=(value:'today'|'recent')=>{loadFullEvents();setPeriod({value,pending:false});setVisibleCount(10);};
   const pendingEvents=<p className={styles.loading} role={error?'alert':'status'}>{!error&&<LoadingSpinner/>}{error?(chinese?'无法加载事件。':'Could not load events.'):(chinese?'正在加载事件和来源…':'Loading events and sources…')}{error&&<button onClick={reconnect}><UiText text="Retry"/></button>}</p>;
   const lastFocusedCompany=useRef('');
   const requestedCompany=useIndustryBrowseParam('company','',initialCompany);
@@ -214,7 +218,7 @@ function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,req
   const label=(id:string)=>{const node=companiesById.get(id);return node?.symbol||node?.name||id;};
 
   function clearSelection(preserveCompany=false){const company=preserveCompany?activityCompany?.id??'':'';updateIndustryBrowse({company,feedCompany:company,event:'',relationship:''});setPropagating(false);}
-  function focusSector(id:string){setSector(id);updateIndustryBrowse({q:'',company:'',feedCompany:'',event:'',relationship:''});setPropagating(false);setCamera(value=>value+1);}
+  function focusSector(id:string){loadFullEvents();setSector(id);updateIndustryBrowse({q:'',company:'',feedCompany:'',event:'',relationship:''});setPropagating(false);setCamera(value=>value+1);}
   function searchCompany(item:SearchSuggestion){
     if(snapshot.graph.nodes.some(node=>node.id===item.id)){
       setMobileScreen('explore');setSector('');setTab('all');setSourceFilter('');setActiveOnly(false);updateIndustryBrowse({region:''});selectCompany(item.id,null,'');
@@ -241,7 +245,7 @@ function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,req
   useEffect(()=>{if(!propagating)return;const timer=setTimeout(()=>setPropagating(false),20_000);return()=>clearTimeout(timer);},[propagating,pulse]);
 
   // Reset theme-specific filters before committing the new contents, keeping the workspace mounted.
-  if(appliedTheme!==theme){setAppliedTheme(theme);setSector('');setTab('all');setSourceFilter('');setActiveOnly(false);setPropagating(false);}
+  if(appliedTheme!==theme){setAppliedTheme(theme);setSector('');setTabState('all');setSourceFilterState('');setActiveOnlyState(false);setPropagating(false);}
 
   const closeEvent=()=>{updateIndustryBrowse({event:'',relationship:'',company:company?.id??requestedId,feedCompany:activityCompany?.id??'ALL'});setPropagating(false);};
   const selectedDetails=company?<section ref={companyCard} tabIndex={-1} aria-label={ui('Company details')} className={`${styles.evidence} ${liveStyles.selectedPanel} ${liveStyles.companyCard}`} onKeyDown={key=>{if(key.key==='Escape'){key.stopPropagation();clearSelection();}}}>
@@ -317,7 +321,7 @@ function IntelligenceWorkspace({snapshot:baseSnapshot,panels,setPanels,theme,req
     {isMobile&&company&&mobileScreen==='explore'&&timeline}
     <aside className={`${styles.right} ${liveStyles.rightPanel}`} aria-label="Events and sources" inert={switching}><div className={styles.panelTitle}><strong>{chinese?'最新动态':'Latest activity'}</strong><button aria-label="Collapse right panel" onClick={()=>setRightOpen(false)}>›</button></div><div className={liveStyles.windowControls}><button aria-pressed={window==='today'} onClick={()=>{setWindow('today');clearSelection(true);}}><UiText text={"Today"}/></button><button aria-pressed={window==='recent'} onClick={()=>{setWindow('recent');clearSelection(true);}}>{chinese?'近 7 天':'7 days'}</button>{activityCompany&&<button className={liveStyles.companyFilter} aria-label={chinese?'清除公司事件筛选':'Clear company event filter'} onClick={()=>clearSelection()}>{activityCompany.symbol||companyName(activityCompany,locale)} ×</button>}</div>{!floatingCompany&&selectedDetails}<div className={liveStyles.rightBody} aria-busy={eventsPending}>{eventsPending?pendingEvents:<>{recentFallback&&<p className={styles.empty}><UiText text={"No new events in the available records today."}/><button onClick={()=>{setWindow('recent');clearSelection(true);}}><UiText text={"View recent events →"}/></button></p>}<IntelligenceActivityOverview events={overviewEvents} documents={activity.documents} complete={snapshot.statisticsComplete} historyPartial={window==='recent'&&Boolean(snapshot.feedWindow?.hasMore)} companies={activityScope} recentFallback={false} period={window==='recent'?'recent':'today'} sourceFilter={sourceFilter} limit={snapshot.limit} truncated={snapshot.truncated} onSector={id=>{if(recentFallback)setWindow('recent');focusSector(id);}} onSource={source=>{if(recentFallback)setWindow('recent');setSourceFilter(source);clearSelection(true);}} onEvent={id=>{setWindow('recent');activate(id);}}/><div id="intelligence-event-stream" className={styles.eventList}>{events.map(item=><IntelligenceEventDemand key={item.id} className={liveStyles.eventRow} event={item} request={enrichment.request} pending={enrichment.pending('prices',item.id)||Boolean(item.calendarPending)} failed={enrichment.failed(item.id)}><button data-event-trigger aria-pressed={intelligenceEventMatchesId(item,eventId)} onClick={click=>{activate(item.id,eventWindowAnchor(click));}}><div><span>{item.eventType?eventPresentation(item,chinese).label:<UiText text={item.category}/>}</span>{item.published_at?<RelativeTime value={item.published_at} interactive={false}/>:<time dateTime={item.published_at??item.publication_date}>{shortDate(item.publication_date)}</time>}</div><strong title={intelligenceEventTitle(item,locale)!==item.title?item.title:undefined}>{intelligenceEventTitle(item,locale)}</strong><IntelligenceEventCompanies companyIds={region?item.companyIds.filter(id=>companiesById.has(id)):item.companyIds} companies={companiesById} chinese={chinese}/><IntelligenceEventPriceReturns publicationDate={item.publication_date} publishedAt={item.published_at} returns={snapshot.eventReturns?.[item.id]?.filter(value=>companiesById.has(value.companyId)&&(!activityCompany||value.companyId===activityCompany.id))} symbol={label}/>{(item.planned||item.evidence.length>1)&&<small><span><UiText text={item.planned?'announced plan':''}/>{item.evidence.length>1&&(chinese?item.evidence.length+' 份来源文档':item.evidence.length+' source documents')}</span></small>}</button><IntelligenceCalendarLinks events={activityCompany?item.calendarEvents?.filter(event=>event.companyId===activityCompany.id):region?item.calendarEvents?.filter(event=>companiesById.has(event.companyId)):item.calendarEvents}/></IntelligenceEventDemand>)}{!events.length&&!recentFallback&&<p className={styles.empty}>{activity.signals>0?(chinese?`匹配的来源未包含在最新 ${snapshot.limit} 条列表中，但已计入统计。`:`Matching sources are outside the latest ${snapshot.limit} entries shown, but are included in the totals.`):<UiText text={window==='today'?'No new events in the available records today.':'No recorded events match these filters.'}/>} {window==='today'&&activity.signals===0&&<button onClick={()=>{setWindow('recent');clearSelection(true);}}><UiText text={"View recent events →"}/></button>}</p>}</div>
 
-      {activity.events.length>visibleCount&&<button onClick={()=>setVisibleCount(count=>count+10)}>{chinese?'再显示 10 条':'Show 10 more'}</button>}
+      {(activity.events.length>visibleCount||snapshot.eventsLimited)&&<button onClick={()=>{loadFullEvents();setVisibleCount(count=>count+10);}}>{chinese?'再显示 10 条':'Show 10 more'}</button>}
       {window==='recent'&&snapshot.feedWindow&&<div className={styles.eventSummary}>
         <span>{chinese?'已加载':'Loaded'} {snapshot.feedWindow.loadedFrom} – {snapshot.feedWindow.through}</span>
         {snapshot.feedWindow.hasMore?<button disabled={loadingOlder||switching} onClick={loadPreviousDay}>{loadingOlder?(chinese?'加载中…':'Loading…'):(chinese?'加载前一天':'Load previous day')}</button>:<span>{chinese?'已显示最近 7 天':'Last 7 days loaded'}</span>}

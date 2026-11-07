@@ -45,7 +45,7 @@ test('homepage streams its shell before a delayed snapshot and preserves selecte
   await rendered.shell;
   assert.match(rendered.html(),/Loading companies and recorded events/);
   assert.doesNotMatch(rendered.html(),/Loaded snapshot/);
-  resolveSnapshot({graphVersion:'real'});
+  resolveSnapshot({graphVersion:'real',events:[]});
   await rendered.done;
   assert.match(rendered.html(),/Loaded snapshot/);
   assert.match(rendered.html(),/data-theme="robotics"/);
