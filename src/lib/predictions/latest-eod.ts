@@ -64,3 +64,33 @@ export async function readLatestUsPrices(db: Firestore, tickers: string[]) {
   }
   return prices;
 }
+
+/** Resolve catalog listings in groups, then atomically compare and update latest
+ * prices. A concurrent newer close is never overwritten by a replay. */
+export async function saveLatestEodPrices(db:Firestore,prices:LatestEodPrice[]) {
+  if(prices.some(p=>!validLatestPrice(p)||p.market==='FX'))throw Error('Invalid equity price batch');
+  const symbols=[...new Set(prices.map(p=>p.ticker.split(':').at(-1)!))];
+  const listings:FirebaseFirestore.QueryDocumentSnapshot[]=[];
+  for(let i=0;i<symbols.length;i+=30){
+    const page=await db.collection('tickers').where('symbol','in',symbols.slice(i,i+30)).get();
+    listings.push(...page.docs);
+  }
+  const writes=prices.flatMap(price=>{
+    const symbol=price.ticker.split(':').at(-1)!;
+    const matches=listings.filter(doc=>doc.get('symbol')===symbol&&(price.market==='US'
+      ?doc.get('currency')==='USD'&&doc.get('country')==='United States':doc.get('micCode')===price.ticker.split(':')[0]));
+    const refs=matches.length?matches.map(d=>d.ref):[db.collection('tickers').doc(`${price.market}_${price.ticker}`)];
+    return refs.map(ref=>({ref,price,symbol}));
+  });
+  for(let i=0;i<writes.length;i+=400){
+    const page=writes.slice(i,i+400);
+    await db.runTransaction(async tx=>{
+      const saved=await tx.getAll(...page.map(w=>w.ref));
+      page.forEach(({ref,price,symbol},index)=>{
+        if(!shouldReplaceLatest(saved[index].get('latestEodPrice'),price))return;
+        if(saved[index].exists)tx.update(ref,{latestEodPrice:price});
+        else tx.create(ref,{latestEodPrice:price,symbol,market:price.market,assetType:'equity',currency:price.currency,active:false,predictionSupported:false});
+      });
+    });
+  }
+}

@@ -49,6 +49,8 @@ function run(target:string,extra:Record<string,string>={}) {
           "pubsub subscriptions describe news-source-dead-letter-audit"*) echo projects/demo/topics/news-source-dead-letter ;;
           "run services describe news-source-subscriber"*) echo https://subscriber.example.run.app ;;
           "pubsub topics describe"*|"pubsub subscriptions describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
+          "run services describe eod-maintenance-subscriber"*"latestReadyRevisionName"*) if [[ "\${EOD_NOT_READY:-0}" == 1 ]]; then echo eod-old; else echo eod-new; fi ;;
+          "run services describe eod-maintenance-subscriber"*"latestCreatedRevisionName"*) echo eod-new ;;
           "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo "$WEB_SA" ;;
           "projects describe"*) echo 123456789 ;;
@@ -111,24 +113,24 @@ test('onboarding rollout verifies a no-traffic candidate and keeps existing sche
   assert.match(scaledDown.calls,/--min-instances 2 --max-instances 2 --concurrency 4/);
   const invalidCapacity=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_SCALE:'unknown'});
   assert.notEqual(invalidCapacity.status,0);
-  assert.doesNotMatch(invalidCapacity.calls,/run deploy instrument-onboarding-subscriber|--to-revisions/);
+  assert.doesNotMatch(invalidCapacity.calls,/run deploy instrument-onboarding-subscriber|run services update-traffic instrument-onboarding-subscriber.*--to-revisions/);
   assert.match(existing.calls,/run jobs update onboard-instruments-production .*--update-env-vars ONBOARDING_SUBSCRIBER_URL=https:\/\/onboarding.example.run.app/);
   assert.match(existing.calls,/ONBOARDING_SUBSCRIBER_URL=https:\/\/candidate.example.run.app,ONBOARDING_SUBSCRIBER_AUDIENCE=https:\/\/onboarding.example.run.app/);
   assert(existing.calls.indexOf('--verify-delivery')<existing.calls.indexOf('--to-revisions onboarding-new=100'));
   assert(existing.calls.indexOf('--verify-capacity')<existing.calls.indexOf('--to-revisions onboarding-new=100'));
   const unready=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_TRIGGER_NOT_READY:'1'});
   assert.notEqual(unready.status,0);assert.doesNotMatch(unready.calls,/scheduler jobs delete onboard-instruments-production/);
-  assert.doesNotMatch(unready.calls,/--to-revisions/);
+  assert.doesNotMatch(unready.calls,/run services update-traffic instrument-onboarding-subscriber.*--to-revisions/);
   assert.doesNotMatch(r.calls,/private-test-token|private-onboarding-ai-key|scheduler jobs (pause|resume)/);
   assert.match(r.calls,/run jobs execute onboard-instruments-production .*--args dist\/onboard-instruments.cjs,--verify-delivery/);
   assert.doesNotMatch(existing.calls,/scheduler jobs (delete|pause|resume)/);
   const failedDelivery=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_DELIVERY_FAIL:'1'});
   assert.notEqual(failedDelivery.status,0);assert.doesNotMatch(failedDelivery.calls,/scheduler jobs delete onboard-instruments-production/);
-  assert.doesNotMatch(failedDelivery.calls,/--to-revisions/);
+  assert.doesNotMatch(failedDelivery.calls,/run services update-traffic instrument-onboarding-subscriber.*--to-revisions/);
   const staleMonitor=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'test',OPENAI_API_KEY:'test',EODHD_BULK_EOD_BUCKET:'demo-eod',ONBOARDING_CAPACITY_FAIL:'1'});
   assert.notEqual(staleMonitor.status,0);
   assert.match(staleMonitor.calls,/--verify-delivery/);
-  assert.doesNotMatch(staleMonitor.calls,/--to-revisions|scheduler jobs (delete|pause|resume)/);
+  assert.doesNotMatch(staleMonitor.calls,/run services update-traffic instrument-onboarding-subscriber.*--to-revisions|scheduler jobs (delete|pause|resume)/);
   const missingAi=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',OPENAI_API_KEY:'',EODHD_API_TOKEN:'private-test-token',EODHD_BULK_EOD_BUCKET:'demo-eod'});
   assert.notEqual(missingAi.status,0);assert.match(missingAi.stderr,/OPENAI_API_KEY/);assert.doesNotMatch(missingAi.calls,/builds submit|run jobs deploy/);
   const invalid=run('all',{INSTRUMENT_ONBOARDING_ENABLED:'1',EODHD_API_TOKEN:'',EODHD_BULK_EOD_BUCKET:'demo-eod'});
@@ -224,10 +226,15 @@ test('EOD deployment is private, retained before publication, and reuses scoped 
   assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-eod-maintenance.cjs.*--concurrency 1/);
   assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--max-instances 4/);
   assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--memory 2Gi --cpu 1/);
+  assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--startup-probe httpGet.path=\/health.*--no-traffic --tag candidate/);
+  assert.ok(r.calls.indexOf('latestReadyRevisionName')<r.calls.indexOf('--to-revisions eod-new=100'));
   assert.match(r.calls,/pubsub topics add-iam-policy-binding eod-maintenance-requests.*--member serviceAccount:directory-sync-runtime@demo.iam.gserviceaccount.com.*roles\/pubsub.publisher/);
   assert.match(r.calls,/--dead-letter-topic eod-maintenance-dead-letter/);
   assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/existing-bulk-cache.*roles\/storage.objectUser/);
   assert.doesNotMatch(r.calls,/secret-for-test|scheduler jobs (pause|resume)/);
+  const unready=run('eod-maintenance',{EOD_NOT_READY:'1'});
+  assert.notEqual(unready.status,0);
+  assert.doesNotMatch(unready.calls,/run services update-traffic eod-maintenance-subscriber/);
 });
 
 test('web publisher bootstrap needs no beta component or worker image',()=>{

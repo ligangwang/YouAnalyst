@@ -1,6 +1,7 @@
 import {eodWorkOnce, forgetEodWork} from './eod-work-scope';
-import {writeCachedPrice} from '../intelligence/price-cache';
-import { saveLatestEodPrice } from "./latest-eod";
+import {writeCachedPrice,writeCachedPrices} from '../intelligence/price-cache';
+import { saveLatestEodPrice,saveLatestEodPrices } from "./latest-eod";
+import {FieldPath} from 'firebase-admin/firestore';
 import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
 import { corporateActionTickers, syncCorporateActions } from './corporate-actions';
 import { loadUsdCnyEod } from "./fx-eod";
@@ -704,7 +705,7 @@ async function fetchEodhdBulkEodPrices(
       return instrument?.market === market && historyProviderSymbol(ticker).endsWith(`.${exchange}`);
     });
     if (!selected.length) continue;
-    const bulk = await readEodhdBulkRows(requestedDate, exchange);
+    const bulk = await eodWorkOnce(`bulk-file:${exchange}:${requestedDate}`,()=>readEodhdBulkRows(requestedDate, exchange));
     if (!bulk) return null;
     paths.push(bulk.rawGcsPath);
     rawCacheHit &&= bulk.rawCacheHit;
@@ -1381,7 +1382,76 @@ export async function scanEodPredictions(
   };
 }
 
-export type EodCompanyExecution = {taskId:string;price?:EodPrice};
+export type EodCompanyExecution = {taskId:string;price?:EodPrice;bulk?:boolean};
+
+/** The daily fast path only plans supported listings, prediction symbols and the
+ * benchmark. History repair and unrelated watchlists are not on its critical path. */
+export async function planBulkEodWork(input:DailyEodMaintenanceInput,db=getAdminFirestore()) {
+  const market=input.market??'US',runDate=resolveRunDate(input.runDate,market);
+  const scan=await scanEodPredictions(db,runDate,null,input.tickers??[],market);
+  const universe=await loadEodPriceUniverse({market,loadPrices:input.loadPrices!==false,manualTickers:input.tickers??[],predictionTickers:scan.predictionsToProcess.map(p=>p.ticker)});
+  if(market==='US'&&input.loadPrices!==false){
+    const fx=await loadUsdCnyEod(db,runDate);
+    if(fx.failed)throw Error('EOD FX remains incomplete');
+  }
+  return universe.requestedTickers.map(ticker=>predictionInstrument(ticker)!.companyId);
+}
+
+export async function readBulkEodPrices(db:FirebaseFirestore.Firestore,tickers:string[],date:string) {
+  const prices=new Map<string,EodPrice>();
+  for(let i=0;i<tickers.length;i+=1000){
+    const page=tickers.slice(i,i+1000);
+    const docs=await db.getAll(...page.map(t=>db.collection('eod_prices').doc(eodPriceDocId(t,date))));
+    docs.forEach((doc,index)=>{const price=toCachedEodPrice(doc.data());if(price&&isPriceForEodDate(price,page[index],date))prices.set(page[index],price);});
+  }
+  return prices;
+}
+
+/** One bulk exchange file per delivery, bounded atomic commits, no company
+ * receipts or sleeps. Only a failed-only cleanup pass uses individual requests. */
+export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:string[],retry:boolean,db=getAdminFirestore()) {
+  if(input.loadPrices===false)return [];
+  const market=input.market??'US',date=resolveRunDate(input.runDate,market);
+  const tickers=ids.map(id=>market==='US'?id.slice(3):id),now=new Date().toISOString();
+  const cached=await readBulkEodPrices(db,tickers,date),missing=tickers.filter(t=>!cached.has(t));
+  let fetched:EodPriceFetchResult|null;
+  if(retry){
+    fetched={provider:'eodhd-eod',prices:[],failures:[],rawGcsPath:null,rawCacheHit:false};
+    for(const group of chunk(missing,8)){
+      const page=await fetchEodhdDailyPrices(group,date,now,market);
+      // Stop at the first transport/provider error instead of spending the
+      // request timeout on every remaining symbol during a provider outage.
+      if(page.failures.some(f=>f.reason!=='eodhd_no_dated_bar'))throw Error('EOD price cleanup remains incomplete');
+      fetched.prices.push(...page.prices);fetched.failures.push(...page.failures);
+    }
+  }else fetched=await fetchEodhdBulkEodPrices(missing,date,now,market);
+  if(!fetched)throw Error('EOD bulk provider is not configured');
+  const prices=fetched.prices;
+  // Read yesterday's closes in one RPC, then resolve weekends/new listings with
+  // bounded range queries instead of up to 30 point reads per symbol.
+  if(prices.length){
+    const prior=await readBulkEodPrices(db,prices.map(p=>p.ticker),addUtcDays(date,-1));
+    for(let offset=0;offset<prices.length;offset+=16){
+      await Promise.all(prices.slice(offset,offset+16).map(async price=>{
+        let previous:Pick<EodPrice,'close'|'tradingDate'>|undefined=prior.get(price.ticker);
+        if(!previous){
+          const prefix=`${price.market}_${price.ticker}_`;
+          const page=await db.collection('eod_prices').where(FieldPath.documentId(),'>=',prefix+addUtcDays(date,-PREVIOUS_EOD_PRICE_LOOKBACK_DAYS))
+            .where(FieldPath.documentId(),'<',prefix+date).orderBy(FieldPath.documentId(),'desc').limit(PREVIOUS_EOD_PRICE_LOOKBACK_DAYS).get();
+          previous=page.docs.map(d=>toCachedEodPrice(d.data())).find(p=>p&&p.close>0)??undefined;
+        }
+        price.previousClose=previous?.close??null;price.previousTradingDate=previous?.tradingDate??null;
+        price.dailyReturn=previous?price.close/previous.close-1:null;
+      }));
+    }
+    await writeCachedPrices(db,prices.map(price=>({ref:db.collection('eod_prices').doc(eodPriceDocId(price.ticker,date,market)),patch:{...price}})));
+  }
+  // Include cached prices: a crash between source and latest-price commits must
+  // repair latest pointers before this batch's cursor advances.
+  await saveLatestEodPrices(db,[...cached.values(),...prices].map(price=>({ticker:price.ticker,market:price.market,tradingDate:price.tradingDate,close:price.close,
+    currency:market==='US'?'USD':'CNY',source:price.source,loadedAt:price.loadedAt})));
+  return fetched.failures.map(f=>predictionInstrument(f.ticker)!.companyId);
+}
 
 /** Freeze the full interested-symbol scope before publishing any company task. */
 export async function planEodCompanyWork(input:DailyEodMaintenanceInput,db=getAdminFirestore()) {
@@ -1431,10 +1501,38 @@ export async function finalizeEodCompanyScores(input:DailyEodMaintenanceInput,cu
   return page.size===50?page.docs.at(-1)!.id:null;
 }
 
+/** Finalize each affected user once per successful run, even when their marks
+ * span prediction pages. Repeated delivery is safe because scores are recomputed. */
+export async function finalizeBulkEodScores(input:DailyEodMaintenanceInput,cursor:string|null,db=getAdminFirestore()):Promise<string|null> {
+  if(input.markPredictions===false)return null;
+  const market=input.market??'US',runDate=resolveRunDate(input.runDate,market);
+  const users=await eodWorkOnce(`bulk-users:${market}:${runDate}`,async()=>{
+    const ids=new Set<string>();let after:string|undefined;
+    for(;;){
+      let query=db.collection('prediction_daily_marks').where('date','==',runDate).orderBy('__name__').limit(1000);
+      if(after)query=query.startAfter(after);
+      const page=await query.get();
+      for(const doc of page.docs)if(predictionInstrument(String(doc.get('ticker')??''))?.market===market&&typeof doc.get('userId')==='string')ids.add(doc.get('userId'));
+      if(page.size<1000)break;after=page.docs.at(-1)!.id;
+    }
+    return [...ids].sort();
+  });
+  const page=users.filter(id=>cursor===null||id>cursor).slice(0,1000),now=new Date().toISOString();
+  for(let i=0;i<page.length;i+=8){
+    const outcomes=await Promise.allSettled(page.slice(i,i+8).map(async user=>{
+      if(!await recomputeUserAnalytics(db,user,now))throw Error('EOD portfolio analytics incomplete');
+      const written=await writeUserDailyScoreSnapshots(db,[user],runDate,now);
+      if(written.skippedUsers)throw Error('EOD portfolio scores incomplete');
+    }));
+    for(const outcome of outcomes)if(outcome.status==='rejected')throw outcome.reason;
+  }
+  return page.length===1000?page.at(-1)!:null;
+}
+
 export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {}, execution?:EodCompanyExecution): Promise<DailyEodMaintenanceResult> {
   const market = input.market ?? "US";
   if (market !== "US" && market !== "CN_A") throw new Error("Invalid EOD market");
-  if(execution&&(!input.tickers||input.tickers.length!==1||execution.price&&!isPriceForEodDate(execution.price,input.tickers[0],input.runDate!)))throw Error('Invalid prepared company price');
+  if(execution&&!execution.bulk&&(!input.tickers||input.tickers.length!==1||execution.price&&!isPriceForEodDate(execution.price,input.tickers[0],input.runDate!)))throw Error('Invalid prepared company price');
   const log = createMaintenanceLog("daily-eod-maintenance", { market, requestedDate: input.runDate, dryRun: input.dryRun === true, trigger: input.trigger ?? "internal", requestedBy: input.requestedBy });
   // Share the lock between scheduled and admin runs, including different dates
   // for the same market, because they can touch the same prediction scores.
@@ -1542,14 +1640,18 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       nextPredictionId,
     } = await scanEodPredictions(db, runDate, limit, manualTickers, market, input.afterPredictionId);
     log.stage("load_price_universe");
-    const { requestedTickers, mapTickers, benchmarkTickers } = await loadEodPriceUniverse({ market, loadPrices, manualTickers,
-      predictionTickers: predictionsToProcess.map((item) => item.ticker) });
+    const { requestedTickers, mapTickers, benchmarkTickers } = execution?.bulk
+      ? {requestedTickers:[...new Set(predictionsToProcess.map(p=>p.ticker))],mapTickers:[],benchmarkTickers:[]}
+      : await loadEodPriceUniverse({ market, loadPrices, manualTickers, predictionTickers: predictionsToProcess.map((item) => item.ticker) });
     log.emit("INFO", "price_universe_selected", { runDate, requestedTickers: requestedTickers.length, mapTickers: mapTickers.length });
 
     let corporateActions:DailyEodMaintenanceResult['corporateActions'];
     // Historical repair/replay and mark-only requests retain their original scope.
     // The current daily run discovers all map/watchlist listings before loading prices.
-    if(loadPrices&&!dryRun&&!input.skipHistoryBackfill&&(!manualTickers.length||execution)&&runDate===marketDate(market)){
+    if(execution?.bulk&&requestedTickers.length){
+      corporateActions=await syncCorporateActions({db,tickers:requestedTickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL});
+      if(corporateActions.failures.length||corporateActions.deferred)throw Error('Required prediction corporate actions remain incomplete');
+    } else if(!execution?.bulk&&loadPrices&&!dryRun&&!input.skipHistoryBackfill&&(!manualTickers.length||execution)&&runDate===marketDate(market)){
       log.stage('sync_corporate_actions');
       const tickers=execution?manualTickers:await eodWorkOnce(`action-universe:${market}`, () => corporateActionTickers(db,market,mapTickers));
       corporateActions=await eodWorkOnce(`actions:${market}:${runDate}`, () => syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL}), result => !result.failures.length && !result.deferred);
@@ -1592,7 +1694,21 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     const priceByTicker = new Map<string, EodPrice>();
 
     log.stage("load_prices", { requestedTickers: requestedTickers.length });
-    if (loadPrices && requestedTickers.length > 0) {
+    if(execution?.bulk){
+      const cached=await readBulkEodPrices(db,requestedTickers,runDate);
+      const missing=requestedTickers.filter(t=>!cached.has(t));
+      // A provider may publish a required bar after the bulk cleanup pass.
+      // Retry only those gaps, including on a later prediction continuation.
+      if(missing.length&&loadPrices){
+        await persistBulkEodPrices(input,missing.map(t=>predictionInstrument(t)!.companyId),true,db);
+        (await readBulkEodPrices(db,missing,runDate)).forEach((price,ticker)=>cached.set(ticker,price));
+      }
+      cached.forEach((price,ticker)=>priceByTicker.set(ticker,price));
+      priceLoad.cacheHits=cached.size;
+      priceLoad.failures=requestedTickers.filter(t=>!cached.has(t)).map(ticker=>({ticker,reason:'eodhd_no_dated_bar'}));
+      priceLoad.failed=priceLoad.failures.length;
+      if(priceLoad.failed)throw Error('Required prediction EOD prices are missing');
+    } else if (loadPrices && requestedTickers.length > 0) {
       console.info("[daily-eod-maintenance] Loading EOD prices", {
         runDate,
         requestedTickers,
@@ -1702,7 +1818,11 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     log.stage("mark_predictions", { predictions: predictionsToProcess.length });
     let transactionsCompleted = 0;
     if (markPredictions) {
-      for (const prediction of predictionsToProcess) {
+      const processPrediction = async (prediction:EodPredictionRecord) => {
+        const marking:DailyEodMaintenanceResult['marking']={checked:0,opened:0,marked:0,closed:0,missingPrice:0,skipped:0};
+        const dailySnapshots:DailyEodMaintenanceResult['dailySnapshots']={predictionMarks:0,userScores:0,skippedUsers:0};
+        const usersNeedingDailyScores=new Set<string>(),usersNeedingAnalytics=new Set<string>();
+        const work=async()=>{
         const price = priceByTicker.get(prediction.ticker);
         if (!price) {
           marking.missingPrice += 1;
@@ -1712,7 +1832,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
             ticker: prediction.ticker,
             status: prediction.status,
           });
-          continue;
+          return;
         }
 
         if (dryRun) {
@@ -1727,7 +1847,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
           } else {
             marking.marked += 1;
           }
-          continue;
+          return;
         }
 
         const committedMarking = { ...marking };
@@ -2028,8 +2148,34 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
           usersNeedingDailyScores.add(prediction.userId);
           usersNeedingAnalytics.add(prediction.userId);
         });
+        };
+        await work();
         transactionsCompleted++;
-      }
+        return {marking,dailySnapshots,usersNeedingDailyScores,usersNeedingAnalytics};
+      };
+      const merge = (result:Awaited<ReturnType<typeof processPrediction>>) => {
+        for(const key of ['opened','marked','closed','missingPrice','skipped'] as const)marking[key]+=result.marking[key];
+        dailySnapshots.predictionMarks+=result.dailySnapshots.predictionMarks;
+        result.usersNeedingDailyScores.forEach(id=>usersNeedingDailyScores.add(id));
+        result.usersNeedingAnalytics.forEach(id=>usersNeedingAnalytics.add(id));
+      };
+      if(execution?.bulk){
+        // Different users run concurrently; one user's transitions stay ordered
+        // so counter updates do not create avoidable transaction contention.
+        const groups=new Map<string,EodPredictionRecord[]>();
+        for(const prediction of predictionsToProcess){
+          const group=groups.get(prediction.userId)??[];group.push(prediction);groups.set(prediction.userId,group);
+        }
+        const pending=[...groups.values()];let next=0,failed=false;
+        const outcomes=await Promise.allSettled(Array.from({length:Math.min(8,pending.length)},async()=>{
+          while(!failed){
+            const group=pending[next++];if(!group)return;
+            try{for(const prediction of group)merge(await processPrediction(prediction));}
+            catch(error){failed=true;throw error;}
+          }
+        }));
+        for(const outcome of outcomes)if(outcome.status==='rejected')throw outcome.reason;
+      }else for(const prediction of predictionsToProcess)merge(await processPrediction(prediction));
     }
 
     log.stage("user_analytics", { transactionsCompleted, users: usersNeedingAnalytics.size });
