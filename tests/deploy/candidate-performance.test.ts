@@ -65,3 +65,13 @@ test('a broken serving feed is retained as a lower bound while a candidate must 
  assert.equal(events.filter(event=>event.event==='candidate_browser_sample'&&event.feedTimedOut).length,3);
  await assert.rejects(verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async()=>({graphMs:1000,feedMs:46000,feedTimedOut:true})}),/Candidate feed failed to settle/);
 });
+
+test('a censored observation cannot masquerade as an exact median among slower successful visits',async()=>{
+ let baseline=0;
+ const result=await verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async(url:string)=>{
+  if(url==='new')return {graphMs:900,feedMs:1800};
+  const sample=baseline++;
+  return sample<=1?{graphMs:1000,feedMs:46000,feedTimedOut:true}:{graphMs:1000,feedMs:sample===2?50000:60000};
+ }});
+ assert.equal(result.baselineFeedTimeouts,1);assert.equal(result.baselineReadyMedianIsLowerBound,true);assert.equal(result.baselineFeedMedianIsLowerBound,true);
+});

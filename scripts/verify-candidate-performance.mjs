@@ -22,7 +22,7 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
   assert(candidateUrl&&baselineUrl&&typeof measure==='function');
   assert(Number.isInteger(samples)&&samples>=3&&samples%2===1);
   assert(Number.isFinite(maxGraphDelayMs)&&maxGraphDelayMs>=0);
-  const urls={baseline:baselineUrl,candidate:candidateUrl},results={baseline:[],candidate:[]},feeds={baseline:[],candidate:[]},ready={baseline:[],candidate:[]},timeouts={baseline:0,candidate:0};
+  const urls={baseline:baselineUrl,candidate:candidateUrl},results={baseline:[],candidate:[]},feeds={baseline:[],candidate:[]},ready={baseline:[],candidate:[]},readyUpper={baseline:[],candidate:[]},feedsUpper={baseline:[],candidate:[]},timeouts={baseline:0,candidate:0};
   const timing=async(label)=>{
     const measured=await measure(urls[label],label),value=typeof measured==='number'?{graphMs:measured}:measured;
     assert(!(label==='candidate'&&value.feedTimedOut),'Candidate feed failed to settle; existing traffic stays unchanged');
@@ -34,18 +34,20 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
       const {graphMs:durationMs,feedMs,feedTimedOut}=await timing(label);
       assert(Number.isFinite(durationMs)&&durationMs>0,'Invalid browser timing');
       results[label].push(durationMs);
-      if(feedMs!==undefined){assert(Number.isFinite(feedMs)&&feedMs>0,'Invalid feed timing');feeds[label].push(feedMs);}
+      if(feedMs!==undefined){assert(Number.isFinite(feedMs)&&feedMs>0,'Invalid feed timing');feeds[label].push(feedMs);feedsUpper[label].push(feedTimedOut?Infinity:feedMs);}
       ready[label].push(Math.max(durationMs,feedMs??durationMs));
+      readyUpper[label].push(feedTimedOut?Infinity:Math.max(durationMs,feedMs??durationMs));
       if(feedTimedOut)timeouts[label]++;
       log(JSON.stringify({event:'candidate_browser_sample',label,round:round+1,durationMs,feedDurationMs:feedMs,...(feedTimedOut?{feedTimedOut:true,feedTimeIsLowerBound:true}:{})}));
     }
   }
-  const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),baselineFeedTimeouts:timeouts.baseline,baselineReadyMedianIsLowerBound:timeouts.baseline>=Math.ceil(samples/2),samples,maxRegressionRatio,maxGraphDelayMs};
+  const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),baselineFeedTimeouts:timeouts.baseline,baselineReadyMedianIsLowerBound:median(ready.baseline)!==median(readyUpper.baseline),samples,maxRegressionRatio,maxGraphDelayMs};
   log(JSON.stringify(summary));
   if(feeds.baseline.length||feeds.candidate.length){
     assert(feeds.baseline.length===samples&&feeds.candidate.length===samples,'Incomplete feed performance samples');
     summary.baselineFeedMedianMs=median(feeds.baseline);summary.candidateFeedMedianMs=median(feeds.candidate);
-    log(JSON.stringify({event:'candidate_feed_performance',baselineMedianMs:summary.baselineFeedMedianMs,candidateMedianMs:summary.candidateFeedMedianMs,samples,maxRegressionRatio}));
+    summary.baselineFeedMedianIsLowerBound=summary.baselineFeedMedianMs!==median(feedsUpper.baseline);
+    log(JSON.stringify({event:'candidate_feed_performance',baselineMedianMs:summary.baselineFeedMedianMs,candidateMedianMs:summary.candidateFeedMedianMs,baselineFeedTimeouts:timeouts.baseline,baselineMedianIsLowerBound:summary.baselineFeedMedianIsLowerBound,samples,maxRegressionRatio}));
     assert(summary.candidateFeedMedianMs<=summary.baselineFeedMedianMs*maxRegressionRatio,
       `Candidate feed readiness regressed: ${Math.round(summary.candidateFeedMedianMs)}ms versus ${Math.round(summary.baselineFeedMedianMs)}ms; existing traffic stays unchanged`);
   }
