@@ -1,0 +1,12 @@
+Description:           Daily Index of EDGAR Dissemination Feed
+Last Data Received:    Nov 6, 2026
+Comments:              webmaster@sec.gov
+Anonymous FTP:         ftp://ftp.sec.gov/edgar/
+
+CIK|Company Name|Form Type|Date Filed|File Name
+--------------------------------------------------------------------------------
+1000228|HENRY SCHEIN INC|3|20261106|edgar/data/1000228/0001825509-26-000005.txt
+1698506|Simwon America Corp.|S-1/A|20261106|edgar/data/1698506/0001213900-26-116984.txt
+1779977|SeeQC, Inc.|S-1/A|20261106|edgar/data/1779977/0001213900-26-116829.txt
+1826011|Parabolic Technologies, Inc.|424B4|20261106|edgar/data/1826011/0001493152-26-050319.txt
+777917|PRUCO LIFE INSURANCE CO|S-1/A|20260511|edgar/data/777917/0000777917-26-000076.txt

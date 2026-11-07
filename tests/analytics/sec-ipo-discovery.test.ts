@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import {ipoFixture} from '../helpers/sec-ipo';
 import {confirmsIpoCover,confirmedMappings,parseDailyIndex,resolveProspectuses,dailyIndexUrl,type Filing,type Listing} from '../../src/lib/sec-ipo-discovery/evidence';
 import {importConfirmedIpo,IpoIdentityReview} from '../../src/lib/sec-ipo-discovery/import';
@@ -21,6 +22,14 @@ test('daily index validates issuer folder and date while permitting filing-agent
   assert.throws(()=>parseDailyIndex(index,'2026-11-05'));
   assert.throws(()=>parseDailyIndex('SEC outage','2026-11-06'));
   assert.equal(dailyIndexUrl('2026-11-06'),'https://www.sec.gov/Archives/edgar/daily-index/2026/QTR4/master.20261106.idx');
+});
+test('actual SEC daily index header and compact dates are normalized to submissions ISO dates',()=>{
+  const text=readFileSync(new URL('../fixtures/sec-ipo-daily-index-20261106.idx',import.meta.url),'utf8');
+  const rows=parseDailyIndex(text,'2026-11-06');assert.equal(rows.length,4);
+  assert.equal(rows.filter(row=>row.filingDate==='2026-11-06').length,3);
+  assert.equal(rows.find(row=>row.cik==='0000777917')?.filingDate,'2026-05-11');
+  assert.equal(rows.find(row=>row.form==='424B4')?.cik,'0001826011');
+  assert.throws(()=>parseDailyIndex(text,'2026-11-05'),/Invalid IPO index identity/);
 });
 test('SEC mappings require matching CIK, symbol and exchange in both sources; collisions are not guessed',()=>{
   assert.deepEqual(confirmedMappings(mapping,submission,listing.cik),[listing]);
@@ -105,6 +114,13 @@ test('caught-up checkpoint waits for tomorrow instead of restarting the initial 
   await runSecIpoDiscovery(f.db,source,{clock:()=>Date.parse('2026-11-07T16:00:00Z'),capacity:async()=>{},pause:async()=>{}});
   assert.deepEqual(days,['2026-11-06','2026-11-05','2026-11-04']);assert.equal(f.rows.get('sec_ipo_discovery/scan')?.cursor,'2026-11-07');
 });
+test('historical filing replays in a current daily index do not create fresh IPO candidates',async()=>{
+  const f=ipoFixture(),now=Date.parse('2026-11-07T16:00:00Z');
+  const old=header+'777917|PRUCO LIFE INSURANCE CO|S-1/A|20260511|edgar/data/777917/0000777917-26-000076.txt\n';
+  const source={daily:async(day:string)=>day==='2026-11-06'?old:header,mapping:async()=>mapping,submission:async()=>submission,cover:async()=>cover};
+  assert.equal((await runSecIpoDiscovery(f.db,source,{clock:()=>now,capacity:async()=>{},pause:async()=>{}})).observed,0);
+  assert(!f.rows.has('sec_ipo_discovery/candidate_0000777917'));
+});
 
 test('a large confirmed batch stops at five admissions and retains the rest for later runs',async()=>{
   const f=ipoFixture(),now=Date.parse('2026-11-07T16:00:00Z');
@@ -115,4 +131,32 @@ test('a large confirmed batch stops at five admissions and retains the rest for 
   assert.equal([...f.rows.keys()].filter(key=>key.startsWith('instrument_onboarding_requests/')).length,5);
   assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000128')?.status,'PENDING');
   assert.equal((await runSecIpoDiscovery(f.db,source,{clock:()=>now,capacity:async()=>{},pause:async()=>{}})).created,1);
+});
+
+function multipleListingsSource(includeSecond:()=>boolean=()=>true){
+  const accession='0001193125-26-123457';
+  return {
+    daily:async(day:string)=>day==='2026-11-06'?index:day==='2026-11-05'?header+`123|New Issuer|424B4|2026-11-05|edgar/data/123/${accession}.txt\n`:header,
+    mapping:async()=>({...mapping,data:includeSecond()?[...mapping.data,[123,'New Issuer','NEWB','Nasdaq']]:mapping.data}),
+    submission:async()=>({...submission,tickers:includeSecond()?['NEW','NEWB']:['NEW'],exchanges:includeSecond()?['Nasdaq','Nasdaq']:['Nasdaq'],filings:{recent:{accessionNumber:[filing.accessionNumber,accession],form:['424B4','424B4'],filingDate:['2026-11-06','2026-11-05'],primaryDocument:['ipo.htm','ipo-b.htm']}}}),
+    cover:async(url:string)=>url.endsWith('ipo-b.htm')?cover.replace('NEW.','NEWB.'):cover,
+  };
+}
+test('one issuer can admit listings confirmed by separate prospectuses in the same run',async()=>{
+  const f=ipoFixture();const result=await runSecIpoDiscovery(f.db,multipleListingsSource(),{clock:()=>Date.parse('2026-11-07T16:00:00Z'),capacity:async()=>{},pause:async()=>{}});
+  assert.equal(result.created,2);assert.equal(result.queued,2);
+  assert.equal(f.rows.get('companies/US:NEWB')?.supersededByCompanyId,'US:NEW');
+  assert.equal([...f.rows.keys()].filter(key=>key.startsWith('instrument_onboarding_requests/')).length,2);
+});
+test('recent confirmed issuers are rechecked for delayed SEC listing metadata without duplicating existing work',async()=>{
+  const f=ipoFixture();let now=Date.parse('2026-11-07T16:00:00Z'),second=false;
+  const source=multipleListingsSource(()=>second),options={clock:()=>now,capacity:async()=>{},pause:async()=>{}};
+  assert.equal((await runSecIpoDiscovery(f.db,source,options)).created,1);
+  assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000123')?.nextCheckAt,now+86400000);
+  const [firstPath,first]=[...f.rows.entries()].find(([,row])=>row.instrumentId&&row.requestSource==='SEC_IPO')!;
+  const requestedAt=first.requestedAt;now+=86400001;second=true;
+  const result=await runSecIpoDiscovery(f.db,source,options);assert.equal(result.created,1);assert.equal(result.queued,1);
+  assert.equal(f.rows.get(firstPath)?.requestedAt,requestedAt);assert.equal([...f.rows.keys()].filter(key=>key.startsWith('instrument_onboarding_requests/')).length,2);
+  now+=8*86400000;assert.equal((await runSecIpoDiscovery(f.db,source,options)).created,0);
+  assert.equal(f.rows.get('sec_ipo_discovery/candidate_0000000123')?.nextCheckAt,undefined);
 });

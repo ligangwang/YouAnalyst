@@ -27,7 +27,8 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
     let writes=0;
     for(const day of days){
       await guard();const text=await source.daily(day);if(text===null){counts.missingIndexes++;if(day===cursor){cursor=shift(cursor,1);await stateRef.update({cursor});}continue;}
-      const filings=parseDailyIndex(text,day);let complete=true;
+      // Dissemination indexes can replay historical filings. They are not new IPOs.
+      const filings=parseDailyIndex(text,day).filter(f=>f.filingDate>=floor);let complete=true;
       for(const cik of new Set(filings.map(f=>f.cik))){
         await guard();const ref=registry.doc(`candidate_${cik}`),saved=await ref.get(),previous=(saved.get('filings')??[]) as Filing[];
         const fresh=filings.filter(f=>f.cik===cik&&!previous.some(p=>p.accessionNumber===f.accessionNumber));if(!fresh.length)continue;
@@ -46,26 +47,31 @@ export async function runSecIpoDiscovery(db:Firestore,source:IpoSource,options:{
       try{
       const hasFinal=filings.some(f=>['424B4','424B1'].includes(f.form));
       const submission=hasFinal?await source.submission(cik):null,prospectuses=hasFinal?resolveProspectuses(submission,filings,cik):[];
-      let confirmed=false;
+      let confirmed=false,review=false;
+      const admitted=new Set<string>();
       if(prospectuses.length){
         const listings=confirmedMappings(await source.mapping(),submission,cik);
         for(const filing of prospectuses){
           await guard();const html=await source.cover(filing.sourceUrl);
           for(const listing of listings){
             if(!confirmsIpoCover(html,listing))continue;
+            const key=`${listing.exchangeMic}:${listing.symbol}`;if(admitted.has(key))continue;
             if(counts.created>=5||counts.queued>=5)throw new OnboardingCapacityDeferred('IPO listing admission limit reached');
             await guard();
-            try{const result=await importConfirmedIpo(db,listing,[filing],clock());counts.created+=Number(result.created);counts.queued+=Number(result.queued);confirmed=true;}
-            catch(error){if(!(error instanceof IpoIdentityReview))throw error;await doc.ref.update({status:'REVIEW',lastError:error.message,lastCheckedAt:at(),nextCheckAt:FieldValue.delete()});counts.review++;confirmed=true;break;}
+            try{const result=await importConfirmedIpo(db,listing,[filing],clock());counts.created+=Number(result.created);counts.queued+=Number(result.queued);admitted.add(key);confirmed=true;}
+            catch(error){if(!(error instanceof IpoIdentityReview))throw error;await doc.ref.update({status:'REVIEW',lastError:error.message,lastCheckedAt:at(),nextCheckAt:FieldValue.delete()});counts.review++;review=true;break;}
             await pause(1000);
           }
-          if(confirmed)break;
+          if(review)break;
         }
       }
       const current=await doc.ref.get();
-      const newest=Math.max(...filings.map(f=>Date.parse(f.filingDate)));
+      const newest=Math.max(...filings.filter(f=>['424B4','424B1'].includes(f.form)).map(f=>Date.parse(f.filingDate)));
       const retryDelay=!hasFinal?7*DAY:newest<start-30*DAY?30*DAY:DAY;
-      if(current.get('status')!=='REVIEW')await doc.ref.update({status:confirmed?'CONFIRMED':'PENDING',lastCheckedAt:at(),lastError:null,nextCheckAt:confirmed?FieldValue.delete():clock()+retryDelay});
+      // SEC's ticker metadata can lag a second listing in the same offering.
+      // Revisit recent confirmed issuers without recreating their existing jobs.
+      const nextCheckAt=confirmed?(newest>=start-7*DAY?clock()+DAY:FieldValue.delete()):clock()+retryDelay;
+      if(current.get('status')!=='REVIEW')await doc.ref.update({status:confirmed?'CONFIRMED':'PENDING',lastCheckedAt:at(),lastError:null,nextCheckAt});
       await pause(1000);
       }catch(error){
         if(error instanceof OnboardingCapacityDeferred)throw error;
