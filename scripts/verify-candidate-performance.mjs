@@ -41,7 +41,7 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
       log(JSON.stringify({event:'candidate_browser_sample',label,round:round+1,durationMs,feedDurationMs:feedMs,...(feedTimedOut?{feedTimedOut:true,feedTimeIsLowerBound:true}:{})}));
     }
   }
-  const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),baselineFeedTimeouts:timeouts.baseline,baselineReadyMedianIsLowerBound:median(ready.baseline)!==median(readyUpper.baseline),samples,maxRegressionRatio,maxGraphDelayMs};
+  const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),baselineFeedTimeouts:timeouts.baseline,baselineReadyMedianIsLowerBound:median(ready.baseline)!==median(readyUpper.baseline),baselineFeedMedianIsLowerBound:feeds.baseline.length?median(feeds.baseline)!==median(feedsUpper.baseline):false,samples,maxRegressionRatio,maxGraphDelayMs};
   log(JSON.stringify(summary));
   if(feeds.baseline.length||feeds.candidate.length){
     assert(feeds.baseline.length===samples&&feeds.candidate.length===samples,'Incomplete feed performance samples');
