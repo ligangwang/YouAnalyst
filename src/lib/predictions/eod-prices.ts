@@ -1421,7 +1421,10 @@ export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:st
       const page=await fetchEodhdDailyPrices(group,date,now,market);
       // Stop at the first transport/provider error instead of spending the
       // request timeout on every remaining symbol during a provider outage.
-      if(page.failures.some(f=>f.reason!=='eodhd_no_dated_bar'))throw Error('EOD price cleanup remains incomplete');
+      // A missing provider symbol (for example a retired warrant) is a
+      // coverage gap, not an outage. Required prediction bars are checked
+      // again before valuation, so this cannot publish unpriced predictions.
+      if(page.failures.some(f=>!['eodhd_no_dated_bar','eodhd_http_404'].includes(f.reason)))throw Error('EOD price cleanup remains incomplete');
       fetched.prices.push(...page.prices);fetched.failures.push(...page.failures);
     }
   }else fetched=await fetchEodhdBulkEodPrices(missing,date,now,market);
