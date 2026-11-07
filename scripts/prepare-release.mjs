@@ -96,6 +96,24 @@ try {
   const catalog = await catalogResponse.json();
   assert.equal(catalog.nodes.filter(node=>node.parentId===null).length, 4);
   assert.ok(['ai','robotics','space'].every(id=>catalog.nodes.some(node=>node.id===id)));
+  const loadable=JSON.parse(await readFile(`${root}/app/.next/server/app/intelligence/page/react-loadable-manifest.json`,'utf8'));
+  let graphScripts=[];
+  for(const entry of Object.values(loadable)) {
+    const scripts=entry.files.filter(file=>file.endsWith('.js'));
+    for(const file of scripts) {
+      const code=await readFile(`${root}/app/.next/${file}`,'utf8');
+      if(code.includes('cameraClearance')&&code.includes('visibleRelationships'))graphScripts=scripts;
+    }
+  }
+  assert(graphScripts.length>0,'Missing dynamic 3D graph chunk mapping');
+  for(const [view,expected] of [['graph',true],['table',false]]) {
+    // The fixture has no intelligence snapshot: hints must not wait for data.
+    const response=await fetch(`${base}/en?view=${view}`);
+    assert.equal(response.status,200);
+    const html=await response.text();
+    const hints=[response.headers.get('link')??'',...(html.match(/<link\b[^>]*>/g)??[])].join('\n');
+    for(const file of graphScripts)assert.equal(hints.includes(file),expected,`Unexpected 3D preload for ${view}: ${file}`);
+  }
   for (const symbol of ["XSHG:688041", "XSHG%3A688041", "688041"]) {
     // Node fetch does not retain the language cookie across the numeric redirect.
     const response = await fetch(`${base}/ticker/${symbol}?lang=zh-CN`, {

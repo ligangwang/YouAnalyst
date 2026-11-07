@@ -11,11 +11,11 @@ import {enableCompanyDirectory,companyDirectoryEnabled} from '../../src/lib/loca
 import type {Firestore} from 'firebase-admin/firestore';
 
 async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100,loadCatalog=async()=>legacyCatalog){
-  const external=['@/lib/company-themes/catalog','@/components/company-graph-loader','@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
+  const external=['@/lib/company-themes/catalog','@/components/company-graph-preload','@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
   const result=await build({entryPoints:['src/app/intelligence/page.tsx'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external,jsx:'automatic'});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const injected=(name:string)=>{
-    if(name==='@/components/company-graph-loader')return {PreloadCompanyGraph:()=>React.createElement('span',{'data-graph-preload':true})};
+    if(name==='@/components/company-graph-preload')return {PreloadGraphChunks:()=>React.createElement('span',{'data-graph-preload':true})};
     if(name==='@/components/live-investment-intelligence')return {LiveInvestmentIntelligence:(props:{initialSnapshot?:unknown;initialTheme:string;initialCompany:string})=>React.createElement('div',{'data-theme':props.initialTheme,'data-company':props.initialCompany},props.initialSnapshot?'Loaded snapshot':'Client API loader')};
     if(name==='@/components/intelligence-loading-shell')return {IntelligenceLoadingShell:()=> React.createElement('main',null,'Loading companies and recorded events…')};
     if(name==='@/lib/company-themes/catalog')return {loadThemeCatalog:loadCatalog};
