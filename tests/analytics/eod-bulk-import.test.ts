@@ -9,11 +9,17 @@ import {pubsubFirestore} from '../helpers/pubsub-firestore';
 test('bulk cleanup advances past absent provider symbols but retries outages',async t=>{
  const before=process.env.EODHD_API_TOKEN;process.env.EODHD_API_TOKEN='synthetic';
  t.after(()=>{if(before===undefined)delete process.env.EODHD_API_TOKEN;else process.env.EODHD_API_TOKEN=before;});
- const f=pubsubFirestore();let status=404;
- t.mock.method(globalThis,'fetch',async()=>new Response('',{status}));
+ const f=pubsubFirestore();let status=404;let rows:unknown=[];
+ t.mock.method(globalThis,'fetch',async()=>status===200?Response.json(rows):new Response('',{status}));
  const input={market:'US' as const,runDate:'2026-11-06'};
  assert.deepEqual(await persistBulkEodPrices(input,['US:EONR.WT'],true,f.db),['US:EONR.WT']);
  for(status of [401,429,500])await assert.rejects(persistBulkEodPrices(input,['US:EONR.WT'],true,f.db),/cleanup remains incomplete/);
+ status=200;
+ for(rows of [[{date:'2026-11-06',open:0,high:0,low:0,close:0}],[{date:'2026-11-05',open:1,high:1,low:1,close:1}]]){
+  assert.deepEqual(await persistBulkEodPrices(input,['US:EONR.WT'],true,f.db),['US:EONR.WT']);
+ }
+ rows={error:'unexpected response'};
+ await assert.rejects(persistBulkEodPrices(input,['US:EONR.WT'],true,f.db),/cleanup remains incomplete/);
  assert.equal(f.rows.size,0);
 });
 
