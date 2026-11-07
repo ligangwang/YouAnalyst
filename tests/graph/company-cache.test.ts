@@ -113,3 +113,16 @@ test('graph news reuses member records and loads only relationship neighbors, pr
  const sources=await graphNewsSources(db,graph,[row('US:AMD'),row('US:OTHER')] as never);
  assert.deepEqual(reads,[['US:MU']]);assert.deepEqual(sources.map(source=>source.companyId),['US:AMD','US:MU']);
 });
+
+test('theme subscriptions retain only graph fields instead of evicting on unrelated search payloads',async t=>{
+ t.after(closeLocalCaches);let subscriptions=0;
+ const data={name:'Company',themeIds:['ai'],newsSources:[{id:'approved-source'}],onboarding:{status:'SUPPORTED'},searchPrefixes:['x'.repeat(350*1024)]};
+ const query={isEqual:(other:unknown)=>other===query,onSnapshot:(next:(snapshot:unknown)=>void)=>{subscriptions++;next({docs:Array.from({length:100},(_,i)=>({id:`US:A${i}`,exists:true,data:()=>data,get:(key:string)=>data[key as keyof typeof data]}))});return ()=>{};}};
+ const db={collection:()=>({where:()=>query})} as unknown as Firestore;
+ const first=await loadSingleThemeCompanies(db,'ai');await loadSingleThemeCompanies(db,'ai');
+ assert.equal(subscriptions,1,'irrelevant search data must not cause repeated initial company reads');
+ assert.equal(first.docs[0].data()?.searchPrefixes,undefined);
+ assert.equal(first.docs[0].data()?.name,'Company');
+ assert.deepEqual(first.docs[0].get('newsSources'),[{id:'approved-source'}]);
+ assert.equal(first.docs[0].get('onboarding.status'),'SUPPORTED');
+});
