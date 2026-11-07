@@ -37,7 +37,7 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
     if(!companyId||companyId.includes('/'))throw new IpoIdentityReview('Invalid issuer claim');
     const ownerRef=db.collection('companies').doc(companyId),owner=await tx.get(ownerRef);
     if(owner.exists&&(storedCik(owner.get('cik'))!==listing.cik||owner.get('supersededByCompanyId')||owner.get('isDeleted')||owner.get('listingStatus')==='PRIVATE'||!['DIRECTORY','PUBLISHED'].includes(owner.get('status'))))throw new IpoIdentityReview('Issuer is not eligible for automatic onboarding');
-    if(!owner.exists&&companyId!==legacy)throw new IpoIdentityReview('Issuer claim references a missing company');
+    if(!owner.exists&&(companyId!==legacy||inst.exists||request.exists||issuer.exists||claim.exists))throw new IpoIdentityReview('Existing listing identity references a missing company');
     if(claim.exists&&(claim.get('companyId')!==companyId||claim.get('instrumentId')!==id))throw new IpoIdentityReview('Listing identity claim conflict');
     const at=new Date(now).toISOString(),stamp=Timestamp.fromMillis(now);
     const fresh={name:listing.name,symbol:listing.symbol,cik:listing.cik,status:'DIRECTORY',market:'US',micCode:listing.exchangeMic,exchange_region:'US',source:'SEC IPO discovery',lastSyncedAt:at};

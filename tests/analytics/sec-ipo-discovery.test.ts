@@ -69,6 +69,14 @@ test('alternate dot/dash listing notation is reviewed rather than creating a dup
   const f=ipoFixture();f.rows.set('companies/US:NEW-B',{cik:'123',name:'Existing class',status:'DIRECTORY',symbol:'NEW-B'});
   await assert.rejects(importConfirmedIpo(f.db,{...listing,symbol:'NEW.B'},[filing]),IpoIdentityReview);assert.equal(f.writes(),0);
 });
+test('orphaned legacy identities cannot be rebound to a reused ticker and another CIK',async()=>{
+  for(const sameCik of [false,true]){
+    const f=ipoFixture();await importConfirmedIpo(f.db,listing,[filing]);f.rows.delete('companies/US:NEW');
+    const before=f.writes(),cik=sameCik?listing.cik:'0000000456';
+    await assert.rejects(importConfirmedIpo(f.db,{...listing,cik},[{...filing,cik,sourceUrl:filing.sourceUrl.replace('/123/','/'+Number(cik)+'/')}]),IpoIdentityReview);
+    assert.equal(f.writes(),before);assert(!f.rows.has('companies/US:NEW'));
+  }
+});
 test('ticker reuse, ambiguous issuers, private and deleted entities require review without partial writes',async()=>{
   for(const seed of [new Map([['companies/US:NEW',{cik:'456',name:'Old',status:'DIRECTORY'}]]),new Map([['companies/US:A',{cik:'123',name:'A',status:'DIRECTORY'}],['companies/US:B',{cik:123,name:'B',status:'PUBLISHED'}]]),new Map([['companies/US:NEW',{cik:'123',name:'Deleted',status:'DIRECTORY',isDeleted:true}]]),new Map([['companies/US:NEW',{cik:'123',name:'Private',status:'DIRECTORY',listingStatus:'PRIVATE'}]])]){
     const f=ipoFixture();seed.forEach((value,key)=>f.rows.set(key,value));await assert.rejects(importConfirmedIpo(f.db,listing,[filing]),IpoIdentityReview);assert.equal(f.writes(),0);
