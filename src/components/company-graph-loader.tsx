@@ -4,6 +4,9 @@ import {lazy,useEffect} from 'react';
 import {parseIndustryView} from '@/lib/knowledge-graph/views';
 
 let request:Promise<typeof import('./company-graph-3d')>|undefined;
+export function primeCompanyGraph(module:typeof import('./company-graph-3d')){
+  request??=Promise.resolve(module);
+}
 function loadCompanyGraph(){
   return request??=import('./company-graph-3d').catch(error=>{request=undefined;throw error;});
 }

@@ -1,5 +1,5 @@
 import {compactIntelligenceSnapshot,encodeIntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
-import {PreloadCompanyGraph} from '@/components/company-graph-loader';
+import {PreloadGraphChunks as PreloadCompanyGraph} from '@/components/company-graph-preload';
 import {parseIndustryView} from '@/lib/knowledge-graph/views';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
