@@ -1687,6 +1687,13 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     log.stage("load_prices", { requestedTickers: requestedTickers.length });
     if(execution?.bulk){
       const cached=await readBulkEodPrices(db,requestedTickers,runDate);
+      const missing=requestedTickers.filter(t=>!cached.has(t));
+      // A provider may publish a required bar after the bulk cleanup pass.
+      // Retry only those gaps, including on a later prediction continuation.
+      if(missing.length&&loadPrices){
+        await persistBulkEodPrices(input,missing.map(t=>predictionInstrument(t)!.companyId),true,db);
+        (await readBulkEodPrices(db,missing,runDate)).forEach((price,ticker)=>cached.set(ticker,price));
+      }
       cached.forEach((price,ticker)=>priceByTicker.set(ticker,price));
       priceLoad.cacheHits=cached.size;
       priceLoad.failures=requestedTickers.filter(t=>!cached.has(t)).map(ticker=>({ticker,reason:'eodhd_no_dated_bar'}));

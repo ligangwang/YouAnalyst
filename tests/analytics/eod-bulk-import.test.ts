@@ -14,7 +14,7 @@ test('bulk import downloads once, writes only requested symbols, and repairs par
    if(value===undefined)delete process.env[key];else process.env[key]=value;
  }await app.delete();});
  const f=pubsubFirestore(),collection=f.db.collection.bind(f.db);
- f.db.collection=((name:string)=>({...collection(name),where:()=>({get:async()=>({docs:[],size:0})})})) as typeof f.db.collection;
+ f.db.collection=((name:string)=>({...collection(name),where:()=>({get:async()=>({docs:[],size:0})})})) as unknown as typeof f.db.collection;
  const tickers=Array.from({length:1001},(_,i)=>`T${i}`),date='2026-11-06';
  for(const ticker of tickers)f.rows.set(`eod_prices/US_${ticker}_2026-11-05`,{ticker,market:'US',requestedDate:'2026-11-05',tradingDate:'2026-11-05',open:10,high:10,low:10,close:10,isFinal:true});
  const files=new Map<string,string>(),storage=getStorage(app);let downloads=0;

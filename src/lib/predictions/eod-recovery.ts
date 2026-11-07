@@ -21,6 +21,19 @@ export async function retireExpiredEodRun(db:Firestore,now=Date.now(),retryUnsta
       tx.set(ref,{startedAt:new Date(now).toISOString()},{merge:true});return null;
     }
     const startedAt=Date.parse(saved.get('startedAt'));
+    // Bulk stages have no per-company receipt barrier. If a failed delivery
+    // lost its wakeup, later requests can retire it after the same recovery
+    // window, but never underneath a live parent lease or during clean progress.
+    if(saved.get('batchVersion')===2&&saved.get('failedAt')&&saved.get('error')
+      &&Number.isFinite(startedAt)&&now-startedAt>=EOD_COMPANY_RECOVERY_MS&&Number(saved.get('leaseExpiresAtMs')??0)<=now){
+      const dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(request.input)}`),active=(await tx.get(dispatch)).get('activeRequest');
+      const error='Bulk EOD recovery exhausted; portfolio finalization withheld',failedAt=new Date(now).toISOString();
+      tx.set(ref,{completed:true,phase:'completed',status:'FAILED',error,failedAt},{merge:true});
+      tx.set(db.collection('eod_runs').doc(`${request.input.market}_${request.input.runDate}`),{status:'FAILED',error,failedAt},{merge:true});
+      tx.set(state,{activeRequest:null},{merge:true});
+      if(active?.batchId===request.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});
+      return request.batchId;
+    }
     if(run.phase!=='waiting'
       ||!run.companyIds||run.dispatchCursor!==run.companyIds.length
       ||!Number.isFinite(startedAt)||now-startedAt<EOD_COMPANY_RECOVERY_MS
@@ -73,7 +86,7 @@ export async function reopenFailedEodRun(db:Firestore,batchId:string,now=Date.no
     const pipeline=await tx.get(state),saved=await tx.get(ref),run=saved.data() as CompanyRun<EodCompanyRunRequest>|undefined;
     if(pipeline.get('activeRequest')||Number(pipeline.get('leaseExpiresAtMs'))>now)throw Error('EOD pipeline is active');
     if(!run?.completed||saved.get('status')!=='FAILED'||!run.companyIds||run.request.batchId!==batchId||run.request.type!=='eod.company-run.requested')throw Error('EOD run is not a repairable failed company run');
-    if(saved.get('batchVersion')===1)throw Error('Batched EOD run exhausted its single retry pass; create a new explicit repair request instead');
+    if([1,2].includes(saved.get('batchVersion')))throw Error('Batched EOD run exhausted recovery; create a new explicit repair request instead');
     if(Number(saved.get('leaseExpiresAtMs'))>now)throw Error('EOD parent lease is active');
     let completedCompanies=0;
     for(let i=0;i<run.companyIds.length;i+=100){

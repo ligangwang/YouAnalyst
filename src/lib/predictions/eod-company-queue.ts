@@ -9,7 +9,7 @@ import {parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsu
 import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,readRollForwardDates,type EodPrice} from './eod-prices';
 import {retireExpiredEodRun} from './eod-recovery';
 import {processBulkEodRun,EOD_BULK_SIZE} from './eod-bulk-run';
-import {planBulkEodWork,persistBulkEodPrices,finalizeBulkEodScores} from './eod-prices';
+import {planBulkEodWork,persistBulkEodPrices,finalizeBulkEodScores,readBulkEodPrices} from './eod-prices';
 import {parseEodBatchRequest,processEodBatchedRun,processEodCompanyBatch,type EodBatchRequest} from './eod-batch-queue';
 
 export type EodCompanyRunRequest=Omit<EodRequest,'version'|'type'>&{version:2;type:'eod.company-run.requested'};
@@ -116,6 +116,10 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
   if(prior?.batchVersion===2||(!prior?.result?.parentRequest&&process.env.EOD_COMPANY_BATCHES==='1000'&&(!prior?.companyIds||prior?.batchVersion===1))){
     const outcome=await processBulkEodRun(message,{db,owner:log.runId,publish,upgradeBatchedRun:true,
       plan:()=>planBulkEodWork(input,db),prices:(ids,retry)=>persistBulkEodPrices(input,ids,retry,db),
+      missingPrices:async ids=>{
+        const tickers=ids.map(id=>input.market==='US'?id.slice(3):id),prices=await readBulkEodPrices(db,tickers,input.runDate);
+        return ids.filter((_,i)=>!prices.has(tickers[i]));
+      },
       predictions:async cursor=>{
         if(input.markPredictions===false)return null;
         const result=await runDailyEodMaintenance({...input,skipHistoryBackfill:true,limit:EOD_BULK_SIZE,afterPredictionId:cursor??undefined},

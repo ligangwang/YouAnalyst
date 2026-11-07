@@ -4,13 +4,15 @@ import {digest} from '../fundamentals/pubsub';
 import type {EodCompanyRunRequest} from './eod-company-queue';
 import {completeMarketEodRun} from './latest-eod-run';
 import {withEodWorkScope} from './eod-work-scope';
+import {EOD_COMPANY_RECOVERY_MS} from './eod-recovery';
 
 export const EOD_BULK_SIZE=1000;
 type Run={request:EodCompanyRunRequest;batchVersion?:number;companyIds?:string[];phase?:string;dispatchCursor?:number;
-  retryCompanyIds?:string[];completedCompanies?:number;cursor?:string|null;finalizeCursor?:string|null;completed?:boolean;error?:string|null};
+  retryCompanyIds?:string[];completedCompanies?:number;cursor?:string|null;finalizeCursor?:string|null;completed?:boolean;error?:string|null;startedAt?:string};
 export type BulkOptions={db:Firestore;owner:string;publish:(request:EodCompanyRunRequest)=>Promise<unknown>;
   plan:()=>Promise<string[]>;prices:(ids:string[],retry:boolean)=>Promise<string[]>;
   predictions:(cursor:string|null)=>Promise<string|null>;finalize:(cursor:string|null)=>Promise<string|null>;
+  missingPrices?:(ids:string[])=>Promise<string[]>;
   budgetMs?:number;now?:()=>number;upgradeBatchedRun?:boolean};
 
 /** New daily runs use stage checkpoints, not one workflow per company. Existing
@@ -24,7 +26,7 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
   const checkpoint=async(patch:Partial<Run>)=>db.runTransaction(async tx=>{
     const saved=await tx.get(ref),pipeline=await tx.get(state);
     if(saved.get('leaseOwner')!==owner||Number(saved.get('leaseExpiresAtMs'))<=now()||pipeline.get('activeRequest')?.batchId!==request.batchId)throw Error('EOD bulk lease changed');
-    tx.set(ref,patch,{merge:true});
+    tx.set(ref,{...patch,error:null,failedAt:null},{merge:true});
   });
   try {
    const stored=(await ref.get()).data() as Run|undefined;
@@ -43,14 +45,18 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
     tx.set(state,{activeRequest:request},{merge:true});
    });
    if(!run.companyIds||upgrading){
+    if(!run.companyIds){
+      const initial={batchVersion:2,startedAt:run.startedAt??new Date(now()).toISOString()};
+      await checkpoint(initial);run={...run,...initial};
+    }
     // Version 1 held this same parent lease throughout each serial batch.
     // Once acquired, no old batch can still be writing. Keep its frozen scope,
     // reuse committed prices, and idempotently recheck predictions/finalization.
     const companyIds=[...new Set(run.companyIds??await options.plan())].sort();
     if(Buffer.byteLength(JSON.stringify(companyIds))>500_000)throw Error('EOD manifest exceeds supported size');
-    const patch={batchVersion:2,companyIds,phase:'bulk-prices',dispatchCursor:0,retryCompanyIds:[],completedCompanies:0,cursor:null,finalizeCursor:null,error:null};
+    const patch={batchVersion:2,companyIds,phase:'bulk-prices',dispatchCursor:0,retryCompanyIds:[],completedCompanies:0,cursor:null,finalizeCursor:null,error:null,
+      startedAt:upgrading?new Date(now()).toISOString():run.startedAt!};
     await checkpoint(patch);run={...run,...patch};
-    await ref.set({startedAt:new Date(now()).toISOString()},{merge:true});
     await db.collection('eod_runs').doc(`${request.input.market}_${request.input.runDate}`).set({status:'STARTED',market:request.input.market,runDate:request.input.runDate},{merge:true});
    }
    while(now()<deadline){
@@ -69,7 +75,12 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
     if(run.phase==='bulk-predictions'){
      const cursor=await options.predictions(run.cursor??null);
      if(cursor!==null&&cursor===run.cursor)throw Error('EOD prediction cursor did not advance');
-     const patch={cursor,...(cursor===null?{phase:'bulk-finalizing'}:{})};
+     const patch:Partial<Run>={cursor,...(cursor===null?{phase:'bulk-finalizing'}:{})};
+     if(cursor===null&&options.missingPrices&&run.retryCompanyIds!.length){
+       const missing=await options.missingPrices(run.retryCompanyIds!);
+       if(missing.some(id=>!run.retryCompanyIds!.includes(id))||new Set(missing).size!==missing.length)throw Error('Invalid EOD coverage result');
+       patch.completedCompanies=run.companyIds!.length-missing.length;
+     }
      await checkpoint(patch);run={...run,...patch};continue;
     }
     if(run.phase!=='bulk-finalizing')throw Error('Unknown bulk EOD phase');
@@ -98,12 +109,24 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
   } catch(error) {
    // Keep the checkpoint retryable and visible. A successful continuation
    // derives its final warning from verified coverage, not a stale retry error.
-   await db.runTransaction(async tx=>{
-    const saved=await tx.get(ref);
+   const retired=await db.runTransaction(async tx=>{
+    const saved=await tx.get(ref),pipeline=await tx.get(state),dispatch=db.collection('eod_runs').doc(`_dispatch_${digest(request.input)}`);
+    const active=(await tx.get(dispatch)).get('activeRequest');
     if(saved.get('leaseOwner')===owner&&saved.get('batchVersion')===2&&!saved.get('completed')){
+     if(Number(saved.get('leaseExpiresAtMs'))>now()&&pipeline.get('activeRequest')?.batchId===request.batchId
+       &&now()-Date.parse(saved.get('startedAt'))>=EOD_COMPANY_RECOVERY_MS){
+      const failure='Bulk EOD recovery exhausted; portfolio finalization withheld',failedAt=new Date(now()).toISOString();
+      tx.set(ref,{completed:true,phase:'completed',status:'FAILED',error:failure,failedAt},{merge:true});
+      tx.set(db.collection('eod_runs').doc(`${request.input.market}_${request.input.runDate}`),{status:'FAILED',error:failure,failedAt},{merge:true});
+      tx.set(state,{activeRequest:null},{merge:true});
+      if(active?.batchId===request.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});
+      return true;
+     }
      tx.set(ref,{error:'Bulk EOD stage incomplete; retry resumes the saved checkpoint',failedAt:new Date(now()).toISOString()},{merge:true});
     }
+    return false;
    });
+   if(retired)return {batchId:request.batchId,status:'FAILED'};
    throw error;
   } finally {
    await releaseMaintenanceLease(ref,owner);

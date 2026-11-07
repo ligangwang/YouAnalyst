@@ -6,7 +6,7 @@ import {runDailyEodMaintenance,scanEodPredictions,type EodPrice} from '../../src
 for(const bulk of [false,true])test(`a real ${bulk?'bulk':'company'} stage marks predictions and defers portfolio scores`,async t=>{
   const previous=globalThis.__adminApp;
   t.after(()=>{globalThis.__adminApp=previous;});
-  t.mock.method(console,'info',()=>{});
+  t.mock.method(console,'info',()=>{});t.mock.method(console,'error',()=>{});
   const rows=new Map<string,Record<string,unknown>>([
     ['predictions/a',{ticker:'AMD',userId:'owner',status:'CREATED',visibility:'PUBLIC',direction:'UP',entryTargetDate:'2026-01-02',createdAt:'2026-01-01T00:00:00Z'}],
     ['predictions/b',{ticker:'MSFT',userId:'owner',status:'CREATED',visibility:'PUBLIC',direction:'UP',entryTargetDate:'2026-01-02',createdAt:'2026-01-01T00:00:00Z'}],
@@ -36,7 +36,7 @@ for(const bulk of [false,true])test(`a real ${bulk?'bulk':'company'} stage marks
       });return query();
     },
     getAll:async(...refs:Ref[])=>Promise.all(refs.filter(r=>r.path).map(r=>r.get())),
-    runTransaction:async(work:(tx:unknown)=>Promise<unknown>)=>work({get:(r:Ref)=>r.get(),set:(r:Ref,data:Record<string,unknown>)=>r.set(data),update:(r:Ref,data:Record<string,unknown>)=>r.update(data)}),
+    runTransaction:async(work:(tx:unknown)=>Promise<unknown>)=>work({get:(r:Ref)=>r.get(),getAll:(...refs:Ref[])=>Promise.all(refs.map(r=>r.get())),set:(r:Ref,data:Record<string,unknown>)=>r.set(data),create:(r:Ref,data:Record<string,unknown>)=>r.create(data),update:(r:Ref,data:Record<string,unknown>)=>r.update(data)}),
   } as unknown as Firestore;
   globalThis.__adminApp={firestore:()=>db} as unknown as NonNullable<typeof globalThis.__adminApp>;
   const price:EodPrice={ticker:'AMD',market:'US',requestedDate:'2026-01-02',tradingDate:'2026-01-02',open:10,high:12,low:9,close:11,volume:100,source:'eodhd-bulk-eod',providerSymbol:'AMD.US',exchange:'US',exchangeTimezone:'America/New_York',micCode:'US',loadedAt:'2026-01-03T00:00:00Z',isFinal:true,previousClose:null,previousTradingDate:null,dailyReturn:null};
@@ -58,4 +58,17 @@ for(const bulk of [false,true])test(`a real ${bulk?'bulk':'company'} stage marks
   await assert.rejects(runDailyEodMaintenance({market:'US',runDate:'2026-01-02',tickers:['AMD']},{taskId:'wrong',price:{...price,ticker:'MSFT'}}),/Invalid prepared company price/);
   const scan=await scanEodPredictions(db,'2026-01-02',50,['AMD'],'US');
   assert.ok(scan.candidatePredictions.every(p=>p.ticker==='AMD'));
+  if(bulk){
+    rows.delete('eod_prices/US_AMD_2026-01-02');let available=false,calls=0;
+    t.mock.method(globalThis,'fetch',async(value:URL)=>{
+      assert.equal(new URL(value).pathname,'/api/eod/AMD.US');calls++;
+      return Response.json(available?[{date:'2026-01-02',open:10,high:12,low:9,close:11,adjusted_close:11}]:[]);
+    });
+    await assert.rejects(runDailyEodMaintenance({market:'US',runDate:'2026-01-02',limit:1000},{taskId:'bulk-retry',bulk:true}),/Required prediction EOD prices/);
+    available=true;
+    const repaired=await runDailyEodMaintenance({market:'US',runDate:'2026-01-02',limit:1000},{taskId:'bulk-retry',bulk:true});
+    assert.equal(repaired.marking.missingPrice,0);assert.equal(calls,2);
+    assert.ok(rows.has('eod_prices/US_AMD_2026-01-02'));
+  }
+
 });

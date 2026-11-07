@@ -3,6 +3,7 @@ import {test} from 'node:test';
 import {processBulkEodRun,type BulkOptions} from '../../src/lib/predictions/eod-bulk-run';
 import type {EodCompanyRunRequest} from '../../src/lib/predictions/eod-company-queue';
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
+import {retireExpiredEodRun,EOD_COMPANY_RECOVERY_MS} from '../../src/lib/predictions/eod-recovery';
 
 function fixture(count=2005){
  const f=pubsubFirestore(),request:EodCompanyRunRequest={version:2,type:'eod.company-run.requested',batchId:'bulk-test',requestedAt:'2026-11-06T21:30:00Z',input:{market:'US',runDate:'2026-11-06'}};
@@ -88,4 +89,43 @@ test('explicit version 1 upgrade preserves the frozen manifest and fences a live
  f.rows.set(f.path,{...f.rows.get(f.path),leaseExpiresAtMs:0});await f.run();
  assert.deepEqual(f.pages.map(p=>p.ids),[f.ids]);
  assert.equal(f.rows.get(f.path)?.batchVersion,2);assert.equal(f.rows.get(f.path)?.completedCompanies,3);
+});
+
+test('late required prices can recover and refresh coverage before completion',async()=>{
+ const f=fixture(2);let available=false;
+ f.options.prices=async()=>[f.ids[1]];
+ f.options.predictions=async()=>{if(!available)throw Error('required bar missing');return null;};
+ f.options.missingPrices=async()=>available?[]:[f.ids[1]];
+ await assert.rejects(f.run(),/required bar missing/);
+ available=true;await f.run();
+ assert.equal(f.rows.get(f.path)?.status,'COMPLETED');assert.equal(f.rows.get(f.path)?.completedCompanies,2);
+ assert.equal(f.rows.get(f.path)?.error,null);
+});
+
+test('exhausted bulk recovery releases the pipeline and never publishes portfolio completion',async()=>{
+ const f=fixture(1);f.options.predictions=async()=>{throw Error('provider unavailable');};
+ await assert.rejects(f.run(),/provider unavailable/);
+ f.rows.set(f.path,{...f.rows.get(f.path),startedAt:new Date(Date.now()-EOD_COMPANY_RECOVERY_MS-1).toISOString()});
+ const result=await f.run();assert.equal(result.status,'FAILED');
+ assert.equal(f.rows.get('eod_runs/_company_pipeline')?.activeRequest,null);
+ assert.equal(f.rows.get('eod_runs/_latest_US'),undefined);assert.ok(!f.stages.includes('finalize'));
+});
+
+test('a later request can retire an expired failed bulk run, but cannot steal a live lease',async()=>{
+ const f=fixture(1);f.options.predictions=async()=>{throw Error('provider unavailable');};
+ await assert.rejects(f.run(),/provider unavailable/);
+ const now=Date.now();f.rows.set(f.path,{...f.rows.get(f.path),startedAt:new Date(now-EOD_COMPANY_RECOVERY_MS-1).toISOString(),leaseExpiresAtMs:now+1000});
+ assert.equal(await retireExpiredEodRun(f.db,now),null);
+ f.rows.set(f.path,{...f.rows.get(f.path),leaseExpiresAtMs:0});
+ assert.equal(await retireExpiredEodRun(f.db,now),f.request.batchId);
+ assert.equal(f.rows.get('eod_runs/_company_pipeline')?.activeRequest,null);
+ assert.equal(f.rows.get('eod_runs/_latest_US'),undefined);
+});
+
+test('planning failures also have a bounded recovery window before a manifest exists',async()=>{
+ const f=fixture(1);f.options.plan=async()=>{throw Error('FX unavailable');};
+ await assert.rejects(f.run(),/FX unavailable/);
+ assert.equal(f.rows.get(f.path)?.batchVersion,2);assert.equal(f.rows.get(f.path)?.companyIds,undefined);
+ f.rows.set(f.path,{...f.rows.get(f.path),startedAt:new Date(Date.now()-EOD_COMPANY_RECOVERY_MS-1).toISOString()});
+ assert.equal((await f.run()).status,'FAILED');assert.equal(f.rows.get('eod_runs/_company_pipeline')?.activeRequest,null);
 });
