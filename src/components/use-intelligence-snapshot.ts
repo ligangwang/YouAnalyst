@@ -27,6 +27,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
   ));
+  const graphs=useRef(new Map<CompanyThemeId,Pick<IntelligenceSnapshot,'graph'|'graphVersion'|'generatedAt'>>(initialSnapshot?[[parseCompanyTheme(initialSnapshot.theme),initialSnapshot]]:[]));
   const themeIntent = useRef<CompanyThemeId | null>(null);
   const snapshotScope = useRef(feedScope('','',''));
   const company = themeIntent.current === theme || explicitCompany.toUpperCase()==='ALL' ? '' : (explicitCompany || (!selectedEvent && !selectedRelationship ? selectedCompany : '')).toUpperCase();
@@ -57,8 +58,8 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       if(!response.ok)throw Error('Graph unavailable');
       const data:IntelligenceSnapshot=await response.json();
       if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw Error('Invalid graph');
-      const previous=themeSnapshots.current.get(theme);
-      themeSnapshots.current.set(theme,previous?{...previous,graph:data.graph,graphVersion:data.graphVersion}:data);
+      const previous=graphs.current.get(theme);
+      if(!previous||Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
       return data;
     })();
     if (bootstrapRequired.current) {
@@ -83,7 +84,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         let data:IntelligenceSnapshot;
         if(payload.graph)data=payload as IntelligenceSnapshot;
         else {
-          let graph=themeSnapshots.current.get(theme);
+          let graph=graphs.current.get(theme);
           if(!graph||graph.graphVersion!==payload.graphVersion){
             graph=await universe();
             // A graph update may race independently completed feed and directory reads.
@@ -101,6 +102,8 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         }
         if ((data.theme ?? 'ai') !== theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt) throw new Error();
         if (isCurrentTheme()) {
+          const cachedGraph=graphs.current.get(theme);
+          if(!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
           const old = themeSnapshots.current.get(theme);
           // Preserve the graph object on unchanged polls so camera tours continue.
           const next = old?.graphVersion === data.graphVersion ? { ...data, graph: old.graph } : data;
