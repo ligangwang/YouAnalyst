@@ -1987,6 +1987,30 @@ test('a transient graph failure recovers on focus without manual retry',async({p
  expect(graphReads).toBeGreaterThan(failedReads);
 });
 
+test('server graph renders while the independent feed is stalled without fetching the graph twice',async({page,isMobile})=>{
+ const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false},true);
+ const body=await workspaceFixture(false,initial);let feedReads=0,graphReads=0,release!:()=>void;
+ const pending=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/intelligence'){
+   if(url.searchParams.get('section')==='universe'){graphReads++;return route.fulfill({json:initial});}
+   feedReads++;expect(url.searchParams.get('graph')).toBe('omit');await pending;
+   return route.fulfill({json:{...snapshot,graph:undefined,events:snapshot.events.slice(0,20),eventsLimited:true}});
+  }
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=graph');
+ await expect(page.getByText('Local interaction fixture')).toBeVisible();
+ if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
+ await expect(page.getByLabel('Events and sources',{exact:true}).getByText('Loading events and sources…',{exact:true})).toBeVisible();
+ expect(graphReads).toBe(0);expect(feedReads).toBe(1);
+ release();
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+ expect(graphReads).toBe(0);expect(feedReads).toBe(1);
+});
+
 test('server-provided compact snapshot avoids duplicate initial requests',async({page,isMobile})=>{
  const initial={...snapshot,events:snapshot.events.slice(0,20),eventsLimited:true};
  const body=await workspaceFixture(false,initial);let requests=0;

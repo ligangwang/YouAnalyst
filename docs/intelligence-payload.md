@@ -1,6 +1,6 @@
 # Initial intelligence payload
 
-The homepage server render embeds a compact snapshot when it is ready within the HTML budget. The browser reuses that fresh feed and graph without an immediate duplicate request. Slow reads release the HTML to parallel graph and compact-feed loaders. An embedded graph never triggers another bootstrap.
+The homepage server render embeds a compact graph-only universe when it is ready within the HTML budget. Graph rendering does not wait for feed discovery, collector freshness, news projection or the complete source-document index. The browser reuses the embedded graph and independently requests the graph-free compact feed. Until that feed arrives, events and totals remain explicitly pending. Slow graph reads release the HTML to parallel graph and compact-feed loaders. An embedded graph never triggers another bootstrap. Existing full-snapshot callers still reuse their server feed without an immediate duplicate request.
 
 The browser opts into `graph=omit&payload=compact` on its initial feed request. This response carries graphVersion and the first 20 detailed events, while retaining the complete sourceDocuments facts, coverage and source totals. Legacy API callers retain the complete response unless they explicitly opt in. No persisted schema changes are involved.
 
