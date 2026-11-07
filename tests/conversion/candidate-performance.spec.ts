@@ -1,5 +1,6 @@
 import {expect,test} from '@playwright/test';
-import {installGraphReadinessProbe} from '../../scripts/verify-candidate-performance.mjs';
+import probe from '../../scripts/graph-readiness-probe.cjs';
+const {installGraphReadinessProbe}=probe;
 
 test('candidate timing ignores a blank canvas until the scene reports a frame',async({page})=>{
  await page.addInitScript(installGraphReadinessProbe);

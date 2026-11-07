@@ -1,17 +1,9 @@
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
+import probe from './graph-readiness-probe.cjs';
+const {installGraphReadinessProbe}=probe;
 
 const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
-
-export function installGraphReadinessProbe() {
-  window.__releaseGraphReadyAt=null;
-  const timer=setInterval(()=>{
-    // Scene writes this from useFrame, after async renderer initialization.
-    if(document.querySelector('canvas[data-camera-position]')?.getAttribute('data-camera-position')) {
-      window.__releaseGraphReadyAt=performance.now();clearInterval(timer);
-    }
-  },50);
-}
 
 /** Interleave fresh browser contexts so deployment warmth/order cannot choose a winner. */
 export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measure,samples=5,maxRegressionRatio=1.1,log=console.log}) {
