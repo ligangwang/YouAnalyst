@@ -24,6 +24,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
   const bootstrapRequired = useRef(!initialSnapshot);
   const serverFeedAvailable=useRef(Boolean(initialSnapshot&&!initialSnapshot.eventsPending));
+  const serverFeedTheme=useRef(parseCompanyTheme(initialSnapshot?.theme));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
   ));
@@ -126,7 +127,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         inFlight = false;
       }
     };
-    if(serverFeedAvailable.current&&!company&&!query&&!region&&!selectedEvent&&!selectedRelationship&&!fullEvents&&!previousDay.current){
+    if(serverFeedAvailable.current&&serverFeedTheme.current===theme&&!company&&!query&&!region&&!selectedEvent&&!selectedRelationship&&!fullEvents&&!previousDay.current){
       serverFeedAvailable.current=false;
     }else{serverFeedAvailable.current=false;void refresh();}
     const timer = setInterval(() => void refresh(), 60_000);
