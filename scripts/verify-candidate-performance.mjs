@@ -3,6 +3,16 @@ import {pathToFileURL} from 'node:url';
 
 const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
 
+export function installGraphReadinessProbe() {
+  window.__releaseGraphReadyAt=null;
+  const timer=setInterval(()=>{
+    // Scene writes this from useFrame, after async renderer initialization.
+    if(document.querySelector('canvas[data-camera-position]')?.getAttribute('data-camera-position')) {
+      window.__releaseGraphReadyAt=performance.now();clearInterval(timer);
+    }
+  },50);
+}
+
 /** Interleave fresh browser contexts so deployment warmth/order cannot choose a winner. */
 export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measure,samples=5,maxRegressionRatio=1.1,log=console.log}) {
   assert(candidateUrl&&baselineUrl&&typeof measure==='function');
@@ -32,10 +42,7 @@ async function run() {
       const context=await browser.newContext({viewport:{width:1440,height:1000}});
       try {
         const page=await context.newPage();
-        await page.addInitScript(()=>{
-          window.__releaseGraphReadyAt=null;
-          const timer=setInterval(()=>{if(document.querySelector('canvas')){window.__releaseGraphReadyAt=performance.now();clearInterval(timer);}},50);
-        });
+        await page.addInitScript(installGraphReadinessProbe);
         await page.goto(new URL('/en',url).href,{waitUntil:'domcontentloaded',timeout:60000});
         await page.waitForFunction(()=>window.__releaseGraphReadyAt!==null,{},{timeout:45000});
         const duration=await page.evaluate(()=>window.__releaseGraphReadyAt);
