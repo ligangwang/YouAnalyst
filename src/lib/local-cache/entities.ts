@@ -87,7 +87,11 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
  // One-company requests create one group each. Keep fundamentals independently
  // of company traffic, with both ID and estimated payload limits for larger batches.
  const maxGroups=256;
- const maxBytes=16*1024*1024, maxDocuments=marketCaps?2000:960;
+ // Regional graph requests share thousands of projected market-cap rows. A
+ // 2,000-ID limit evicted one region when the next region loaded, repeating both
+ // bulk reads and listener initialization. Keep their compact working set while
+ // preserving the byte/group bounds and the smaller full-document allowance.
+ const maxBytes=16*1024*1024, maxDocuments=marketCaps?8192:960;
  const evict=()=>{
   let bytes=[...cache.groups].reduce((sum,group)=>sum+group.bytes,0);
   for(const group of cache.groups){

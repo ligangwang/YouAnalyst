@@ -202,6 +202,8 @@ test('SEC deployment creates private bounded subscriber before switching the pub
   assert.match(r.calls,/--ack-deadline 600.*--dead-letter-topic sec-fundamentals-dead-letter/);
   assert.match(r.calls,/subscriptions add-iam-policy-binding sec-fundamentals-worker.*roles\/pubsub.subscriber/);
   assert.match(r.calls,/FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests/);
+  assert.match(r.calls,/run jobs deploy refresh-sec-fundamentals-production.*--memory 2Gi.*NODE_OPTIONS=--max-old-space-size=1536/);
+  assert.doesNotMatch(r.calls,/run deploy sec-fundamentals-subscriber[^\n]*NODE_OPTIONS=/);
   assert.ok(r.calls.indexOf('run deploy sec-fundamentals-subscriber') < r.calls.indexOf('run jobs deploy refresh-sec-fundamentals-production'));
   assert.doesNotMatch(r.calls,/iam service-accounts add-iam-policy-binding/);
 });

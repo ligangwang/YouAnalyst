@@ -105,3 +105,17 @@ test('projected cache does not satisfy full fundamentals reads or evict their da
  assert.equal((await read(f.db,['A']))[0].get('annual'),undefined);
  assert.deepEqual((await loadCompanyDocuments(f.db,'company_fundamentals',['A']))[0].get('annual'),{revenue:200});
 });
+
+test('alternating regional market-cap batches retain the observed 3519-company working set',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const ids=Array.from({length:3519},(_,i)=>`US:C${i}`);
+ for(const id of ids)f.values.set(id,{marketCap:{value:1}});
+ const batches=[ids.slice(0,975),ids.slice(975,1954),ids.slice(1954,2764),ids.slice(2764)];
+ for(const batch of batches)await read(f.db,batch);
+ const initialReads=f.reads.length;
+ for(let pass=0;pass<3;pass++)for(const batch of batches)await read(f.db,batch);
+ assert.equal(f.reads.length,initialReads,'warm regional requests must not refetch projected fundamentals');
+ assert.equal(f.listeners.filter(listener=>listener.closed).length,0,'small projected rows must remain subscribed');
+ f.values.set(ids[0],{marketCap:{value:2}});f.emit(f.listeners[0],200);
+ assert.deepEqual((await read(f.db,[ids[0]]))[0].get('marketCap'),{value:2});
+});
