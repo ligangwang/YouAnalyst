@@ -24,3 +24,21 @@ test('a cold warm-up is reported separately and cannot mask steady graph perform
 test('a faster graph cannot hide a slower feed before promotion',async()=>{
  await assert.rejects(verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async(url:string)=>({graphMs:url==='new'?800:1000,feedMs:url==='new'?2000:1000})}),/feed readiness regressed.*existing traffic stays unchanged/);
 });
+
+test('complete-page readiness allows a bounded graph tradeoff when the feed finishes sooner',async()=>{
+ const result=await verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async(url:string)=>url==='new'?{graphMs:2000,feedMs:1800}:{graphMs:1500,feedMs:3000}});
+ assert.equal(result.baselineReadyMedianMs,3000);assert.equal(result.candidateReadyMedianMs,2000);
+});
+
+test('a faster complete page cannot hide more than one second of graph delay',async()=>{
+ await assert.rejects(verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async(url:string)=>url==='new'?{graphMs:2500,feedMs:2000}:{graphMs:1000,feedMs:4000}}),/graph delay exceeds 1000ms budget.*existing traffic stays unchanged/);
+});
+
+test('complete readiness takes the later signal per load before computing the median',async()=>{
+ const reads={old:0,new:0},graph=[1000,3000,2000],feed=[3000,1000,2000];
+ const result=await verifyCandidatePerformance({candidateUrl:'new',baselineUrl:'old',samples:3,log:()=>{},measure:async(url:'old'|'new')=>{
+  if(++reads[url]===1)return {graphMs:1,feedMs:1};
+  return url==='new'?{graphMs:2400,feedMs:1800}:{graphMs:graph[reads[url]-2],feedMs:feed[reads[url]-2]};
+ }});
+ assert.equal(result.baselineReadyMedianMs,3000);assert.equal(result.candidateReadyMedianMs,2400);
+});
