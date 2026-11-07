@@ -41,7 +41,7 @@ export function parseHtmlNewsIndex(html:string,source:NewsSource):NewsPage{
       if(item&&day&&new URL(url).pathname.startsWith(`/${day}-`))item.publication_date=day;
     }
   }
-  return {items:[...items.values()].slice(0,30),invalid:0,truncated:items.size>30};
+  return {items:[...items.values()].slice(0,10),invalid:0,truncated:items.size>10};
 }
 /** Uses original publication metadata, never dateModified, feed updated or HTTP dates. */
 export function originalArticleMetadata(html:string,visibleDate?:'linde'):{title:string;at:string|null;day:string|null}{
