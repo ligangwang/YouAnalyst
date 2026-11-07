@@ -1424,7 +1424,8 @@ export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:st
       // A missing provider symbol (for example a retired warrant) is a
       // coverage gap, not an outage. Required prediction bars are checked
       // again before valuation, so this cannot publish unpriced predictions.
-      if(page.failures.some(f=>!['eodhd_no_dated_bar','eodhd_http_404'].includes(f.reason)))throw Error('EOD price cleanup remains incomplete');
+      if(page.failures.some(f=>!['eodhd_no_dated_bar','eodhd_http_404','invalid_ohlc','missing_trading_date','missing_eodhd_bulk_row'].includes(f.reason)
+        &&!f.reason.startsWith('trading_date_mismatch_')))throw Error('EOD price cleanup remains incomplete');
       fetched.prices.push(...page.prices);fetched.failures.push(...page.failures);
     }
   }else fetched=await fetchEodhdBulkEodPrices(missing,date,now,market);
