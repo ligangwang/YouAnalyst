@@ -60,7 +60,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       const previous=graphs.current.get(theme);
       if(!previous||Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
       return data;
-    })();
+    })().catch(error=>{universeRequest=undefined;throw error;});
     if (bootstrapRequired.current) {
       void universe().then(data=>{
         if(!isCurrentTheme())return;

@@ -1967,3 +1967,21 @@ test('graph-free feed waits for the matching graph version before applying event
  release();
  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
 });
+
+test('a transient graph failure recovers on focus without manual retry',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);let graphReads=0,unavailable=true;
+ await page.route('**/*',route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/intelligence'){
+   if(url.searchParams.get('section')==='universe'){graphReads++;return unavailable?route.fulfill({status:503,json:{error:'Temporary failure'}}):route.fulfill({json:{...snapshot,events:[],eventsPending:true}});}
+   const {graph:_graph,...feed}=snapshot;return route.fulfill({json:feed});
+  }
+  return route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=list');
+ await expect(page.getByRole('alert')).toBeVisible();const failedReads=graphReads;
+ unavailable=false;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+ expect(graphReads).toBeGreaterThan(failedReads);
+});
