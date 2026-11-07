@@ -22,10 +22,14 @@ import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
 import {SEC_DOWNLOAD_TOPIC} from '../src/lib/sec-filings/download-worker';
 import {publishDiscoveredEarningsOutbox} from '../src/lib/earnings/live-store';
 import {publishEarningsIntake} from '../src/lib/sec-filings/intake-routing';
+import {runSecIpoDiscovery} from '../src/lib/sec-ipo-discovery/runner';
+import {createIpoSource} from '../src/lib/sec-ipo-discovery/source';
+import {OnboardingCapacityDeferred} from '../src/lib/instrument-onboarding/capacity-control';
 
 const log = createMaintenanceLog("collect-sec-filings");
 async function main() {
   if(!['0','1'].includes(process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED??'0'))throw new Error('Invalid SEC incremental download flag');
+  if(!['0','1'].includes(process.env.SEC_IPO_DISCOVERY_ENABLED??'0'))throw new Error('Invalid SEC IPO discovery flag');
   const { apply, companyId, baselineOnly, maxCompanies } = parseSecCollectorArgs(process.argv.slice(2));
   // Both the scheduler and this explicit application switch start disabled.
   // Running the CLI without --apply is safe even with production credentials.
@@ -51,6 +55,14 @@ async function main() {
     log.emit(result.status === "partial" ? "WARNING" : "INFO", "run_completed", result);
     if (result.status === "partial") throw new Error("Initial baseline incomplete; retry only the frozen snapshot");
     return;
+  }
+  // Global issuer discovery is separate from the existing known-company poller.
+  // Explicit baseline/company maintenance never enrolls unrelated IPOs.
+  if(apply&&!companyId&&!baselineOnly&&process.env.SEC_IPO_DISCOVERY_ENABLED==='1'){
+    try{log.emit('INFO','sec_ipo_discovery_completed',await runSecIpoDiscovery(db,createIpoSource(process.env.SEC_USER_AGENT??'',AbortSignal.timeout(120_000))));}
+    catch(error){
+      log.emit('WARNING','sec_ipo_discovery_deferred',error instanceof OnboardingCapacityDeferred?{reason:error.message}:{error:maintenanceError(error)});
+    }
   }
   const companyDocs = await readCollectionCompanies(db,SEC_COLLECTION_FIELDS,'US');
   const companies = supportedCompanyUniverse(companyDocs);

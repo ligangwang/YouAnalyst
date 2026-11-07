@@ -40,10 +40,19 @@ export function instrumentOnboardingIdentity(instrument:Instrument,company:Recor
 }
 
 export function createOnboardingRequest(instrumentId:string,record:Instrument,company:Record<string,unknown>,requestedByUid:string,now=new Date()):OnboardingRequest{
-  if(!validInstrumentId(instrumentId))throw new OnboardingBlocked('Invalid instrument identity');
   if(!validRequesterUid(requestedByUid))throw new OnboardingBlocked('Requester UID is required');
+  return buildOnboardingRequest(instrumentId,record,company,{requestedByUid},now);
+}
+
+/** Trusted SEC collector only; public admission still requires a verified UID. */
+export function createSecIpoOnboardingRequest(id:string,record:Instrument,company:Record<string,unknown>,now=new Date()):OnboardingRequest{
+  return buildOnboardingRequest(id,record,company,{requestedByUid:null,requestSource:'SEC_IPO'},now);
+}
+
+function buildOnboardingRequest(instrumentId:string,record:Instrument,company:Record<string,unknown>,attribution:Pick<OnboardingRequest,'requestedByUid'|'requestSource'>,now:Date):OnboardingRequest{
+  if(!validInstrumentId(instrumentId))throw new OnboardingBlocked('Invalid instrument identity');
   const {instrument}=instrumentOnboardingIdentity(record,company),at=now.toISOString();
-  return {instrumentId,companyId:record.companyId,version:1,status:'QUEUED',requestedByUid,requestedAt:at,updatedAt:at,targetThrough:historyThrough(instrument.market,now),
+  return {instrumentId,companyId:record.companyId,version:1,status:'QUEUED',...attribution,requestedAt:at,updatedAt:at,targetThrough:historyThrough(instrument.market,now),
     steps:{},attemptCount:0,nextAttemptAt:0,leaseOwner:null,leaseExpiresAt:0,lastError:null};
 }
 
