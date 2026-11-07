@@ -2013,7 +2013,8 @@ test('server graph renders while the independent feed is stalled without fetchin
 
 test('streamed server feed updates the visible graph without an initial API request',async({page,isMobile})=>{
  const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false},true);
- const body=await workspaceFixture(false,initial,true,false,{initialFeed:'new Promise(resolve=>{globalThis.__releaseFeed=resolve})'});let requests=0;
+ // Flight thenables inherit catch but their then method returns undefined.
+ const body=await workspaceFixture(false,initial,true,false,{initialFeed:'Object.assign(Object.create({catch:Promise.prototype.catch}),{then(resolve,reject){globalThis.__releaseFeed=resolve;globalThis.__rejectFeed=reject}})'});let requests=0;
  await page.route('**/*',route=>{
   if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
   if(new URL(route.request().url()).pathname==='/api/intelligence'){requests++;return route.fulfill({json:{...snapshot,graph:undefined}});}

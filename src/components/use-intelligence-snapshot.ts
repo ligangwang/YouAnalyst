@@ -3,7 +3,7 @@
 import {useThemeCatalog} from './use-theme-catalog';
 import { useEffect, useRef, useState } from 'react';
 import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/model';
-import {decodeIntelligenceSnapshot,type IntelligencePayload,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
+import {decodeIntelligenceSnapshot,resolveInitialIntelligenceFeed,type IntelligencePayload,type PresentationIntelligenceSnapshot as IntelligenceSnapshot} from '@/lib/ui/intelligence-transport';
 import {expandGraph} from '@/lib/ui/graph-transport';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
@@ -81,7 +81,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       try {
         const url=`/api/intelligence?theme=${theme}&graph=omit${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
-        const encoded=await provided?.catch(()=>undefined);
+        const encoded=await resolveInitialIntelligenceFeed(provided);
         if(disposed)return;
         const response=encoded?undefined:await fetch(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
         if (response&&!response.ok&&response.status!==304) throw new Error();
