@@ -2013,7 +2013,7 @@ test('server graph renders while the independent feed is stalled without fetchin
  expect(graphReads).toBe(0);expect(feedReads).toBe(1);
 });
 
-test('the early no-store feed preload is reused by hydration with one graph-free request',async({page,isMobile})=>{
+for(const failedPreload of [false,true])test(`the early no-store feed preload ${failedPreload?'can fail and recover on a fresh retry':'is reused by hydration with one graph-free request'}`,async({page,isMobile})=>{
  const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],eventsPending:true},true);
  const body=await workspaceFixture(false,initial,true,false,{feedPreload:true});
  const boundary=body.indexOf('<script>');let reads=0,scriptsSent=false,early=false;
@@ -2021,6 +2021,7 @@ test('the early no-store feed preload is reused by hydration with one graph-free
   const url=new URL(request.url!,'http://fixture.test');
   if(url.pathname==='/api/intelligence'){
    reads++;early=early||!scriptsSent;expect(url.searchParams.get('graph')).toBe('omit');expect(url.searchParams.get('payload')).toBe('compact');
+   if(failedPreload&&reads===1){response.writeHead(503,{'Content-Type':'application/json','Cache-Control':'no-store'});response.end('{"error":"Temporary failure"}');return;}
    response.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});
    response.end(JSON.stringify({...snapshot,graph:undefined,events:snapshot.events.slice(0,20),eventsLimited:true}));return;
   }
@@ -2035,8 +2036,9 @@ test('the early no-store feed preload is reused by hydration with one graph-free
  try{
   await page.goto(`http://127.0.0.1:${(server.address() as AddressInfo).port}/?view=graph`);
   if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
+  if(failedPreload){await expect(page.getByRole('alert').first()).toBeVisible();expect(reads).toBe(1);await page.evaluate(()=>dispatchEvent(new Event('focus')));}
   await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
-  expect(early).toBe(true);expect(reads).toBe(1);
+  expect(early).toBe(true);expect(reads).toBe(failedPreload?2:1);
  }finally{await page.goto('about:blank');server.closeAllConnections();await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}
 });
 
