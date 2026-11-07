@@ -44,6 +44,8 @@ function run(script: string, extra: Record<string, string> = {}) {
           "run services describe sec-filing-download-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe company-graph-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe eod-maintenance-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo web@demo.iam.gserviceaccount.com ;;
           "projects describe"*) echo 123456789 ;;
+          "run jobs describe collect-sec-filings-production"*"--format=json"*)
+            node -e 'console.log(JSON.stringify({spec:{template:{spec:{template:{spec:{containers:[{env:process.env.LIVE_IPO_FLAG?[{name:"SEC_IPO_DISCOVERY_ENABLED",value:process.env.LIVE_IPO_FLAG}]:[]}]}}}}}}));' ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
           "run deploy company-graph-subscriber"*)
             local previous='' arg
@@ -79,7 +81,7 @@ test('filing collector is disabled by default and a new schedule is paused', () 
   const r = run('scripts/deploy-sec-filings.sh', { NEW_SCHEDULER: '1' });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.calls, /--args dist\/collect-sec-filings.cjs,--apply/);
-  assert.match(r.calls, /SEC_FILINGS_TOPIC=sec-filings-discovered\|SEC_DISCOVERY_REQUEST_TOPIC=\|SEC_FILINGS_COLLECTOR_ENABLED=0/);
+  assert.match(r.calls, /SEC_FILINGS_TOPIC=sec-filings-discovered\|SEC_DISCOVERY_REQUEST_TOPIC=\|SEC_IPO_DISCOVERY_ENABLED=0\|SEC_FILINGS_COLLECTOR_ENABLED=0/);
   assert.match(r.calls, /scheduler jobs create http collect-sec-filings-production.*--schedule \*\/15 \* \* \* \*/);
   assert.match(r.calls, /scheduler jobs pause collect-sec-filings-production/);
   assert.ok(r.calls.indexOf('subscriptions describe company-graph-filings') < r.calls.indexOf('run jobs deploy collect-sec-filings-production'));
@@ -92,6 +94,13 @@ test('collector releases preserve current schedule state and explicit enabled co
   assert.match(r.calls, /SEC_FILINGS_COLLECTOR_ENABLED=1/);
   assert.match(r.calls, /scheduler jobs update http collect-sec-filings-production/);
   assert.doesNotMatch(r.calls, /scheduler jobs (pause|resume|delete)/);
+});
+
+test('IPO discovery starts disabled, preserves reviewed activation, and rejects invalid live flags before deployment',()=>{
+  for(const value of ['0','1']){
+    const r=run('scripts/deploy-sec-filings.sh',{LIVE_IPO_FLAG:value});assert.equal(r.status,0,r.stderr);assert(r.calls.includes(`SEC_IPO_DISCOVERY_ENABLED=${value}`));
+  }
+  const r=run('scripts/deploy-sec-filings.sh',{LIVE_IPO_FLAG:'invalid'});assert.notEqual(r.status,0);assert.doesNotMatch(r.calls,/run jobs deploy|scheduler jobs (update|create|pause|resume)/);
 });
 
 test('collector fails closed without rollout, valid flags, or both fan-out consumers', () => {

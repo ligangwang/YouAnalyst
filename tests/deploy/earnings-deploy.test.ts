@@ -50,6 +50,7 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
           "run services describe eod-maintenance-subscriber"*"latestReadyRevisionName"*|"run services describe eod-maintenance-subscriber"*"latestCreatedRevisionName"*) echo eod-new ;;
           "run services describe"*) echo https://subscriber.example.run.app ;;
           "run services update-traffic eod-maintenance-subscriber"*) ;;
+          "run jobs describe collect-sec-filings-production"*"--format=json"*) echo '{"spec":{"template":{"spec":{"template":{"spec":{"containers":[{"env":[]}]}}}}}}' ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
           "projects describe"*) echo 123456789 ;;
           "run deploy earnings-subscriber"*|"run jobs deploy collect-earnings-production"*)

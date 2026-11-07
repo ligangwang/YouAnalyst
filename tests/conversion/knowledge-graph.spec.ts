@@ -1264,9 +1264,12 @@ test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
   await page.locator('[data-company-id="US:NVDA"]').evaluate((el:HTMLButtonElement)=>el.click());
   // NVIDIA is the galaxy's central star, so its innermost neighbours sit behind its
   // selection card: follow whichever connected company's label is on show.
-  const neighbor=page.locator('[data-company-focus="connected"][data-visible="true"]').first();
-  await expect(neighbor).toBeVisible();
-  const label=page.locator(`[data-company-id="${await neighbor.getAttribute("data-company-id")}"] strong`);
+  const visibleLabel=page.locator('[data-company-focus="connected"][data-visible="true"] strong:visible').first();
+  await expect(visibleLabel).toBeVisible();
+  // Visibility of a company button does not imply its text survived label
+  // collision culling. Lock onto an actual visible text label before zooming.
+  const companyId=await visibleLabel.evaluate(el=>el.closest('[data-company-id]')!.getAttribute('data-company-id'));
+  const label=page.locator(`[data-company-id="${companyId}"] strong`);
   await expect(label).toBeVisible();
   const fontSize=()=>label.evaluate(el=>el.getBoundingClientRect().height);
   const baseSize=await label.evaluate(el=>({width:(el as HTMLElement).offsetWidth,height:(el as HTMLElement).offsetHeight}));

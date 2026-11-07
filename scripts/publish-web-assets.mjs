@@ -9,6 +9,19 @@ import {GoogleAuth} from 'google-auth-library';
 export const site='youanalyst-web-assets';
 export const cacheControl='public,max-age=31536000,immutable';
 export const assetPrefix=commit=>`https://${site}.web.app/releases/${commit}`;
+export async function verifyPublishedAsset(asset,request=fetch,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))){
+  for(let attempt=0;attempt<8;attempt++){
+    const response=await request(`https://${site}.web.app${asset.path}`,{headers:{Origin:'https://youanalyst.com','Cache-Control':'no-cache'},signal:AbortSignal.timeout(10000)});
+    // Hosting activation can precede public edge propagation. Wait only for the
+    // newly published path's 404; all integrity/access failures remain fatal.
+    if(response.status===404&&attempt<7){await response.body?.cancel();await pause(Math.min(10000,1000*2**attempt));continue;}
+    assert.equal(response.status,200,`Public asset unavailable: ${asset.path}`);
+    assert.equal(response.headers.get('access-control-allow-origin'),'*','Asset CORS is unavailable');
+    assert.equal(response.headers.get('cache-control'),cacheControl);
+    assert.equal(createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex'),asset.rawHash,`Public asset bytes differ: ${asset.path}`);
+    return;
+  }
+}
 export function assetObject(path,bytes,commit){
   assert.match(commit,/^[a-f0-9]{40}$/);
   assert(path&&!path.includes('\\')&&!path.split('/').some(part=>part==='..'||!part),'Unsafe asset path');
@@ -76,13 +89,7 @@ export async function publishWebAssets({root='.release',commit=process.env.GIT_S
   const result=await deployAssetVersion({assets,
     api:async(path,method='GET',data)=>(await client.request({url:`https://firebasehosting.googleapis.com/v1beta1/${path}`,method,data,headers,retry:false})).data,
     upload:async(url,data)=>{await client.request({url,method:'POST',data,headers:{...headers,'Content-Type':'application/octet-stream'},retry:false});},
-    verifyPublic:async asset=>{
-      const response=await request(`https://${site}.web.app${asset.path}`,{headers:{Origin:'https://youanalyst.com','Cache-Control':'no-cache'},signal:AbortSignal.timeout(30000)});
-      assert.equal(response.status,200,`Public asset unavailable: ${asset.path}`);
-      assert.equal(response.headers.get('access-control-allow-origin'),'*','Asset CORS is unavailable');
-      assert.equal(response.headers.get('cache-control'),cacheControl);
-      assert.equal(createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex'),asset.rawHash,`Public asset bytes differ: ${asset.path}`);
-    },
+    verifyPublic:asset=>verifyPublishedAsset(asset,request),
   });
   console.log(`Published and anonymously verified ${result.files} immutable browser assets; retained ${result.retainedFiles} old paths (${result.version}).`);
   return {...result,assetPrefix:manifest.assetPrefix};
