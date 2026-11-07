@@ -63,9 +63,9 @@ export function confirmsIpoCover(html:string,listing:Listing){
   const cover=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ')
     .replace(/&#(?:160|xA0);|&nbsp;/gi,' ').replace(/&#(?:34|x22);|&quot;|[“”]/gi,'"').replace(/\s+/g,' ').slice(0,12000);
   if(!/\bThis is (?:our|the|an) initial public offering\b/i.test(cover))return false;
-  if(/\b(?:units? consisting|warrants? included|blank check company|special purpose acquisition company)\b/i.test(cover))return false;
+  if(/\b(?:units? consist(?:ing|s)?|each unit|warrants? included|blank[- ]check company|special purpose acquisition company)\b/i.test(cover))return false;
   const micText=listing.exchangeMic==='XNAS'?'Nasdaq':listing.exchangeMic==='XNYS'?'New York Stock Exchange|NYSE':'NYSE American';
   const symbol=listing.symbol.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replaceAll('\\.','[.-]');
-  const listed=new RegExp(`(?:approved (?:for listing|to list)|(?:is|are|has been) listed).{0,200}(?:${micText}).{0,160}(?:under (?:the )?(?:trading )?symbol)\\s*["']?${symbol}(?=["' ,.;])`,'i');
+  const listed=new RegExp(`(?:approved (?:for listing|to list)|(?:is|are|has been) listed).{0,200}(?:${micText}).{0,160}(?:under (?:the )?(?:trading )?symbol)\\s*["']?${symbol}(?=["' ,;]|\\.(?=["' ]|$)|$)`,'i');
   return listed.test(cover)&&/\b(?:common stock|common shares|ordinary shares|American depositary shares)\b/i.test(cover);
 }

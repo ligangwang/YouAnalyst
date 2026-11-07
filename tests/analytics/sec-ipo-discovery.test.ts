@@ -30,6 +30,8 @@ test('SEC mappings require matching CIK, symbol and exchange in both sources; co
 test('registration alone, historical IPO text, resale, SPAC units and unmatched cover symbols do not confirm',()=>{
   assert(confirmsIpoCover(cover,listing));
   assert(confirmsIpoCover(cover.replace('our initial','the initial'),listing));
+  assert(!confirmsIpoCover(cover.replace('NEW.','NEW.B'),listing));
+  assert(!confirmsIpoCover(cover+' We are a blank-check company.',listing));
   for(const text of [cover.replace('This is our initial public offering','We completed our initial public offering in 2020'),cover.replace('approved for listing','applied for listing'),cover.replace('NEW.','OTHER.'),cover+' We are a blank check company.',cover.replace('This is our initial public offering','This prospectus relates to the resale')])assert(!confirmsIpoCover(text,listing),text);
   assert.deepEqual(resolveProspectuses(submission,[{...filing,form:'S-1'}],listing.cik),[]);
   assert.equal(resolveProspectuses(submission,[filing],listing.cik)[0].sourceUrl,filing.sourceUrl);
