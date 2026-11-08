@@ -13,10 +13,11 @@ import { NextRequest } from "next/server";
 type Data = Record<string, unknown>;
 type Snapshot = { ref: { path: string; id: string }; id: string; exists: boolean; data: () => Data | undefined; get: (field: string) => unknown };
 function fixture() {
+  const reads: string[] = [];
   const records = new Map<string, Data>([...Array.from({ length: 12 }, (_, i) => [`users/user${i}`, { nickname: `Analyst ${i}`, settings: { isPublic: true } }] as [string, Data]), ["users/private", { settings: { isPublic: false } }]]);
   const value = (data: Data | undefined, field: string): unknown => field.split(".").reduce<unknown>((item, key) => item && typeof item === "object" ? (item as Data)[key] : undefined, data);
   function doc(path: string) {
-    return { path, id: path.split("/").at(-1)!, collection: (name: string) => collection(path + "/" + name), get: async () => snapshot(path, records) };
+    return { path, id: path.split("/").at(-1)!, collection: (name: string) => collection(path + "/" + name), get: async () => { reads.push(path); return snapshot(path, records); } };
   }
   function snapshot(path: string, data: Map<string, Data>): Snapshot {
     return { ref: doc(path), id: path.split("/").at(-1)!, exists: data.has(path), data: () => data.get(path), get: (field: string) => value(data.get(path), field) };
@@ -57,7 +58,7 @@ function fixture() {
     tail = result.catch(() => {});
     return result;
   } } as unknown as Firestore;
-  return { db, records };
+  return { db, records, reads };
 }
 const input = { title: "Chips over one year", body: "Watch this race.", requestId: "comparison-request-123", comparison: { theme: "dark" as const, config: { symbols: ["AMD", "NVDA"], start: "2025-01-01", end: "2025-12-31", style: "bar" as const, colors: { AMD: "#123456", NVDA: companyCompareColor("NVDA", DEFAULT_COMPARE_APPEARANCE) } } } };
 
@@ -159,4 +160,22 @@ test("publishing, commenting and voting reject signed-out requests before databa
   const invalid = await getDetail(new NextRequest("https://example.com/api/compare/community/bad"), { params: Promise.resolve({ id: "bad" }) });
   // Infrastructure may be unavailable locally, but invalid IDs never expose data.
   assert.ok([404, 503].includes(invalid.status));
+});
+
+
+test("list reuses post snapshots but reads live privacy and viewer votes", async () => {
+  const f = fixture();
+  const { id } = await publishComparison(input, { uid: "user0" }, f.db);
+  await voteOnComparison(id, "user1", -1, f.db);
+  f.reads.length = 0;
+  const result = await listCommunityComparisons(null, "user1", f.db);
+  assert.equal(result.items[0].id, id);
+  assert.equal(result.items[0].viewerVote, -1);
+  assert.deepEqual(f.reads.sort(), [`posts/${id}/votes/user1`, "users/user0"].sort());
+  f.records.set("users/user0", { settings: { isPublic: false } });
+  f.reads.length = 0;
+  assert.deepEqual((await listCommunityComparisons(null, "user1", f.db)).items, []);
+  assert.deepEqual(f.reads, ["users/user0"]);
+  f.records.delete("users/user0");
+  assert.deepEqual((await listCommunityComparisons(null, undefined, f.db)).items, []);
 });

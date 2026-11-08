@@ -1,4 +1,4 @@
-import { FieldPath, type Firestore, type Transaction } from "firebase-admin/firestore";
+import { FieldPath, type Firestore, type Transaction, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminFirestore } from "./firebase/admin";
 import { postId } from "./posts/model";
 import { predictionInstrument } from "./predictions/instrument";
@@ -30,6 +30,10 @@ async function publicComparison(id: string, db: Firestore, tx?: Transaction): Pr
   if (!validCommunityId(id)) return null;
   const ref = db.collection("posts").doc(id);
   const snapshot = await (tx ? tx.get(ref) : ref.get());
+  return publicComparisonSnapshot(snapshot, db, tx);
+}
+
+async function publicComparisonSnapshot(snapshot: DocumentSnapshot, db: Firestore, tx?: Transaction): Promise<StoredComparison | null> {
   if (!snapshot.exists || snapshot.get("kind") !== "COMPARISON" || snapshot.get("visibility") !== "PUBLIC") return null;
   const post = snapshot.data() as StoredComparison;
   const owner = db.collection("users").doc(post.userId);
@@ -57,7 +61,15 @@ export async function listCommunityComparisons(cursor?: string | null, viewerId?
   }
   const snapshot = await query.limit(21).get();
   const page = snapshot.docs.slice(0, 20);
-  const items = (await Promise.all(page.map(doc => readCommunityComparison(doc.id, viewerId, db)))).filter((post): post is CommunityComparison => !!post);
+  // The query already contains each post. Reuse that snapshot, while checking
+  // current author privacy and viewer votes on every list request.
+  const items = (await Promise.all(page.map(async doc => {
+    if (!validCommunityId(doc.id)) return null;
+    const post = await publicComparisonSnapshot(doc, db);
+    if (!post) return null;
+    const vote = viewerId ? await doc.ref.collection("votes").doc(viewerId).get() : null;
+    return publicRow(post, doc.id, vote?.get("value") === 1 ? 1 : vote?.get("value") === -1 ? -1 : 0);
+  }))).filter((post): post is CommunityComparison => !!post);
   const last = page.at(-1);
   return { items, nextCursor: snapshot.docs.length > 20 && last ? Buffer.from(JSON.stringify({ netLikes: last.get("netLikes"), createdAt: last.get("createdAt"), id: last.id })).toString("base64url") : null };
 }
