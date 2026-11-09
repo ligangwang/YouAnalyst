@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { buildSync } from 'esbuild';
 import { createRequire } from 'node:module';
 import { closeLocalCaches } from '../../src/lib/local-cache/watch';
+import {AsyncLocalStorage} from 'node:async_hooks';
 
 function bundle(entry: string) {
  const code = buildSync({entryPoints:[entry],bundle:true,write:false,platform:'node',format:'cjs',packages:'external'}).outputFiles[0].text;
@@ -13,6 +14,17 @@ function bundle(entry: string) {
   return loadedModule.exports;
  };
 }
+
+test('request-loaded bundles reuse the startup background scope',async()=>{
+ const requests=new AsyncLocalStorage<string>();
+ const load=bundle('src/lib/local-cache/background-scope.ts');
+ await requests.run('visitor',async()=>{
+  const first=load(),second=load();
+  assert.equal(first.inCacheScope(()=>requests.getStore()),undefined);
+  assert.equal(second.inCacheScope(()=>requests.getStore()),undefined);
+  assert.equal(requests.getStore(),'visitor');
+ });
+});
 
 test('independent route bundles share a pending theme catalog and its published value',async()=>{
  const load=bundle('src/lib/company-themes/catalog.ts'),first=load(),second=load();let reads=0;

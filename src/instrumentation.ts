@@ -3,7 +3,11 @@
  * credentials, queries, listeners, snapshots, or company data are initialized.
  * Keep route entry preloading disabled; unrelated pages remain demand-loaded. */
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NODE_ENV === 'production') {
-    await import('firebase-admin/firestore');
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const {startCacheMemoryTelemetry}=await import('./lib/local-cache/background-scope');
+    if (process.env.NODE_ENV === 'production') {
+      startCacheMemoryTelemetry();
+      await import('firebase-admin/firestore');
+    }
   }
 }

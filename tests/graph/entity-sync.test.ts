@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {Timestamp,Firestore} from 'firebase-admin/firestore';
 import {EntitySync,type ChangeBatch} from '../../src/lib/local-cache/entity-sync';
 import {enableCompanyDirectory,companyDirectory} from '../../src/lib/local-cache/company-directory';
@@ -8,6 +9,17 @@ import type {EntityRows} from '../../src/lib/entity-snapshots/sqlite';
 process.env.PRICE_SNAPSHOT_READY='1';
 const stamp=(n:number)=>new Timestamp(n,0);
 const batch=(n:number,id='x'):ChangeBatch=>({readTime:stamp(n),changes:[{id,data:{updatedAt:stamp(n),value:n}}]});
+
+test('entity catch-up subscriptions do not inherit the requesting page context',async()=>{
+ const requests=new AsyncLocalStorage<string>();
+ await requests.run('visitor',async()=>{
+  const sync=new EntitySync((_since,next)=>{
+   assert.equal(requests.getStore(),undefined);
+   queueMicrotask(()=>next(batch(11)));return()=>{};
+  },stamp(10),()=>assert.equal(requests.getStore(),undefined));
+  try{await sync.ready();assert.equal(requests.getStore(),'visitor');}finally{sync.close();}
+ });
+});
 test('initial catch-up, live IDs, inclusive reconnect, and stale callbacks',async()=>{
  const connections:{since:Timestamp;next:(b:ChangeBatch)=>void;error:(e:Error)=>void;closed:boolean}[]=[];
  let reconnected!:()=>void;const reconnect=new Promise<void>(resolve=>{reconnected=resolve;});
