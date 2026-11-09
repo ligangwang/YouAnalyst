@@ -5,7 +5,7 @@ import type {NewsSource} from './sources';
 import {parseHtmlNewsIndex,originalArticleMetadata} from './html-news';
 import {publisherFetch} from './publisher-http';
 
-export const MAX_FEED_BYTES=2_000_000,MAX_FEED_ITEMS=100;
+export const MAX_FEED_BYTES=2_000_000,MAX_FEED_ITEMS=10;
 export type NewsItem={id:string;sourceId:string;companyId:string;title:string;summary:string;url:string;published_at:string|null;publication_date:string|null};
 export type NewsPage={items:NewsItem[];invalid:number;truncated:boolean};
 const array=(value:unknown):unknown[]=>Array.isArray(value)?value:value?[value]:[];

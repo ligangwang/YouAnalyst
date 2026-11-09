@@ -110,7 +110,7 @@ test('malformed XML, entities, non-feeds, oversized responses and unapproved art
   assert.equal(page.invalid,2);assert.equal(page.items.length,0);
 });
 test('item cap is explicit, rather than claiming full feed coverage',()=>{
-  const page=parseNewsFeed(rss(Array.from({length:101},(_,i)=>entry(String(i))).join('')),source);assert.equal(page.items.length,100);assert.equal(page.truncated,true);
+  const page=parseNewsFeed(rss(Array.from({length:11},(_,i)=>entry(String(i))).join('')),source);assert.equal(page.items.length,10);assert.equal(page.truncated,true);
 });
 test('conditional fetches retain validators and treat 304 as unchanged',async()=>{
   const request:typeof fetch=async(_url,options)=>{assert.equal((options?.headers as Record<string,string>)['If-None-Match'],'etag');return new Response(null,{status:304});};
