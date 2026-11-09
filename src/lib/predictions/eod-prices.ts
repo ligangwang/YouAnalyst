@@ -1,7 +1,7 @@
 import {eodWorkOnce, forgetEodWork} from './eod-work-scope';
 import {writeCachedPrice,writeCachedPrices} from '../intelligence/price-cache';
 import { saveLatestEodPrice,saveLatestEodPrices } from "./latest-eod";
-import {FieldPath} from 'firebase-admin/firestore';
+import {FieldPath,type Firestore} from 'firebase-admin/firestore';
 import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
 import { corporateActionTickers, syncCorporateActions } from './corporate-actions';
 import { loadUsdCnyEod } from "./fx-eod";
@@ -1409,6 +1409,21 @@ export async function readBulkEodPrices(db:FirebaseFirestore.Firestore,tickers:s
   return prices;
 }
 
+/** Stop after the nearest valid close; weekends must not load a month per issuer. */
+export async function readPreviousBulkClose(db:Firestore,market:EodPrice['market'],ticker:string,date:string):Promise<Pick<EodPrice,'close'|'tradingDate'>|undefined> {
+  const prefix=`${market}_${ticker}_`;
+  let query=db.collection('eod_prices').where(FieldPath.documentId(),'>=',prefix+addUtcDays(date,-PREVIOUS_EOD_PRICE_LOOKBACK_DAYS))
+    .where(FieldPath.documentId(),'<',prefix+date).orderBy(FieldPath.documentId(),'desc').limit(1);
+  for(let inspected=0;inspected<PREVIOUS_EOD_PRICE_LOOKBACK_DAYS;inspected++){
+    const page=await query.get(),doc=page.docs[0];
+    if(!doc)return undefined;
+    const price=toCachedEodPrice(doc.data());
+    if(price&&price.close>0)return price;
+    query=query.startAfter(doc);
+  }
+  return undefined;
+}
+
 /** Daily coverage checks never fan out into individual requests for the whole
  * catalog. Prediction valuation separately retries only its required bars. */
 export async function persistDailyBulkEodPrices(input:DailyEodMaintenanceInput,ids:string[],retry:boolean,db=getAdminFirestore()) {
@@ -1455,10 +1470,7 @@ export async function persistBulkEodPrices(input:DailyEodMaintenanceInput,ids:st
       await Promise.all(prices.slice(offset,offset+16).map(async price=>{
         let previous:Pick<EodPrice,'close'|'tradingDate'>|undefined=prior.get(price.ticker);
         if(!previous){
-          const prefix=`${price.market}_${price.ticker}_`;
-          const page=await db.collection('eod_prices').where(FieldPath.documentId(),'>=',prefix+addUtcDays(date,-PREVIOUS_EOD_PRICE_LOOKBACK_DAYS))
-            .where(FieldPath.documentId(),'<',prefix+date).orderBy(FieldPath.documentId(),'desc').limit(PREVIOUS_EOD_PRICE_LOOKBACK_DAYS).get();
-          previous=page.docs.map(d=>toCachedEodPrice(d.data())).find(p=>p&&p.close>0)??undefined;
+          previous=await readPreviousBulkClose(db,price.market,price.ticker,date);
         }
         price.previousClose=previous?.close??null;price.previousTradingDate=previous?.tradingDate??null;
         price.dailyReturn=previous?price.close/previous.close-1:null;
