@@ -1,5 +1,6 @@
 import {Timestamp,type Firestore,type DocumentData} from 'firebase-admin/firestore';
 import type {Collection} from '../entity-snapshots/sync';
+import {inCacheScope} from './background-scope';
 export type EntityChange={id:string;data:DocumentData};
 export type ChangeBatch={changes:EntityChange[];readTime:Timestamp};
 export type Subscribe=(since:Timestamp,next:(batch:ChangeBatch)=>void,error:(error:Error)=>void)=>()=>void;
@@ -13,7 +14,7 @@ export class EntitySync {
  private stopped=false;
  private generation=0;
  private initial!:Promise<void>;
- constructor(private subscribe:Subscribe,since:Timestamp,private apply:(changes:EntityChange[])=>void,private retryMs=5000){this.checkpoint=since;this.connect();}
+ constructor(private subscribe:Subscribe,since:Timestamp,private apply:(changes:EntityChange[])=>void,private retryMs=5000){this.checkpoint=since;inCacheScope(()=>this.connect());}
  private connect(){
   if(this.stopped)return;
   const generation=++this.generation;

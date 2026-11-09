@@ -1,8 +1,74 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {AsyncLocalStorage} from 'node:async_hooks';
+import {spawnSync} from 'node:child_process';
 import type { Firestore } from 'firebase-admin/firestore';
 import { localDocuments, localEntityVersions } from '../../src/lib/local-cache/entities';
 import { Watch, closeLocalCaches } from '../../src/lib/local-cache/watch';
+
+test('live listeners release completed request contexts and replaced initial snapshots',()=>{
+ const result=spawnSync(process.execPath,['--expose-gc','--import','tsx','tests/graph/fixtures/watch-heap.ts'],{encoding:'utf8'});
+ assert.equal(result.status,0,result.stderr);
+ const measured=JSON.parse(result.stdout);
+ assert.equal(measured.retainedRequests,0);
+ assert.equal(measured.retainedInitialSnapshots,0);
+ assert.deepEqual(measured.latestValues,Array.from({length:100},(_,i)=>i));
+});
+
+test('subscription setup is detached while awaiting callers retain their own scope',async()=>{
+ const requests=new AsyncLocalStorage<string>();
+ await requests.run('visitor',async()=>{
+  const watch=new Watch<number>(next=>{
+   assert.equal(requests.getStore(),undefined);
+   queueMicrotask(()=>{assert.equal(requests.getStore(),undefined);next(9);});
+   return()=>{};
+  });
+  try{assert.equal(await watch.read(),9);assert.equal(requests.getStore(),'visitor');}finally{watch.close();}
+ });
+});
+
+test('failed subscriptions detach once and stale notifications cannot replace good data',async()=>{
+ let next!:(n:number)=>void,error!:(e:Error)=>void,closed=0;
+ const watch=new Watch<number>((n,e)=>{next=n;error=e;return()=>{closed++;};});
+ next(1);error(Error('offline'));error(Error('duplicate failure'));next(99);
+ assert.equal(await watch.read(),1);assert.equal(closed,1);
+ watch.close();assert.equal(closed,1);await assert.rejects(watch.read(),/closed/);
+});
+
+test('one reconnect resumes live updates while keeping the last good value',async()=>{
+ const connections:{next:(n:number)=>void;error:(e:Error)=>void;closed:boolean}[]=[];
+ let connected!:()=>void;
+ const reconnected=new Promise<void>(resolve=>{connected=resolve;});
+ const watch=new Watch<number>((next,error)=>{
+  const connection={next,error,closed:false};connections.push(connection);
+  if(connections.length===2)connected();
+  return()=>{connection.closed=true;};
+ });
+ let timeout:ReturnType<typeof setTimeout>|undefined;
+ try{
+  connections[0].next(7);connections[0].error(Error('retry'));connections[0].error(Error('duplicate'));
+  assert.equal(await watch.read(),7);
+  await Promise.race([reconnected,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('No reconnect')),6500);})]);
+  assert.equal(connections.length,2);assert.equal(connections[0].closed,true);
+  connections[1].next(8);connections[0].next(99);
+  assert.equal(await watch.read(),8);
+ }finally{clearTimeout(timeout);watch.close();}
+ assert.equal(connections[1].closed,true);
+});
+
+test('synchronous subscription failures release their returned handle',async()=>{
+ let closed=0;
+ const watch=new Watch<number>((_next,error)=>{error(Error('denied'));return()=>{closed++;};});
+ await assert.rejects(watch.read(),/denied/);assert.equal(closed,1);watch.close();
+ const throwing=new Watch<number>(()=>{throw Error('setup failed');});
+ await assert.rejects(throwing.read(),/setup failed/);throwing.close();
+});
+
+test('closing a pending listener rejects its reader and ignores late snapshots',async()=>{
+ let next!:(n:number)=>void;
+ const watch=new Watch<number>(n=>{next=n;return()=>{};});
+ const pending=watch.read();watch.close();next(3);await assert.rejects(pending,/closed/);
+});
 function fixture(){
  const listeners:{collection:string;ids:string[];next:(snapshot:unknown)=>void;closed:boolean}[]=[];
  const db={collection:(collection:string)=>{let ids:string[]=[];const query={where:(_field:unknown,_op:string,value:string[])=>{ids=value;return query;},doc:(id:string)=>({id}),onSnapshot:(next:(snapshot:unknown)=>void)=>{const listener={collection,ids,next,closed:false};listeners.push(listener);return ()=>{listener.closed=true;};}};return query;}} as unknown as Firestore;
