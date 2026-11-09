@@ -41,18 +41,23 @@ test('company events share loads, receive changes and remain bounded', async t =
   listeners.get('US:AMD')!({ docs: [] });
   assert.equal((await load()).docs.length, 0);
   assert.equal(opens, 1, 'empty results and deletions remain cached');
-  // Replay 12,000 queries, covering the observed 10,996-company overnight cycle.
-  for(let visit=0;visit<2;visit++)for(let i=0;i<12000;i++)await loadCompanyEventSnapshot(db, `US:C${i}`);
-  await load();
-  assert.equal(opens,12001);
-  assert(cacheLogs.some(log=>log.action==='hit'&&log.companyId==='US:AMD'));
-  for (let i = 12000; i < 16384; i++) await loadCompanyEventSnapshot(db, `US:C${i}`);
-  assert.equal(listeners.size, 16384);
-  assert.equal(listeners.has('US:C0'), false);
-  assert(cacheLogs.some(log=>log.action==='evict'&&log.reason==='entry_limit'&&log.companyId==='US:C0'));
+  // Empty queries have no document bytes but still retain SDK stream state.
+  // Replay the overnight high-cardinality crawl and assert the bound throughout.
+  for(let i=0;i<16000;i++){
+    await loadCompanyEventSnapshot(db, `US:EMPTY${i}`);
+    assert(listeners.size<=2048, 'live SDK subscriptions stay bounded even for empty results');
+  }
+  assert.equal(listeners.size,2048);
+  assert.equal(listeners.has('US:AMD'),false);
+  assert(cacheLogs.some(log=>log.action==='evict'&&log.reason==='entry_limit'&&log.companyId==='US:AMD'));
   const before = opens;
-  await loadCompanyEventSnapshot(db,'US:C0'); assert.equal(opens, before + 1);
-  // The byte ceiling still applies independently of the larger entry budget.
+  await loadCompanyEventSnapshot(db,'US:EMPTY15999');
+  assert.equal(opens,before,'recent empty query is reused');
+  await Promise.all([load(),load()]);
+  assert.equal(opens,before+1,'evicted query reopens once for concurrent readers');
+  listeners.get('US:AMD')!({docs:[first]});
+  assert.equal((await load()).docs[0].data().title,'New filing');
+  // The byte ceiling still applies independently of the listener budget.
   for(let i=0;i<180;i++){
     const id=`US:BIG${i}`;await loadCompanyEventSnapshot(db,id);
     listeners.get(id)!({docs:[{data:()=>({text:'x'.repeat(1_000_000)})}]});

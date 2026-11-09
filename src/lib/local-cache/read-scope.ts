@@ -83,10 +83,11 @@ const policies: Record<string, readonly [number, number]> = {
   // bounds live across rollover instead of evicting/reloading each twelve-bar
   // query on the next visit. Retain the existing byte bound and LRU eviction.
   eod_prices: [1024, 32 * 1024 * 1024],
-  // The Nov 6 overnight trace covered 10,996 distinct company/process pairs,
-  // with >103 MiB measured data, and proved reopen churn at 2,048 entries.
-  // Bound the longer browsing cycle; keep byte eviction and exact-query identity.
-  events: [16384, 160 * 1024 * 1024],
+  // Nov 9: 14,659 event listeners (including empty queries) preceded a 3 GiB
+  // heap failure. Document bytes omit SDK streams/query state, so the independent
+  // listener bound must leave room for SDK overhead and the other source caches.
+  // LRU eviction closes the SDK subscription; a revisit loads current data.
+  events: [2048, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
   if(isSnapshotCollection(collection)){
