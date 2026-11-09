@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "verify": "npm run verify:checks && npm run build",
     "test:relationship-review": "tsx --test tests/graph/relationship-review.test.ts tests/graph/relationship-community.test.ts",
-    "test:firestore": "tsx --test tests/firestore-observability.test.ts tests/firestore-operation-report.test.ts tests/company-exchange-region.test.ts",
+    "test:firestore": "tsx --test tests/firestore-observability.test.ts tests/firestore-operation-report.test.ts tests/company-exchange-region.test.ts tests/firestore-watch-backoff.test.ts",
     "test:analytics": "tsx --test tests/analytics/*.test.ts",
     "test:auth": "tsx --test tests/auth/*.test.ts",
     "test:watchlists": "tsx --test tests/watchlists/*.test.ts",
@@ -28,7 +28,8 @@
     "smoke:install": "playwright install chromium",
     "deploy:staging": "./scripts/deploy-cloud-run.sh staging",
     "deploy:production": "./scripts/deploy-cloud-run.sh production",
-    "verify:checks": "npm run lint && npm run typecheck && npm run test:relationship-review && npm run test:firestore && npm run test:analytics && npm run test:securities && npm run test:watchlists && npm run test:deploy && npm run test:news"
+    "verify:checks": "npm run lint && npm run typecheck && npm run test:relationship-review && npm run test:firestore && npm run test:analytics && npm run test:securities && npm run test:watchlists && npm run test:deploy && npm run test:news",
+    "postinstall": "node scripts/patch-firestore-watch.cjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
