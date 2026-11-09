@@ -35,6 +35,27 @@ test('failed subscriptions detach once and stale notifications cannot replace go
  watch.close();assert.equal(closed,1);await assert.rejects(watch.read(),/closed/);
 });
 
+test('one reconnect resumes live updates while keeping the last good value',async()=>{
+ const connections:{next:(n:number)=>void;error:(e:Error)=>void;closed:boolean}[]=[];
+ let connected!:()=>void;
+ const reconnected=new Promise<void>(resolve=>{connected=resolve;});
+ const watch=new Watch<number>((next,error)=>{
+  const connection={next,error,closed:false};connections.push(connection);
+  if(connections.length===2)connected();
+  return()=>{connection.closed=true;};
+ });
+ let timeout:ReturnType<typeof setTimeout>|undefined;
+ try{
+  connections[0].next(7);connections[0].error(Error('retry'));connections[0].error(Error('duplicate'));
+  assert.equal(await watch.read(),7);
+  await Promise.race([reconnected,new Promise((_,reject)=>{timeout=setTimeout(()=>reject(Error('No reconnect')),6500);})]);
+  assert.equal(connections.length,2);assert.equal(connections[0].closed,true);
+  connections[1].next(8);connections[0].next(99);
+  assert.equal(await watch.read(),8);
+ }finally{clearTimeout(timeout);watch.close();}
+ assert.equal(connections[1].closed,true);
+});
+
 test('synchronous subscription failures release their returned handle',async()=>{
  let closed=0;
  const watch=new Watch<number>((_next,error)=>{error(Error('denied'));return()=>{closed++;};});
