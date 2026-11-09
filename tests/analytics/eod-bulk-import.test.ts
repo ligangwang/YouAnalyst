@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import * as admin from 'firebase-admin';
 import {getStorage} from 'firebase-admin/storage';
-import {persistBulkEodPrices,persistDailyBulkEodPrices} from '../../src/lib/predictions/eod-prices';
+import {persistBulkEodPrices,persistDailyBulkEodPrices,readPreviousBulkClose} from '../../src/lib/predictions/eod-prices';
 import {withEodWorkScope} from '../../src/lib/predictions/eod-work-scope';
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
 
@@ -75,4 +75,25 @@ test('bulk import downloads once, writes only requested symbols, and repairs par
  assert.deepEqual(f.rows.get(`eod_prices/US_T0_${date}`),first);
  assert.deepEqual(await persistDailyBulkEodPrices({...input,scheduledBatch:'2000'},['US:NEVER'],false,f.db),['US:NEVER']);
  assert.equal(downloads,3,'redelivery must reuse the 20:00 file');
+});
+
+
+test('previous close fallback stops at first valid bar and advances past invalid rows',async()=>{
+ const good=(date:string)=>({ticker:'AMD',market:'US',requestedDate:date,tradingDate:date,open:10,high:10,low:10,close:10,isFinal:true});
+ let rows:Record<string,unknown>[]=[good('2026-11-06'),good('2026-11-05')],reads=0;
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Minimal recursive SDK query double.
+ const query=(offset=0):any=>({
+   where:(_field:unknown,op:string,value:string)=>{assert(['>=','<'].includes(op));assert.equal(value,op==='>='?'US_AMD_2026-10-10':'US_AMD_2026-11-09');return query(offset);},
+   orderBy:(_field:unknown,direction:string)=>{assert.equal(direction,'desc');return query(offset);},
+   limit:(n:number)=>{assert.equal(n,1);return query(offset);},
+   get:async()=>{reads++;return {docs:rows[offset]?[{offset,data:()=>rows[offset]}]:[]};},
+   startAfter:(doc:{offset:number})=>query(doc.offset+1),
+ });
+ const db={collection:(name:string)=>{assert.equal(name,'eod_prices');return query();}} as unknown as import('firebase-admin/firestore').Firestore;
+ assert.equal((await readPreviousBulkClose(db,'US','AMD','2026-11-09'))?.tradingDate,'2026-11-06');assert.equal(reads,1);
+ rows=[{},good('2026-11-05')];reads=0;
+ assert.equal((await readPreviousBulkClose(db,'US','AMD','2026-11-09'))?.tradingDate,'2026-11-05');assert.equal(reads,2);
+ rows=[];reads=0;assert.equal(await readPreviousBulkClose(db,'US','AMD','2026-11-09'),undefined);assert.equal(reads,1);
+ rows=Array.from({length:31},()=>({}));reads=0;
+ assert.equal(await readPreviousBulkClose(db,'US','AMD','2026-11-09'),undefined);assert.equal(reads,30);
 });
