@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {build} from 'esbuild';
+import {createRequire} from 'node:module';
+const requireBuiltin=createRequire(import.meta.url);
 
 async function startup(runtime:string,environment:string,failure?:Error){
  const calls:string[]=[];
@@ -8,29 +10,38 @@ async function startup(runtime:string,environment:string,failure?:Error){
   define:{'process.env.NEXT_RUNTIME':JSON.stringify(runtime),'process.env.NODE_ENV':JSON.stringify(environment)},
   external:['firebase-admin/firestore']});
  const loadedModule={exports:{} as {register:()=>Promise<void>}};
- new Function('require','module','exports',result.outputFiles[0].text)((name:string)=>{
-  calls.push(name);assert.equal(name,'firebase-admin/firestore','startup must not import route or data loaders');
+ const globals:Record<string,unknown>={};
+ new Function('require','module','exports','globalThis',result.outputFiles[0].text)((name:string)=>{
+  calls.push(name);
+  if(name==='node:async_hooks'||name==='node:v8')return requireBuiltin(name);
+  assert.equal(name,'firebase-admin/firestore','startup must not import route or data loaders');
   if(failure)throw failure;
   return {getFirestore:()=>{throw Error('Startup opened a database client');},Firestore:class{constructor(){throw Error('Startup constructed a database client');}}};
- },loadedModule,loadedModule.exports);
- return {calls,register:loadedModule.exports.register};
+ },loadedModule,loadedModule.exports,globals);
+ return {calls,globals,register:loadedModule.exports.register,close:()=>clearInterval(globals.__youAnalystCacheMemoryTimerV1 as ReturnType<typeof setInterval>)};
 }
 
-test('production readiness awaits the shared SDK import without opening any data client',async()=>{
+test('production readiness seeds cache context and awaits SDK import without opening any data client',async t=>{
  const app=await startup('nodejs','production');
+ t.after(app.close);
  assert.deepEqual(app.calls,[]);
  await app.register();
- assert.deepEqual(app.calls,['firebase-admin/firestore']);
+ assert.deepEqual(app.calls,['node:async_hooks','node:v8','firebase-admin/firestore']);
+ assert.ok(app.globals.__youAnalystCacheScopeV1);
+ assert.ok(app.globals.__youAnalystCacheMemoryTimerV1);
 });
 
 test('edge and development startup do not load the Node SDK',async()=>{
  for(const [runtime,environment] of [['edge','production'],['nodejs','development']]){
-  const app=await startup(runtime,environment);await app.register();assert.deepEqual(app.calls,[]);
+  const app=await startup(runtime,environment);await app.register();
+  assert.deepEqual(app.calls,runtime==='nodejs'?['node:async_hooks','node:v8']:[]);
+  assert.equal(app.globals.__youAnalystCacheMemoryTimerV1,undefined);
  }
 });
 
-test('startup awaits import failures instead of leaving work running behind readiness',async()=>{
+test('startup awaits import failures instead of leaving work running behind readiness',async t=>{
  const failure=new Error('SDK unavailable'),app=await startup('nodejs','production',failure);
+ t.after(app.close);
  await assert.rejects(app.register(),error=>error===failure);
 });
 
