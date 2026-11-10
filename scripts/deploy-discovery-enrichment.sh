@@ -62,7 +62,7 @@ gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_reg
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args "dist/$bundle.cjs" --min-instances 0 --max-instances 2 --concurrency "$concurrency" \
   --timeout 600 --memory "$memory" --cpu 1 --cpu-throttling --env-vars-file "$env_file" \
-  --revision-suffix "$suffix" --no-traffic --tag release-candidate --quiet
+  --revision-suffix "$suffix" --no-traffic --tag candidate --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 export DISCOVERY_RELEASE_REVISION="$revision" DISCOVERY_RELEASE_IMAGE="$FUNDAMENTALS_IMAGE"
 export DISCOVERY_RELEASE_ACCOUNT="$maintenance_runtime_account" DISCOVERY_RELEASE_BUNDLE="$bundle"

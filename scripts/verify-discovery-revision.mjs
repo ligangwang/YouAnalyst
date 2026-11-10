@@ -16,7 +16,7 @@ export function verifyDiscoveryRevision(value, mode, env=process.env) {
   } else {
     const traffic=value.status?.traffic??[];
     if(mode==='candidate') {
-      const candidate=traffic.find(x=>x.tag==='release-candidate');
+      const candidate=traffic.find(x=>x.tag==='candidate');
       assert.equal(candidate?.revisionName,revision,'Candidate tag points to an older revision');
       assert(/^https:\/\//.test(candidate?.url??''),'Missing candidate URL');
       return candidate.url;

@@ -30,7 +30,7 @@ gcloud(){
   "run services update-traffic"*) touch "$CALLS.promoted" ;;
   "run services describe"*)
    if [[ "$*" == *--format=json* ]]; then
-    PROMOTED=$(test -f "$CALLS.promoted" && echo 1) node -e 'console.log(JSON.stringify({status:{traffic:[{revisionName:process.env.OLD_TRAFFIC?"old-revision":process.env.DISCOVERY_RELEASE_REVISION,tag:"release-candidate",url:"https://candidate.example.run.app",percent:process.env.PROMOTED?100:0}]}}))'
+    PROMOTED=$(test -f "$CALLS.promoted" && echo 1) node -e 'console.log(JSON.stringify({status:{traffic:[{revisionName:process.env.OLD_TRAFFIC?"old-revision":process.env.DISCOVERY_RELEASE_REVISION,tag:"candidate",url:"https://candidate.example.run.app",percent:process.env.PROMOTED?100:0}]}}))'
    else echo https://subscriber.example.run.app; fi ;;
 
   "run deploy"*)
@@ -106,10 +106,17 @@ test('SEC subscriber preserves the independent earnings pipeline disable gate',(
 
  test('candidate validation precedes promotion and rejects mismatched or unhealthy revisions',()=>{
  const good=run();assert.equal(good.status,0,good.stderr);
- assert.match(good.calls,/--revision-suffix .* --no-traffic --tag release-candidate/);
+ assert.match(good.calls,/--revision-suffix .* --no-traffic --tag candidate/);
  assert(good.calls.indexOf('candidate-health')<good.calls.indexOf('run services update-traffic'));
  const failures:Record<string,string>[]=[{WRONG_IMAGE:'wrong-image'},{OLD_TRAFFIC:'1'},{HEALTH_FAIL:'1'}];
  for(const extra of failures){
   const bad=run('sec',extra);assert.notEqual(bad.status,0);assert.doesNotMatch(bad.calls,/run services update-traffic|pubsub subscriptions update/);
+ }
+});
+
+test('candidate tag fits Cloud Run service plus tag limit for both workers',()=>{
+ for(const service of ['sec-company-discovery-subscriber','news-article-enrichment-subscriber']){
+  const script=readFileSync('scripts/deploy-discovery-enrichment.sh','utf8');
+  const tag=script.match(/--no-traffic --tag ([a-z-]+)/)?.[1];assert(tag);assert(service.length+tag.length<=46);
  }
 });
