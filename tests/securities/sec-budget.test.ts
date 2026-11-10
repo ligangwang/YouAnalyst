@@ -117,7 +117,10 @@ test('known cooldowns avoid repeated reads but expiry still checks the shared ga
   f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,cooldownUntil:f.now()+60000});
   for(let i=0;i<5;i++)await assert.rejects(budget.run(new AbortController().signal,async()=>{calls++;}),{code:429});
   assert.equal(reads,1);assert.equal(calls,0);
+  for(let i=0;i<50;i++)assert.throws(()=>budget.throwIfCoolingDown(),{code:429});
+  assert.equal(reads,1,'admission denial does not reread Firestore');
   f.advance(60000);
+  assert.doesNotThrow(()=>budget.throwIfCoolingDown());
   // Another worker extended the cooldown. Local expiry cannot authorize work.
   f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,cooldownUntil:f.now()+60000});
   await assert.rejects(budget.run(new AbortController().signal,async()=>{calls++;}),{code:429});

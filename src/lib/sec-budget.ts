@@ -23,12 +23,17 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
   const legacyRef = db.collection("company_fundamentals").doc("_sec_request_budget");
   let localCooldownUntil=0;
   const cooling=(remaining:number)=>Object.assign(new Error('SEC shared cooldown is active'),{code:429,retryAfterMs:remaining});
+  const throwIfCoolingDown=()=>{
+    const remaining=localCooldownUntil-monotonicNow();
+    if(remaining>0)throw cooling(remaining);
+  };
   return {
+    throwIfCoolingDown,
     async run<T>(signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<T>): Promise<T> {
       signal.throwIfAborted();
       // Cache only a denial, never permission to send. Expiry must reacquire the
       // shared gate; monotonic time cannot jump ahead with the wall clock.
-      if(localCooldownUntil>monotonicNow())throw cooling(localCooldownUntil-monotonicNow());
+      throwIfCoolingDown();
       const owner = randomUUID();
       let cooldownMs = 0;
       let bridge = false;
@@ -101,6 +106,8 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
 
 const budgets=new WeakMap<Firestore,ReturnType<typeof createSecBudget>>();
 export const secBudget = {
+  // Denial only: absence/expiry still requires run() to acquire the shared gate.
+  throwIfCoolingDown() { budgets.get(getAdminFirestore())?.throwIfCoolingDown(); },
   run<T>(signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<T>) {
     const db=getAdminFirestore();let budget=budgets.get(db);
     if(!budget){budget=createSecBudget(db);budgets.set(db,budget);}
