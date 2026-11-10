@@ -10,7 +10,7 @@ import { parseCompanyGraphManualJob, parseCompanyGraphFiling, type CompanyGraphJ
   type CompanyGraphVerification } from "./pubsub";
 import { runLatest10KCompanyGraphExtraction } from "./service";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "./types";
-import { GraphBudgetExceededError, readCompanyGraphBudgetAvailability } from "./budget";
+import { GraphBudgetExceededError, GraphUsageUnverifiedError, nextGraphBudgetDay, readCompanyGraphBudgetAvailability } from "./budget";
 import { completeCompanyGraphFilingDeferral, deferCompanyGraphFiling, dispatchDeferredCompanyGraphFiling,
   listDeferredCompanyGraphFilings, readCompanyGraphFilingDeferral, recordCompanyGraphFilingReceipt } from "./deferred-work";
 import { SEC_FILINGS_TOPIC, type SecFilingDiscovered } from "../sec-filings/event";
@@ -150,6 +150,11 @@ export async function processCompanyGraphJob(input: CompanyGraphJob, db: Firesto
     }
     return { completed: 1, ticker: result.ticker, runId: result.runId, edgeCount: result.edges.length, cached: result.cached };
   } catch (error) {
+    if (filing && error instanceof GraphUsageUnverifiedError) {
+      const retryAtMs = nextGraphBudgetDay(now());
+      await deferCompanyGraphFiling(filing, retryAtMs, db, now(), "UNVERIFIED_USAGE");
+      return { status: "deferred", ticker, reason: "UNVERIFIED_USAGE", retryAtMs };
+    }
     if (error instanceof GraphBudgetExceededError) {
       if (manual) await deferCompanyGraphRequest(manual, log.runId, error.retryAtMs, db, now());
       if (filing) await deferCompanyGraphFiling(filing, error.retryAtMs, db, now());

@@ -2,7 +2,7 @@ import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
-import { GraphBudgetExceededError } from "../../src/lib/company-graph/budget";
+import { GraphBudgetExceededError, GraphUsageUnverifiedError, nextGraphBudgetDay } from "../../src/lib/company-graph/budget";
 import { deferCompanyGraphRequest, enqueueCompanyGraphRequest } from "../../src/lib/company-graph/requests";
 import { dispatchCompanyGraphRequest, processCompanyGraphJob, publishQueuedCompanyGraphRequests } from "../../src/lib/company-graph/queue-worker";
 import { completeCompanyGraphFilingDeferral, deferCompanyGraphFiling, dispatchDeferredCompanyGraphFiling,
@@ -84,6 +84,20 @@ test("typed budget exhaustion durably defers the same manual generation and ACKs
   const sent: unknown[] = [];
   const replay = await publishQueuedCompanyGraphRequests({}, { db: f.db, now: retryAtMs, publish: async request => { sent.push(request); } });
   assert.equal(replay.published, 1); assert.deepEqual(sent, [queued.request]);
+});
+
+test("unverified terminal usage retains the filing and suppresses extraction on redelivery", async () => {
+  const f = fixture(), event = filing();
+  let attempts = 0;
+  const deps = { ...exhausted, extract: async () => { attempts++; throw new GraphUsageUnverifiedError(); } };
+  const result = await processCompanyGraphJob(event, f.db, log, deps);
+  assert.equal(result.status, "deferred");
+  const saved = f.rows.get(pathFor(event))!;
+  assert.deepEqual(saved.event, event);
+  assert.equal(saved.reason, "UNVERIFIED_USAGE");
+  assert.equal(saved.nextAttemptAtMs, nextGraphBudgetDay(now));
+  await processCompanyGraphJob(event, f.db, log, deps);
+  assert.equal(attempts, 1);
 });
 
 test("a named lookalike or uncertain provider failure remains an error without budget deferral", async () => {

@@ -14,7 +14,8 @@ function assertSameEvent(saved: unknown, event: SecFilingDiscovered) {
   }
 }
 /** The original filing remains durable before its exhausted-budget delivery is ACKed. */
-export async function deferCompanyGraphFiling(event: SecFilingDiscovered, retryAtMs: number, db: Firestore, now = Date.now()) {
+export async function deferCompanyGraphFiling(event: SecFilingDiscovered, retryAtMs: number, db: Firestore, now = Date.now(),
+  reason: "DAILY_BUDGET" | "UNVERIFIED_USAGE" = "DAILY_BUDGET") {
   event = parseSecFilingDiscovered(event);
   if (event.form !== "10-K") throw new Error("Only 10-K graph filings can be deferred");
   if (!Number.isSafeInteger(retryAtMs) || retryAtMs <= 0) throw new Error("Invalid graph budget retry time");
@@ -25,7 +26,7 @@ export async function deferCompanyGraphFiling(event: SecFilingDiscovered, retryA
       assertSameEvent(prior.event, event);
       if (prior.deferredStatus === "COMPLETED") return;
     }
-    tx.set(ref, { event, deferredStatus: "PENDING", reason: "DAILY_BUDGET",
+    tx.set(ref, { event, deferredStatus: "PENDING", reason,
       nextAttemptAtMs: Math.max(retryAtMs, Number(prior?.nextAttemptAtMs) || 0),
       deferredAt: new Date(now).toISOString(), publishedAt: null,
       publishLeaseOwner: null, publishLeaseExpiresAtMs: 0, dispatchError: null }, { merge: true });

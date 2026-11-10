@@ -37,6 +37,9 @@ export class GraphBudgetExceededError extends Error {
     this.name = "GraphBudgetExceededError"; this.retryAtMs = retryAtMs;
   }
 }
+export class GraphUsageUnverifiedError extends Error {
+  constructor() { super("Graph budget cannot be verified (unverified token usage); paid processing is blocked."); this.name = "GraphUsageUnverifiedError"; }
+}
 export class GraphBudgetUncertainError extends Error {
   constructor() { super("A graph provider attempt has no durable response identity; its full budget reservation is retained for operator review."); this.name = "GraphBudgetUncertainError"; }
 }
@@ -181,7 +184,7 @@ export async function settleGraphBudget(ticket: GraphBudgetTicket, response: Rec
   if (response.model !== ticket.model || response.service_tier !== (flex ? "flex" : "default")) return fail("unreviewed model or pricing tier");
   if (!["completed", "failed", "cancelled", "incomplete"].includes(String(response.status))) return fail("response is not terminal");
   if (!usage || !integer(usage.input_tokens) || usage.input_tokens > (flex ? GRAPH_MODEL_CONTEXT_TOKENS : GRAPH_MAX_INPUT_TOKENS)
-    || !integer(usage.output_tokens) || usage.output_tokens > GRAPH_MAX_OUTPUT_TOKENS) return fail("unverified token usage");
+    || !integer(usage.output_tokens) || usage.output_tokens > GRAPH_MAX_OUTPUT_TOKENS) throw new GraphUsageUnverifiedError();
   const inputTokens = usage.input_tokens, outputTokens = usage.output_tokens;
   const audit: Record<string, unknown> = {};
   if (flex) {
