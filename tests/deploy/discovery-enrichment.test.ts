@@ -25,7 +25,14 @@ gcloud(){
     esac
     echo "projects/demo/topics/\${WRONG_TOPIC:-$topic}"
    fi ;;
-  "run services describe"*) echo https://subscriber.example.run.app ;;
+  "auth print-identity-token"*) echo mock-token ;;
+  "run revisions describe"*) node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.WRONG_IMAGE||process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/"+process.env.DISCOVERY_RELEASE_BUNDLE+".cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
+  "run services update-traffic"*) touch "$CALLS.promoted" ;;
+  "run services describe"*)
+   if [[ "$*" == *--format=json* ]]; then
+    PROMOTED=$(test -f "$CALLS.promoted" && echo 1) node -e 'console.log(JSON.stringify({status:{traffic:[{revisionName:process.env.OLD_TRAFFIC?"old-revision":process.env.DISCOVERY_RELEASE_REVISION,tag:"release-candidate",url:"https://candidate.example.run.app",percent:process.env.PROMOTED?100:0}]}}))'
+   else echo https://subscriber.example.run.app; fi ;;
+
   "run deploy"*)
    local previous='' arg
    for arg in "$@"; do
@@ -34,7 +41,8 @@ gcloud(){
    done ;;
  esac
 }
-export -f gcloud
+curl(){ echo "candidate-health" >> "$CALLS"; [[ "\${HEALTH_FAIL:-0}" != 1 ]] || return 22; echo ok; }
+export -f gcloud curl
 bash scripts/deploy-discovery-enrichment.sh "$KIND" $CHECK
 `],{encoding:'utf8',timeout:15000,env:{...process.env,KIND:kind,CHECK:check?'--check':'',GCP_PROJECT_ID:'demo',ENTITY_SNAPSHOT_BUCKET:'snapshots',GIT_SHA:'a'.repeat(40),FUNDAMENTALS_IMAGE:'image@sha256:abc',SEC_USER_AGENT:'existing contact',OPENAI_API_KEY:'existing-approved-key',SEC_DISCOVERY_QUEUE_ENABLED:'1',NEWS_ENRICHMENT_QUEUE_ENABLED:'1',SEC_INCREMENTAL_DOWNLOADS_ENABLED:'1',SEC_DOCUMENT_CACHE_BUCKET:'private-cache',DISCOVERY_ENRICHMENT_BOOTSTRAP_IAM:'0',CALLS:path.join(dir,'calls').replaceAll('\\','/'),CAPTURE:path.join(dir,'env').replaceAll('\\','/'),ENV_PATH:path.join(dir,'envpath').replaceAll('\\','/'),...extra}});
   const calls=existsSync(path.join(dir,'calls'))?readFileSync(path.join(dir,'calls'),'utf8'):'';
@@ -93,5 +101,15 @@ test('SEC subscriber preserves the independent earnings pipeline disable gate',(
  for(const pipeline of ['0','1'])for(const collection of ['0','1']){
   const r=run('sec',{EARNINGS_PIPELINE_ENABLED:pipeline,EARNINGS_COLLECTION_ENABLED:collection});
   assert.equal(r.status,0,r.stderr);assert.equal(r.env.EARNINGS_COLLECTION_ENABLED,pipeline==='1'?collection:'0');
+ }
+});
+
+ test('candidate validation precedes promotion and rejects mismatched or unhealthy revisions',()=>{
+ const good=run();assert.equal(good.status,0,good.stderr);
+ assert.match(good.calls,/--revision-suffix .* --no-traffic --tag release-candidate/);
+ assert(good.calls.indexOf('candidate-health')<good.calls.indexOf('run services update-traffic'));
+ const failures:Record<string,string>[]=[{WRONG_IMAGE:'wrong-image'},{OLD_TRAFFIC:'1'},{HEALTH_FAIL:'1'}];
+ for(const extra of failures){
+  const bad=run('sec',extra);assert.notEqual(bad.status,0);assert.doesNotMatch(bad.calls,/run services update-traffic|pubsub subscriptions update/);
  }
 });

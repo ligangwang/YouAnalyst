@@ -56,11 +56,23 @@ fs.writeFileSync(process.argv[2],JSON.stringify(env),{mode:0o600});
 NODE
 # Both services are private. Per-instance serialization also protects the SEC
 # issuer registry; the existing global gates and paid intents remain decisive.
+suffix="r${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}-${RANDOM}"
+revision="$service-$suffix"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args "dist/$bundle.cjs" --min-instances 0 --max-instances 2 --concurrency "$concurrency" \
-  --timeout 600 --memory "$memory" --cpu 1 --cpu-throttling --env-vars-file "$env_file" --quiet
+  --timeout 600 --memory "$memory" --cpu 1 --cpu-throttling --env-vars-file "$env_file" \
+  --revision-suffix "$suffix" --no-traffic --tag release-candidate --quiet
 pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
+export DISCOVERY_RELEASE_REVISION="$revision" DISCOVERY_RELEASE_IMAGE="$FUNDAMENTALS_IMAGE"
+export DISCOVERY_RELEASE_ACCOUNT="$maintenance_runtime_account" DISCOVERY_RELEASE_BUNDLE="$bundle"
+gcloud run revisions describe "$revision" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format=json | node scripts/verify-discovery-revision.mjs revision
+candidate_url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format=json | node scripts/verify-discovery-revision.mjs candidate)"
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format='value(status.url)')"
 [[ "$url" == https://* ]] || exit 1
+token="$(gcloud auth print-identity-token --audiences="$url")"
+[[ "$(curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 -H "Authorization: Bearer $token" "$candidate_url/health")" == ok ]]
+unset token
+gcloud run services update-traffic "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --to-revisions "$revision=100" --quiet
+gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format=json | node scripts/verify-discovery-revision.mjs traffic
 pipeline_subscription "$subscription" "$topic" "$dead" "$url"

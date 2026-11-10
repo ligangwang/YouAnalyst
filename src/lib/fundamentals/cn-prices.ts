@@ -26,12 +26,19 @@ export function createFxReader(db: Firestore) {
   const cache = new Map<string, Promise<CnFx>>();
   return (priceDate: string) => {
     if (!cache.has(priceDate)) {
-      const dates = Array.from({ length: CN_FX_LOOKBACK_DAYS + 1 }, (_, i) => addDays(priceDate, -i));
-      cache.set(priceDate, db.getAll(...dates.map(d => db.collection("eod_prices").doc(`FX_USD_CNY_${d}`))).then(docs => selectFx(docs.flatMap(doc => {
-        const d = doc.data();
-        return d && d.market === "FX" && d.ticker === "USD_CNY" && typeof d.tradingDate === "string" && typeof d.close === "number"
-          ? [{ date: d.tradingDate, close: d.close, source: `eod_prices/${doc.id}` }] : [];
-      }), priceDate)));
+      cache.set(priceDate, (async () => {
+        const read = async (dates: string[]) => (await db.getAll(...dates.map(d => db.collection("eod_prices").doc(`FX_USD_CNY_${d}`)))).flatMap(doc => {
+          const d = doc.data();
+          return d && d.market === "FX" && d.ticker === "USD_CNY" && typeof d.tradingDate === "string" && typeof d.close === "number"
+            ? [{ date: d.tradingDate, close: d.close, source: `eod_prices/${doc.id}` }] : [];
+        });
+        const exact = await read([priceDate]);
+        const selected = selectFx(exact, priceDate);
+        // No older rate can improve on a valid close for the price's own date.
+        if (selected?.date === priceDate) return selected;
+        const dates = Array.from({ length: CN_FX_LOOKBACK_DAYS }, (_, i) => addDays(priceDate, -i - 1));
+        return selectFx([...exact, ...await read(dates)], priceDate);
+      })());
     }
     return cache.get(priceDate)!;
   };
