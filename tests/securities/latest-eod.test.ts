@@ -79,3 +79,36 @@ test("a conflicting writer's newer price survives a retried version-checked writ
  assert.equal(writes,1);
  assert.equal(current.tradingDate,"2026-09-21");
 });
+
+test("bulk catalog snapshots guard the page and only a conflicting page is reread", async () => {
+  for (const conflict of [false, true]) {
+    const f = pubsubFirestore(), ref = f.db.collection("tickers").doc("US_MU");
+    const current = {...price, tradingDate: "2026-09-21"};
+    f.rows.set(ref.path, {symbol: "MU", country: "United States", currency: "USD"});
+    const catalog = {ref, updateTime: "catalog-version", get: (field: string) => f.rows.get(ref.path)?.[field]};
+    const collection = f.db.collection.bind(f.db);
+    f.db.collection = ((name: string) => ({...collection(name), where: () => ({get: async () => ({docs: [catalog]})})})) as unknown as typeof f.db.collection;
+    let transactionReads = 0, commits = 0;
+    const transaction = f.db.runTransaction.bind(f.db);
+    f.db.runTransaction = ((...args: Parameters<typeof transaction>) => {
+      transactionReads++;
+      return transaction(...args);
+    }) as typeof transaction;
+    f.db.batch = (() => ({
+      update: (target: typeof ref, patch: unknown, condition: unknown) => {
+        assert.equal(target.path, ref.path);
+        assert.deepEqual(patch, {latestEodPrice: price});
+        assert.deepEqual(condition, {lastUpdateTime: "catalog-version"});
+      },
+      commit: async () => {
+        commits++;
+        f.rows.set(ref.path, {...f.rows.get(ref.path), latestEodPrice: conflict ? current : price});
+        if (conflict) throw Object.assign(new Error("version changed"), {code: 9});
+      },
+    })) as unknown as typeof f.db.batch;
+    await saveLatestEodPrices(f.db, [price]);
+    assert.equal(commits, 1);
+    assert.equal(transactionReads, conflict ? 1 : 0);
+    assert.deepEqual(f.rows.get(ref.path)?.latestEodPrice, conflict ? current : price);
+  }
+});
