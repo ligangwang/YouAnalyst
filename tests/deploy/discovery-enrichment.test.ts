@@ -108,7 +108,8 @@ test('SEC subscriber preserves the independent earnings pipeline disable gate',(
  const good=run();assert.equal(good.status,0,good.stderr);
  assert.match(good.calls,/--revision-suffix .* --no-traffic --tag release-candidate/);
  assert(good.calls.indexOf('candidate-health')<good.calls.indexOf('run services update-traffic'));
- for(const extra of [{WRONG_IMAGE:'wrong-image'},{OLD_TRAFFIC:'1'},{HEALTH_FAIL:'1'}]){
+ const failures:Record<string,string>[]=[{WRONG_IMAGE:'wrong-image'},{OLD_TRAFFIC:'1'},{HEALTH_FAIL:'1'}];
+ for(const extra of failures){
   const bad=run('sec',extra);assert.notEqual(bad.status,0);assert.doesNotMatch(bad.calls,/run services update-traffic|pubsub subscriptions update/);
  }
 });
