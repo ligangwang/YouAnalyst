@@ -46,9 +46,12 @@ export async function publishSecDiscoveryTasks(ids:readonly string[],publish:(ta
   }
   return result;
 }
-export async function processSecDiscoveryTask(input:unknown,db:Firestore,options:{enabled:boolean;run:(ticker:string)=>Promise<Record<string,unknown>>;now?:()=>number}){
+export async function processSecDiscoveryTask(input:unknown,db:Firestore,options:{enabled:boolean;run:(ticker:string)=>Promise<Record<string,unknown>>;now?:()=>number;checkCooldown?:()=>void}){
   const task=parseSecDiscoveryTask(input);
   if(!options.enabled)throw new Error('SEC discovery worker disabled; retain task');
+  // Keep the message for retry without reading companies or touching checkpoints
+  // while this process already knows that the shared provider gate denies work.
+  options.checkCooldown?.();
   const doc=await readSecCollectionCompany(db,task.companyId);
   const graph=supportedCompanyUniverse(doc?[doc]:[]);
   if(!graph.nodes.some(node=>node.id===task.companyId))return {status:'ineligible',companyId:task.companyId};

@@ -1,7 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../maintenance-log";
 import { captureEarningsDocument } from "./document";
-import { classifyEarningsTitle, discoverSecExhibits } from "./discovery";
+import { classifyEarningsTitle, discoverSecExhibits, UnsafeSecExhibitError } from "./discovery";
 import { extractEarnings, type ExtractionPlan } from "./extract";
 import { makeCnEarningsPlan } from "./live-cn";
 import { makeUsEarningsPlan } from "./live-us";
@@ -58,7 +58,15 @@ export async function processEarningsJob(job: EarningsJob, db: Firestore, log: M
       if (downloaded.mediaType !== "text/html") throw new Error("SEC filing index must be HTML");
       const document = captureEarningsDocument(source, downloaded.bytes, { ...downloaded, retrievedAt: new Date(now()).toISOString() });
       const captureId = await persistEarningsCapture(db, document, downloaded.bytes);
-      const children = discoverSecExhibits(work.source, new TextDecoder("utf-8", { fatal: true }).decode(downloaded.bytes));
+      let children: EarningsSource[];
+      try {
+        children = discoverSecExhibits(work.source, new TextDecoder("utf-8", { fatal: true }).decode(downloaded.bytes));
+      } catch (error) {
+        // A rejected URL cannot become safe by retrying the same captured index.
+        // Retain the capture for review without publishing any of its children.
+        if (!(error instanceof UnsafeSecExhibitError)) throw error;
+        return await completeEarningsSource(db, work, log.runId, { status: "review_required", captureId, reason: "unsafe_sec_exhibit_link" }, now());
+      }
       if (children.length > (work.maxExhibits ?? 20)) return await completeEarningsSource(db, work, log.runId, { status: "review_required", captureId, reason: "SEC exhibit count exceeds reviewed budget" }, now());
       const discoveries: EarningsDiscovery[] = [];
       for (const child of children) discoveries.push(await discoverEarningsSource(db, child, "document", now(), { parentCaptureId: captureId, parentDeliveryId: job.eventId, force: work.forceChildren }));

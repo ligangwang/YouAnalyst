@@ -120,3 +120,11 @@ test('redeliveries honor the saved retry time and resume at the boundary without
  await processSecDiscoveryTask(task,f.db,options);assert.equal(calls,3,'active lease remains subject to collector fencing');
  assert.equal(f.rows.get(path)?.leaseOwner,'active');
 });
+
+test('known provider cooldown retains SEC tasks without accessing company state or leases',async()=>{
+ const f=earningsFirestore();let accesses=0;
+ f.db.collection=(()=>{accesses++;throw new Error('Firestore must not be accessed');}) as typeof f.db.collection;
+ const cooling=Object.assign(new Error('SEC shared cooldown is active'),{code:429,retryAfterMs:60000});
+ for(let i=0;i<3;i++)await assert.rejects(processSecDiscoveryTask(task,f.db,{enabled:true,checkCooldown:()=>{throw cooling;},run:async()=>assert.fail('No provider work during cooldown')}),{code:429});
+ assert.equal(accesses,0);assert.equal(f.rows.size,0);
+});
