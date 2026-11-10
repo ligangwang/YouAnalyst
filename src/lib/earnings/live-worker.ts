@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../maintenance-log";
-import { captureEarningsDocument } from "./document";
+import { captureEarningsDocument, PdfTextUnavailableError } from "./document";
 import { classifyEarningsTitle, discoverSecExhibits, UnsafeSecExhibitError } from "./discovery";
 import { extractEarnings, type ExtractionPlan } from "./extract";
 import { makeCnEarningsPlan } from "./live-cn";
@@ -98,6 +98,9 @@ export async function processEarningsJob(job: EarningsJob, db: Firestore, log: M
     return await completeEarningsSource(db, work, log.runId, { status: "extracted", captureId, record: outcome.record }, now());
   } catch (error) {
     const message = error instanceof Error ? error.message : "Earnings source failed";
+    // A valid PDF with no extracted text needs human review, not another
+    // identical download. Downloader/process failures remain retryable.
+    if (error instanceof PdfTextUnavailableError) return await completeEarningsSource(db, work, log.runId, { status: "review_required", reason: "pdf_text_unavailable" }, now());
     if (work.attempts >= 5) return await completeEarningsSource(db, work, log.runId, { status: "review_required", reason: `retry_budget_exhausted: ${message}` }, now());
     await releaseFailedEarningsSource(db, work, log.runId, message, now());
     throw error;

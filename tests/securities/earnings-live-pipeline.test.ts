@@ -319,3 +319,34 @@ test("transient SEC index download failures still release work for retry", async
   const work = fx.rows.get(`${EARNINGS_SOURCES}/${queued.sourceId}`) as unknown as EarningsWork;
   assert.notEqual(work.status, "review_required");
 });
+
+test("PDFs without extractable text go to review once and duplicate delivery does not download again", async () => {
+  for (const pdfText of [undefined, "", " \n\f"]) {
+    const fx = earningsFirestore(), job = await enqueue(fx);
+    let downloads = 0;
+    const config = { ...options(fx), download: async () => {
+      downloads++;
+      return { bytes: Buffer.from("%PDF-1.7 synthetic scanned PDF"), mediaType: "application/pdf" as const, pdfText };
+    }, resolvePlan: () => { assert.fail("No text must not produce an extraction plan"); } };
+    assert.equal((await processEarningsJob(job, fx.db, log, config)).status, "review_required");
+    const work = fx.rows.get(`${EARNINGS_SOURCES}/${job.sourceId}`)!;
+    assert.equal(work.reason, "pdf_text_unavailable"); assert.equal(work.attempts, 1);
+    assert.equal(work.captureId, undefined, "Do not fabricate a text capture");
+    assert.equal(records(fx).length, 0);
+    assert.equal((await processEarningsJob(job, fx.db, log, config)).status, "duplicate");
+    assert.equal(downloads, 1);
+  }
+});
+
+test("invalid PDF bytes and extraction process failures remain retryable", async () => {
+  for (const failure of ["invalid_pdf", "extractor_timeout"]) {
+    const fx = earningsFirestore(), job = await enqueue(fx);
+    const config = { ...options(fx), download: async () => {
+      if (failure === "extractor_timeout") throw new Error("pdftotext timed out");
+      return { bytes: Buffer.from("not a PDF"), mediaType: "application/pdf" as const };
+    } };
+    await assert.rejects(() => processEarningsJob(job, fx.db, log, config), failure === "invalid_pdf" ? /not a PDF/ : /timed out/);
+    assert.equal(fx.rows.get(`${EARNINGS_SOURCES}/${job.sourceId}`)!.status, "queued");
+    assert.equal(records(fx).length, 0);
+  }
+});

@@ -1,6 +1,10 @@
 import { type EarningsSource, type RawEarningsDocument, sha256, sourceIdentity, validDate, validTimestamp } from "./model";
 import { earningsCompany, validateSourceUrl, type EarningsCompany } from "./issuers";
 
+export class PdfTextUnavailableError extends Error {
+  constructor() { super("PDF text unavailable: provide pdftotext-layout output; OCR is unsupported"); }
+}
+
 const MAX_BYTES = 20 * 1024 * 1024;
 export function htmlToEarningsText(html: string) {
   return html.replace(/<!--[^]*?-->/g, " ")
@@ -43,7 +47,7 @@ export function captureEarningsDocument(source: EarningsSource, bytes: Uint8Arra
   let text: string;
   if (options.mediaType === "application/pdf") {
     if (Buffer.from(bytes.subarray(0, 5)).toString() !== "%PDF-") throw new Error("Document is not a PDF");
-    if (!options.pdfText?.trim()) throw new Error("PDF text unavailable: provide pdftotext-layout output; OCR is unsupported");
+    if (!options.pdfText?.trim()) throw new PdfTextUnavailableError();
     text = options.pdfText.replace(/\r/g, "").trim();
   } else {
     const body = decoded.decode(bytes);
