@@ -286,3 +286,36 @@ test("successive company tasks reuse spacing hints but recheck shared cooldowns"
   await sharedEarningsRequestGate(fx.db,options).beforeRequest({host:"www.cninfo.com.cn"});
   assert.equal(fx.writes.length,before+1);
 });
+
+test("unsafe SEC exhibits retain the index for review on the first attempt without publishing or redownloading", async () => {
+  for (const href of ["https://example.com/ex99.htm", "../ex99.htm", "ex99.zip"]) {
+    const fx = earningsFirestore();
+    const queued = await discoverEarningsSource(fx.db, alibabaAnnouncement, "sec_filing", fx.now());
+    const event = earningsSourceEvent(queued.sourceId, 1);
+    const raw = Buffer.from(`<table><tr><td>EX-99.1</td><td><a href="valid.htm">valid</a></td></tr><tr><td>EX-99.2</td><td><a href="${href}">rejected</a></td></tr></table>`);
+    let downloads = 0;
+    const worker = { enabled: true, now: fx.now,
+      download: async () => { downloads++; return { bytes: raw, mediaType: "text/html" as const }; },
+      publish: async () => { throw new Error("Rejected index must not publish children"); } };
+    assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "review_required");
+    const work = fx.rows.get(`${EARNINGS_SOURCES}/${queued.sourceId}`) as unknown as EarningsWork;
+    assert.equal(work.reason, "unsafe_sec_exhibit_link"); assert.equal(work.attempts, 1);
+    assert.ok(work.captureId);
+    assert.deepEqual((await readEarningsCapture(fx.db, work.captureId!)).bytes, raw);
+    assert.equal([...fx.rows.values()].filter(row => row.inputKind).length, 1);
+    assert.equal(records(fx).length, 0);
+    assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "duplicate");
+    assert.equal(downloads, 1);
+  }
+});
+
+test("transient SEC index download failures still release work for retry", async () => {
+  const fx = earningsFirestore();
+  const queued = await discoverEarningsSource(fx.db, alibabaAnnouncement, "sec_filing", fx.now());
+  const event = earningsSourceEvent(queued.sourceId, 1);
+  const worker = { enabled: true, now: fx.now,
+    download: async () => { throw new Error("SEC temporary outage"); }, publish: async () => "unused" };
+  await assert.rejects(() => processEarningsJob(event, fx.db, log, worker), /temporary outage/);
+  const work = fx.rows.get(`${EARNINGS_SOURCES}/${queued.sourceId}`) as unknown as EarningsWork;
+  assert.notEqual(work.status, "review_required");
+});

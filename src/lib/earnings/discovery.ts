@@ -49,6 +49,9 @@ export function discoverSecEarnings(companyId: string, payload: { cik?: unknown;
 }
 // Read the official filing index, not a guessed EX-99.1 filename. Caller obtains
 // its bytes through the shared SEC transport after migration integration.
+export class UnsafeSecExhibitError extends Error {
+  constructor() { super("Unsafe SEC exhibit link"); }
+}
 export function discoverSecExhibits(filing: EarningsSource, indexHtml: string): EarningsSource[] {
   if (filing.provider !== "sec" || !filing.accession) throw new Error("Expected SEC filing source");
   const root = new URL(".", filing.url), output: EarningsSource[] = [];
@@ -58,7 +61,7 @@ export function discoverSecExhibits(filing: EarningsSource, indexHtml: string): 
     const link = /<a\b[^>]*href\s*=\s*["']([^"']+)["']/i.exec(row[1]);
     if (!link) continue;
     const url = new URL(link[1].replaceAll("&amp;", "&"), root);
-    if (url.origin !== root.origin || !url.pathname.startsWith(root.pathname) || !/\.(?:html?|txt|pdf)$/i.test(url.pathname)) throw new Error("Unsafe SEC exhibit link");
+    if (url.origin !== root.origin || !url.pathname.startsWith(root.pathname) || !/\.(?:html?|txt|pdf)$/i.test(url.pathname)) throw new UnsafeSecExhibitError();
     validateSourceUrl(filing.companyId, url.href, "sec");
     const name = url.pathname.split("/").at(-1)!;
     output.push({ ...filing, documentId: `${filing.accession}/${name}`, url: url.href, title: label });
