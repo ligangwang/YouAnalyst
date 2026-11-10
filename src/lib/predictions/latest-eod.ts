@@ -79,11 +79,30 @@ export async function saveLatestEodPrices(db:Firestore,prices:LatestEodPrice[]) 
     const symbol=price.ticker.split(':').at(-1)!;
     const matches=listings.filter(doc=>doc.get('symbol')===symbol&&(price.market==='US'
       ?doc.get('currency')==='USD'&&doc.get('country')==='United States':doc.get('micCode')===price.ticker.split(':')[0]));
-    const refs=matches.length?matches.map(d=>d.ref):[db.collection('tickers').doc(`${price.market}_${price.ticker}`)];
-    return refs.map(ref=>({ref,price,symbol}));
+    const snapshots = matches.length ? matches : [undefined];
+    return snapshots.map(snapshot => ({
+      snapshot, price, symbol,
+      ref: snapshot?.ref ?? db.collection('tickers').doc(`${price.market}_${price.ticker}`),
+    }));
   });
   for(let i=0;i<writes.length;i+=400){
     const page=writes.slice(i,i+400);
+    // Keep each page atomic. Catalog results can guard the write directly.
+    // Unknown fallback documents and conflicting versions need a fresh comparison.
+    if (page.every(write => write.snapshot?.updateTime) && new Set(page.map(write => write.ref.path)).size === page.length) {
+      const changes = page.filter(({snapshot, price}) => shouldReplaceLatest(snapshot!.get('latestEodPrice'), price));
+      if (!changes.length) continue;
+      const batch = db.batch();
+      for (const {ref, snapshot, price} of changes) {
+        batch.update(ref, {latestEodPrice: price}, {lastUpdateTime: snapshot!.updateTime});
+      }
+      try {
+        await batch.commit();
+        continue;
+      } catch (error) {
+        if (![5, 6, 9, 10].includes(Number((error as {code?: number}).code))) throw error;
+      }
+    }
     await db.runTransaction(async tx=>{
       const saved=await tx.getAll(...page.map(w=>w.ref));
       page.forEach(({ref,price,symbol},index)=>{
