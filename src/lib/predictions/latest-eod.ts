@@ -75,15 +75,13 @@ export async function saveLatestEodPrices(db:Firestore,prices:LatestEodPrice[]) 
     const page=await db.collection('tickers').where('symbol','in',symbols.slice(i,i+30)).get();
     listings.push(...page.docs);
   }
+  const listingByPath = new Map(listings.map(doc => [doc.ref.path, doc]));
   const writes=prices.flatMap(price=>{
     const symbol=price.ticker.split(':').at(-1)!;
     const matches=listings.filter(doc=>doc.get('symbol')===symbol&&(price.market==='US'
       ?doc.get('currency')==='USD'&&doc.get('country')==='United States':doc.get('micCode')===price.ticker.split(':')[0]));
-    const snapshots = matches.length ? matches : [undefined];
-    return snapshots.map(snapshot => ({
-      snapshot, price, symbol,
-      ref: snapshot?.ref ?? db.collection('tickers').doc(`${price.market}_${price.ticker}`),
-    }));
+    const refs = matches.length ? matches.map(doc => doc.ref) : [db.collection('tickers').doc(`${price.market}_${price.ticker}`)];
+    return refs.map(ref => ({ref, price, symbol, snapshot: listingByPath.get(ref.path)}));
   });
   for(let i=0;i<writes.length;i+=400){
     const page=writes.slice(i,i+400);

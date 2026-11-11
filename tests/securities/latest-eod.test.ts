@@ -80,6 +80,28 @@ test("a conflicting writer's newer price survives a retried version-checked writ
  assert.equal(current.tradingDate,"2026-09-21");
 });
 
+test("legacy fallback reuses only the catalog snapshot for its exact target path", async () => {
+  const latest = {...price, market: "CN_A", ticker: "XSHE:000001", currency: "CNY"};
+  for (const exact of [true, false]) {
+    const f = pubsubFirestore();
+    const collection = f.db.collection.bind(f.db);
+    const ref = collection("tickers").doc(exact ? "CN_A_XSHE:000001" : "OTHER_000001");
+    f.rows.set(ref.path, {symbol: "000001", latestEodPrice: latest});
+    const catalog = {ref, updateTime: "version", get: (key: string) => f.rows.get(ref.path)?.[key]};
+    f.db.collection = ((name: string) => ({...collection(name), where: () => ({get: async () => ({docs: [catalog]})})})) as unknown as typeof f.db.collection;
+    const transaction = f.db.runTransaction.bind(f.db);
+    let transactions = 0;
+    f.db.runTransaction = ((...args: Parameters<typeof transaction>) => {
+      transactions++;
+      return transaction(...args);
+    }) as typeof transaction;
+    await saveLatestEodPrices(f.db, [latest]);
+    assert.equal(transactions, exact ? 0 : 1);
+    assert.deepEqual(f.rows.get("tickers/CN_A_XSHE:000001")?.latestEodPrice, latest);
+    assert.equal(f.writes.length, exact ? 0 : 1);
+  }
+});
+
 test("bulk catalog snapshots guard the page and only a conflicting page is reread", async () => {
   for (const conflict of [false, true]) {
     const f = pubsubFirestore(), ref = f.db.collection("tickers").doc("US_MU");
