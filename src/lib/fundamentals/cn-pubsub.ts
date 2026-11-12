@@ -37,45 +37,51 @@ export async function publishCnRequests(db: Firestore, execution: string, compan
   return { requested, ...(skipped ? { skipped } : {}), mode: "pubsub" };
 }
 
+type CnProcessingOptions = { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number };
+
 export async function processCnRequest(input: unknown, db: Firestore, log: MaintenanceLog,
-  dependencies: { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number; leaseHeld?: boolean } = {}) {
+  dependencies: CnProcessingOptions & { leaseHeld?: boolean } = {}) {
   const request = parseCnRequest(input), ref = ledgerRef(db, request.batchId);
   const lease = db.collection("company_fundamentals").doc(CN_WORKER_DOC);
   if (!dependencies.leaseHeld && !await acquireMaintenanceLease(lease, log.runId)) throw Error("A-share worker is busy; retry");
   try {
     const ledger = (await ref.get()).data();
     if (!ledger || digest(ledger.request) !== digest(request)) throw Error("Unknown or conflicting A-share request");
-    if (ledger.completed) return { completed: 1, duplicate: true };
-    const deadline = dependencies.deadline ?? Date.now() + 7 * 60_000;
-    const companies = [request.companyId];
-    let annual = ledger.annual;
-    if (!ledger.annualCompleted) {
-      annual = await (dependencies.annual ?? refreshCnAnnual)({ db, log, companies,
-        deadline: Math.min(deadline - 120_000, Date.now() + 90_000) });
-      if (annual.failed || annual.deferred) throw Error("Annual financials require retry");
-      await ref.set({ annualCompleted: true, annual }, { merge: true });
-    }
-    if (Date.now() >= deadline - 90_000) throw Error("A-share processing budget exhausted");
-    const requester = createCnRequester({ context: { runId: log.runId, job: "cn-fundamentals-check" } });
-    const result = await (dependencies.refresh ?? refreshCnFundamentals)({ db, log, companies, deadline,
-      sources: createCnSources(requester), blockedHosts: requester.blockedHosts, manualRetry: request.batchId.startsWith("manual_") });
-    const stored = (await db.collection("company_fundamentals").doc(request.companyId).get()).data();
-    // A single-company request must not use the full-run tolerated-error threshold.
-    // Provider cooldowns and unresolved retries remain unacknowledged.
-    const incomplete = result.failed || result.actions.failed || result.actions.skipped || result.shares.failed
-      || result.shares.skipped || result.marketCaps.failed || result.sourcesIncomplete
-      || (result.shares.deferred && stored?.cnShareStatus?.outcome !== "unavailable");
-    await ref.set({ result }, { merge: true });
-    if (incomplete) throw Error("A-share sources remain incomplete; retry");
-    await ref.set({ completed: true, completedAt: new Date().toISOString() }, { merge: true });
-    return { ...result, annual, completed: 1 };
+    return await processLeasedCnRequest(request, db, log, dependencies, ref, ledger);
   } finally { if (!dependencies.leaseHeld) await releaseMaintenanceLease(lease, log.runId); }
+}
+
+async function processLeasedCnRequest(request: CnRequest, db: Firestore, log: MaintenanceLog,
+  dependencies: CnProcessingOptions, ref: FirebaseFirestore.DocumentReference, ledger: FirebaseFirestore.DocumentData) {
+  if (ledger.completed) return { completed: 1, duplicate: true };
+  const deadline = dependencies.deadline ?? Date.now() + 7 * 60_000;
+  const companies = [request.companyId];
+  let annual = ledger.annual;
+  if (!ledger.annualCompleted) {
+    annual = await (dependencies.annual ?? refreshCnAnnual)({ db, log, companies,
+      deadline: Math.min(deadline - 120_000, Date.now() + 90_000) });
+    if (annual.failed || annual.deferred) throw Error("Annual financials require retry");
+    await ref.set({ annualCompleted: true, annual }, { merge: true });
+  }
+  if (Date.now() >= deadline - 90_000) throw Error("A-share processing budget exhausted");
+  const requester = createCnRequester({ context: { runId: log.runId, job: "cn-fundamentals-check" } });
+  const result = await (dependencies.refresh ?? refreshCnFundamentals)({ db, log, companies, deadline,
+    sources: createCnSources(requester), blockedHosts: requester.blockedHosts, manualRetry: request.batchId.startsWith("manual_") });
+  // A single-company request must not use the full-run tolerated-error threshold.
+  // Provider cooldowns and unresolved retries remain unacknowledged.
+  const incomplete = result.failed || result.actions.failed || result.actions.skipped || result.shares.failed
+    || result.shares.skipped || result.marketCaps.failed || result.sourcesIncomplete
+    || (result.shares.deferred && (await db.collection("company_fundamentals").doc(request.companyId).get()).data()?.cnShareStatus?.outcome !== "unavailable");
+  await ref.set({ result }, { merge: true });
+  if (incomplete) throw Error("A-share sources remain incomplete; retry");
+  await ref.set({ completed: true, completedAt: new Date().toISOString() }, { merge: true });
+  return { ...result, annual, completed: 1 };
 }
 
 /** A provider failure becomes a durable admin item before acknowledging delivery.
  * Infrastructure contention and failure to save the record still retry delivery. */
 export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: MaintenanceLog,
-  dependencies: { annual?: typeof refreshCnAnnual; refresh?: typeof refreshCnFundamentals; deadline?: number } = {}) {
+  dependencies: CnProcessingOptions = {}) {
   const request = parseCnRequest(input), ledger = ledgerRef(db, request.batchId);
   const company = db.collection("company_fundamentals").doc(request.companyId);
   const lease = db.collection("company_fundamentals").doc(CN_WORKER_DOC);
@@ -94,7 +100,7 @@ export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: M
       return { status: "ineligible", reason: "delisted" };
     }
     try {
-      const result = await processCnRequest(request, db, log, { ...dependencies, leaseHeld: true });
+      const result = await processLeasedCnRequest(request, db, log, dependencies, ledger, saved.data()!);
       if (request.batchId.startsWith("manual_") && !("duplicate" in result && result.duplicate)) await company.set({ manualRequired: false }, { merge: true });
       return result;
     } catch (error) {
