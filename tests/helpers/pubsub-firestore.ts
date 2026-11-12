@@ -4,13 +4,13 @@ import type { MaintenanceLog } from "../../src/lib/maintenance-log";
 
 type Data = Record<string, unknown>;
 export function pubsubFirestore() {
-  const rows = new Map<string, Data>(), writes: string[] = [];
+  const rows = new Map<string, Data>(), writes: string[] = [], reads: string[] = [];
   let reject: (path: string, data: Data) => boolean = () => false;
   const apply = (path: string, data: Data, merge = false) => {
     rows.set(path, merge ? { ...rows.get(path), ...data } : data); writes.push(path);
   };
   const ref = (path: string) => ({ path, id: path.split("/").at(-1)!, firestore: db,
-    get: async () => ({ id: path.split("/").at(-1)!, exists: rows.has(path), data: () => rows.get(path), get: (key: string) => rows.get(path)?.[key] }),
+    get: async () => { reads.push(path); return { id: path.split("/").at(-1)!, exists: rows.has(path), data: () => rows.get(path), get: (key: string) => rows.get(path)?.[key] }; },
     set: async (data: Data, options?: { merge: boolean }) => { if (reject(path, data)) throw Error("write failed"); apply(path, data, options?.merge); },
   });
   type Ref = ReturnType<typeof ref>;
@@ -32,5 +32,5 @@ export function pubsubFirestore() {
     },
   } as unknown as Firestore;
   const log = { runId: "delivery-1", emit: () => {}, stage: () => {} } as unknown as MaintenanceLog;
-  return { rows, writes, db, log, reject: (fn: typeof reject) => { reject = fn; } };
+  return { rows, writes, reads, db, log, reject: (fn: typeof reject) => { reject = fn; } };
 }

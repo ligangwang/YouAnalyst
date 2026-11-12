@@ -93,3 +93,15 @@ test("confirmed Shenzhen delistings skip scheduled refresh and a manual review c
   assert.deepEqual(await runCnRequestForAdmin(requests[0],f.db,f.log,{annual:async()=>assert.fail("delisted source requested")}),{status:"ineligible",reason:"delisted"});
   assert.equal(f.rows.get(`company_fundamentals/${id}`)?.manualRequired,false);
 });
+
+test("admin refresh reads its ledger and company once for ordinary and duplicate deliveries", async () => {
+  const f = await setup();
+  for (const duplicate of [false, true]) {
+    const start = f.reads.length;
+    const result = await runCnRequestForAdmin(f.request, f.db, f.log, f);
+    assert.equal("duplicate" in result && result.duplicate, duplicate);
+    const reads = f.reads.slice(start);
+    assert.equal(reads.filter(path => path.endsWith("/_cn_request_" + f.request.batchId)).length, 1);
+    assert.equal(reads.filter(path => path.endsWith("/" + company)).length, 1);
+  }
+});
