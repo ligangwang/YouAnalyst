@@ -48,8 +48,9 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
             if [[ "$*" == *"value(state)"* ]]; then echo "\${SCHEDULE_STATE:-PAUSED}";
             elif [[ "\${NEW_RESOURCES:-0}" == 1 ]]; then return 1; fi ;;
           "run services describe eod-maintenance-subscriber"*"latestReadyRevisionName"*|"run services describe eod-maintenance-subscriber"*"latestCreatedRevisionName"*) echo eod-new ;;
+          "run services describe cn-fundamentals-subscriber"*"latestReadyRevisionName"*|"run services describe cn-fundamentals-subscriber"*"latestCreatedRevisionName"*) echo cn-new ;;
           "run services describe"*) echo https://subscriber.example.run.app ;;
-          "run services update-traffic eod-maintenance-subscriber"*) ;;
+          "run services update-traffic eod-maintenance-subscriber"*|"run services update-traffic cn-fundamentals-subscriber"*"--to-revisions cn-new=100"*) ;;
           "run jobs describe collect-sec-filings-production"*"--format=json"*) echo '{"spec":{"template":{"spec":{"template":{"spec":{"containers":[{"env":[]}]}}}}}}' ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
           "projects describe"*) echo 123456789 ;;
