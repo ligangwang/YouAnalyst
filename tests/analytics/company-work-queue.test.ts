@@ -169,3 +169,16 @@ test('failed continuation publication releases lease and preserves dispatch chec
   await f.parent();assert.equal(f.rows.get(f.ref.path)?.dispatchCursor,26);
   assert.equal(f.published.filter(m=>'companyId' in m).length,1);
 });
+
+test('company tasks reuse the acquired receipt and verify ownership before commit and release', async () => {
+  const f = fixture();
+  await f.parent();
+  const request = companyWorkRequest('eod', f.root, 'US:AMD');
+  const path = companyWorkRef(f.db, 'eod_runs', request.batchId).path;
+  for (const expectedReads of [3, 2]) {
+    const start = f.reads.length;
+    await f.child('US:AMD');
+    assert.equal(f.reads.slice(start).filter(read => read === path).length, expectedReads);
+  }
+  assert.equal(f.work.length, 1);
+});
