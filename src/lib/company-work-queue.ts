@@ -1,6 +1,6 @@
 import type {DocumentReference, Firestore} from 'firebase-admin/firestore';
 import {digest} from './fundamentals/pubsub';
-import {acquireMaintenanceLease, releaseMaintenanceLease} from './maintenance-lease';
+import {acquireMaintenanceLease, acquireMaintenanceLeaseState, releaseMaintenanceLease} from './maintenance-lease';
 
 export type CompanyWorkKind = 'eod' | 'us-market-cap' | 'us-fundamentals-seed' | 'directory' | 'instrument-sync';
 export type CompanyWorkRequest = {version:1;type:'company.work.requested';kind:CompanyWorkKind;batchId:string;parentBatchId:string;companyId:string;requestedAt:string};
@@ -114,9 +114,10 @@ export async function processCompanyWork<R extends RunMessage>(request:CompanyWo
   work:(parent:R,prepared:Record<string,unknown>,cursor:string|null)=>Promise<string|null>;
 }){
   const {db,parent,state,owner}=options,ref=companyWorkRef(db,options.collection,request.batchId);
-  if(!await acquireMaintenanceLease(ref,owner))throw Error('Company task is busy');
+  const lease = await acquireMaintenanceLeaseState(ref, owner);
+  if (!lease) throw Error('Company task is busy');
   try{
-    const child=(await ref.get()).data() as Child,run=(await parent.get()).data() as CompanyRun<R>;
+    const child=lease.checkpoint as Child,run=(await parent.get()).data() as CompanyRun<R>;
     if(!child?.request||digest(child.request)!==digest(request)||!run?.companyIds?.includes(request.companyId)||run.request.batchId!==request.parentBatchId)throw Error('Unknown company task');
     if(child.completed){
       if(!run.completed&&run.completedCompanies===run.companyIds.length)await options.publish(run.request);
