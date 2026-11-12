@@ -49,6 +49,8 @@ function run(target:string,extra:Record<string,string>={}) {
           "pubsub subscriptions describe news-source-dead-letter-audit"*) echo projects/demo/topics/news-source-dead-letter ;;
           "run services describe news-source-subscriber"*) echo https://subscriber.example.run.app ;;
           "pubsub topics describe"*|"pubsub subscriptions describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
+          "run services describe cn-fundamentals-subscriber"*"latestReadyRevisionName"*) if [[ "\${CN_NOT_READY:-0}" == 1 ]]; then echo cn-old; else echo cn-new; fi ;;
+          "run services describe cn-fundamentals-subscriber"*"latestCreatedRevisionName"*) echo cn-new ;;
           "run services describe eod-maintenance-subscriber"*"latestReadyRevisionName"*) if [[ "\${EOD_NOT_READY:-0}" == 1 ]]; then echo eod-old; else echo eod-new; fi ;;
           "run services describe eod-maintenance-subscriber"*"latestCreatedRevisionName"*) echo eod-new ;;
           "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
@@ -181,6 +183,11 @@ test('calendar deployment uses Luna and the existing key without putting it in c
 test('A-share subscriber is provisioned before publication and preserves schedule state',()=>{
   const r=run('cn-fundamentals');assert.equal(r.status,0,r.stderr);
   assert.match(r.calls,/run deploy cn-fundamentals-subscriber.*--no-allow-unauthenticated.*--max-instances 1 --concurrency 10/);
+  assert.match(r.calls,/run deploy cn-fundamentals-subscriber.*--startup-probe httpGet.path=\/health.*--no-traffic --tag candidate/);
+  assert.match(r.calls,/--to-revisions cn-new=100/);
+  const unready=run('cn-fundamentals',{CN_NOT_READY:'1'});
+  assert.notEqual(unready.status,0);
+  assert.doesNotMatch(unready.calls,/--to-revisions/);
   assert.match(r.calls,/CN_FUNDAMENTALS_SUBSCRIPTION=cn-fundamentals-worker/);
   assert.match(r.calls,/--dead-letter-topic cn-fundamentals-dead-letter/);
   assert.match(r.calls,/CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests/);
