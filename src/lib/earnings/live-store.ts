@@ -192,7 +192,8 @@ export async function completeEarningsSource(db: Firestore, work: EarningsWork, 
       if (Buffer.byteLength(canonicalJson(record)) > 700_000) throw new Error("Earnings record exceeds storage bound");
       existing = (await tx.get(db.collection(EARNINGS_RECORDS).doc(record.revisionId))).get("record") as EarningsRecord | undefined;
       const head = (await tx.get(db.collection(EARNINGS_RECORDS).doc(`head_${record.eventId}`))).data();
-      if (head?.revisionId) prior = (await tx.get(db.collection(EARNINGS_RECORDS).doc(head.revisionId))).get("record") as EarningsRecord | undefined;
+      if (head?.revisionId === record.revisionId) prior = existing;
+      else if (head?.revisionId) prior = (await tx.get(db.collection(EARNINGS_RECORDS).doc(head.revisionId))).get("record") as EarningsRecord | undefined;
       const comparable = (r: EarningsRecord) => canonicalJson({ ...r, extractedAt: undefined, source: { ...r.source, firstSeenAt: undefined } });
       if (existing && comparable(existing) !== comparable(record)) throw new Error("Conflicting immutable earnings revision");
       if (prior && (prior.issuerId !== record.issuerId || canonicalJson(prior.period) !== canonicalJson(record.period) || prior.kind !== record.kind)) throw new Error("Earnings event identity conflict");

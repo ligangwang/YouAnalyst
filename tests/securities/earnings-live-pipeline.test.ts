@@ -113,6 +113,17 @@ test("worker commits provenance and revision once, retains changed-source histor
   assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "duplicate");
   assert.equal(downloads, 1);
 });
+test("rechecking identical earnings content reads the current revision once", async () => {
+  const fx = earningsFirestore(), event = await enqueue(fx);
+  await processEarningsJob(event, fx.db, log, options(fx));
+  const revisionPath = records(fx)[0][0];
+  await discoverEarningsSource(fx.db, source, "document", fx.now(), { force: true });
+  const start = fx.reads.length;
+  const outcome = await processEarningsJob(earningsSourceEvent(event.sourceId, 2), fx.db, log, options(fx));
+  assert.equal(outcome.status, "extracted");
+  assert.equal(fx.reads.slice(start).filter(path => path === revisionPath).length, 1);
+  assert.equal(records(fx).length, 1);
+});
 test("completion commit failure releases its lease and retries without a partial normalized record", async () => {
   const fx = earningsFirestore(), event = await enqueue(fx);
   fx.reject((path, value) => path === `${EARNINGS_SOURCES}/${event.sourceId}` && value.status === "extracted");
