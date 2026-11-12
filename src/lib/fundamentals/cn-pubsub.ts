@@ -5,7 +5,7 @@ import { digest } from "./pubsub";
 import { refreshCnAnnual } from "./cn-annual-worker";
 import { CN_WORKER_DOC, refreshCnFundamentals } from "./cn-refresh";
 import { createCnRequester, createCnSources } from "./cn-sources";
-import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance-lease";
+import { acquireMaintenanceLease, acquireMaintenanceLeaseState, releaseMaintenanceLease } from "../maintenance-lease";
 import type { MaintenanceLog } from "../maintenance-log";
 
 export type CnRequest = { version: 1; type: "cn-fundamentals.refresh.requested"; batchId: string; companyId: string; requestedAt: string };
@@ -52,7 +52,8 @@ export async function processCnRequest(input: unknown, db: Firestore, log: Maint
 }
 
 async function processLeasedCnRequest(request: CnRequest, db: Firestore, log: MaintenanceLog,
-  dependencies: CnProcessingOptions, ref: FirebaseFirestore.DocumentReference, ledger: FirebaseFirestore.DocumentData) {
+  dependencies: CnProcessingOptions, ref: FirebaseFirestore.DocumentReference, ledger: FirebaseFirestore.DocumentData,
+  leasedProviderCooldowns?: Record<string, number>) {
   if (ledger.completed) return { completed: 1, duplicate: true };
   const deadline = dependencies.deadline ?? Date.now() + 7 * 60_000;
   const companies = [request.companyId];
@@ -65,7 +66,7 @@ async function processLeasedCnRequest(request: CnRequest, db: Firestore, log: Ma
   }
   if (Date.now() >= deadline - 90_000) throw Error("A-share processing budget exhausted");
   const requester = createCnRequester({ context: { runId: log.runId, job: "cn-fundamentals-check" } });
-  const result = await (dependencies.refresh ?? refreshCnFundamentals)({ db, log, companies, deadline,
+  const result = await (dependencies.refresh ?? refreshCnFundamentals)({ db, log, companies, deadline, leasedProviderCooldowns,
     sources: createCnSources(requester), blockedHosts: requester.blockedHosts, manualRetry: request.batchId.startsWith("manual_") });
   // A single-company request must not use the full-run tolerated-error threshold.
   // Provider cooldowns and unresolved retries remain unacknowledged.
@@ -85,7 +86,8 @@ export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: M
   const request = parseCnRequest(input), ledger = ledgerRef(db, request.batchId);
   const company = db.collection("company_fundamentals").doc(request.companyId);
   const lease = db.collection("company_fundamentals").doc(CN_WORKER_DOC);
-  if (!await acquireMaintenanceLease(lease, log.runId)) throw Error("A-share worker is busy; retry");
+  const acquired = await acquireMaintenanceLeaseState(lease, log.runId);
+  if (!acquired) throw Error("A-share worker is busy; retry");
   try {
     const [saved, current] = await Promise.all([ledger.get(), company.get()]);
     if (!saved.exists || digest(saved.get("request")) !== digest(request)) throw Error("Unknown or conflicting A-share request");
@@ -100,7 +102,8 @@ export async function runCnRequestForAdmin(input: unknown, db: Firestore, log: M
       return { status: "ineligible", reason: "delisted" };
     }
     try {
-      const result = await processLeasedCnRequest(request, db, log, dependencies, ledger, saved.data()!);
+      const result = await processLeasedCnRequest(request, db, log, dependencies, ledger, saved.data()!,
+        acquired.checkpoint?.providerRetryAfter ?? {});
       if (request.batchId.startsWith("manual_") && !("duplicate" in result && result.duplicate)) await company.set({ manualRequired: false }, { merge: true });
       return result;
     } catch (error) {

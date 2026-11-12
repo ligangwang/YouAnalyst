@@ -105,3 +105,17 @@ test("admin refresh reads its ledger and company once for ordinary and duplicate
     assert.equal(reads.filter(path => path.endsWith("/" + company)).length, 1);
   }
 });
+
+test("admin refresh passes cooldowns from its own successful worker lease", async () => {
+  for (const cooldowns of [{}, { www_cninfo_com_cn: Date.now() + 60000 }]) {
+    const f = await setup();
+    f.rows.set("company_fundamentals/_cn_worker", { providerRetryAfter: cooldowns });
+    let observed;
+    const result = await runCnRequestForAdmin(f.request, f.db, f.log, { ...f, refresh: async options => {
+      observed = options.leasedProviderCooldowns;
+      return success();
+    } });
+    assert.ok("completed" in result);
+    assert.deepEqual(observed, cooldowns);
+  }
+});
