@@ -18,6 +18,7 @@ const PROVIDER_COOLDOWN_MS = 6 * HOUR;
 export const CN_FAILURE_THRESHOLD = 2;
 type Stored = DocumentData & { cnShares?: CnShareCount | null; cnActions?: CnActionCheck | null; cnOrgId?: string | null };
 export type CnRunOptions = { db: Firestore; log: MaintenanceLog; sources: CnSources; companies: string[]; deadline: number; dryRun?: boolean;
+  leasedProviderCooldowns?: Record<string, number>;
   now?: () => Date; print?: (line: string) => void; blockedHosts?: () => Record<string, string>; manualRetry?: boolean };
 
 // A validated unavailable outcome; anything else thrown while refreshing is retryable.
@@ -41,7 +42,7 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   const print = options.print ?? console.log;
   const collection = db.collection(FUNDAMENTALS_COLLECTION);
   const worker = collection.doc(CN_WORKER_DOC);
-  const cooldowns: Record<string, number> = { ...(await worker.get()).data()?.providerRetryAfter };
+  const cooldowns: Record<string, number> = { ...(options.leasedProviderCooldowns ?? (await worker.get()).data()?.providerRetryAfter) };
   const result = {
     companies: companies.length,
     actions: { checked: 0, events: 0, failed: 0, skipped: 0 },
