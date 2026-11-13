@@ -10,13 +10,25 @@ export function analyticsBootstrap(measurementId: string, production: boolean): 
     try {
       if (!${production} || !id || location.protocol !== 'https:' ||
           ['youanalyst.com', 'www.youanalyst.com'].indexOf(location.hostname) === -1 ||
-          navigator.webdriver || /HeadlessChrome/i.test(navigator.userAgent) ||
+          navigator.webdriver || /HeadlessChrome|\\b(?:GoogleOther|Googlebot|bingbot|Applebot|GPTBot|OAI-SearchBot|QlyzeBot|Reflectionbot|ElevenlabsCrawler|PetalBot|SERankingBacklinksBot)\\b/i.test(navigator.userAgent) ||
           document.cookie.split(';').some(function (value) { return value.trim() === 'youanalyst_analytics_opt_out=1'; })) return;
       window['ga-disable-' + id] = false;
       window.dataLayer = window.dataLayer || [];
       window.gtag = function () { window.dataLayer.push(arguments); };
       window.gtag('js', new Date());
       window.gtag('config', id);
+      // One observable interaction per document, including signed-out readers.
+      // Do not change navigation or wait for input before recording the landing page.
+      var inputs = ['click', 'keydown', 'wheel', 'touchstart'];
+      function recordInput(event) {
+        if (!event.isTrusted || document.visibilityState !== 'visible') return;
+        inputs.forEach(function (name) { window.removeEventListener(name, recordInput, true); });
+        if (document.cookie.split(';').some(function (value) { return value.trim() === 'youanalyst_analytics_opt_out=1'; })) return;
+        window.gtag('event', 'reader_interaction');
+      }
+      inputs.forEach(function (name) {
+        window.addEventListener(name, recordInput, { capture: true, passive: true });
+      });
       // Queue eligible events immediately, but let the page finish before
       // starting Google's external download (which can be slow or blocked).
       function loadGoogle() {

@@ -5,6 +5,18 @@ Google Analytics loads only in the production app environment, over HTTPS on
 and browsers exposing WebDriver or HeadlessChrome are excluded before Google loads.
 The custom event helper is disabled until this gate passes.
 
+Named crawlers observed in the request logs and common search crawlers are also
+excluded from collection. This affects measurement only. Crawlers presenting an
+ordinary browser string can still appear in New users.
+
+For a second measure, filter a GA4 Exploration to event name `reader_interaction`
+and use Total users. To measure first-time readers, use a same-session sequence
+of `first_visit` followed by `reader_interaction`. Compare this with raw New users
+over the first seven complete days after release. The event records the first
+browser-trusted click, keypress, wheel or touch in a visible document and sends
+no input contents. Passive readers may be missed and browser automation can
+generate trusted input. Treat this as a reader engagement measure.
+
 For manual development visits (including an agent-controlled browser that does not
 expose WebDriver), open **https://youanalyst.com/analytics/opt-out** in each browser
 profile/device before visiting the app. This untracked response sets a persistent

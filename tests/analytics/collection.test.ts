@@ -42,16 +42,37 @@ test("excluded traffic never loads Google, queues events, or enables custom even
     { hostname: "ifindata-web-zcgfwde4aa-uc.a.run.app" },
     { hostname: "staging.youanalyst.com" }, { hostname: "youanalyst.com.example.org" },
     { protocol: "http:" }, { webdriver: true }, { userAgent: "Mozilla/5.0 HeadlessChrome/145.0" },
+    { userAgent: "Mozilla/5.0 (compatible; GoogleOther)" }, { userAgent: "Googlebot/2.1" },
+    { userAgent: "Mozilla/5.0 (compatible; QlyzeBot/1.0)" },
     { cookie: "other=1; youanalyst_analytics_opt_out=1; another=2" }, { blockedCookies: true },
   ];
   for (const scenario of scenarios) {
     const env = browser(scenario);
     runInNewContext(analyticsBootstrap("G-TEST123", true), env.context);
+    env.runIdle();
     assert.equal(env.scripts.length, 0, JSON.stringify(scenario));
     assert.equal(env.window.dataLayer, undefined);
     assert.equal(env.window["ga-disable-G-TEST123"], true);
     assert.equal(env.meta.content, "disabled");
   }
+});
+
+test("reader interaction requires visible trusted input and fires once per document", () => {
+  const env = browser();
+  const listeners = new Map<string, (event: { isTrusted: boolean }) => void>();
+  env.window.addEventListener = (name: string, callback: (event: { isTrusted: boolean }) => void) => listeners.set(name, callback);
+  env.window.removeEventListener = (name: string) => listeners.delete(name);
+  Object.assign(env.context.document, { visibilityState: "hidden" });
+  runInNewContext(analyticsBootstrap("G-TEST123", true), env.context);
+  listeners.get("click")?.({ isTrusted: true });
+  Object.assign(env.context.document, { visibilityState: "visible" });
+  listeners.get("click")?.({ isTrusted: false });
+  const queue = env.window.dataLayer as IArguments[];
+  assert.equal(queue.length, 2);
+  listeners.get("keydown")?.({ isTrusted: true });
+  listeners.get("wheel")?.({ isTrusted: true });
+  assert.equal(queue.length, 3);
+  assert.deepEqual(Array.from(queue[2]), ["event", "reader_interaction"]);
 });
 
 test("staging and missing or malformed measurement IDs fail closed", () => {
