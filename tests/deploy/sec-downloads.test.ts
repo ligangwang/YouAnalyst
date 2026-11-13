@@ -60,7 +60,7 @@ test('SEC downloads and cleanup deploy bounded private workers without nightly b
   assert.doesNotMatch(cleanup,/NODE_OPTIONS/);
   assert.match(cleanup,/--memory 512Mi/);
   assert.match(result.calls,/run jobs deploy cleanup-sec-downloads-production .*--args dist\/cleanup-sec-downloads.cjs,--apply/);
-  assert.match(result.calls,/scheduler jobs update http cleanup-sec-downloads-production .*--schedule 20 \* \* \* \*/);
+  assert.match(result.calls,/scheduler jobs update http cleanup-sec-downloads-production .*--schedule 20 0 \* \* \* --time-zone UTC/);
   assert.doesNotMatch(result.calls,/add-iam-policy-binding|allUsers|nightly|submissions\.zip|companyfacts\.zip|scheduler jobs (pause|resume)|run jobs execute/);
 });
 test('setup grants only resource-scoped access and no existing collector is switched',()=>{

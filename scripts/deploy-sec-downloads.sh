@@ -87,4 +87,4 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_re
   --command node --args dist/cleanup-sec-downloads.cjs,--apply --tasks 1 --parallelism 1 --max-retries 0 --task-timeout 10m --memory 512Mi --cpu 1 \
   --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|ENTITY_SNAPSHOT_BUCKET=${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}|EODHD_BULK_EOD_BUCKET=${EODHD_BULK_EOD_BUCKET:-}$sec_download_env" --quiet
 pipeline_iam job "$job" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
-pipeline_schedule "$job" '20 * * * *'
+pipeline_schedule "$job" '20 0 * * *'
