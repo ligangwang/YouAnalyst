@@ -58,8 +58,9 @@ at least 90 days after the last processing completion (and after download), whic
 is deliberately conservative when processing is delayed. Pending or failed files
 remain protected even after 90 days. Unknown or malformed state fails closed.
 
-The hourly `cleanup-sec-downloads-production` job deletes at most 100 eligible
-objects per run and has an eight-minute work deadline. It uses generation
+The `cleanup-sec-downloads-production` job runs daily at 00:20 UTC and also handles
+SEC financial and end-of-day bulk cleanup. Its filing-download cache stage deletes
+at most 100 eligible objects per run and has an eight-minute work deadline. It uses generation
 preconditions; storage holds also protect a file if a processor registers during
 cleanup. It never deletes extracted results or provenance in Firestore. A bucket
 with age-only Delete lifecycle rules is rejected because such rules cannot enforce
