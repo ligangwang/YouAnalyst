@@ -6,7 +6,7 @@ import { extractEarnings, type ExtractionPlan } from "./extract";
 import { makeCnEarningsPlan } from "./live-cn";
 import { makeUsEarningsPlan } from "./live-us";
 import { parseEarningsJob, type EarningsJob, type EarningsDeliveryProbe, type EarningsSourceDiscovered } from "./live-event";
-import { claimEarningsSource, completeEarningsSource, discoverEarningsSource, earningsMetadata, EARNINGS_SOURCES, persistEarningsCapture, publishDiscoveredEarningsOutbox, releaseFailedEarningsSource, type EarningsDiscovery, type EarningsWork } from "./live-store";
+import { claimEarningsSource, completeEarningsSource, discoverEarningsSource, earningsMetadata, EARNINGS_SOURCES, persistEarningsCapture, publishDiscoveredEarningsOutbox, type EarningsDiscovery, type EarningsWork } from "./live-store";
 import type { EarningsDownload } from "./live-transport";
 import type { EarningsSource, RawEarningsDocument } from "./model";
 
@@ -33,7 +33,9 @@ export async function processEarningsProbe(db: Firestore, probe: EarningsDeliver
   const ref = earningsMetadata(db, probe.batchId);
   return db.runTransaction(async tx => {
     const saved = (await tx.get(ref)).data();
-    if (saved?.type !== "earnings.delivery.probe" || saved.createdAt !== probe.createdAt || !Number.isFinite(saved.expiresAtMs) || Number(saved.expiresAtMs) < now) throw new Error("Earnings probe is not authorized or has expired");
+    if (saved?.type !== "earnings.delivery.probe" || saved.createdAt !== probe.createdAt || !Number.isFinite(saved.expiresAtMs) || Number(saved.expiresAtMs) < now) {
+      return { status: "skipped", reason: "invalid_or_expired_probe", sourceRequests: 0, earningsRecords: 0 };
+    }
     const deliveries = Number(saved.deliveries ?? 0) + 1;
     tx.set(ref, { deliveries, firstDeliveries: 1, duplicateDeliveries: deliveries - 1, lastReceivedAt: new Date(now).toISOString(), subscriberRevision: process.env.GIT_SHA ?? null }, { merge: true });
     return { status: "verified", deliveries, sourceRequests: 0, earningsRecords: 0 };
@@ -98,11 +100,7 @@ export async function processEarningsJob(job: EarningsJob, db: Firestore, log: M
     return await completeEarningsSource(db, work, log.runId, { status: "extracted", captureId, record: outcome.record }, now());
   } catch (error) {
     const message = error instanceof Error ? error.message : "Earnings source failed";
-    // A valid PDF with no extracted text needs human review, not another
-    // identical download. Downloader/process failures remain retryable.
-    if (error instanceof PdfTextUnavailableError) return await completeEarningsSource(db, work, log.runId, { status: "review_required", reason: "pdf_text_unavailable" }, now());
-    if (work.attempts >= 5) return await completeEarningsSource(db, work, log.runId, { status: "review_required", reason: `retry_budget_exhausted: ${message}` }, now());
-    await releaseFailedEarningsSource(db, work, log.runId, message, now());
-    throw error;
+    const reason = error instanceof PdfTextUnavailableError ? "pdf_text_unavailable" : `source_processing_failed: ${message}`;
+    return completeEarningsSource(db, work, log.runId, { status: "review_required", reason }, now());
   }
 }

@@ -46,7 +46,7 @@ export async function discoverEarningsSource(db: Firestore, source: EarningsSour
       || previous.source.url !== source.url || previous.source.companyId !== source.companyId)) throw new Error("Persisted earnings source identity conflict");
     if (options.requireCanaryBounds && previous && ["queued", "processing"].includes(previous.status)
       && (previous.maxExhibits !== 5 || previous.forceChildren !== true)) throw new Error("Active earnings source is outside the bounded canary; inspect it before retrying");
-    if (previous && (["queued", "processing"].includes(previous.status) || (!options.force && previous.nextCheckAtMs > now)
+    if (previous && (["queued", "processing"].includes(previous.status) || (!options.force && (previous.status === "review_required" || previous.nextCheckAtMs > now))
       || (options.force && options.parentDeliveryId && previous.parentDeliveryId === options.parentDeliveryId))) return { status: "existing" as const, sourceId,
         ...(previous.publishPending ? { delivery: earningsSourceEvent(sourceId, previous.generation) } : {}) };
     const firstSeenAt = previous?.firstSeenAt ?? source.firstSeenAt;
@@ -112,6 +112,12 @@ export async function claimEarningsSource(db: Firestore, event: EarningsSourceDi
     if (work.generation > event.generation || (work.generation === event.generation && !["queued", "processing"].includes(work.status))) return null;
     if (work.generation !== event.generation) throw new Error("Earnings generation not yet durable");
     if ((work.leaseUntilMs ?? 0) > now) throw new Error("Earnings source is busy");
+    if (work.attempts > 0) {
+      // A legacy retry or expired lease already consumed this generation's attempt.
+      tx.set(ref, { status: "review_required", reason: "previous_processing_attempt", publishPending: false,
+        leaseOwner: null, leaseUntilMs: 0, checkedAt: new Date(now).toISOString() }, { merge: true });
+      return null;
+    }
     const claimed: EarningsWork = { ...work, status: "processing", leaseOwner: owner, leaseUntilMs: now + 10 * 60_000, attempts: work.attempts + 1 };
     tx.set(ref, claimed);
     return claimed;
@@ -223,13 +229,5 @@ export async function completeEarningsSource(db: Firestore, work: EarningsWork, 
       ...(result.captureId ? { captureId: result.captureId } : {}), ...(record ? { revisionId: record.revisionId } : {}),
       ...(result.reason ? { reason: result.reason.slice(0, 1000) } : {}) }), { merge: true });
     return { status: result.status, duplicate: Boolean(existing), revisionId: record?.revisionId ?? null };
-  });
-}
-export async function releaseFailedEarningsSource(db: Firestore, work: EarningsWork, owner: string, reason: string, now = Date.now()) {
-  const ref = db.collection(EARNINGS_SOURCES).doc(work.sourceId);
-  await db.runTransaction(async tx => {
-    const current = (await tx.get(ref)).data() as EarningsWork | undefined;
-    if (current?.generation !== work.generation || current.leaseOwner !== owner) return;
-    tx.set(ref, { status: "queued", leaseOwner: null, leaseUntilMs: 0, lastError: reason.slice(0, 1000), lastFailureAt: new Date(now).toISOString() }, { merge: true });
   });
 }
