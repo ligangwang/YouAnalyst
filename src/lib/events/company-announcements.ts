@@ -30,12 +30,29 @@ export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:s
   const earnings=row.category==='EARNINGS'||ir&&/\b(?:reports?|announces?)\b.*\b(?:quarter|year|financial).*\bresults\b/i.test(row.title)&&!/\b(?:to report|date of|will report)\b/i.test(row.title);
   return {id:row.id,title:row.title,url,date:date.day,channel:ir?'IR':sec?'SEC':'Exchange',earnings,...(sec&&typeof row.form==='string'?{form:row.form}:{})};
 }
+const announcementLimit = 12;
+const searchLimit = 30;
+
+export async function companyAnnouncementsFromEvents(db:Firestore,companyId:string,sources:NewsSource[],today:string){
+  const select=(docs:Awaited<ReturnType<typeof loadCompanyEventSnapshot>>['docs'])=>
+    newsArticles(docs.map(doc=>doc.data()),sources)
+      .map(row=>publicCompanyAnnouncement(row,companyId,sources))
+      .filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today))
+      .slice(0,announcementLimit);
+  // Some publishers need older rows to identify duplicate child articles.
+  const limit=sources.some(source=>source.excludedCategories?.length)?searchLimit:announcementLimit;
+  const first=await loadCompanyEventSnapshot(db,companyId,limit);
+  const items=select(first.docs);
+  if(limit===searchLimit||first.docs.length<limit||items.length===announcementLimit)return items;
+  const tail=await loadCompanyEventSnapshot(db,companyId,searchLimit-limit,first.docs[limit-1]);
+  return select([...first.docs,...tail.docs]);
+}
+
 export async function loadCompanyAnnouncements(companyId:string){
   if(!/^(?:US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId))return [];
   try{
     const db=getAdminFirestore();
-    const [sources,page]=await Promise.all([loadCompanyAnnouncementSources(db,companyId),loadCompanyEventSnapshot(db,companyId)]);
-    const today=new Date().toISOString().slice(0,10);
-    return newsArticles(page.docs.map(doc=>doc.data()),sources).map(row=>publicCompanyAnnouncement(row,companyId,sources)).filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today)).slice(0,12);
+    const sources=await loadCompanyAnnouncementSources(db,companyId);
+    return await companyAnnouncementsFromEvents(db,companyId,sources,new Date().toISOString().slice(0,10));
   }catch(error){console.error('Company announcement sources unavailable',companyId,error);return [];}
 }
