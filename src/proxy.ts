@@ -38,6 +38,10 @@ export function proxy(request: NextRequest) {
     const prefix = pathLocale(request.nextUrl.pathname);
     const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const plain = unlocalizedPath(request.nextUrl.pathname);
+    if ((plain === "/predictions/new" || plain === "/predictions/new/") &&
+        /\bGoogleOther(?:-Image|-Video)?\b/i.test(request.headers.get("user-agent") ?? "")) {
+      return new NextResponse("Forbidden", { status: 403, headers: { "Cache-Control": "private, no-store" } });
+    }
     const oldTicker = /^\/ticker\/([A-Za-z0-9][A-Za-z0-9.-]{0,15})$/.exec(plain);
     const oldTickerPath=oldTicker ? inventoryCompanyPath(`US:${oldTicker[1].toUpperCase()}`) ?? publicCompanyPath(oldTicker[1]) : null;
     // A-shares retain their exchange-qualified routes; migrate US company pages.
