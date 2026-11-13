@@ -21,10 +21,10 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 # Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
 ensure_maintenance_job_iam "$job"
-# Weekdays after the China EOD job (08:00 New York). A new schedule is created
+# First day of each month at 09:30 New York time. A new schedule is created
 # PAUSED: resume it only after reviewing a dry run (see docs/company-fundamentals.md).
 # Updates keep the schedule's current paused/enabled state.
-schedule=(--schedule '30 9 * * 1-5' --time-zone America/New_York
+schedule=(--schedule '30 9 1 * *' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$job:run"
   --http-method POST --oauth-service-account-email "$trigger" --message-body '{}'
   --attempt-deadline 180s --max-retry-attempts 1 --quiet)

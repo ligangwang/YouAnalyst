@@ -347,8 +347,7 @@ which needs only `GCP_PROJECT_ID` and the built image: no API keys (FX and price
 are read from Firestore). It uses the shared maintenance accounts, and invocation
 (scheduler and web app) is scoped to the job.
 
-The script creates the Cloud Scheduler job (weekdays 09:30 `America/New_York`,
-after the 08:00 China EOD job) **paused**, and later deploys keep its current
+The script creates the Cloud Scheduler job (09:30 `America/New_York` on the first day of each month) **paused**, and later deploys keep its current
 state. Before enabling it:
 
 1. Run the dry run (no Firestore writes) and spot-check a few companies:

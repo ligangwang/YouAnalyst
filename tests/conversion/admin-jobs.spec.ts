@@ -169,7 +169,7 @@ test("admin starts the A-share fundamentals job from its own Run now button",asy
  await page.getByLabel("Job",{exact:true}).selectOption("cnFundamentals");
  await expect(page.getByText(/Refresh annual revenue and net income attributable to the parent through AKShare/)).toBeVisible();
  await expect(page.getByText(/annual financials:.*"updated":60/)).toBeVisible();
- await expect(page.getByText("Weekdays, 9:30 AM New York (after China EOD)")).toBeVisible();
+ await expect(page.getByText("First of each month, 9:30 AM New York")).toBeVisible();
  await expect(page.getByRole("button",{name:"Run SEC fundamentals now",exact:true})).toHaveCount(0);
  await page.getByRole("button",{name:"Run A-share fundamentals now",exact:true}).click();
  await expect(page.getByRole("status").filter({hasText:"Run requested."})).toBeVisible();
