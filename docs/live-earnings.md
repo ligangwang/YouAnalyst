@@ -87,8 +87,7 @@ date-only disclosure.
 
 Publication is at least once. A source/generation has a deterministic delivery
 ID, uncertain publications remain recoverable, and consumers reject stale work.
-Each source has a ten-minute processing lease and at most five failed processing
-attempts before manual review. New source generations can recheck content without
+Each source generation has one processing attempt and a ten-minute lease. A failed or interrupted attempt goes to manual review. Scheduled discovery skips sources awaiting review. An explicit replay can recheck content without
 duplicating unchanged normalized revisions. Failed writes cannot acknowledge an
 uncommitted result.
 

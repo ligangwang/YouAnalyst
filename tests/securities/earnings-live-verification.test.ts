@@ -48,6 +48,15 @@ test("provider-free probe processes first/duplicate deliveries while earnings is
     assert.ok(![...fx.rows.keys()].some(path => path.startsWith(EARNINGS_RECORDS + "/")));
   } finally { if (previous === undefined) delete process.env.GIT_SHA; else process.env.GIT_SHA = previous; }
 });
+test("a stale probe completes without recording a successful receipt", async () => {
+  const fx = earningsFirestore();
+  const probe: EarningsJob = { version: 1, type: "earnings.delivery.probe", batchId: "earnings_probe_" + "a".repeat(32), createdAt: new Date(fx.now()).toISOString() };
+  const path = `${EARNINGS_COLLECTORS}/${probe.batchId}`;
+  fx.rows.set(path, { ...probe, expiresAtMs: fx.now() - 1 });
+  const result = await processEarningsJob(probe, fx.db, log, { enabled: false, now: fx.now, ...runtime(fx) });
+  assert.equal(result.status, "skipped");
+  assert.equal(fx.rows.get(path)?.deliveries, undefined);
+});
 test("probe waits for the first receipt and tolerates subscription retry backoff", async () => {
   const previous = process.env.GIT_SHA; process.env.GIT_SHA = revision;
   try {
@@ -162,19 +171,19 @@ test("canary source selection requires Item2.02 and does not use a later unrelat
   assert.equal(selectAmdCanarySource({ cik: 2488, filings: { recent } }, Date.parse("2026-10-02T11:00:00Z")).accession, amd.accession);
   assert.throws(() => selectAmdCanarySource({ cik: 2488, filings: { recent: { ...recent, items: [] } } }), /Item 2.02/);
 });
-test("parent commit retries do not force a completed child into another generation", async () => {
+test("parent commit failure leaves the completed child intact", async () => {
   const previous = process.env.GIT_SHA; process.env.GIT_SHA = revision;
   try {
     const fx = earningsFirestore(), worker = runtime(fx);
     const parent = await discoverEarningsSource(fx.db, amd, "sec_filing", fx.now(), { force: true, maxExhibits: 5 });
     const event = earningsSourceEvent(parent.sourceId, 1);
     fx.reject((path, value) => path === `${EARNINGS_SOURCES}/${parent.sourceId}` && value.status === "expanded");
-    await assert.rejects(() => processEarningsJob(event, fx.db, log, { enabled: true, now: fx.now, download: worker.download, publish: worker.publish }), /commit failure/);
+    assert.equal((await processEarningsJob(event, fx.db, log, { enabled: true, now: fx.now, download: worker.download, publish: worker.publish })).status, "review_required");
     const child = [...fx.rows.values()].find(value => value.recordType === "source" && (value.source as EarningsSource).url.endsWith("release.htm")) as unknown as EarningsWork;
     assert.equal(child.generation, 1); assert.equal(child.status, "extracted");
     fx.reject(() => false);
     await processEarningsJob(event, fx.db, log, { enabled: true, now: fx.now, download: worker.download, publish: worker.publish });
     assert.equal((fx.rows.get(`${EARNINGS_SOURCES}/${child.sourceId}`) as unknown as EarningsWork).generation, 1);
-    assert.equal(worker.downloads(), 3, "only the index is retried; its completed child stays idempotent");
+    assert.equal(worker.downloads(), 2, "redelivery downloads neither the index nor its child");
   } finally { if (previous === undefined) delete process.env.GIT_SHA; else process.env.GIT_SHA = previous; }
 });

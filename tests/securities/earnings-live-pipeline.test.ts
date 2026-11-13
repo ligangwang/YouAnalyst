@@ -124,13 +124,13 @@ test("rechecking identical earnings content reads the current revision once", as
   assert.equal(fx.reads.slice(start).filter(path => path === revisionPath).length, 1);
   assert.equal(records(fx).length, 1);
 });
-test("completion commit failure releases its lease and retries without a partial normalized record", async () => {
+test("completion commit failure goes to review without a partial normalized record", async () => {
   const fx = earningsFirestore(), event = await enqueue(fx);
   fx.reject((path, value) => path === `${EARNINGS_SOURCES}/${event.sourceId}` && value.status === "extracted");
-  await assert.rejects(() => processEarningsJob(event, fx.db, log, options(fx)), /commit failure/);
+  assert.equal((await processEarningsJob(event, fx.db, log, options(fx))).status, "review_required");
   const after = fx.rows.get(`${EARNINGS_SOURCES}/${event.sourceId}`)!;
-  assert.equal(after.status, "queued"); assert.equal(after.leaseOwner, null); assert.equal(records(fx).length, 0);
-  fx.reject(() => false); await processEarningsJob(event, fx.db, log, options(fx)); assert.equal(records(fx).length, 1);
+  assert.equal(after.status, "review_required"); assert.equal(after.leaseOwner, null); assert.equal(records(fx).length, 0);
+  fx.reject(() => false); await processEarningsJob(event, fx.db, log, options(fx)); assert.equal(records(fx).length, 0);
 });
 test("paused processing, occupied leases and review-required amendments never produce metrics", async () => {
   const fx = earningsFirestore(), event = await enqueue(fx);
@@ -143,11 +143,14 @@ test("paused processing, occupied leases and review-required amendments never pr
   const result = await processEarningsJob(amendment, fx.db, log, options(fx));
   assert.equal(result.status, "review_required"); assert.equal(records(fx).length, 0);
 });
-test("transient source failure has a finite retry budget and preserves diagnostic evidence", async () => {
+test("failed source stays in review through redelivery and scheduled rediscovery", async () => {
   const fx = earningsFirestore(), event = await enqueue(fx), worker = { ...options(fx), download: async () => { throw new Error("429 cooldown"); } };
-  for (let attempt = 1; attempt < 5; attempt++) await assert.rejects(() => processEarningsJob(event, fx.db, log, worker), /cooldown/);
   assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "review_required");
-  assert.match(String(fx.rows.get(`${EARNINGS_SOURCES}/${event.sourceId}`)?.reason), /retry_budget_exhausted/);
+  assert.match(String(fx.rows.get(`${EARNINGS_SOURCES}/${event.sourceId}`)?.reason), /429 cooldown/);
+  assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "duplicate");
+  fx.advance(2 * 24 * 60 * 60_000);
+  assert.equal((await discoverEarningsSource(fx.db, source, "document", fx.now())).status, "existing");
+  assert.equal(fx.rows.get(`${EARNINGS_SOURCES}/${event.sourceId}`)?.attempts, 1);
   assert.equal(records(fx).length, 0);
 });
 const alibabaAnnouncement: EarningsSource = {
@@ -320,15 +323,15 @@ test("unsafe SEC exhibits retain the index for review on the first attempt witho
   }
 });
 
-test("transient SEC index download failures still release work for retry", async () => {
+test("SEC index download failures go directly to review", async () => {
   const fx = earningsFirestore();
   const queued = await discoverEarningsSource(fx.db, alibabaAnnouncement, "sec_filing", fx.now());
   const event = earningsSourceEvent(queued.sourceId, 1);
   const worker = { enabled: true, now: fx.now,
     download: async () => { throw new Error("SEC temporary outage"); }, publish: async () => "unused" };
-  await assert.rejects(() => processEarningsJob(event, fx.db, log, worker), /temporary outage/);
+  assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "review_required");
   const work = fx.rows.get(`${EARNINGS_SOURCES}/${queued.sourceId}`) as unknown as EarningsWork;
-  assert.notEqual(work.status, "review_required");
+  assert.match(String(work.reason), /temporary outage/);
 });
 
 test("PDFs without extractable text go to review once and duplicate delivery does not download again", async () => {
@@ -349,15 +352,15 @@ test("PDFs without extractable text go to review once and duplicate delivery doe
   }
 });
 
-test("invalid PDF bytes and extraction process failures remain retryable", async () => {
+test("invalid PDF bytes and extraction failures retain a reason for review", async () => {
   for (const failure of ["invalid_pdf", "extractor_timeout"]) {
     const fx = earningsFirestore(), job = await enqueue(fx);
     const config = { ...options(fx), download: async () => {
       if (failure === "extractor_timeout") throw new Error("pdftotext timed out");
       return { bytes: Buffer.from("not a PDF"), mediaType: "application/pdf" as const };
     } };
-    await assert.rejects(() => processEarningsJob(job, fx.db, log, config), failure === "invalid_pdf" ? /not a PDF/ : /timed out/);
-    assert.equal(fx.rows.get(`${EARNINGS_SOURCES}/${job.sourceId}`)!.status, "queued");
+    assert.equal((await processEarningsJob(job, fx.db, log, config)).status, "review_required");
+    assert.match(String(fx.rows.get(`${EARNINGS_SOURCES}/${job.sourceId}`)!.reason), failure === "invalid_pdf" ? /not a PDF/ : /timed out/);
     assert.equal(records(fx).length, 0);
   }
 });
