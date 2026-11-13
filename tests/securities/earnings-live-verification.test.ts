@@ -50,7 +50,7 @@ test("provider-free probe processes first/duplicate deliveries while earnings is
 });
 test("a stale probe completes without recording a successful receipt", async () => {
   const fx = earningsFirestore();
-  const probe = { type: "earnings.delivery.probe" as const, batchId: "earnings_probe_" + "a".repeat(32), createdAt: new Date(fx.now()).toISOString() };
+  const probe: EarningsJob = { version: 1, type: "earnings.delivery.probe", batchId: "earnings_probe_" + "a".repeat(32), createdAt: new Date(fx.now()).toISOString() };
   const path = `${EARNINGS_COLLECTORS}/${probe.batchId}`;
   fx.rows.set(path, { ...probe, expiresAtMs: fx.now() - 1 });
   const result = await processEarningsJob(probe, fx.db, log, { enabled: false, now: fx.now, ...runtime(fx) });
