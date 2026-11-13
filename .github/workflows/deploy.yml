@@ -956,7 +956,7 @@ jobs:
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
       GIT_SHA: ${{ github.sha }}
       TARGET_JOB: ${{ needs.verify.outputs.workers }}
-      INSTRUMENT_ONBOARDING_ENABLED: '1'
+      INSTRUMENT_ONBOARDING_ENABLED: ${{ vars.INSTRUMENT_ONBOARDING_ENABLED || '0' }}
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
       TWELVE_DATA_API_URL: ${{ vars.TWELVE_DATA_API_URL }}
       EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}

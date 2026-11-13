@@ -69,9 +69,13 @@ test('serial fallback and narrow targets still complete', async () => {
 });
 
 test('delivery selection preserves rollout flags and provider-free verification arguments', () => {
-  const env = { TARGET_JOB: 'all', GCP_PROJECT_ID: 'test', GCP_REGION: 'us-central1', ENABLE_SEC_FILING_PIPELINE: '1', EARNINGS_PIPELINE_ENABLED: '1' };
+  const env = { TARGET_JOB: 'all', INSTRUMENT_ONBOARDING_ENABLED: '1', GCP_PROJECT_ID: 'test', GCP_REGION: 'us-central1', ENABLE_SEC_FILING_PIPELINE: '1', EARNINGS_PIPELINE_ENABLED: '1' };
   const tasks = deliveryTasks(env);
   assert.equal(tasks.length, 4);
+  for (const flag of [undefined, '0']) {
+    assert.deepEqual(deliveryTasks({ ...env, INSTRUMENT_ONBOARDING_ENABLED: flag }).map(task => task.id),
+      ['verify-sec', 'verify-graph', 'verify-earnings']);
+  }
   for (const task of tasks) {
     assert(task.args.includes('--wait'));
     assert(task.args.some((arg: string) => arg.includes('VERIFY_ONLY=1') || arg.includes('--verify-delivery')));

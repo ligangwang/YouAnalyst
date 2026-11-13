@@ -11,7 +11,7 @@ export function deliveryTasks(env) {
   if (['all', 'fundamentals', 'sec-fundamentals'].includes(target)) {
     add('verify-sec', 'refresh-sec-fundamentals-production', ['--update-env-vars', 'FUNDAMENTALS_VERIFY_ONLY=1']);
   }
-  if (['all', 'fundamentals'].includes(target)) {
+  if (env.INSTRUMENT_ONBOARDING_ENABLED === '1' && ['all', 'fundamentals'].includes(target)) {
     add('verify-onboarding', 'onboard-instruments-production', ['--args', 'dist/onboard-instruments.cjs,--verify-delivery']);
   }
   if (env.ENABLE_SEC_FILING_PIPELINE === '1' && ['all', 'fundamentals', 'company-graph', 'sec-filings'].includes(target)) {
