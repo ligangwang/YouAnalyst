@@ -92,7 +92,7 @@ test('pull deployment requires an existing scoped binding and preserves retry/de
   assert.equal(r.status,0,r.stderr);
   assert.match(r.calls,/get-iam-policy earnings-worker.*roles\/pubsub.subscriber.*directory-sync-runtime@demo/);
   assert(!r.calls.includes('add-iam-policy-binding'));
-  assert.match(r.calls,/run deploy earnings-subscriber.*--min-instances 1 --no-cpu-throttling/);
+  assert.match(r.calls,/run deploy earnings-subscriber.*--max-instances 1 .*--cpu 1 --min-instances 1 --no-cpu-throttling/);
   assert.match(r.calls,/subscriptions modify-push-config earnings-worker .*--push-endpoint=/);
   assert.match(r.calls,/subscriptions update earnings-worker .*--ack-deadline 600.*--max-delivery-attempts 100/);
   assert(r.configs.every(config=>config.EARNINGS_DELIVERY_MODE==='pull'));
