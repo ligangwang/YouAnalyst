@@ -1,6 +1,7 @@
 import { FieldPath, type Firestore, type DocumentSnapshot, type Query } from 'firebase-admin/firestore';
 import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Collection, RelationshipQuery } from '../central-cache/store';
+import {peerFinancialProjection} from '../peer-comparison/financial-projection';
 import { Watch, track } from './watch';
 import { dataBytes } from './read-scope';
 import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery,withCompanyViewQuery} from './company-directory';
@@ -14,10 +15,14 @@ type Store={versions:Map<string,number>;queries:Map<string,Watch<Map<string,Docu
 declare global { var __youAnalystEntityStoresV2: WeakMap<Firestore,Store> | undefined; }
 const stores=globalThis.__youAnalystEntityStoresV2 ??= new WeakMap<Firestore,Store>();
 function store(db:Firestore){let value=stores.get(db);if(!value){value={versions:new Map(),queries:new Map(),documentStores:new Map()};stores.set(db,value);}return value;}
-function watchQuery(query:Query,changed:(docs:DocumentSnapshot[])=>void){return track(new Watch<Map<string,DocumentSnapshot>>((next,error)=>query.onSnapshot(snapshot=>{
+function watchQuery(query:Query,changed:(docs:DocumentSnapshot[],retainedBytes?:number)=>void,peerFinancials=false){return track(new Watch<Map<string,DocumentSnapshot>>((next,error)=>query.onSnapshot(snapshot=>{
   // Firestore broadcasts a list of added/modified/removed document IDs to every
   // instance. Its snapshot includes the new values; no getAll refresh is needed.
-  changed(snapshot.docs);next(new Map(snapshot.docs.map(doc=>[doc.id,doc])));
+  const docs=peerFinancials?snapshot.docs.map(doc=>{
+   const data=peerFinancialProjection(doc.data()),{id,exists,ref,readTime}=doc;
+   return {id,exists,ref,readTime,data:()=>structuredClone(data),get:(field:string)=>structuredClone(data[field])} as unknown as DocumentSnapshot;
+  }):snapshot.docs;
+  changed(docs,peerFinancials?snapshot.docs.reduce((sum,doc)=>sum+dataBytes(doc.data(),16*1024*1024),0):undefined);next(new Map(docs.map(doc=>[doc.id,doc])));
 },error)));}
 export async function localQuery(db:Firestore,key:string,query:Query,collection:string='companies'){
  // Page scope is for targeted entity reads. Global enrollment/theme selectors
@@ -78,12 +83,16 @@ function watchMarketCaps(db:Firestore,ids:string[],changed:(docs:DocumentSnapsho
  }));
 }
 
-async function documents(db:Firestore,collection:Collection,ids:string[],marketCaps=false){
+async function documents(db:Firestore,collection:Collection,ids:string[],marketCaps=false,peerFinancials=false){
  const entityStore=store(db);
- const storeKey=marketCaps?'company_fundamentals:marketCap':collection;
+ const storeKey=marketCaps?'company_fundamentals:marketCap':peerFinancials?'company_fundamentals:peerFinancials':collection;
  let s=entityStore.documentStores.get(storeKey);
  if(!s){s={documents:new Map(),groups:new Set()};entityStore.documentStores.set(storeKey,s);}
  const cache=s;
+ const logGroup=(action:string,group:Group,extra:Record<string,unknown>={})=>{
+  if(collection!=='company_fundamentals')return;
+  try{console.info(JSON.stringify({event:'entity_cache',action,projection:storeKey,ids:group.ids,bytes:group.bytes,processRunId:globalThis.__youAnalystFirestoreObserverV1?.processRunId,revision:process.env.K_REVISION,...extra}));}catch{/* Telemetry cannot fail a read. */}
+ };
  // One-company requests create one group each. Keep fundamentals independently
  // of company traffic, with both ID and estimated payload limits for larger batches.
  const maxGroups=256;
@@ -91,12 +100,15 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
  // 2,000-ID limit evicted one region when the next region loaded, repeating both
  // bulk reads and listener initialization. Keep their compact working set while
  // preserving the byte/group bounds and the smaller full-document allowance.
- const maxBytes=16*1024*1024, maxDocuments=marketCaps?8192:960;
+ // Peer comparisons retain compact annual observations, not full filing histories.
+ // Use the compact-row allowance without changing the byte or listener bounds.
+ const maxBytes=16*1024*1024, maxDocuments=marketCaps||peerFinancials?8192:960;
  const evict=()=>{
   let bytes=[...cache.groups].reduce((sum,group)=>sum+group.bytes,0);
   for(const group of cache.groups){
    if(cache.groups.size<=maxGroups&&cache.documents.size<=maxDocuments&&bytes<=maxBytes)break;
    if(group.users)continue;
+   logGroup('evict',group,{reason:cache.groups.size>maxGroups?'group_limit':cache.documents.size>maxDocuments?'document_limit':'byte_limit',totalBytes:bytes});
    bytes-=group.bytes;group.watch.close();
   }
  };
@@ -105,12 +117,13 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
  for(let i=0;i<missing.length;i+=batchSize){
   const batch=missing.slice(i,i+batchSize);
   const group:Group={users:0,ids:batch.map(id=>`${collection}/${id}`),bytes:0,watch:undefined as unknown as Group['watch']};
-  const changed=(docs:DocumentSnapshot[])=>{
+  const changed=(docs:DocumentSnapshot[],retainedBytes=0)=>{
    entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
-   group.bytes=docs.reduce((sum,doc)=>sum+dataBytes(doc.data(),maxBytes),0);
+   // Firestore itself retains full snapshots even when our projection is compact.
+   group.bytes=retainedBytes+docs.reduce((sum,doc)=>sum+dataBytes(doc.data(),maxBytes),0);
    queueMicrotask(evict);
   };
-  group.watch=marketCaps?watchMarketCaps(db,batch,changed):watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),changed);
+  group.watch=marketCaps?watchMarketCaps(db,batch,changed):watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),changed,peerFinancials);
   const close=group.watch.close.bind(group.watch);
   group.watch.close=()=>{
    if(cache.groups.has(group))entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
@@ -118,7 +131,7 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
    for(const key of group.ids)if(cache.documents.get(key)===group)cache.documents.delete(key);
    close();
   };
-  cache.groups.add(group);for(const key of group.ids)cache.documents.set(key,group);
+  cache.groups.add(group);logGroup('miss',group);for(const key of group.ids)cache.documents.set(key,group);
  }
  const groups=new Set(ids.map(id=>s.documents.get(`${collection}/${id}`)!));
  // Pin this request's groups until their first snapshot arrives. Capacity eviction
@@ -134,11 +147,12 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
  }
 }
 /** Undefined is reserved for non-listening test adapters, never network failures. */
-export async function localDocuments(db:Firestore,collection:Collection,ids?:string[],query?:RelationshipQuery,_projection?:'marketCap'|'graph',region?:ExchangeRegion):Promise<DocumentSnapshot[]|undefined>{
+export async function localDocuments(db:Firestore,collection:Collection,ids?:string[],query?:RelationshipQuery,_projection?:'marketCap'|'graph'|'peerFinancials',region?:ExchangeRegion):Promise<DocumentSnapshot[]|undefined>{
  // Market-cap requests must never hydrate the full fundamentals snapshot file.
  if(ids&&collection==='company_fundamentals'&&_projection==='marketCap'){
   return typeof db.collection(collection).onSnapshot==='function'?documents(db,collection,ids,true):readMarketCapBatch(db,ids);
  }
+ if(ids&&collection==='company_fundamentals'&&_projection==='peerFinancials'&&typeof db.collection(collection).onSnapshot==='function')return documents(db,collection,ids,false,true);
  enableCompanyDirectoryForReader(db);
  if(ids&&companyDirectoryEnabled(db,collection as import('../entity-snapshots/sync').Collection))return ids.length?db.getAll(...ids.map(id=>db.collection(collection).doc(id))):[];
  if(typeof db.collection(collection).onSnapshot!=='function')return undefined;
