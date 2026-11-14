@@ -59,6 +59,28 @@ function fixture(hold?:(collection:string,steps:{method:string;args:unknown[]}[]
  return {db,rows,readDocs,release:()=>{for(const push of pending)push();pending.clear();},push:()=>listeners.forEach(push=>push()),counts:()=>({files,opens,gets})};
 }
 
+test('company identity and singleton details share one live read across concurrent callers and deletions',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const read=()=>withCompanyPageReads(()=>Promise.all([
+  readCompanyLookup(f.db,f.db.collection('companies').doc('US:SMALL')),
+  loadCompanyDocuments(f.db,'companies',['US:SMALL']).then(docs=>docs[0]),
+ ]));
+ const values=await Promise.all(Array.from({length:20},read));
+ assert(values.every(pair=>pair.every(doc=>doc.get('name')==='Small')));
+ assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
+ f.rows.set('companies/US:SMALL',{name:'Updated'});f.push();
+ assert((await read()).every(doc=>doc.get('name')==='Updated'));
+ f.rows.set('companies/US:SMALL',{name:'Withdrawn',isDeleted:true});f.push();
+ assert((await read()).every(doc=>!doc.exists&&doc.data()===undefined));
+ f.rows.delete('companies/US:SMALL');f.push();
+ assert((await read()).every(doc=>!doc.exists));
+ assert.equal(f.counts().opens,1);
+ await withCompanyPageReads(()=>withLiveCompanyReads(()=>loadCompanyDocuments(f.db,'companies',['US:SMALL'])));
+ assert.equal(f.counts().gets,1,'authoritative reads still bypass the live cache');
+ await loadCompanyDocuments(f.db,'companies',['US:SMALL']);
+ assert.equal(f.counts().files,1,'bulk scope keeps its snapshot directory policy');
+});
+
 test('cold company routes and financial documents never download whole snapshots, and visitors share push subscriptions',async t=>{
  t.after(closeLocalCaches);const f=fixture();
  const read=()=>withCompanyPageReads(async()=>{
