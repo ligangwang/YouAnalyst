@@ -68,11 +68,14 @@ test('company events share loads, receive changes and remain bounded', async t =
   // Replay the overnight high-cardinality crawl and assert the bound throughout.
   for(let i=0;i<16000;i++){
     await loadCompanyEventSnapshot(db, `US:EMPTY${i}`,12);
-    assert(listeners.size<=2048, 'live SDK subscriptions stay bounded even for empty results');
+    assert(listeners.size<=8192, 'live SDK subscriptions stay bounded even for empty results');
   }
-  assert.equal(listeners.size,2048);
+  assert.equal(listeners.size,8192);
   assert.equal(listeners.has('US:AMD'),false);
   assert(cacheLogs.some(log=>log.action==='evict'&&log.reason==='entry_limit'&&log.companyId==='US:AMD'));
+  const retainedOpens = opens;
+  await loadCompanyEventSnapshot(db,'US:EMPTY10000',12);
+  assert.equal(opens,retainedOpens,'a query beyond the old 2048-entry window remains reusable');
   const before = opens;
   await loadCompanyEventSnapshot(db,'US:EMPTY15999',12);
   assert.equal(opens,before,'recent empty query is reused');
