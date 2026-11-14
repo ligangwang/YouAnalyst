@@ -101,8 +101,10 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
  // bulk reads and listener initialization. Keep their compact working set while
  // preserving the byte/group bounds and the smaller full-document allowance.
  // Peer comparisons retain compact annual observations, not full filing histories.
- // Use the compact-row allowance without changing the byte or listener bounds.
- const maxBytes=16*1024*1024, maxDocuments=marketCaps||peerFinancials?8192:960;
+ // Production's 6,317-ID working set exceeded 16 MiB at about 4.5 KB per
+ // observed row (SDK payload included). 32 MiB fits that measured set while
+ // retaining the existing group/ID bounds; other stores keep their 16 MiB cap.
+ const maxBytes=(peerFinancials?32:16)*1024*1024, maxDocuments=marketCaps||peerFinancials?8192:960;
  const evict=()=>{
   let bytes=[...cache.groups].reduce((sum,group)=>sum+group.bytes,0);
   for(const group of cache.groups){
