@@ -98,7 +98,8 @@ const policies: Record<string, readonly [number, number]> = {
   // heap failure. Document bytes omit SDK streams/query state, so the independent
   // listener bound must leave room for SDK overhead and the other source caches.
   // LRU eviction closes the SDK subscription; a revisit loads current data.
-  events: [2048, 160 * 1024 * 1024],
+  // Crawl traffic reaches the entry bound before the existing byte budget.
+  events: [8192, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
   if(isSnapshotCollection(collection)){
