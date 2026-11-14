@@ -7,5 +7,6 @@ export function loadCompanyEventSnapshot(db: Firestore, companyId: string, limit
   const base = db.collection(EVENTS_COLLECTION).where('companyId', '==', companyId)
     .orderBy('publication_date', 'desc');
   const query = (after ? base.startAfter(after) : base).limit(limit);
-  return withSourceCache(() => collectionSourceSnapshot(db, query, EVENTS_COLLECTION, {collection:EVENTS_COLLECTION,companyId}) ?? query.get());
+  const afterCursor=after?{id:after.id,publicationDate:typeof after.get==='function'?after.get('publication_date'):after.data()?.publication_date}:undefined;
+  return withSourceCache(() => collectionSourceSnapshot(db, query, EVENTS_COLLECTION, {collection:EVENTS_COLLECTION,companyId,limit,afterCursor}) ?? query.get());
 }
