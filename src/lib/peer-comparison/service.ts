@@ -43,9 +43,10 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
      }
     });
    }else await timeCompanyPhase('peer_financials',async()=>{
-    for(let i=0;i<group.companies.length;i+=100){
+    // Fill four 30-ID listeners; 100-ID pages left a fourth group mostly empty.
+    for(let i=0;i<group.companies.length;i+=120){
      options.signal?.throwIfAborted();
-     const batch=group.companies.slice(i,i+100);
+     const batch=group.companies.slice(i,i+120);
      const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id),'peerFinancials').catch(error=>{if(options.strict)throw error;complete=false;return [];});
      docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
     }

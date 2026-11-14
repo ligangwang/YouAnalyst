@@ -198,19 +198,19 @@ test('company ID cache retains a supported-company browsing cycle',async t=>{
 
 test('peer summaries keep a regional working set live without retaining filing histories',async(t)=>{
  t.after(closeLocalCaches);const f=fixture();
- const history='x'.repeat(1000);
- const ids=Array.from({length:1200},(_,i)=>`US:PEER${i}`);
+ const history='x'.repeat(3000);
+ const ids=Array.from({length:6400},(_,i)=>`US:PEER${i}`);
  const value=(id:string,cap=10)=>({id,exists:true,get:()=>undefined,data:()=>({history,marketCap:{status:'estimated',value:cap,currency:'USD',priceDate:'2026-11-13'},value:{report:{end:'2025-12-31',form:'10-K'},metrics:[]}})});
- for(let start=0;start<ids.length;start+=100){
+ for(let start=0;start<ids.length;start+=120){
   const before=f.listeners.length;
-  const pending=localDocuments(f.db,'company_fundamentals',ids.slice(start,start+100),undefined,'peerFinancials');
+  const pending=localDocuments(f.db,'company_fundamentals',ids.slice(start,start+120),undefined,'peerFinancials');
   for(const l of f.listeners.slice(before))l.next({docs:l.ids.map(id=>value(id))});
   const docs=await pending;assert.equal(docs![0].data()!.history,undefined);
  }
  const initialCount=f.listeners.length;
  assert.equal(f.listeners.filter(l=>l.closed).length,0);
  const again=await localDocuments(f.db,'company_fundamentals',ids,undefined,'peerFinancials');
- assert.equal(again!.length,1200);assert.equal(f.listeners.length,initialCount);
+ assert.equal(again!.length,6400);assert.equal(f.listeners.length,initialCount);
  const first=f.listeners[0];const before=localEntityVersions(f.db).company_fundamentals;
  first.next({docs:first.ids.slice(1).map(id=>value(id,20))});
  const updated=await localDocuments(f.db,'company_fundamentals',first.ids,undefined,'peerFinancials');
@@ -225,9 +225,9 @@ test('peer summaries keep a regional working set live without retaining filing h
 
 test('peer summaries still evict when SDK-retained full documents exceed the byte budget',async(t)=>{
  t.after(closeLocalCaches);const f=fixture();
- const ids=Array.from({length:100},(_,i)=>`US:LARGE${i}`);
+ const ids=Array.from({length:200},(_,i)=>`US:LARGE${i}`);
  const pending=localDocuments(f.db,'company_fundamentals',ids,undefined,'peerFinancials');
  for(const l of f.listeners)l.next({docs:l.ids.map(id=>({id,exists:true,data:()=>({history:'x'.repeat(250_000)})}))});
- assert.equal((await pending)!.length,100);
+ assert.equal((await pending)!.length,200);
  assert.ok(f.listeners.some(l=>l.closed),'SDK full payloads must count even when the summary is tiny');
 });
