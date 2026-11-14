@@ -10,11 +10,11 @@ declare global {
 const scope = globalThis.__youAnalystReadScopeV1 ??= new AsyncLocalStorage<boolean>();
 export const withSourceCache = <T>(work: () => Promise<T>): Promise<T> => scope.run(true, work);
 type Source = { isEqual(other: any): boolean; onSnapshot(next: (snapshot: any) => void, error: (error: Error) => void): () => void };
-type CacheContext = {collection:string; companyId?:string};
-type Entry = { source: Source; watch: Watch<any>; users: number; bytes: number; context?:CacheContext };
+type CacheContext = {collection:string; companyId?:string; limit?:number; afterCursor?:{id:string;publicationDate:unknown}};
+type Entry = { source: Source; watch: Watch<any>; users: number; bytes: number; documentCount?:number; context?:CacheContext };
 function cacheLog(action:string, entry:Entry, fields:Record<string,unknown>={}) {
   if(entry.context?.collection!=='events')return;
-  try {console.info(JSON.stringify({event:'source_cache',action,...entry.context,processRunId:globalThis.__youAnalystFirestoreObserverV1?.processRunId,revision:process.env.K_REVISION,bytes:entry.bytes,...fields}));}catch {/* Logging must not affect reads. */}
+  try {console.info(JSON.stringify({event:'source_cache',action,...entry.context,processRunId:globalThis.__youAnalystFirestoreObserverV1?.processRunId,revision:process.env.K_REVISION,bytes:entry.bytes,documentCount:entry.documentCount,...fields}));}catch {/* Logging must not affect reads. */}
 }
 const stores = globalThis.__youAnalystSourceStoresV1 ??= new WeakMap<object, Set<Entry>>();
 const MAX_LISTENERS = 128, MAX_BYTES = 4 * 1024 * 1024;
@@ -44,10 +44,17 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
   const cache = entries;
   const evict = () => {
     let bytes = [...cache].reduce((sum, entry) => sum + entry.bytes, 0);
-    for (const entry of cache) {
-      if (cache.size <= maxListeners && bytes <= maxBytes) break;
-      if (entry.users) continue;
-      cacheLog('evict',entry,{reason:cache.size>maxListeners?'entry_limit':'byte_limit',entries:cache.size,totalBytes:bytes,maxEntries:maxListeners,maxBytes});
+    if(cache.size<=maxListeners&&bytes<=maxBytes)return;
+    const idle=[...cache].filter(entry=>!entry.users);
+    while (idle.length && (cache.size > maxListeners || bytes > maxBytes)) {
+      // Prefer cheaper empty queries within the oldest quarter, not across the
+      // whole cache: recent empty queries can be hot and must still be reused.
+      // Byte pressure retains ordinary LRU; neither bound increases.
+      const window=idle.slice(0,Math.ceil(idle.length/4));
+      const empty=cache.size>maxListeners?window.findIndex(entry=>entry.context?.collection==='events'&&entry.documentCount===0):-1;
+      const retainedLruQuery=empty>0?{...idle[0].context,documentCount:idle[0].documentCount}:undefined;
+      const [entry]=idle.splice(empty<0?0:empty,1);
+      cacheLog('evict',entry,{reason:cache.size>maxListeners?'entry_limit':'byte_limit',policy:empty<0?'lru':'empty_event_first',retainedLruQuery,entries:cache.size,totalBytes:bytes,maxEntries:maxListeners,maxBytes});
       bytes -= entry.bytes; entry.watch.close();
     }
   };
@@ -58,8 +65,12 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
     const created = entry;
     created.watch = track(new Watch<any>((next, error) => source.onSnapshot(value => {
       const docs = Array.isArray(value.docs) ? value.docs : [value];
+      created.documentCount=Array.isArray(value.docs)?docs.length:value.exists===false?0:1;
       created.bytes = docs.reduce((sum: number, doc: any) => sum + dataBytes(doc.data(), maxBytes), 0);
-      next(value); queueMicrotask(evict);
+      next(value);
+      // A pending reader pins this snapshot. Its finally block evicts after
+      // unpinning, so shared callers do not trigger eviction while still pinned.
+      if(!created.users)queueMicrotask(evict);
     }, error)));
     const close = created.watch.close.bind(created.watch);
     created.watch.close = () => {cache.delete(created); close();};
@@ -68,7 +79,7 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
   }else cacheLog('hit',entry,{entries:cache.size});
   entry.users++; cache.delete(entry); cache.add(entry);
   const selected = entry;
-  return selected.watch.read().finally(() => {selected.users--; evict();});
+  return selected.watch.read().finally(() => {selected.users--; if(!selected.users)evict();});
 }
 
 // One partition per public source family, shared by independently bundled routes.
