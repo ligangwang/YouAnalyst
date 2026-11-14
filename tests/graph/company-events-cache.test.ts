@@ -5,27 +5,26 @@ import { loadCompanyEventSnapshot } from '../../src/lib/events/company-events-ca
 import { closeLocalCaches } from '../../src/lib/local-cache/watch';
 import {sourceSnapshot,withSourceCache} from '../../src/lib/local-cache/read-scope';
 
-test('empty event admission preserves warm pages, coalesces readers and reopens fresh after eviction',async t=>{
+test('event eviction prefers old empty queries while retaining recent negative results and live pages',async t=>{
  t.after(closeLocalCaches);const owner={},listeners=new Map<string,(value:unknown)=>void>();
- const opens=new Map<string,number>(),rows=new Map<string,string[]>([['A',['one','two']],['B',['three']],['C',[]]]);
+ const opens=new Map<string,number>(),rows=new Map<string,string[]>([['A',['one','two']],['B',[]],['C',['three']],['D',['four']],['E',[]]]);
  const logs:Record<string,unknown>[]=[];t.mock.method(console,'info',(line:string)=>logs.push(JSON.parse(line)));
  const snapshot=(id:string)=>({docs:(rows.get(id)??[]).map(value=>({id:value,data:()=>({title:value})}))});
  function query(id:string){return {id,isEqual:(other:{id:string})=>id===other.id,onSnapshot(next:(value:unknown)=>void){
   opens.set(id,(opens.get(id)??0)+1);listeners.set(id,next);queueMicrotask(()=>next(snapshot(id)));return ()=>listeners.delete(id);
  }};}
- const load=(id:string)=>withSourceCache(()=>sourceSnapshot(owner,query(id),2,10000,{collection:'events',companyId:id,limit:12})!);
- await load('A');await load('B');
- const empty=await Promise.all([load('C'),load('C')]);assert(empty.every(value=>value.docs.length===0));
- assert.equal(opens.get('C'),1);assert.deepEqual([...listeners.keys()],['A','B']);
- await load('A');await load('B');assert.equal(opens.get('A'),1);assert.equal(opens.get('B'),1);
- assert(logs.some(log=>log.companyId==='C'&&log.action==='evict'&&log.policy==='empty_event_first'&&log.documentCount===0));
+ const load=(id:string)=>withSourceCache(()=>sourceSnapshot(owner,query(id),4,10000,{collection:'events',companyId:id,limit:12})!);
+ for(const id of ['A','B','C','D'])await load(id);
+ const empty=await Promise.all([load('E'),load('E')]);assert(empty.every(value=>value.docs.length===0));
+ assert.equal(opens.get('E'),1);assert.deepEqual([...listeners.keys()],['A','C','D','E']);
+ await load('E');assert.equal(opens.get('E'),1,'recent empty results remain reusable');
+ assert(logs.some(log=>log.companyId==='B'&&log.action==='evict'&&log.policy==='empty_event_first'&&log.documentCount===0));
  assert(logs.some(log=>JSON.stringify(log.retainedLruQuery)===JSON.stringify({collection:'events',companyId:'A',limit:12,documentCount:2})));
- rows.set('C',['new']);assert.equal((await load('C')).docs[0].data().title,'new','evicted empty query discovers new data');
- assert.equal(opens.get('C'),2);assert.equal(listeners.size,2);
- rows.set('B',['changed']);listeners.get('B')!(snapshot('B'));assert.equal((await load('B')).docs[0].data().title,'changed');
- rows.set('B',[]);listeners.get('B')!(snapshot('B'));assert.equal((await load('B')).docs.length,0);
- rows.set('D',['four']);await load('D');assert.equal(listeners.has('B'),false,'deleted page becomes the lower-cost eviction');
- assert.equal(listeners.has('C'),true);assert.equal(listeners.size,2);
+ rows.set('B',['new']);assert.equal((await load('B')).docs[0].data().title,'new','evicted empty query discovers new data');
+ assert.equal(opens.get('B'),2);assert.equal(listeners.size,4);
+ rows.set('C',['changed']);listeners.get('C')!(snapshot('C'));assert.equal((await load('C')).docs[0].data().title,'changed');
+ rows.set('C',[]);listeners.get('C')!(snapshot('C'));assert.equal((await load('C')).docs.length,0);
+ assert.equal(opens.get('C'),1,'retained queries receive updates and deletions without reloading');
 });
 
 test('company events share loads, receive changes and remain bounded', async t => {

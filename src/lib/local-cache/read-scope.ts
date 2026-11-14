@@ -47,10 +47,11 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
     if(cache.size<=maxListeners&&bytes<=maxBytes)return;
     const idle=[...cache].filter(entry=>!entry.users);
     while (idle.length && (cache.size > maxListeners || bytes > maxBytes)) {
-      // Empty event queries cost at least one read to reopen, while populated
-      // pages can reload 12 or 18 documents. Prefer idle empty queries only when
-      // stream capacity is exhausted; retain ordinary LRU for the byte ceiling.
-      const empty=cache.size>maxListeners?idle.findIndex(entry=>entry.context?.collection==='events'&&entry.documentCount===0):-1;
+      // Prefer cheaper empty queries within the oldest quarter, not across the
+      // whole cache: recent empty queries can be hot and must still be reused.
+      // Byte pressure retains ordinary LRU; neither bound increases.
+      const window=idle.slice(0,Math.ceil(idle.length/4));
+      const empty=cache.size>maxListeners?window.findIndex(entry=>entry.context?.collection==='events'&&entry.documentCount===0):-1;
       const retainedLruQuery=empty>0?{...idle[0].context,documentCount:idle[0].documentCount}:undefined;
       const [entry]=idle.splice(empty<0?0:empty,1);
       cacheLog('evict',entry,{reason:cache.size>maxListeners?'entry_limit':'byte_limit',policy:empty<0?'lru':'empty_event_first',retainedLruQuery,entries:cache.size,totalBytes:bytes,maxEntries:maxListeners,maxBytes});
@@ -68,7 +69,7 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
       created.bytes = docs.reduce((sum: number, doc: any) => sum + dataBytes(doc.data(), maxBytes), 0);
       next(value);
       // A pending reader pins this snapshot. Its finally block evicts after
-      // unpinning, so a new empty result can be selected instead of a warm page.
+      // unpinning, so shared callers do not trigger eviction while still pinned.
       if(!created.users)queueMicrotask(evict);
     }, error)));
     const close = created.watch.close.bind(created.watch);
