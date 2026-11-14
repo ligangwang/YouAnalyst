@@ -51,8 +51,9 @@ export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX
       // pages can reload 12 or 18 documents. Prefer idle empty queries only when
       // stream capacity is exhausted; retain ordinary LRU for the byte ceiling.
       const empty=cache.size>maxListeners?idle.findIndex(entry=>entry.context?.collection==='events'&&entry.documentCount===0):-1;
+      const retainedLruQuery=empty>0?{...idle[0].context,documentCount:idle[0].documentCount}:undefined;
       const [entry]=idle.splice(empty<0?0:empty,1);
-      cacheLog('evict',entry,{reason:cache.size>maxListeners?'entry_limit':'byte_limit',policy:empty<0?'lru':'empty_event_first',entries:cache.size,totalBytes:bytes,maxEntries:maxListeners,maxBytes});
+      cacheLog('evict',entry,{reason:cache.size>maxListeners?'entry_limit':'byte_limit',policy:empty<0?'lru':'empty_event_first',retainedLruQuery,entries:cache.size,totalBytes:bytes,maxEntries:maxListeners,maxBytes});
       bytes -= entry.bytes; entry.watch.close();
     }
   };

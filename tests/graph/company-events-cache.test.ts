@@ -19,6 +19,7 @@ test('empty event admission preserves warm pages, coalesces readers and reopens 
  assert.equal(opens.get('C'),1);assert.deepEqual([...listeners.keys()],['A','B']);
  await load('A');await load('B');assert.equal(opens.get('A'),1);assert.equal(opens.get('B'),1);
  assert(logs.some(log=>log.companyId==='C'&&log.action==='evict'&&log.policy==='empty_event_first'&&log.documentCount===0));
+ assert(logs.some(log=>JSON.stringify(log.retainedLruQuery)===JSON.stringify({collection:'events',companyId:'A',limit:12,documentCount:2})));
  rows.set('C',['new']);assert.equal((await load('C')).docs[0].data().title,'new','evicted empty query discovers new data');
  assert.equal(opens.get('C'),2);assert.equal(listeners.size,2);
  rows.set('B',['changed']);listeners.get('B')!(snapshot('B'));assert.equal((await load('B')).docs[0].data().title,'changed');
