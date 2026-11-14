@@ -1,3 +1,4 @@
+import {peerFinancialProjection} from '../src/lib/peer-comparison/financial-projection';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {PeerStructureCache} from '../src/lib/peer-comparison/structure-cache';
@@ -205,4 +206,17 @@ test('peer structure integration reuses graph work and invalidates both push and
  name='Push correction';push++;assert.equal((await loadPeerStructure(db,'ai')).nodes[0].name,name);assert.equal(builds,2);
  name='File correction';file++;assert.equal((await loadPeerStructure(db,'ai')).nodes[0].name,name);assert.equal(builds,3);
  assert.equal(first[0].nodes[0].name,'Before','existing readers keep their immutable generation');
+});
+
+
+test('compact peer documents preserve US and CN comparison output and drop unused payloads',()=>{
+ for(const market of ['US','CN_A']){
+  const nodes=market==='US'?[node('US:A'),node('US:B')]:[node('XSHG:600001'),node('XSHE:000001')];
+  const metrics=[{label:market==='US'?'Net income':'Net income attributable to parent',value:-10,unit:market==='US'?'USD':'CNY',start:'2025-01-01',end:'2025-12-31',sourceUrl:'https://example.com/report'},{label:'Revenue',value:100,unit:market==='US'?'USD':'CNY',start:'2025-01-01',end:'2025-12-31'},{label:'Diluted EPS',value:2,unit:'USD/shares',start:'2025-01-01',end:'2025-12-31'},{label:'Unused',history:'x'.repeat(10000)}];
+  const cap={status:'estimated',currency:market==='US'?'USD':'CNY',value:1000,close:10,priceDate:today,shares:{aTradableShares:20,aShares:100,sourceUrl:'https://example.com/shares'},history:'x'.repeat(10000)};
+  const docs=new Map<string,unknown>(nodes.map((n,i)=>[n.id,{history:'x'.repeat(10000),value:{report:{end:'2025-12-31',form:'10-K'},metrics,marketCap:cap},...(i?{marketCap:cap}:{}),cnAnnual:{end:'2025-12-31',metrics}}]));
+  const projected=new Map([...docs].map(([id,data])=>[id,peerFinancialProjection(data)]));
+  assert.deepEqual(buildPeerComparison(nodes[0].id,nodes,projected,new Map(),today),buildPeerComparison(nodes[0].id,nodes,docs,new Map(),today));
+  assert.ok(JSON.stringify([...projected]).length<JSON.stringify([...docs]).length/10);
+ }
 });
