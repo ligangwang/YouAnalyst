@@ -98,7 +98,9 @@ const policies: Record<string, readonly [number, number]> = {
   events: [8192, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
- if(collection==='eod_prices')return undefined;
+ // These datasets move to Parquet. Bootstrap action reads must be one-shot:
+ // a retained Firestore listener would otherwise survive the readiness switch.
+ if(collection==='eod_prices'||collection==='corporate_actions')return undefined;
   if(isSnapshotCollection(collection)){
     if(liveCompanyReads())return undefined;
     const cached=companySourceSnapshot(owner as import('firebase-admin/firestore').Firestore,source);
