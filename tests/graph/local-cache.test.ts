@@ -5,6 +5,14 @@ import {spawnSync} from 'node:child_process';
 import type { Firestore } from 'firebase-admin/firestore';
 import { localDocuments, localEntityVersions } from '../../src/lib/local-cache/entities';
 import { Watch, closeLocalCaches } from '../../src/lib/local-cache/watch';
+import {collectionSourceSnapshot,withSourceCache} from '../../src/lib/local-cache/read-scope';
+
+test('Parquet dataset bootstrap reads never create persistent Firestore listeners',()=>{
+ const source={isEqual:()=>false,onSnapshot:()=>{throw Error('Unexpected Firestore listener');}};
+ for(const collection of ['eod_prices','corporate_actions']){
+  assert.equal(withSourceCache(()=>collectionSourceSnapshot({},source,collection)),undefined);
+ }
+});
 
 test('live listeners release completed request contexts and replaced initial snapshots',()=>{
  const result=spawnSync(process.execPath,['--expose-gc','--import','tsx','tests/graph/fixtures/watch-heap.ts'],{encoding:'utf8'});
