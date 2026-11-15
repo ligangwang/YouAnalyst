@@ -80,9 +80,12 @@ export class PriceStore {
   const current=head??await readHead(this.bucket),plan=compileQuery(steps);
   const key=JSON.stringify([current.generation,plan.where,plan.order,plan.limit,plan.selection,includeDeleted]);
   const cached=this.results.get(key);if(cached){this.results.delete(key);this.results.set(key,cached);return cached.promise;}
+  const started=Date.now();
   const entry={promise:this.reads.then(()=>this.queryUncached(steps,current,includeDeleted)),bytes:0};
   this.reads=entry.promise.catch(()=>{});this.results.set(key,entry);
-  entry.promise.then(rows=>{entry.bytes=Buffer.byteLength(JSON.stringify(rows))*2+rows.length*256;
+  entry.promise.then(rows=>{
+   console.info(JSON.stringify({event:'price_parquet_query',rows:rows.length,durationMs:Date.now()-started,generation:current.generation,service:process.env.K_SERVICE,revision:process.env.K_REVISION,job:process.env.CLOUD_RUN_JOB}));
+   entry.bytes=Buffer.byteLength(JSON.stringify(rows))*2+rows.length*256;
    let bytes=[...this.results.values()].reduce((n,e)=>n+e.bytes,0);
    for(const [k,e] of this.results){if(bytes<=32*1024*1024&&this.results.size<=1024)break;if(!e.bytes)continue;this.results.delete(k);bytes-=e.bytes;}
   },()=>{this.results.delete(key);});
