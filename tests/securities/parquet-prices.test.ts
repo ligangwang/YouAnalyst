@@ -14,19 +14,20 @@ import {writeCachedPrice,createCachedPriceBatch} from '../../src/lib/intelligenc
 import {Readable} from 'node:stream';
 import {entitySqliteBuilder} from '../../src/lib/entity-snapshots/sqlite';
 import {importSqlitePrices} from '../../src/lib/price-store/sqlite-import';
-import {exportPrices} from '../../src/lib/price-store/migration';
+import {exportPrices,compactPrices} from '../../src/lib/price-store/migration';
 
 function fixture(){
+ const failDelete=new Set<string>();
  let sequence=0;const objects=new Map<string,{generation:string;bytes:Buffer}>();
  const failure=(code:number)=>Object.assign(Error(String(code)),{code});
  const bucket={file:(name:string,pinned?:{generation:string})=>({
   createReadStream:()=>{const entry=objects.get(name);if(!entry||pinned&&pinned.generation!==entry.generation)throw failure(404);return Readable.from([entry.bytes]);},
-  delete:async()=>{objects.delete(name);},
+  delete:async()=>{if(failDelete.delete(name))throw Error('Simulated cleanup crash');objects.delete(name);},
   getMetadata:async()=>{const entry=objects.get(name);if(!entry)throw failure(404);return [{generation:entry.generation}];},
   download:async(options?:{destination:string})=>{const entry=objects.get(name);if(!entry||pinned&&pinned.generation!==entry.generation)throw failure(404);if(options)await writeFile(options.destination,entry.bytes);return [entry.bytes];},
   save:async(bytes:string,options:{preconditionOpts:{ifGenerationMatch:string}})=>{if((objects.get(name)?.generation??'0')!==String(options.preconditionOpts.ifGenerationMatch))throw failure(412);objects.set(name,{generation:String(++sequence),bytes:Buffer.from(bytes)});},
  }),upload:async(path:string,options:{destination:string})=>{objects.set(options.destination,{generation:String(++sequence),bytes:await readFile(path)});}} as unknown as Bucket;
- return {objects,bucket,store:new PriceStore(bucket)};
+ return {objects,bucket,store:new PriceStore(bucket),failDelete};
 }
 const row=(ticker:string,date:string,close:number)=>({id:`US_${ticker}_${date}`,data:{ticker,market:'US',tradingDate:date,close,rawClose:close,isFinal:true,updatedAt:new Timestamp(10,123)}});
 async function seed(f:ReturnType<typeof fixture>){
@@ -142,5 +143,19 @@ test('late shadow writes cannot overwrite newer corrections, including after com
   const rows=await f.store.local([file.name],paths=>readPriceParquet(paths[0]));
   assert.equal(rows.find(r=>r.id==='US_A_2026-01-01')!.data.close,90);
   assert.deepEqual(compileQuery([{method:'select',args:['source','adjustedClose','currency']}]).selection,['source','adjustedClose','currency']);
+ }finally{await f.store.close();}
+});
+
+
+test('compaction recovers a crash after manifest publication without losing rows',async()=>{
+ const f=fixture();try{
+  await seed(f);await f.store.mutate([{id:'US_A_2026-01-01',data:{close:30}}]);
+  const expected=await f.store.query([{method:'orderBy',args:['id']}]);
+  f.failDelete.add('price-parquet/v1/compaction.json');
+  await assert.rejects(compactPrices(f.store),/Simulated cleanup crash/);
+  assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),expected);
+  assert.equal((await compactPrices(f.store)).status,'complete');
+  assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),expected);
+  assert.equal(f.objects.has('price-parquet/v1/compaction.json'),false);
  }finally{await f.store.close();}
 });
