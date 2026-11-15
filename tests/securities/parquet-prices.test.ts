@@ -11,12 +11,17 @@ import type {Bucket} from '@google-cloud/storage';
 import {Firestore} from 'firebase-admin/firestore';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {writeCachedPrice,createCachedPriceBatch} from '../../src/lib/intelligence/price-cache';
+import {Readable} from 'node:stream';
+import {entitySqliteBuilder} from '../../src/lib/entity-snapshots/sqlite';
+import {importSqlitePrices} from '../../src/lib/price-store/sqlite-import';
 import {exportPrices} from '../../src/lib/price-store/migration';
 
 function fixture(){
  let sequence=0;const objects=new Map<string,{generation:string;bytes:Buffer}>();
  const failure=(code:number)=>Object.assign(Error(String(code)),{code});
  const bucket={file:(name:string,pinned?:{generation:string})=>({
+  createReadStream:()=>{const entry=objects.get(name);if(!entry||pinned&&pinned.generation!==entry.generation)throw failure(404);return Readable.from([entry.bytes]);},
+  delete:async()=>{objects.delete(name);},
   getMetadata:async()=>{const entry=objects.get(name);if(!entry)throw failure(404);return [{generation:entry.generation}];},
   download:async(options?:{destination:string})=>{const entry=objects.get(name);if(!entry||pinned&&pinned.generation!==entry.generation)throw failure(404);if(options)await writeFile(options.destination,entry.bytes);return [entry.bytes];},
   save:async(bytes:string,options:{preconditionOpts:{ifGenerationMatch:string}})=>{if((objects.get(name)?.generation??'0')!==String(options.preconditionOpts.ifGenerationMatch))throw failure(412);objects.set(name,{generation:String(++sequence),bytes:Buffer.from(bytes)});},
@@ -102,5 +107,40 @@ test('full export resumes its cursor and verifies every field before becoming re
   assert.equal((await exportPrices(db,f.store,{maxReads:2,maxDurationMs:10000})).status,'complete');
   const head=await readHead(f.bucket);assert.equal(head.manifest.files.reduce((n,file)=>n+file.rows,0),3);
   assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),rows);
+ }finally{await f.store.close();}
+});
+
+
+test('historical migration resumes from SQLite alone and preserves all source fields',async()=>{
+ const f=fixture(),directory=await mkdtemp(join(tmpdir(),'sqlite-source-'));
+ try{
+  const sources=[{name:'price-snapshots/US/A/2026.sqlite',rows:[row('A','2026-01-01',10),row('A','2026-01-02',11)]},
+   {name:'price-snapshots/US/B/2025.sqlite',rows:[row('B','2025-12-31',20)]}];
+  for(let i=0;i<sources.length;i++){
+   const path=join(directory,`${i}.sqlite`),builder=entitySqliteBuilder(path,'eod_prices');
+   sources[i].rows.forEach(r=>builder.add(r));builder.finish(new Timestamp(20,0));
+   f.objects.set(sources[i].name,{generation:'100',bytes:await readFile(path)});
+  }
+  f.objects.set('price-parquet/v1/sqlite-inventory.json',{generation:'101',bytes:Buffer.from(JSON.stringify({watermark:[20,0],files:sources.map(s=>({name:s.name,generation:'100',encoding:'identity',md5:false}))}))});
+  assert.equal((await importSqlitePrices(f.store,1)).status,'partial');
+  assert.equal((await readHead(f.bucket)).manifest.ready,false);
+  assert.equal((await importSqlitePrices(f.store,1)).status,'converted');
+  const head=await readHead(f.bucket);assert.equal(head.manifest.sourceCursor,2);assert.equal(head.manifest.sourceFiles,2);
+  assert.equal(head.manifest.files.reduce((n,f)=>n+f.rows,0),3);
+  await saveHead(f.bucket,head,{...head.manifest,ready:true});
+  assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),sources.flatMap(s=>s.rows));
+ }finally{await f.store.close();await rm(directory,{recursive:true,force:true});}
+});
+
+test('late shadow writes cannot overwrite newer corrections, including after compaction',async()=>{
+ const f=fixture();try{
+  await seed(f);await f.store.mutate([{id:'US_A_2026-01-01',data:{close:90}}]);
+  await f.store.ingest([row('A','2026-01-01',10)]);
+  assert.equal((await f.store.query([{method:'where',args:['id','==','US_A_2026-01-01']}]))[0].data.close,90);
+  const head=await readHead(f.bucket),group=head.manifest.files[0].groups.find(g=>g.includes('/2026/'))!;
+  const file=await f.store.compactGroup(head,group);
+  const rows=await f.store.local([file.name],paths=>readPriceParquet(paths[0]));
+  assert.equal(rows.find(r=>r.id==='US_A_2026-01-01')!.data.close,90);
+  assert.deepEqual(compileQuery([{method:'select',args:['source','adjustedClose','currency']}]).selection,['source','adjustedClose','currency']);
  }finally{await f.store.close();}
 });

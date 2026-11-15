@@ -4,6 +4,17 @@ import {PriceStore,readHead,type Head} from './storage';
 import {type Step} from './query';
 
 export const parquetPrices=()=>process.env.PRICE_STORAGE==='parquet';
+export const parquetReads=()=>parquetPrices()||process.env.PRICE_STORAGE==='parquet-read';
+export const shadowPrices=()=>['shadow','parquet-read'].includes(process.env.PRICE_STORAGE??'');
+export async function mirrorCommittedPrices(db:Firestore,ids:string[]){
+ if(!shadowPrices()||!ids.length)return;
+ const store=await priceStore();
+ for(let i=0;i<ids.length;i+=500){
+  const docs=await db.getAll(...ids.slice(i,i+500).map(id=>db.collection('eod_prices').doc(id)));
+  await store.ingest(docs.filter(doc=>doc.exists).map(doc=>({id:doc.id,data:doc.data()!})));
+ }
+ console.info(JSON.stringify({event:'price_parquet_mirror',rows:ids.length}));
+}
 declare global {var __youAnalystParquetStore:Promise<PriceStore>|undefined;}
 export function priceStore(){
  return globalThis.__youAnalystParquetStore??=import('../firebase/admin').then(({getAdminStorageBucket})=>{

@@ -37,7 +37,10 @@ export function compileQuery(steps:Step[]){
   }else if(step.method==='limit'){
    if(!Number.isSafeInteger(a)||Number(a)<1||Number(a)>10000)throw Error('Price query must be bounded to 10000 rows');
    limit=Number(a);
-  }else if(step.method==='select')selection=step.args.map(field);
+  }else if(step.method==='select')selection=step.args.map(value=>{
+   if(typeof value!=='string'||!/^[_a-zA-Z][_a-zA-Z0-9]*$/.test(value))throw Error('Invalid price projection');
+   return value==='__name__'?'id':value;
+  });
   else if(!['startAfter','startAt','endBefore','endAt'].includes(step.method))throw Error(`Unsupported price query: ${step.method}`);
  }
  if(!orders.length){

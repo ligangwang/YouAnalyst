@@ -43,6 +43,11 @@ const Sqlite = createRequire(`${isolated}/server.js`)('better-sqlite3');
 const sqliteProbe = new Sqlite(':memory:');
 try { assert.equal(sqliteProbe.prepare('SELECT 1 AS ready').get().ready, 1); }
 finally { sqliteProbe.close(); }
+const {DuckDBInstance}=createRequire(`${isolated}/server.js`)('@duckdb/node-api');
+const duck=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:'192MB'});
+const connection=await duck.connect();
+try { assert.equal((await connection.runAndReadAll('SELECT 1')).getRows()[0][0],1); }
+finally { connection.closeSync();duck.closeSync(); }
 
 // A read-only fixture exists only in the temporary test copy, never the artifact.
 // Exercise the compiled page: Next may encode page params differently from metadata.

@@ -1,4 +1,4 @@
-import {DuckDBInstance, type DuckDBConnection} from '@duckdb/node-api';
+import type {DuckDBConnection} from '@duckdb/node-api';
 import {Timestamp} from 'firebase-admin/firestore';
 import {encode,decode} from '../central-cache/codec';
 import {pricePartition} from '../entity-snapshots/price-partition';
@@ -14,6 +14,7 @@ export function withDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Prom
  const result=tail.then(()=>runDuck(work));tail=result.catch(()=>{});return result;
 }
 async function runDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
+ const {DuckDBInstance}=await import('@duckdb/node-api');
  const instance=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:'192MB',max_temp_directory_size:'0B',enable_external_access:'true'});
  const connection=await instance.connect();
  try{return await work(connection);}finally{connection.closeSync();instance.closeSync();}

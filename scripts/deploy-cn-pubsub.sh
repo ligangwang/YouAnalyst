@@ -42,7 +42,7 @@ gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --concurrency 10 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
   --startup-probe 'httpGet.path=/health,httpGet.port=8080,periodSeconds=10,timeoutSeconds=5,failureThreshold=24' \
   --no-traffic --tag candidate \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|CN_FUNDAMENTALS_SUBSCRIPTION=$subscription|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|PRICE_STORAGE=${PRICE_STORAGE:-firestore}|GIT_SHA=${GIT_SHA:-unknown}|CN_FUNDAMENTALS_SUBSCRIPTION=$subscription|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 candidate_revision="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.latestReadyRevisionName)')"
 created_revision="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.latestCreatedRevisionName)')"
 [[ -n "$candidate_revision" && "$candidate_revision" == "$created_revision" ]] || { echo 'China fundamentals candidate is not ready' >&2; exit 1; }

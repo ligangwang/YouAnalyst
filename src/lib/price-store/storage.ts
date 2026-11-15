@@ -12,7 +12,7 @@ import {quote,withDuck,writePriceParquet} from './parquet';
 
 export const ROOT='price-parquet/v1',HEAD=`${ROOT}/manifest.json`;
 export type PriceFile={name:string;groups:string[];rows:number;min:string;max:string};
-export type Manifest={version:1;ready:boolean;files:PriceFile[];watermark?:[number,number];cursor?:string};
+export type Manifest={version:1;ready:boolean;files:PriceFile[];watermark?:[number,number];cursor?:string;source?:'sqlite';sourceCursor?:number;sourceFiles?:number};
 export type Head={generation:string;manifest:Manifest};
 export type Mutation={id:string;data:Record<string,unknown>;mode?:'merge'|'replace'|'create'|'missing'|'delete';updateTime?:Timestamp;exists?:boolean};
 const groupFor=(id:string)=>{
@@ -115,7 +115,7 @@ export class PriceStore {
    const selected=files.filter(f=>f.groups.includes(group));
    const rows=await this.local(selected.map(f=>f.name),paths=>withDuck(async db=>{
     const union=paths.map((path,i)=>`SELECT *,${i} AS priority FROM read_parquet(${quote(path)}) WHERE ${groupPredicate(group)}`).join(' UNION ALL ');
-    return (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY priority DESC)=1) SELECT id,payload FROM latest WHERE ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
+    return (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1) SELECT id,payload FROM latest WHERE ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
    }));
    result=[...result,...rows].sort(plan.compare).slice(0,plan.limit);
   }
@@ -136,15 +136,27 @@ export class PriceStore {
   const name=`${ROOT}/data/${randomUUID()}.parquet`,path=join(await this.directory,randomUUID()+'.parquet');
   try{return await this.local(files.map(f=>f.name),paths=>withDuck(async db=>{
    const union=paths.map((p,i)=>`SELECT *,${i} AS priority FROM read_parquet(${quote(p)}) WHERE ${groupPredicate(group)}`).join(' UNION ALL ');
-   await db.run(`COPY (WITH versions AS (${union}) SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY priority DESC)=1 ORDER BY id) TO ${quote(path)} (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 16384)`);
+   await db.run(`COPY (WITH versions AS (${union}) SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1 ORDER BY id) TO ${quote(path)} (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE 16384)`);
    const [[count,min,max]]= (await db.runAndReadAll(`SELECT count(*),min(id),max(id) FROM read_parquet(${quote(path)})`)).getRows();
    // EXCEPT ALL compares every typed column and the lossless payload, including
    // multiplicity. Compaction cannot publish a file that drops or changes rows.
-   const [[difference]]= (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY priority DESC)=1), differences AS ((SELECT * FROM latest EXCEPT ALL SELECT * FROM read_parquet(${quote(path)})) UNION ALL (SELECT * FROM read_parquet(${quote(path)}) EXCEPT ALL SELECT * FROM latest)) SELECT count(*) FROM differences`)).getRows();
+   const [[difference]]= (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1), differences AS ((SELECT * FROM latest EXCEPT ALL SELECT * FROM read_parquet(${quote(path)})) UNION ALL (SELECT * FROM read_parquet(${quote(path)}) EXCEPT ALL SELECT * FROM latest)) SELECT count(*) FROM differences`)).getRows();
    if(Number(difference)!==0)throw Error('Compaction parity failed');
    await this.bucket.upload(path,{destination:name,resumable:true,metadata:{contentType:'application/vnd.apache.parquet'},preconditionOpts:{ifGenerationMatch:0}});
    return {name,groups:[group],rows:Number(count),min:String(min),max:String(max)};
   }));}finally{await rm(path,{force:true});}
+ }
+ /** Mirror committed source rows during the additive rollout. Timestamp ordering
+  * makes a delayed mirror harmless when a newer correction already exists. */
+ async ingest(rows:Row[]){
+  if(!rows.length)return;
+  const file=await this.upload(rows);
+  for(let attempt=0;attempt<8;attempt++){
+   const head=await readHead(this.bucket);
+   if(!head.manifest.ready)throw Error('Initial price export required');
+   try{await saveHead(this.bucket,head,{...head.manifest,files:[...head.manifest.files,file]});return;}
+   catch(error){if((error as {code?:number}).code!==412||attempt===7)throw error;}
+  }
  }
  async mutate(changes:Mutation[]){
   if(!changes.length)return {created:0,existing:0};

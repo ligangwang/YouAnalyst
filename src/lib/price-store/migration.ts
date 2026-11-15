@@ -45,9 +45,10 @@ export async function catchUpPrices(db:Firestore,store:PriceStore,maxReads=50000
  const query=db.collection('eod_prices').where('updatedAt','>=',since).where('updatedAt','<=',through).orderBy('updatedAt').orderBy(FieldPath.documentId());
  let cursor:FirebaseFirestore.QueryDocumentSnapshot|undefined,reads=0;const rows:Row[]=[];
  while(reads<maxReads){
-  const page=await (cursor?query.startAfter(cursor):query).limit(Math.min(5000,maxReads-reads)).get();
+  const limit=Math.min(5000,maxReads-reads);
+  const page=await (cursor?query.startAfter(cursor):query).limit(limit).get();
   reads+=Math.max(1,page.size);rows.push(...page.docs.map(doc=>({id:doc.id,data:doc.data()})));cursor=page.docs.at(-1);
-  if(page.size<5000){
+  if(page.size<limit){
    const file=rows.length?await store.upload(rows):undefined;
    await saveHead(store.bucket,head,{...head.manifest,watermark:[through.seconds,through.nanoseconds],files:[...head.manifest.files,...(file?[file]:[])]});
    return {status:'complete',reads,changed:rows.length,through:through.toDate().toISOString()};

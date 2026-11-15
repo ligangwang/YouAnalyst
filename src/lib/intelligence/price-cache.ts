@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import {parquetPrices,priceStore} from '../price-store/runtime';
+import {parquetPrices,parquetReads,priceStore} from '../price-store/runtime';
 import {readHead} from '../price-store/storage';
 import { FieldPath, type Firestore, type DocumentReference, type Precondition, type Transaction } from 'firebase-admin/firestore';
 import { predictionInstrument } from '../predictions/instrument';
@@ -38,7 +38,7 @@ async function queryCloses(db:Firestore,ticker:string,through:string,count:numbe
 }
 
 export async function loadPriceCache(db:Firestore,tickers?:string[]):Promise<PriceCacheView>{
- if(parquetPrices()){const store=await priceStore();return {version:(await readHead(store.bucket)).generation,entries:{}};}
+ if(parquetReads()){const store=await priceStore();return {version:(await readHead(store.bucket)).generation,entries:{}};}
  const keys=tickers?[...new Set(tickers.filter(ticker=>predictionInstrument(ticker)).map(keyFor))]:undefined;
  if(keys&&!keys.length)return {version:'',entries:{}};
  const versions=((await db.collection('collectors').doc(META).get()).get('buckets')??{}) as Record<string,string>;
@@ -56,7 +56,7 @@ export async function loadPriceCache(db:Firestore,tickers?:string[]):Promise<Pri
 export async function cachedPriceEntry(db:Firestore,view:PriceCacheView,ticker:string,now:Date):Promise<Entry>{
  const key=keyFor(ticker),id=bucketFor(key);
  if(view.entries[key])return view.entries[key];
- if(parquetPrices())return view.entries[key]={bars:await queryCloses(db,ticker,completedCloseDate(predictionInstrument(ticker)!.market,now),2),baselines:{}};
+ if(parquetReads())return view.entries[key]={bars:await queryCloses(db,ticker,completedCloseDate(predictionInstrument(ticker)!.market,now),2),baselines:{}};
  const result=await db.runTransaction(async tx=>{
   const ref=refFor(db,id),doc=await tx.get(ref),entries=(doc.get('entries')??{}) as Bucket['entries'];
   if(entries[key])return entries[key];
@@ -73,7 +73,7 @@ export async function cachedBaseline(db:Firestore,view:PriceCacheView,ticker:str
  const key=keyFor(ticker),id=bucketFor(key),ref=refFor(db,id);
  const local=view.entries[key];
  if(local&&Object.hasOwn(local.baselines,through))return local.baselines[through]??undefined;
- if(parquetPrices()){const bar=(await queryCloses(db,ticker,through,1)).at(-1);if(local)local.baselines[through]=bar??null;return bar;}
+ if(parquetReads()){const bar=(await queryCloses(db,ticker,through,1)).at(-1);if(local)local.baselines[through]=bar??null;return bar;}
  const result=await db.runTransaction(async tx=>{
   const doc=await tx.get(ref),entries=(doc.get('entries')??{}) as Bucket['entries'];
   const entry=entries[key];if(!entry)throw Error('Graph price entry must be initialized');
