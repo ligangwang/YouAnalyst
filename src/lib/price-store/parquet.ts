@@ -15,7 +15,9 @@ export function withDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Prom
 }
 async function runDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
  const {DuckDBInstance}=await import('@duckdb/node-api');
- const instance=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:'192MB',max_temp_directory_size:'0B',enable_external_access:'true'});
+ const memory=Number(process.env.PRICE_DUCKDB_MEMORY_MB??192);
+ if(!Number.isInteger(memory)||memory<64||memory>1024)throw Error('Invalid DuckDB memory budget');
+ const instance=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:`${memory}MB`,max_temp_directory_size:'0B',enable_external_access:'true'});
  const connection=await instance.connect();
  try{return await work(connection);}finally{connection.closeSync();instance.closeSync();}
 }
@@ -27,6 +29,7 @@ export async function writePriceParquet(path:string,rows:Row[]){
   const append=await db.createAppender('prices');
   try{for(const {id,data} of rows){
    const part=pricePartition(id);if(!part||!(data.updatedAt instanceof Timestamp))throw Error('Invalid price identity/timestamp');
+   if(data.market!==part.market||data.ticker!==part.ticker||data.tradingDate!==id.slice(-10))throw Error('Price fields disagree with document identity');
    const values:Record<string,unknown>={...data,id,market:part.market,ticker:part.ticker,tradingDate:id.slice(-10),
     updatedAt:timestampNanos(data.updatedAt),isDeleted:data.isDeleted===true,payload:JSON.stringify(encode(data))};
    for(const [key,type] of Object.entries(priceColumns)){

@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {createWriteStream} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -17,6 +18,11 @@ import {readPriceParquet} from './parquet';
 type Source={name:string;generation:string;encoding:string;md5:boolean};
 type Inventory={watermark:[number,number];files:Source[]};
 const INVENTORY=`${ROOT}/sqlite-inventory.json`;
+function sourceGroup(name:string){
+ const match=/^price-snapshots\/(US|CN_A|FX)\/([^/]+)\/([0-9]{4})\.sqlite$/.exec(name);
+ if(!match)throw Error('Invalid source partition');
+ return `${match[1]}/${match[3]}/${createHash('sha256').update(decodeURIComponent(match[2])).digest('hex')[0]}`;
+}
 async function inventory(bucket:Bucket):Promise<Inventory>{
  try{const [bytes]=await bucket.file(INVENTORY).download();return JSON.parse(bytes.toString());}
  catch(error){if((error as {code?:number}).code!==404)throw error;}
@@ -30,13 +36,13 @@ async function inventory(bucket:Bucket):Promise<Inventory>{
  const [objects]=await bucket.getFiles({prefix:'price-snapshots/'});
  const files=objects.filter(f=>/^price-snapshots\/(US|CN_A|FX)\/[^/]+\/[0-9]{4}\.sqlite$/.test(f.name))
   .map(f=>({name:f.name,generation:String(f.metadata.generation),encoding:f.metadata.contentEncoding??'identity',md5:!!f.metadata.md5Hash}))
-  .sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0);
+  .sort((a,b)=>{const left=sourceGroup(a.name)+'/'+a.name,right=sourceGroup(b.name)+'/'+b.name;return left<right?-1:left>right?1:0;});
  if(!files.length||files.some(f=>!/^\d+$/.test(f.generation)))throw Error('Invalid SQLite inventory');
  const value:Inventory={watermark:[watermark.seconds,watermark.nanoseconds],files};
  await bucket.file(INVENTORY).save(JSON.stringify(value),{resumable:false,preconditionOpts:{ifGenerationMatch:0}});
  return value;
 }
-async function readSource(bucket:Bucket,source:Source):Promise<Row[]>{
+export async function readSqlitePriceSource(bucket:Bucket,source:Source):Promise<Row[]>{
  if(!['identity','gzip'].includes(source.encoding))throw Error('Invalid SQLite encoding');
  const directory=await mkdtemp(join(tmpdir(),'price-import-')),path=join(directory,'source.sqlite');
  try{
@@ -66,9 +72,12 @@ export async function importSqlitePrices(store:PriceStore,maxFiles=10000,maxDura
   head=await readHead(store.bucket);
  }
  while((head.manifest.sourceCursor??0)<source.files.length&&processed<maxFiles&&Date.now()<deadline){
-  const start=head.manifest.sourceCursor??0,end=Math.min(start+256,source.files.length,start+maxFiles-processed),rows:Row[]=[];
+  const start=head.manifest.sourceCursor??0,rows:Row[]=[];
+  let end=Math.min(start+256,source.files.length,start+maxFiles-processed);
+  const group=sourceGroup(source.files[start].name);
+  for(let i=start+1;i<end;i++)if(sourceGroup(source.files[i].name)!==group){end=i;break;}
   for(let i=start;i<end;i+=16){
-   const batch=await Promise.allSettled(source.files.slice(i,Math.min(i+16,end)).map(f=>readSource(store.bucket,f)));
+   const batch=await Promise.allSettled(source.files.slice(i,Math.min(i+16,end)).map(f=>readSqlitePriceSource(store.bucket,f)));
    for(const result of batch){if(result.status==='rejected')throw result.reason;rows.push(...result.value);}
   }
   rows.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);

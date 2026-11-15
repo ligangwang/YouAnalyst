@@ -50,7 +50,12 @@ export async function catchUpPrices(db:Firestore,store:PriceStore,maxReads=50000
   reads+=Math.max(1,page.size);rows.push(...page.docs.map(doc=>({id:doc.id,data:doc.data()})));cursor=page.docs.at(-1);
   if(page.size<limit){
    const file=rows.length?await store.upload(rows):undefined;
-   await saveHead(store.bucket,head,{...head.manifest,watermark:[through.seconds,through.nanoseconds],files:[...head.manifest.files,...(file?[file]:[])]});
+   for(let attempt=0;attempt<8;attempt++){
+    const current=await readHead(store.bucket);
+    if(current.manifest.watermark&&new Timestamp(...current.manifest.watermark).valueOf()>=through.valueOf())break;
+    try{await saveHead(store.bucket,current,{...current.manifest,watermark:[through.seconds,through.nanoseconds],files:[...current.manifest.files,...(file?[file]:[])]});break;}
+    catch(error){if((error as {code?:number}).code!==412||attempt===7)throw error;}
+   }
    return {status:'complete',reads,changed:rows.length,through:through.toDate().toISOString()};
   }
  }
@@ -69,7 +74,7 @@ export async function compactPrices(store:PriceStore,maxDurationMs=1200000){
   const groups=[...new Set(base.manifest.files.flatMap(f=>f.groups))].filter(g=>base.manifest.files.filter(f=>f.groups.includes(g)).length>1||base.manifest.files.some(f=>f.groups.includes(g)&&f.groups.length>1));
   journal={base,groups,completed:[]};
  }
- const persist=async()=>{const value=JSON.stringify(journal);await file.save(value,{resumable:false,preconditionOpts:{ifGenerationMatch:generation}});const [meta]=await file.getMetadata();generation=String(meta.generation);const [saved]=await store.bucket.file(JOURNAL,{generation}).download();if(saved.toString()!==value)throw Error('Concurrent compaction changed journal');};
+ const persist=async()=>{const value=JSON.stringify(journal);for(let attempt=0;;attempt++)try{await file.save(value,{resumable:false,preconditionOpts:{ifGenerationMatch:generation}});break;}catch(error){if((error as {code?:number}).code!==429||attempt>=4)throw error;await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));}const [meta]=await file.getMetadata();generation=String(meta.generation);const [saved]=await store.bucket.file(JOURNAL,{generation}).download();if(saved.toString()!==value)throw Error('Concurrent compaction changed journal');};
  for(let i=journal.completed.length;i<journal.groups.length;i++){
   if(Date.now()>=deadline)return {status:'partial',groups:i,total:journal.groups.length};
   journal.completed.push(await store.compactGroup(journal.base,journal.groups[i]));await persist();
@@ -85,6 +90,6 @@ export async function compactPrices(store:PriceStore,maxDurationMs=1200000){
   try{await saveHead(store.bucket,head,{...head.manifest,files:[...retained,...journal.completed,...head.manifest.files.slice(prefix.length)]});break;}
   catch(error){if((error as {code?:number}).code!==412||attempt===4)throw error;}
  }
- await file.delete({ignoreNotFound:true});
+ await file.delete({ignoreNotFound:true,ifGenerationMatch:generation});
  return {status:'complete',groups:journal.groups.length};
 }

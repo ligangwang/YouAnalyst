@@ -70,7 +70,8 @@ export class PriceStore {
      f.ready=this.bucket.file(name).download({destination:path}).then(async()=>{entry.bytes=(await stat(path)).size;});
      this.files.set(name,f);
     }
-    f.users++;pinned.push(f);this.files.delete(name);this.files.set(name,f);await f.ready;
+    f.users++;pinned.push(f);this.files.delete(name);this.files.set(name,f);
+    try{await f.ready;}catch(error){this.files.delete(name);await rm(f.path,{force:true});throw error;}
    }
    return await work(pinned.map(f=>f.path));
   }finally{for(const f of pinned)f.users--;await this.trim();}
@@ -90,6 +91,8 @@ export class PriceStore {
  private async queryUncached(steps:Step[],current:Head):Promise<Row[]>{
   if(!current.manifest.ready)throw Error('Parquet price migration is not ready');
   const plan=compileQuery(steps),files=current.manifest.files;
+  const identity=compileQuery(steps.filter(s=>s.method==='where'&&['id','market','ticker','tradingDate'].includes(field(s.args[0])))).where;
+  let singleInstrument=false;
   let groups=[...new Set(files.flatMap(f=>f.groups))];
   for(const step of steps.filter(s=>s.method==='where'&&field(s.args[0])==='tradingDate')){
    const year=Number(String(step.args[2]).slice(0,4));if(!Number.isInteger(year))continue;
@@ -106,15 +109,22 @@ export class PriceStore {
   if(typeof lower==='string'&&typeof upper==='string'){
    const p=pricePartition(upper),low=pricePartition(lower);
    if(p&&(lower===`${p.market}_${p.ticker}_`||low&&low.market===p.market&&low.ticker===p.ticker)){
+    singleInstrument=true;
     const shard=createHash('sha256').update(p.ticker).digest('hex')[0];
     groups=groups.filter(g=>{const [market,year,s]=g.split('/');return market===p.market&&s===shard&&Number(year)<=p.year&&(!low||Number(year)>=low.year);});
    }
   }
-  let result:Row[]=[];
+  const yearOrder=plan.order.startsWith('"tradingDate"')||singleInstrument&&plan.order.startsWith('"id"');
+  const direction=plan.order.split(',')[0].endsWith('desc')?-1:1;
+  if(yearOrder)groups.sort((a,b)=>(Number(a.split('/')[1])-Number(b.split('/')[1]))*direction);
+  let result:Row[]=[],lastYear:string|undefined;
   for(const group of groups){
+   const year=group.split('/')[1];
+   if(yearOrder&&lastYear!==undefined&&year!==lastYear&&result.length>=plan.limit)break;
+   lastYear=year;
    const selected=files.filter(f=>f.groups.includes(group));
    const rows=await this.local(selected.map(f=>f.name),paths=>withDuck(async db=>{
-    const union=paths.map((path,i)=>`SELECT *,${i} AS priority FROM read_parquet(${quote(path)}) WHERE ${groupPredicate(group)}`).join(' UNION ALL ');
+    const union=paths.map((path,i)=>`SELECT *,${i} AS priority FROM read_parquet(${quote(path)}) WHERE ${groupPredicate(group)} AND ${identity}`).join(' UNION ALL ');
     return (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1) SELECT id,payload FROM latest WHERE ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
    }));
    result=[...result,...rows].sort(plan.compare).slice(0,plan.limit);

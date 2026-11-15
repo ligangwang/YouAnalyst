@@ -4,7 +4,7 @@ import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, r
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
 import { timestampWrite } from '../central-cache/write-timestamps';
 import { isEntityPath, lifecycleFields } from '../entity-snapshots/lifecycle';
-import { FieldValue, FieldPath } from 'firebase-admin/firestore';
+import { FieldValue, FieldPath, Timestamp } from 'firebase-admin/firestore';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 
@@ -105,7 +105,8 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
             if(method==='set'&&args[1]?.mergeFields)throw Error('Price mergeFields are not supported');
             return priceStore().then(store=>store.mutate([{id:object.id,data:method==='delete'?{}:args[0],
               mode:method==='create'?'create':method==='delete'?'delete':method==='set'&&!args[1]?.merge?'replace':'merge',
-              updateTime:method==='update'?args[1]?.lastUpdateTime:undefined}])).then(()=>({writeTime:undefined}));
+              exists:method==='update'?true:undefined,
+              updateTime:method==='update'?args[1]?.lastUpdateTime:method==='delete'?args[0]?.lastUpdateTime:undefined}])).then(()=>({writeTime:Timestamp.now()}));
           }
           if(method==='get'&&(kind==='doc'||kind==='query')&&shape.collection==='eod_prices')return priceSnapshot(observed,shape.steps??[],kind==='doc'?object.id:undefined);
           if(method==='getAll'&&kind==='db'&&args.some(ref=>ref?.path?.startsWith('eod_prices/'))){
