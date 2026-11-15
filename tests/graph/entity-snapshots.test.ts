@@ -141,22 +141,13 @@ test('snapshot pages stop fetching when the consumer stops',async()=>{
  query.orderBy=query.limit=()=>query;
  query.get=async()=>{calls++;return {size:250,docs:Array.from({length:250},(_,i)=>({id:String(i),data:()=>({updatedAt:stamp(1)}),get:()=>stamp(1)}))};};
  const source=snapshotSource({collection:()=>query} as unknown as Firestore);
- for await(const page of source.pages!('eod_prices',undefined,stamp(2))){assert.equal(page.length,250);break;}
+ for await(const page of source.pages!('companies',undefined,stamp(2))){assert.equal(page.length,250);break;}
  assert.equal(calls,1);
 });
 
 
-test('resumable price query preserves timestamp/ID cursor, caps reads and counts skipped operational IDs',async()=>{
- const through=new Timestamp(20,456),since=new Timestamp(10,123),cursor={id:'US_A_2026-01-02',updatedAt:new Timestamp(15,789)};
- const where:unknown[][]=[],order:unknown[]=[],after:unknown[][]=[];let requested=0;
- const docs=[{id:'_internal',data:()=>({updatedAt:stamp(16)}),get:()=>stamp(16)},
-  {id:'US_B_2026-01-02',data:()=>({updatedAt:new Timestamp(16,999)}),get:()=>new Timestamp(16,999)}];
- const query={where:(...args:unknown[])=>{where.push(args);return query;},orderBy:(field:unknown)=>{order.push(field);return query;},
-  startAfter:(...values:unknown[])=>{after.push(values);return query;},limit:(limit:number)=>{requested=limit;return query;},get:async()=>({docs,size:docs.length})};
- const source=snapshotSource({collection:(name:string)=>{assert.equal(name,'eod_prices');return query;}} as unknown as Firestore);
- const page=await source.pricePage!(since,through,cursor,2);
- assert.deepEqual(where,[['updatedAt','>=',since],['updatedAt','<=',through]]);
- assert.equal(order.length,2);assert.deepEqual(after,[[cursor.updatedAt,cursor.id]]);assert.equal(requested,2);
- assert.equal(page.reads,2);assert.equal(page.rows.length,1);assert.equal(page.cursor!.updatedAt!.nanoseconds,999);assert.equal(page.done,false);
- docs.length=0;assert.equal((await source.pricePage!(since,through,page.cursor,2)).reads,1);
+test('Firestore snapshot source refuses price scans before any database operation',async()=>{
+ const source=snapshotSource({collection:()=>{throw Error('Unexpected Firestore call');}} as unknown as Firestore);
+ await assert.rejects(source.rows('eod_prices',undefined,stamp(2)),/Prices are stored in Parquet/);
+ assert.equal(source.pricePage,undefined);
 });

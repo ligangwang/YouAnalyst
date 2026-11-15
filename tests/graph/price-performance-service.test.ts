@@ -1,190 +1,45 @@
-import test from 'node:test';
-import {createHash} from 'node:crypto';
+import test,{type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
-import type {Firestore} from 'firebase-admin/firestore';
+import {Firestore,Timestamp} from 'firebase-admin/firestore';
+import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
+import {createPriceFixture} from '../helpers/price-store';
+import {readHead,saveHead} from '../../src/lib/price-store/storage';
 import {attachPricePerformance} from '../../src/lib/intelligence/price-performance-service';
 import {loadPriceCache,createCachedPriceBatch,writeCachedPrice,writeCachedPrices} from '../../src/lib/intelligence/price-cache';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import type {IntelligenceEvent} from '../../src/lib/intelligence/model';
-
-function fixture(){
- type Row=Record<string,unknown>;type Ref={path:string};
- const data=new Map<string,Row>(),queries:Array<{limit:number;through:string}>=[],reads:string[]=[];
- let chain=Promise.resolve(),fail=false,versions=0;
- const snap=(r:Ref)=>{const row=structuredClone(data.get(r.path));return {id:r.path.split('/').at(-1)!,exists:!!row,data:()=>row,get:(k:string)=>row?.[k]};};
- function client(){
-  function collection(name:string){
-   function query(filters:Array<[string,string|string[]]>=[],limit=100,after=''){
-    return {doc:(id:string)=>({id,path:`${name}/${id}`,get:async()=>snap({path:`${name}/${id}`})}),
-     where:(_f:unknown,op:string,v:string|string[])=>query([...filters,[op,v]],limit,after),orderBy:()=>query(filters,limit,after),
-     limit:(n:number)=>query(filters,n,after),select:()=>query(filters,limit,after),startAfter:(d:{id:string})=>query(filters,limit,d.id),
-     get:async()=>{queries.push({limit,through:String(filters.find(([op])=>op==='<=')?.[1]??'')});
-      const docs=[...data.keys()].filter(p=>p.startsWith(name+'/')).map(p=>p.slice(name.length+1)).filter(id=>(!after||id<after)&&filters.every(([op,v])=>op==='in'?(v as string[]).includes(id):op==='>='?id>=String(v):id<=String(v))).sort().reverse().slice(0,limit).map(id=>snap({path:`${name}/${id}`}));
-      return {docs,size:docs.length};}};
-   }return query();
-  }
-  return {collection,getAll:async(...refs:Ref[])=>refs.map(snap),runTransaction:<T>(fn:(tx:unknown)=>Promise<T>)=>{
-   const task=chain.then(async()=>{
-    const writes:Array<()=>void>=[];
-    const tx={get:async(r:Ref&{get?:()=>unknown})=>{if(r.path){reads.push(r.path);return snap(r);}return r.get!();},getAll:async(...refs:Ref[])=>refs.map(snap),
-     set:(r:Ref,row:Row,opts?:{merge:boolean})=>{const copy=structuredClone(row);writes.push(()=>{if(r.path==='collectors/_graph_prices_v1')versions++;const previous=data.get(r.path)??{};data.set(r.path,opts?.merge?{...previous,...copy,...(copy.buckets?{buckets:{...(previous.buckets as Row),...(copy.buckets as Row)}}:{})}:copy);});},
-     create:(r:Ref,row:Row)=>{if(data.has(r.path))throw {code:6};writes.push(()=>data.set(r.path,structuredClone(row)));},
-     update:(r:Ref,row:Row)=>writes.push(()=>data.set(r.path,{...data.get(r.path),...row})),};
-    const result=await fn(tx);if(fail){fail=false;throw Error('commit failed');}writes.forEach(w=>w());return result;
-   });chain=task.then(()=>{},()=>{});return task;}} as unknown as Firestore;
- }
- const seed=(day:string,close:number)=>data.set(`eod_prices/US_UNIT_${day}`,{ticker:'UNIT',market:'US',isFinal:true,tradingDate:day,rawClose:close});
- return {data,queries,reads,client,seed,fail:()=>{fail=true;},versions:()=>versions};
+async function fixture(t:TestContext){
+ const f=createPriceFixture(),raw=new Firestore({projectId:'demo-parquet-prices'}),operations:unknown[]=[];
+ const db=observeFirestore(raw,e=>operations.push(e));
+ await saveHead(f.bucket,await readHead(f.bucket),{version:1,ready:true,files:[]});
+ globalThis.__youAnalystParquetStore=Promise.resolve(f.store);
+ t.after(async()=>{globalThis.__youAnalystParquetStore=undefined;globalThis.__youAnalystPriceHead=undefined;await f.store.close();await raw.terminate();assert.deepEqual(operations,[],'price features must not use Firestore');});
+ const input=(date:string,rawClose:number)=>({ref:db.collection('eod_prices').doc(`US_UNIT_${date}`),patch:{ticker:'UNIT',market:'US',tradingDate:date,rawClose,close:rawClose,isFinal:true,updatedAt:new Timestamp(1,0)}});
+ return {...f,db,input,publish:async(date:string,close:number)=>{const r=input(date,close);await writeCachedPrice(db,r.ref,r.patch);}};
 }
 const graph:KnowledgeGraph={nodes:[{id:'US:UNIT',kind:'COMPANY',order:0},{id:'ORG:PRIVATE',kind:'COMPANY',order:1}],relationships:[],sources:[],asOf:'2026-10-05'};
 const now=new Date('2026-10-06T16:00:00Z');
 const event:IntelligenceEvent={id:'e',origin:'US:UNIT',companyIds:['US:UNIT'],edgeIds:[],category:'BUSINESS',title:'News',summary:'',published_at:null,publication_date:'2026-10-02',eventDate:null,planned:false,evidence:[]};
-const publish=(db:Firestore,date:string,rawClose:number)=>writeCachedPrice(db,db.collection('eod_prices').doc(`US_UNIT_${date}`),{ticker:'UNIT',market:'US',isFinal:true,tradingDate:date,rawClose});
-
-test('metadata updates avoid graph bucket reads while price corrections still update the cache',async()=>{
- const f=fixture(),db=f.client();f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- await attachPricePerformance(db,graph,[],now);
- const versions=f.versions();f.reads.length=0;
- const ref=db.collection('eod_prices').doc('US_UNIT_2026-10-05');
- await writeCachedPrice(db,ref,{loadedAt:'2026-10-06T16:00:00Z'});
- assert.deepEqual(f.reads,['eod_prices/US_UNIT_2026-10-05']);
- assert.equal(f.data.get(ref.path)?.loadedAt,'2026-10-06T16:00:00Z');
- assert.equal(f.versions(),versions);
- f.reads.length=0;
- await publish(db,'2026-10-05',122);
- assert.equal(f.reads.length,2);assert.match(f.reads[1],/^collectors\/_graph_prices_v1_/);
- assert.equal((await attachPricePerformance(db,graph,[],now)).graph.nodes[0].dailyPrice?.close,122);
+test('graph prices and event baselines use Parquet and corrections invalidate the manifest version',async t=>{
+ const f=await fixture(t);await writeCachedPrices(f.db,[f.input('2026-10-01',100),f.input('2026-10-02',110),f.input('2026-10-05',121)]);
+ const before=await loadPriceCache(f.db,['UNIT']);
+ const first=await attachPricePerformance(f.db,graph,[event],now,before);
+ assert.equal(first.graph.nodes[0].dailyPrice?.close,121);assert(Math.abs(first.graph.nodes[0].dailyPrice!.change!-.1)<1e-12);
+ assert.equal(first.eventReturns.e[0].baselineDate,'2026-10-01');
+ await f.publish('2026-10-01',90);
+ const after=await loadPriceCache(f.db,['UNIT']);assert.notEqual(after.version,before.version);
+ const corrected=await attachPricePerformance(f.db,graph,[event],now,after);
+ assert.equal(corrected.eventReturns.e[0].baselineClose,90);
 });
-
-test('history batch preserves existing prices and changes the graph cache version once',async()=>{
- const f=fixture(),db=f.client();f.seed('2026-10-01',100);f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- await attachPricePerformance(db,graph,[event],now);const versions=f.versions();
- const rows=[['2026-09-30',90],['2026-10-01',999],['2026-10-06',130]].map(([date,close])=>({
-  ref:db.collection('eod_prices').doc(`US_UNIT_${date}`),patch:{ticker:'UNIT',market:'US',isFinal:true,tradingDate:date,rawClose:close}
- }));
- const result=await createCachedPriceBatch(db,rows);assert.deepEqual(result,{created:2,existing:1});
- assert.equal(f.data.get('eod_prices/US_UNIT_2026-10-01')?.rawClose,100);assert.equal(f.versions(),versions+1);
- const next=await attachPricePerformance(f.client(),graph,[event],new Date('2026-10-07T16:00:00Z'));
- assert.equal(next.graph.nodes[0].dailyPrice?.close,130);assert.equal(next.eventReturns.e[0].baselineClose,100);
- const afterRead=f.versions();
- f.fail();await assert.rejects(createCachedPriceBatch(db,[{ref:db.collection('eod_prices').doc('US_UNIT_2026-10-07'),patch:{ticker:'UNIT',market:'US',isFinal:true,tradingDate:'2026-10-07',rawClose:140}}]),/commit failed/);
- assert.equal(f.data.has('eod_prices/US_UNIT_2026-10-07'),false);assert.equal(f.versions(),afterRead);
+test('missing-only history preserves existing values and concurrent batches create each ID once',async t=>{
+ const f=await fixture(t);await f.publish('2026-10-01',99);
+ const results=await Promise.all([createCachedPriceBatch(f.db,[f.input('2026-10-01',10),f.input('2026-10-02',20)]),createCachedPriceBatch(f.db,[f.input('2026-10-02',30),f.input('2026-10-05',40)])]);
+ assert.equal(results.reduce((n,r)=>n+r.created,0),2);assert.equal((await f.db.collection('eod_prices').doc('US_UNIT_2026-10-01').get()).get('rawClose'),99);
 });
-
-test('graph reads exactly two closes once; cache survives elapsed time, weekends, concurrent clients and restarts',async()=>{
- const f=fixture();f.seed('2026-10-01',100);f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- const a=f.client(),b=f.client();
- const [first,second]=await Promise.all([attachPricePerformance(a,graph,[],now),attachPricePerformance(b,graph,[],now)]);
- assert.deepEqual(first,second);assert.equal(f.queries.length,1);assert.equal(f.queries[0].limit,2);
- assert.equal(first.graph.nodes[0].dailyPrice?.previousTradingDate,'2026-10-02');assert.equal(first.graph.nodes[0].dailyPrice?.close,121);
- await attachPricePerformance(a,graph,[],new Date('2026-10-06T18:00:00Z'));
- await attachPricePerformance(f.client(),graph,[],new Date('2026-10-11T18:00:00Z'));
- assert.equal(f.queries.length,1);assert.equal(graph.nodes[0].dailyPrice,undefined);
+test('large history batches remain bounded and persist all 1500 rows without Firestore',async t=>{
+ const f=await fixture(t),rows=Array.from({length:1500},(_,i)=>f.input(new Date(Date.UTC(2020,0,1+i)).toISOString().slice(0,10),100+i));
+ assert.deepEqual(await createCachedPriceBatch(f.db,rows),{created:1500,existing:0});
+ assert.equal((await f.store.query([{method:'limit',args:[2000]}])).length,1500);
+ assert.deepEqual(await createCachedPriceBatch(f.db,rows),{created:0,existing:1500});
 });
-
-test('an event gets only its needed baseline and shares it persistently',async()=>{
- const f=fixture();f.seed('2026-10-01',100);f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- const first=await attachPricePerformance(f.client(),graph,[event],now);
- assert.equal(first.eventReturns.e[0].baselineClose,100);assert.equal(first.eventReturns.e[0].latestClose,121);
- assert.deepEqual(f.queries.map(q=>q.limit),[2,1]);
- await attachPricePerformance(f.client(),graph,[event],now);assert.equal(f.queries.length,2);
-});
-
-test('new EOD and corrected closes push into cache without re-querying graph history',async()=>{
- const f=fixture(),db=f.client();f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- await attachPricePerformance(db,graph,[],now);const reads=f.queries.length;
- await publish(db,'2026-10-06',133.1);
- const later=new Date('2026-10-07T16:00:00Z');
- const next=await attachPricePerformance(db,graph,[],later);
- assert.equal(next.graph.nodes[0].dailyPrice?.previousTradingDate,'2026-10-05');assert.equal(next.graph.nodes[0].dailyPrice?.close,133.1);
- await publish(db,'2026-10-05',120);
- const corrected=await attachPricePerformance(f.client(),graph,[],later);
- assert.equal(corrected.graph.nodes[0].dailyPrice?.change,133.1/120-1);assert.equal(f.queries.length,reads);
-});
-
-test('historical correction invalidates an event baseline but leaves the two latest closes intact',async()=>{
- const f=fixture(),db=f.client();f.seed('2026-10-01',100);f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- await attachPricePerformance(db,graph,[event],now);
- await publish(db,'2026-10-01',101);
- const next=await attachPricePerformance(db,graph,[event],now);
- assert.equal(next.eventReturns.e[0].baselineClose,101);assert.equal(next.graph.nodes[0].dailyPrice?.close,121);
- assert.deepEqual(f.queries.map(q=>q.limit),[2,1,1]);
-});
-
-test('new sessions retain older event baselines and irrelevant backfills do not rewrite cache versions',async()=>{
- const f=fixture(),db=f.client();f.seed('2026-10-01',100);f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- await attachPricePerformance(db,graph,[event],now);
- await publish(db,'2026-10-06',130);
- const reads=f.queries.length;
- const next=await attachPricePerformance(f.client(),graph,[event],new Date('2026-10-07T16:00:00Z'));
- assert.equal(next.eventReturns.e[0].baselineClose,100);assert.equal(f.queries.length,reads);
- // With no affected baseline left, older inserts should not invalidate graph prices.
- await publish(db,'2026-09-01',90);
- const before=JSON.stringify(f.data.get('collectors/_graph_prices_v1'));
- await publish(db,'2026-09-02',91);
- assert.equal(JSON.stringify(f.data.get('collectors/_graph_prices_v1')),before);
-});
-
-test('empty prices do not expire, but first arrival wakes the cache; failed writes are atomic',async()=>{
- const f=fixture(),db=f.client();await attachPricePerformance(db,graph,[],now);
- await attachPricePerformance(f.client(),graph,[],now);assert.equal(f.queries.length,1);
- f.fail();await assert.rejects(publish(db,'2026-10-05',100),/commit failed/);
- assert.equal(f.data.has('eod_prices/US_UNIT_2026-10-05'),false);
- await publish(db,'2026-10-05',100);
- const next=await attachPricePerformance(db,graph,[],now);
- assert.equal(next.graph.nodes[0].dailyPrice?.close,100);assert.equal(next.graph.nodes[0].dailyPrice?.change,null);assert.equal(f.queries.length,1);
-});
-
-test('bootstrap skips invalid adjusted-only records and future sessions',async()=>{
- const f=fixture();f.seed('2026-10-01',100);f.seed('2026-10-02',110);
- f.data.set('eod_prices/US_UNIT_2026-10-05',{ticker:'UNIT',market:'US',tradingDate:'2026-10-05',isFinal:true,close:999});
- f.seed('2026-10-06',120);
- const next=await attachPricePerformance(f.client(),graph,[],now);
- assert.equal(next.graph.nodes[0].dailyPrice?.close,110);assert.equal(next.graph.nodes[0].dailyPrice?.previousTradingDate,'2026-10-01');
- assert(f.queries.every(q=>q.limit===2));
-});
-
-
-test('scoped price cache reads only requested buckets and retains concurrent bucket loads and corrections',async()=>{
- const f=fixture(),db=f.client(),reads:string[][]=[];
- const ids=['AMD','MU'].map(ticker=>createHash('sha256').update(`US_${ticker}`).digest('hex').slice(0,2));
- assert.notEqual(ids[0],ids[1]);
- const entry=(close:number)=>({bars:[{date:'2026-10-02',close}],baselines:{}});
- f.data.set('collectors/_graph_prices_v1',{buckets:{[ids[0]]:'a1',[ids[1]]:'m1'}});
- f.data.set(`collectors/_graph_prices_v1_${ids[0]}`,{entries:{US_AMD:entry(100)}});
- f.data.set(`collectors/_graph_prices_v1_${ids[1]}`,{entries:{US_MU:entry(200)}});
- const getAll=db.getAll.bind(db);
- db.getAll=(async(...refs:Parameters<Firestore['getAll']>)=>{reads.push(refs.map(ref=>(ref as {path:string}).path));return getAll(...refs);}) as Firestore['getAll'];
- assert.deepEqual(await loadPriceCache(db,[]),{version:'',entries:{}});
- const [amd,mu]=await Promise.all([loadPriceCache(db,['AMD']),loadPriceCache(db,['MU'])]);
- assert.deepEqual(Object.keys(amd.entries),['US_AMD']);assert.deepEqual(Object.keys(mu.entries),['US_MU']);
- assert.deepEqual(reads,ids.map(id=>[`collectors/_graph_prices_v1_${id}`]));
- await Promise.all([loadPriceCache(db,['AMD']),loadPriceCache(db,['MU'])]);assert.equal(reads.length,2,'both concurrent bucket loads must be retained');
- f.data.set('collectors/_graph_prices_v1',{buckets:{[ids[0]]:'a2',[ids[1]]:'m1'}});
- f.data.set(`collectors/_graph_prices_v1_${ids[0]}`,{entries:{US_AMD:entry(110)}});
- assert.equal((await loadPriceCache(db,['AMD'])).entries.US_AMD.bars[0].close,110);
- await loadPriceCache(db,['MU']);assert.equal(reads.length,3,'correction must reload only its own bucket');
-});
-
-
-test('bulk daily prices update graph bars atomically and roll back on failure',async()=>{
- const f=fixture(),db=f.client();f.seed('2026-10-02',110);f.seed('2026-10-05',121);
- await attachPricePerformance(db,graph,[event],now);
- const version=f.versions();
- const row={ref:db.collection('eod_prices').doc('US_UNIT_2026-10-05'),patch:{ticker:'UNIT',market:'US',isFinal:true,tradingDate:'2026-10-05',rawClose:132}};
- f.fail();await assert.rejects(writeCachedPrices(db,[row]),/commit failed/);
- assert.equal(f.data.get(row.ref.path)?.rawClose,121);assert.equal(f.versions(),version);
- await writeCachedPrices(db,[row]);
- assert.equal((await attachPricePerformance(db,graph,[],now)).graph.nodes[0].dailyPrice?.close,132);
- assert.equal(f.versions(),version+1);
- await writeCachedPrices(db,[row]);assert.equal(f.versions(),version+1,'replay must not invalidate unchanged graph prices');
-});
-
-test('1000 prices split into bounded atomic commits without dropping rows',async()=>{
- const f=fixture(),db=f.client();
- const rows=Array.from({length:1000},(_,i)=>({ref:db.collection('eod_prices').doc(`US_T${i}_2026-10-05`),
-  patch:{ticker:`T${i}`,market:'US',isFinal:true,tradingDate:'2026-10-05',rawClose:100+i}}));
- await writeCachedPrices(db,rows);
- assert.equal([...f.data.keys()].filter(k=>k.startsWith('eod_prices/')).length,1000);
- assert.equal(f.versions(),0,'uninitialized graph entries need no version writes');
-});
+test('an empty price demand does not initialize storage',async()=>{assert.deepEqual(await loadPriceCache({} as Firestore,[]),{version:'',entries:{}});});

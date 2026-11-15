@@ -362,8 +362,6 @@ jobs:
       TWELVE_DATA_API_URL: ${{ vars.TWELVE_DATA_API_URL }}
       EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}
       EODHD_API_URL: ${{ vars.EODHD_API_URL }}
-      PRICE_FIRESTORE_MIRROR: ${{ vars.PRICE_FIRESTORE_MIRROR || '0' }}
-      PRICE_STORAGE: ${{ vars.PRICE_STORAGE || 'firestore' }}
       EODHD_BULK_EOD_BUCKET: ${{ vars.EODHD_BULK_EOD_BUCKET }}
       INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -636,8 +634,6 @@ jobs:
       TWELVE_DATA_API_URL: ${{ vars.TWELVE_DATA_API_URL }}
       EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}
       EODHD_API_URL: ${{ vars.EODHD_API_URL }}
-      PRICE_FIRESTORE_MIRROR: ${{ vars.PRICE_FIRESTORE_MIRROR || '0' }}
-      PRICE_STORAGE: ${{ vars.PRICE_STORAGE || 'firestore' }}
       EODHD_BULK_EOD_BUCKET: ${{ vars.EODHD_BULK_EOD_BUCKET }}
       INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -965,8 +961,6 @@ jobs:
       TWELVE_DATA_API_URL: ${{ vars.TWELVE_DATA_API_URL }}
       EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}
       EODHD_API_URL: ${{ vars.EODHD_API_URL }}
-      PRICE_FIRESTORE_MIRROR: ${{ vars.PRICE_FIRESTORE_MIRROR || '0' }}
-      PRICE_STORAGE: ${{ vars.PRICE_STORAGE || 'firestore' }}
       EODHD_BULK_EOD_BUCKET: ${{ vars.EODHD_BULK_EOD_BUCKET }}
     steps:
       - uses: actions/checkout@v4

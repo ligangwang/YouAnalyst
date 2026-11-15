@@ -75,51 +75,24 @@ test('non-NVIDIA historical splits use provider-adjusted closes and invalid adju
 });
 
 
-test('peer price history watches the exact bounded query and pushes corrections',async(t)=>{
+test('peer price histories use bounded Parquet queries and see committed corrections without listeners',async t=>{
  const {loadPeerPrices}=await import('../src/lib/peer-comparison/price-cache');
+ const {createPriceFixture}=await import('./helpers/price-store');
+ const {Firestore}=await import('firebase-admin/firestore');
  const {observeFirestore}=await import('../src/lib/firebase/firestore-observability');
- const {closeLocalCaches}=await import('../src/lib/local-cache/watch');t.after(closeLocalCaches);
- let opens=0,value=1;const listeners=new Map<string,(snapshot:unknown)=>void>();const bounds:unknown[][]=[];
- const snapshot=()=>({docs:[{id:'price',data:()=>({rawClose:value})}],docChanges:()=>[{type:'modified',doc:{id:'price'}}]});
- const query=(clauses:unknown[][]=[])=>({path:'eod_prices',key:JSON.stringify(clauses),
-  isEqual(other:{key:string}){return this.key===other.key;},
-  where(...args:unknown[]){bounds.push(args);return query([...clauses,args]);},
-  orderBy(...args:unknown[]){return query([...clauses,args]);},limit(n:number){assert.equal(n,12);return query([...clauses,[n]]);},
-  get:async()=>{throw Error('No polling queries');},
-  onSnapshot(next:(snapshot:unknown)=>void){opens++;listeners.set(this.key,next);queueMicrotask(()=>next(snapshot()));return ()=>{listeners.delete(this.key);};}
- });
- const db=observeFirestore({collection:(name:string)=>{assert.equal(name,'eod_prices');return query();}} as unknown as import('firebase-admin/firestore').Firestore,()=>{});
+ const {readHead,saveHead}=await import('../src/lib/price-store/storage');
+ const f=createPriceFixture(),raw=new Firestore({projectId:'demo-parquet-peers'});let operations=0;
+ const db=observeFirestore(raw,()=>{operations++;});
+ globalThis.__youAnalystParquetStore=Promise.resolve(f.store);
+ t.after(async()=>{globalThis.__youAnalystParquetStore=undefined;globalThis.__youAnalystPriceHead=undefined;await f.store.close();await raw.terminate();});
+ await saveHead(f.bucket,await readHead(f.bucket),{version:1,ready:true,files:[]});
+ const rows=Array.from({length:20},(_,i)=>{const date=`2026-10-${String(i+1).padStart(2,'0')}`;return {id:`US_AMD_${date}`,data:{market:'US',ticker:'AMD',tradingDate:date,close:i+1,rawClose:i+1,isFinal:true}};});
+ await f.store.mutate(rows);
  const load=()=>loadPeerPrices(db,'US:AMD','US','2026-10-18');
- const [first,second]=await Promise.all([load(),load()]);assert.deepEqual(first,second);assert.equal(opens,1);
- value=2;for(const next of listeners.values())next(snapshot());assert.equal((await load())[0].rawClose,2);assert.equal(opens,1);
- assert.equal(bounds[0][2],'US_AMD_');assert.equal(bounds[1][2],'US_AMD_2026-10-18');
- await loadPeerPrices(db,'XSHE:000001','CN_A','2026-10-18');assert.equal(opens,2,'different company must have its own query');
- const {withSourceCache,sourceSnapshot}=await import('../src/lib/local-cache/read-scope');
- // Saturate the general source cache, as route/feed/status traffic does.
- for(let i=0;i<140;i++)await withSourceCache(()=>sourceSnapshot(db,query([['unrelated',i]]))!);
- const afterOtherReads=opens;
- await load();assert.equal(opens,afterOtherReads,'unrelated reads cannot evict peer prices');
- // Production browsing touched 478 tickers; a 256-entry LRU repeatedly
- // reloaded their latest twelve bars. Retain two dates across that universe.
- for(const day of ['2026-10-18','2026-10-19'])
-  for(let i=0;i<478;i++)await loadPeerPrices(db,`US:P${i}`,'US',day);
- const afterUniverse=opens;
- for(const day of ['2026-10-18','2026-10-19'])
-  for(let i=0;i<478;i++)await loadPeerPrices(db,`US:P${i}`,'US',day);
- assert.equal(opens,afterUniverse,'a second browsing cycle must not reload recent prices');
- value=7;for(const next of listeners.values())next(snapshot());
- assert.equal((await loadPeerPrices(db,'US:P0','US','2026-10-19'))[0].rawClose,7,'retained prices receive live corrections');
- await load();assert.equal(opens,afterUniverse,'revisiting a company reuses its price listener');
- await loadPeerPrices(db,'US:AMD','US','2026-10-19');
- assert.equal(opens,afterUniverse+1,'date bounds must remain distinct');
- // The dedicated partition still evicts idle queries at its own capacity.
- for(let i=0;i<1025;i++)await loadPeerPrices(db,`US:NEW${i}`,'US','2026-10-19');
- const afterCapacity=opens;
- await load();assert.equal(opens,afterCapacity+1,'oldest idle price query is evicted at capacity');
- value=3;for(const next of listeners.values())next(snapshot());
- assert.equal((await load())[0].rawClose,3,'reopened subscription still applies corrections');
+ const [first,second]=await Promise.all([load(),load()]);assert.deepEqual(first,second);assert.equal(first.length,12);assert.equal(first[0].rawClose,18);
+ await f.store.mutate([{id:'US_AMD_2026-10-18',data:{rawClose:99}}]);
+ assert.equal((await load())[0].rawClose,99);assert.equal(operations,0);
 });
-
 
 test('visible price demand deduplicates the selected company and bounds expanded pages',async()=>{
  const {normalizePriceDemand,visiblePriceIds}=await import('../src/lib/peer-comparison/price-demand');

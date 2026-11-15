@@ -1,3 +1,4 @@
+import {memoryPrices} from '../helpers/memory-prices';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { earningsFirestore } from '../helpers/earnings-firestore';
@@ -8,6 +9,7 @@ import {OnboardingCapacityDeferred} from '../../src/lib/instrument-onboarding/ca
 const bar=(date:string)=>({date,open:10,high:12,low:9,close:11,adjusted_close:10.5,volume:100});
 function fixture() {
   const f=earningsFirestore(),docs=f.rows,db=f.db;
+  memoryPrices(docs,changes=>db.runTransaction(async tx=>{for(const row of changes)tx.set(db.collection('eod_prices').doc(row.id),row.data);}));
   const files=new Map<string,string>();
   const bucket={file:(name:string)=>({name,download:async()=>{if(!files.has(name))throw {code:404};return [Buffer.from(files.get(name)!)];},save:async(value:string)=>{files.set(name,value);}})} as unknown as Bucket;
   return {db,bucket,docs,files,queries:f.queries,setFail:(value:boolean)=>f.reject(path=>value&&path.startsWith('eod_prices/'))};

@@ -1,40 +1,11 @@
 import type {Firestore,DocumentReference} from 'firebase-admin/firestore';
-import {Timestamp,getFirestore} from 'firebase-admin/firestore';
+import {Timestamp} from 'firebase-admin/firestore';
 import {PriceStore,readHead,type Head} from './storage';
 import {type Step} from './query';
 
-export const parquetPrices=()=>process.env.PRICE_STORAGE==='parquet';
-export const parquetReads=()=>parquetPrices()||process.env.PRICE_STORAGE==='parquet-read';
-export const shadowPrices=()=>['shadow','parquet-read'].includes(process.env.PRICE_STORAGE??'');
-export async function mirrorCommittedPrices(db:Firestore,ids:string[]){
- if(!shadowPrices()||!ids.length)return;
- const store=await priceStore();
- for(let i=0;i<ids.length;i+=500){
-  const docs=await db.getAll(...ids.slice(i,i+500).map(id=>db.collection('eod_prices').doc(id)));
-  await store.ingest(docs.filter(doc=>doc.exists).map(doc=>({id:doc.id,data:doc.data()!})));
- }
- console.info(JSON.stringify({event:'price_parquet_mirror',rows:ids.length}));
-}
-
-/** Temporary rollback copy. Only newly committed rows are touched; history is
- * never scanned. Timestamp guards prevent a delayed copy replacing newer data. */
-export async function mirrorParquetPrices(rows:Array<{id:string;data:Record<string,unknown>}>,source?:Firestore){
- if(process.env.PRICE_FIRESTORE_MIRROR!=='1')return;
- const db=source??getFirestore();
- for(let offset=0;offset<rows.length;offset+=200){
-  const page=rows.slice(offset,offset+200),refs=page.map(row=>db.collection('eod_prices').doc(row.id));
-  await db.runTransaction(async tx=>{
-   const previous=await tx.getAll(...refs);
-   for(let i=0;i<page.length;i++){
-    const stamp=page[i].data.updatedAt,old=previous[i].get('updatedAt');
-    if(!(stamp instanceof Timestamp))throw Error('Missing price commit timestamp');
-    if(old instanceof Timestamp&&old.valueOf()>stamp.valueOf())continue;
-    tx.set(refs[i],page[i].data);
-   }
-  });
- }
- console.info(JSON.stringify({event:'price_firestore_rollback_copy',rows:rows.length}));
-}
+// Prices have one authoritative store. Legacy environment flags cannot enable Firestore.
+export const parquetPrices=()=>true;
+export const parquetReads=()=>true;
 
 declare global {
  var __youAnalystParquetStore:Promise<PriceStore>|undefined;

@@ -1,8 +1,7 @@
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
-import {getFirestore} from 'firebase-admin/firestore';
 import {getStorage} from 'firebase-admin/storage';
 import {PriceStore,readHead,saveHead} from '../src/lib/price-store/storage';
-import {catchUpPrices,compactPrices} from '../src/lib/price-store/migration';
+import {compactPrices} from '../src/lib/price-store/migration';
 
 import {validatePrices} from '../src/lib/price-store/validate';
 import {importSqlitePrices} from '../src/lib/price-store/sqlite-import';
@@ -19,13 +18,12 @@ async function main(){
  const mode=process.env.PRICE_MIGRATION_MODE??'sqlite';
  const budget=Number(process.env.PRICE_MIGRATION_MAX_FILES??10000);
  if(!Number.isSafeInteger(budget)||budget<1||budget>100000)throw Error('Invalid file budget');
- if(!['sqlite','activate','catchup','compact','validate','inspect'].includes(mode))throw Error('Invalid migration mode');
+ if(!['sqlite','activate','compact','validate','inspect'].includes(mode))throw Error('Invalid migration mode');
  initializeApp({credential:applicationDefault(),projectId});
  const store=new PriceStore(getStorage().bucket(bucketName));
  try{
   const result=mode==='sqlite'?await importSqlitePrices(store,Number(process.env.PRICE_MIGRATION_MAX_FILES??10000)):
    mode==='activate'?await activate(store):
-   mode==='catchup'?await catchUpPrices(getFirestore(),store,Number(process.env.PRICE_MIGRATION_MAX_READS??50000)):
    mode==='validate'?await validatePrices(store):
    mode==='compact'?await compactPrices(store):await readHead(store.bucket).then(h=>({generation:h.generation,ready:h.manifest.ready,files:h.manifest.files.length,rows:h.manifest.files.reduce((n,f)=>n+f.rows,0),watermark:h.manifest.watermark}));
   console.info(JSON.stringify({event:'price_parquet_migration',mode,...result}));

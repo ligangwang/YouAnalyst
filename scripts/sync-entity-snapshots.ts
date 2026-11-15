@@ -1,4 +1,3 @@
-import {syncPricePartitions,priceSyncOptions} from '../src/lib/entity-snapshots/price-sync';
 import {queueFundamentalsSeeding} from '../src/lib/fundamentals/seed-queue';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getStorage} from 'firebase-admin/storage';
@@ -9,7 +8,7 @@ import {companyViewSnapshotFiles} from '../src/lib/entity-snapshots/company-view
 import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 
 async function main(){
-  const {dispatchInstruments,includePrices}=snapshotSyncOptions(process.argv.slice(2));
+  const {dispatchInstruments}=snapshotSyncOptions(process.argv.slice(2));
   const projectId=process.env.GCP_PROJECT_ID,bucketName=process.env.ENTITY_SNAPSHOT_BUCKET;
   if(!projectId||!bucketName)throw Error('GCP_PROJECT_ID and ENTITY_SNAPSHOT_BUCKET are required');
   if(process.env.ENTITY_TIMESTAMP_MIGRATION_COMPLETE!=='1')throw Error('Verify entity timestamp migration before enabling snapshot sync');
@@ -18,14 +17,6 @@ async function main(){
   let changed=0,records=0,deleted=0;
   try{
   for(const collection of collections){
-    if(collection==='eod_prices'){
-      if(includePrices&&process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'&&!['shadow','parquet-read','parquet'].includes(process.env.PRICE_STORAGE??'')){
-        const result=await syncPricePartitions(source,getStorage().bucket(bucketName),priceSyncOptions());
-        changed+=result.changed;records+=result.records;deleted+=result.deleted;
-        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'price_partition_sync',...result}));
-      }
-      continue;
-    }
     if(collection==='instruments'&&dispatchInstruments){
       const companies=(await files.load('companies')).snapshot;
       if(!companies)throw Error('Company snapshot required before instrument sync');

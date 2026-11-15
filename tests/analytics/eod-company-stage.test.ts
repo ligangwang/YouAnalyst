@@ -1,3 +1,4 @@
+import {memoryPrices} from '../helpers/memory-prices';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import type {Firestore} from 'firebase-admin/firestore';
@@ -12,6 +13,7 @@ for(const bulk of [false,true])test(`a real ${bulk?'bulk':'company'} stage marks
     ['predictions/b',{ticker:'MSFT',userId:'owner',status:'CREATED',visibility:'PUBLIC',direction:'UP',entryTargetDate:'2026-01-02',createdAt:'2026-01-01T00:00:00Z'}],
     ['users/owner',{stats:{totalScore:123}}],
   ]);
+  memoryPrices(rows);
   const queries:{name:string;filters:unknown[][]}[]=[];
   const ref=(path:string)=>({path,id:path.split('/').at(-1)!,firestore:db,
     get:async()=>({id:path.split('/').at(-1)!,ref:ref(path),exists:rows.has(path),data:()=>rows.get(path),get:(key:string)=>rows.get(path)?.[key]}),

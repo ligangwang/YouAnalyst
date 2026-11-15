@@ -71,7 +71,6 @@ test('repeated pageviews across the supported universe do not reopen unchanged s
  // Each history is larger than the old entire 4 MiB cache after a few charts.
  for(let i=0;i<12;i++){
   f.values.set(`eod_prices/${i}`,{history:'x'.repeat(500_000)});
-  await read('eod_prices',String(i));
  }
  const opens=f.opens;
  for(let view=0;view<3;view++)for(let i=0;i<180;i++){
@@ -79,7 +78,6 @@ test('repeated pageviews across the supported universe do not reopen unchanged s
   await readCompanyLookup(f.db,f.db.collection('companies').doc(`symbol-${i}`));
   await read('collectors',`news-health-${i}`);
   await read('collectors',`sec-identity-${i}`);
-  await read('eod_prices',String(i%12));
  }
  assert.equal(f.opens,opens,'warm pageviews must cause zero new Firestore subscriptions');
  assert.equal(f.gets,0);
