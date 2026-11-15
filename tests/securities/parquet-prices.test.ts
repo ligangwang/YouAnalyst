@@ -63,7 +63,8 @@ test('immutable publication preserves concurrent corrections, create guards, del
   await assert.rejects(f.store.mutate([{id:rows[0].id,data:{close:99},updateTime:new Timestamp(1,0)}]),{code:9});
   assert.deepEqual(await f.store.mutate([{id:rows[0].id,data:{close:99},mode:'missing'}]),{created:0,existing:1});
   await f.store.mutate([{id:rows[0].id,data:{},mode:'delete'}]);
-  const deleted=(await f.store.query([{method:'where',args:['id','==',rows[0].id]}]))[0];assert.equal(deleted.data.isDeleted,true);
+  assert.equal((await f.store.query([{method:'where',args:['id','==',rows[0].id]}])).length,0);
+  const deleted=(await f.store.query([{method:'where',args:['id','==',rows[0].id]}],undefined,true))[0];assert.equal(deleted.data.isDeleted,true);
   await f.store.mutate([{id:rows[0].id,data:{isDeleted:false}}]);
   const restored=(await f.store.query([{method:'where',args:['id','==',rows[0].id]}]))[0];assert.equal(restored.data.isDeleted,false);assert.equal(restored.data.deletedAt,undefined);
   assert.equal((await f.store.query([{method:'orderBy',args:['id']},{method:'startAfter',args:['US_A_2026-01-01']},{method:'limit',args:[1]}]))[0].id,'US_A_2026-01-02');
@@ -83,6 +84,8 @@ test('production adapter serves point, batch, cursor and price writes without Fi
   assert.deepEqual(await createCachedPriceBatch(db,[{ref:refs[0],patch:row('A','2026-01-01',99).data}]),{created:0,existing:1});
   const before=f.objects.get(HEAD)!.generation;
   await refs[0].set({close:16},{merge:true});assert.notEqual(f.objects.get(HEAD)!.generation,before);assert.equal((await refs[0].get()).get('rawClose'),10);
+  await refs[0].delete();assert.equal((await refs[0].get()).exists,false);
+  const remaining=await db.collection('eod_prices').orderBy(FieldPath.documentId()).limit(1).get();assert.equal(remaining.docs[0].id,'US_A_2026-01-02');
  }finally{Date.now=clock;if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
 });
 
@@ -174,4 +177,19 @@ test('rollback mirror touches only changed rows and never overwrites a newer sou
   await mirrorParquetPrices([row('A','2026-01-01',10),row('B','2026-01-01',20)],db);
   assert.deepEqual(reads,['US_A_2026-01-01','US_B_2026-01-01']);assert.deepEqual(written,['US_A_2026-01-01']);
  }finally{if(old===undefined)delete process.env.PRICE_FIRESTORE_MIRROR;else process.env.PRICE_FIRESTORE_MIRROR=old;}
+});
+
+
+test('a failed shadow copy does not turn a committed source transaction into failure',async()=>{
+ const f=fixture(),old=process.env.PRICE_STORAGE,logger=console.error;let committed=0;
+ const warnings:string[]=[];
+ const raw={collection:(name:string)=>({path:name,doc:(id:string)=>({id,path:`${name}/${id}`})}),
+  getAll:async()=>{throw Object.assign(Error('Replica unavailable'),{code:503});},
+  runTransaction:async(work:(tx:unknown)=>Promise<unknown>)=>work({create:()=>{committed++;}})} as unknown as Firestore;
+ try{
+  process.env.PRICE_STORAGE='shadow';globalThis.__youAnalystParquetStore=Promise.resolve(f.store);console.error=(value:string)=>{warnings.push(value);};
+  const db=observeFirestore(raw,()=>{}),ref=db.collection('eod_prices').doc('US_A_2026-01-01');
+  const result=await db.runTransaction(async tx=>{tx.create(ref,row('A','2026-01-01',10).data);return 'committed';});
+  assert.equal(result,'committed');assert.equal(committed,1);assert(warnings.some(value=>value.includes('price_parquet_mirror_failed')));
+ }finally{console.error=logger;if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
 });

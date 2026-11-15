@@ -219,7 +219,8 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
             }
             return result;
           }, ...args.slice(1)).then(async (result: any) => {
-            await mirrorCommittedPrices(object,[...new Set(changedCompanies.filter(row=>row.collection==='eod_prices').map(row=>row.id))]);
+            try{await mirrorCommittedPrices(object,[...new Set(changedCompanies.filter(row=>row.collection==='eod_prices').map(row=>row.id))]);}
+            catch(error){console.error(JSON.stringify({severity:'ERROR',event:'price_parquet_mirror_failed',repair:'updatedAt catch-up',errorCode:(error as {code?:number}).code??'unknown'}));}
             try{for(const collection of new Set(changedCompanies.map(row=>row.collection)))if(isSnapshotCollection(collection))await refreshCompanyDirectoryIds(observed,changedCompanies.filter(row=>row.collection===collection).map(row=>row.id),collection);}catch{console.warn('Company memory refresh failed after committed write');}
             writes(finalWrites, { status: 'success', transactionId, transactionAttempt: attempt, durationMs: Date.now() - started });
             emit('transaction', shape, site, { status: 'success', transactionId, attempts: attempt, durationMs: Date.now() - started });

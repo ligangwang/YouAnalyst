@@ -76,11 +76,11 @@ export class PriceStore {
    return await work(pinned.map(f=>f.path));
   }finally{for(const f of pinned)f.users--;await this.trim();}
  }
- async query(steps:Step[],head?:Head):Promise<Row[]>{
+ async query(steps:Step[],head?:Head,includeDeleted=false):Promise<Row[]>{
   const current=head??await readHead(this.bucket),plan=compileQuery(steps);
-  const key=JSON.stringify([current.generation,plan.where,plan.order,plan.limit,plan.selection]);
+  const key=JSON.stringify([current.generation,plan.where,plan.order,plan.limit,plan.selection,includeDeleted]);
   const cached=this.results.get(key);if(cached){this.results.delete(key);this.results.set(key,cached);return cached.promise;}
-  const entry={promise:this.reads.then(()=>this.queryUncached(steps,current)),bytes:0};
+  const entry={promise:this.reads.then(()=>this.queryUncached(steps,current,includeDeleted)),bytes:0};
   this.reads=entry.promise.catch(()=>{});this.results.set(key,entry);
   entry.promise.then(rows=>{entry.bytes=Buffer.byteLength(JSON.stringify(rows))*2+rows.length*256;
    let bytes=[...this.results.values()].reduce((n,e)=>n+e.bytes,0);
@@ -88,7 +88,7 @@ export class PriceStore {
   },()=>{this.results.delete(key);});
   return entry.promise;
  }
- private async queryUncached(steps:Step[],current:Head):Promise<Row[]>{
+ private async queryUncached(steps:Step[],current:Head,includeDeleted:boolean):Promise<Row[]>{
   if(!current.manifest.ready)throw Error('Parquet price migration is not ready');
   const plan=compileQuery(steps),files=current.manifest.files;
   const identity=compileQuery(steps.filter(s=>s.method==='where'&&['id','market','ticker','tradingDate'].includes(field(s.args[0])))).where;
@@ -125,7 +125,7 @@ export class PriceStore {
    const selected=files.filter(f=>f.groups.includes(group));
    const rows=await this.local(selected.map(f=>f.name),paths=>withDuck(async db=>{
     const union=paths.map((path,i)=>`SELECT *,${i} AS priority FROM read_parquet(${quote(path)}) WHERE ${groupPredicate(group)} AND ${identity}`).join(' UNION ALL ');
-    return (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1) SELECT id,payload FROM latest WHERE ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
+    return (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1) SELECT id,payload FROM latest WHERE ${includeDeleted?'TRUE':'"isDeleted" IS NOT TRUE'} AND ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
    }));
    result=[...result,...rows].sort(plan.compare).slice(0,plan.limit);
   }
@@ -173,7 +173,7 @@ export class PriceStore {
   if(changes.length>1000||new Set(changes.map(c=>c.id)).size!==changes.length)throw Error('Invalid price mutation batch');
   for(let attempt=0;attempt<5;attempt++){
    const head=await readHead(this.bucket);if(!head.manifest.ready)throw Error('Parquet price migration is not ready');
-   const previous=new Map((await this.query([{method:'where',args:['id','in',changes.map(c=>c.id)]},{method:'limit',args:[1000]}],head)).map(row=>[row.id,row.data]));
+   const previous=new Map((await this.query([{method:'where',args:['id','in',changes.map(c=>c.id)]},{method:'limit',args:[1000]}],head,true)).map(row=>[row.id,row.data]));
    let stamp=Timestamp.now();
    for(const data of previous.values())if(data.updatedAt instanceof Timestamp&&data.updatedAt.valueOf()>=stamp.valueOf()){
     const t=data.updatedAt;stamp=t.nanoseconds===999999999?new Timestamp(t.seconds+1,0):new Timestamp(t.seconds,t.nanoseconds+1);
@@ -196,7 +196,10 @@ export class PriceStore {
    const file=await this.upload(rows);
    try{await saveHead(this.bucket,head,{...head.manifest,files:[...head.manifest.files,file]});}
    catch(error){if((error as {code?:number}).code!==412||attempt===4)throw error;continue;}
-   const {mirrorParquetPrices}=await import('./runtime');await mirrorParquetPrices(rows);
+   const {mirrorParquetPrices}=await import('./runtime');
+   try{await mirrorParquetPrices(rows);}catch(error){
+    console.error(JSON.stringify({severity:'ERROR',event:'price_firestore_rollback_copy_failed',file:file.name,rows:rows.length,errorCode:(error as {code?:number}).code??'unknown'}));
+   }
    return {created,existing};
   }
   throw Error('Price publication conflict');
