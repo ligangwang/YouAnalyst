@@ -60,6 +60,17 @@ test('migration and runtime share bucket selection including distinct configured
  assert.equal(actionBucketName({ENTITY_SNAPSHOT_BUCKET:'entity',EODHD_BULK_EOD_BUCKET:'eod'}),'entity');
  assert.equal(actionBucketName({EODHD_BULK_EOD_BUCKET:'eod'}),'eod');assert.throws(()=>actionBucketName({}));
 });
+test('writer sees its correction immediately and another process refreshes within ten seconds',async()=>{
+ const f=fixture(),reader=new ActionStore(f.bucket),realNow=Date.now;let clock=realNow();Date.now=()=>clock;
+ try{
+  f.ready();await f.store.importShard(actionShard('NVDA'),[row('2024-06-10')]);
+  assert.equal((await reader.readTicker('NVDA'))[0].data.splitFactor,2);
+  await f.store.mergeTicker('NVDA',[row('2024-06-10',10,'2026-11-15T17:00:00Z')]);
+  assert.equal((await f.store.readTicker('NVDA'))[0].data.splitFactor,10);
+  clock+=10_001;
+  assert.equal((await reader.readTicker('NVDA'))[0].data.splitFactor,10);
+ }finally{Date.now=realNow;await reader.close();await f.store.close();}
+});
 test('concurrent updates preserve both records, cancellations and creation metadata; stale imports cannot undo corrections',async()=>{
  const f=fixture(),second=new ActionStore(f.bucket);try{
   await f.store.importShard(actionShard('NVDA'),[row('2021-07-20'),row('2024-06-10')]);f.ready();

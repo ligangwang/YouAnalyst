@@ -70,7 +70,9 @@ export class ActionStore implements ActionRepository {
     try{const [bytes]=await this.bucket.file(file.name,{generation}).download();return parse(bytes,generation);
     }catch(e){if(Number((e as {code?:number}).code)!==404)throw e;}
    }throw Error('Action shard changed repeatedly');
-  })();this.heads.set(shard,{until:Date.now()+1000,value});value.catch(()=>this.heads.delete(shard));return value;
+  // Corporate actions change infrequently. Bound cross-instance visibility to
+  // ten seconds; successful writes invalidate this instance immediately.
+  })();this.heads.set(shard,{until:Date.now()+(cached?10_000:1000),value});value.catch(()=>this.heads.delete(shard));return value;
  }
  private async rows(head:Head,ticker?:string):Promise<Row[]>{
   if(!head.file)return [];
