@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
+import {parquetPrices,priceStore} from '../price-store/runtime';
+import {readHead} from '../price-store/storage';
 import { FieldPath, type Firestore, type DocumentReference, type Precondition, type Transaction } from 'firebase-admin/firestore';
 import { predictionInstrument } from '../predictions/instrument';
 import { existingDocumentIds, runInsertTransaction } from '../firebase/insert-transaction';
@@ -36,6 +38,7 @@ async function queryCloses(db:Firestore,ticker:string,through:string,count:numbe
 }
 
 export async function loadPriceCache(db:Firestore,tickers?:string[]):Promise<PriceCacheView>{
+ if(parquetPrices()){const store=await priceStore();return {version:(await readHead(store.bucket)).generation,entries:{}};}
  const keys=tickers?[...new Set(tickers.filter(ticker=>predictionInstrument(ticker)).map(keyFor))]:undefined;
  if(keys&&!keys.length)return {version:'',entries:{}};
  const versions=((await db.collection('collectors').doc(META).get()).get('buckets')??{}) as Record<string,string>;
@@ -53,6 +56,7 @@ export async function loadPriceCache(db:Firestore,tickers?:string[]):Promise<Pri
 export async function cachedPriceEntry(db:Firestore,view:PriceCacheView,ticker:string,now:Date):Promise<Entry>{
  const key=keyFor(ticker),id=bucketFor(key);
  if(view.entries[key])return view.entries[key];
+ if(parquetPrices())return view.entries[key]={bars:await queryCloses(db,ticker,completedCloseDate(predictionInstrument(ticker)!.market,now),2),baselines:{}};
  const result=await db.runTransaction(async tx=>{
   const ref=refFor(db,id),doc=await tx.get(ref),entries=(doc.get('entries')??{}) as Bucket['entries'];
   if(entries[key])return entries[key];
@@ -69,6 +73,7 @@ export async function cachedBaseline(db:Firestore,view:PriceCacheView,ticker:str
  const key=keyFor(ticker),id=bucketFor(key),ref=refFor(db,id);
  const local=view.entries[key];
  if(local&&Object.hasOwn(local.baselines,through))return local.baselines[through]??undefined;
+ if(parquetPrices()){const bar=(await queryCloses(db,ticker,through,1)).at(-1);if(local)local.baselines[through]=bar??null;return bar;}
  const result=await db.runTransaction(async tx=>{
   const doc=await tx.get(ref),entries=(doc.get('entries')??{}) as Bucket['entries'];
   const entry=entries[key];if(!entry)throw Error('Graph price entry must be initialized');
@@ -89,6 +94,7 @@ export async function cachedBaseline(db:Firestore,view:PriceCacheView,ticker:str
  * EOD imports, history backfills and raw-close corrections share this path.
  */
 export async function writeCachedPrice(db:Firestore,ref:DocumentReference,patch:Record<string,unknown>,options:{create?:boolean;precondition?:Precondition}={}){
+ if(parquetPrices()){await (await priceStore()).mutate([{id:ref.id,data:patch,mode:options.create?'create':'merge',updateTime:options.precondition?.lastUpdateTime,exists:options.precondition?.exists}]);return;}
  await db.runTransaction(async tx=>{
   const source=await tx.get(ref),previous=source.data()??{},next={...previous,...patch};
   const ticker=String(next.ticker??''),instrument=predictionInstrument(ticker);
@@ -121,6 +127,7 @@ export async function writeCachedPrice(db:Firestore,ref:DocumentReference,patch:
  * 200 rows plus at most 200 buckets and one version document stay bounded.
  * Retries re-read both sources and caches, preserving concurrent corrections. */
 export async function writeCachedPrices(db:Firestore,rows:Array<{ref:DocumentReference;patch:Record<string,unknown>}>) {
+ if(parquetPrices()){for(let i=0;i<rows.length;i+=1000)await (await priceStore()).mutate(rows.slice(i,i+1000).map(row=>({id:row.ref.id,data:row.patch})));return;}
  for(let offset=0;offset<rows.length;offset+=200){
   const page=rows.slice(offset,offset+200);
   await db.runTransaction(async tx=>{
@@ -161,6 +168,7 @@ export async function createCachedPriceBatch(db:Firestore,rows:Array<{ref:Docume
  if(!rows.length)return {created:0,existing:0};
  const ticker=String(rows[0].patch.ticker??''),instrument=predictionInstrument(ticker);
  if(!instrument||rows.some(row=>row.patch.ticker!==ticker||row.patch.market!==instrument.market))throw Error('Price batch must contain one instrument');
+ if(parquetPrices())return (await priceStore()).mutate(rows.map(row=>({id:row.ref.id,data:row.patch,mode:'missing'})));
  const key=keyFor(ticker),id=bucketFor(key);
  const write=async(tx:Transaction,checkExisting:boolean)=>{
   // All reads precede writes, including the cache bucket. A transaction retry

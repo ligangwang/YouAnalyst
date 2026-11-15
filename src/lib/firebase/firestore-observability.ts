@@ -1,4 +1,5 @@
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
+import {parquetPrices,priceSnapshot,priceDocuments,priceStore} from '../price-store/runtime';
 import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, registerCompanySource, refreshCompanyDirectoryIds } from '../local-cache/company-directory';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
 import { timestampWrite } from '../central-cache/write-timestamps';
@@ -97,6 +98,23 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         if(method==='recursiveDelete'&&(isEntityPath(args[0]?.path??'')||isEntityPath(`${args[0]?.path}/generated`)))throw Error('Use soft deletion for entity collections');
         const mutating=['set','update','delete','create'].includes(method);
         const entityPath=kind==='doc'?object.path:args[0]?.path;
+        if(parquetPrices()){
+          if(mutating&&entityPath?.startsWith('eod_prices/')){
+            if(kind!=='doc')throw Error('Parquet price writes must use the price repository');
+            if(method==='update'&&(!args[0]||Object.getPrototypeOf(args[0])!==Object.prototype))throw Error('Price updates require an object');
+            if(method==='set'&&args[1]?.mergeFields)throw Error('Price mergeFields are not supported');
+            return priceStore().then(store=>store.mutate([{id:object.id,data:method==='delete'?{}:args[0],
+              mode:method==='create'?'create':method==='delete'?'delete':method==='set'&&!args[1]?.merge?'replace':'merge',
+              updateTime:method==='update'?args[1]?.lastUpdateTime:undefined}])).then(()=>({writeTime:undefined}));
+          }
+          if(method==='get'&&(kind==='doc'||kind==='query')&&shape.collection==='eod_prices')return priceSnapshot(observed,shape.steps??[],kind==='doc'?object.id:undefined);
+          if(method==='getAll'&&kind==='db'&&args.some(ref=>ref?.path?.startsWith('eod_prices/'))){
+            const refs=args.filter(ref=>ref?.path),prices=refs.filter(ref=>ref.path.startsWith('eod_prices/'));
+            return priceDocuments(observed,prices).then(async docs=>{const found=new Map(docs.map(doc=>[doc.ref.path,doc]));return Promise.all(refs.map(ref=>found.get(ref.path)??ref.get()));});
+          }
+          if(method==='onSnapshot'&&shape.collection==='eod_prices')throw Error('Parquet prices use manifest versions, not Firestore listeners');
+          if(kind==='transaction'&&(method==='get'||method==='getAll')&&args.some(ref=>ref?.path?.startsWith('eod_prices/')))throw Error('Cross-store price transactions are not supported');
+        }
         if(mutating&&kind==='batch'&&isEntityPath(entityPath??''))throw Error('Entity writes require a transaction; use runTransaction or mutateEntity');
         if(mutating&&kind==='transaction'&&entityTx){
           entityTx.writes.push({method,args:args.map(unwrap),site});
@@ -124,7 +142,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         }
         if (['where', 'orderBy', 'limit', 'limitToLast', 'offset', 'select', 'startAt', 'startAfter', 'endAt', 'endBefore', 'withConverter', 'count', 'aggregate'].includes(method)) {
           let result;
-          if(isSnapshotCollection(shape.collection)&&companyDirectoryEnabled(observed)&&['startAt','startAfter','endAt','endBefore'].includes(method)&&args[0]?.get&&args[0]?.ref){
+          if(isSnapshotCollection(shape.collection)&&(companyDirectoryEnabled(observed)||parquetPrices()&&shape.collection==='eod_prices')&&['startAt','startAfter','endAt','endBefore'].includes(method)&&args[0]?.get&&args[0]?.ref){
             const orders=(shape.steps??[]).filter(s=>s.method==='orderBy');
             let query=object;
             if(!orders.some(s=>s.args[0] instanceof FieldPath&&(s.args[0] as FieldPath).isEqual(FieldPath.documentId()))){
