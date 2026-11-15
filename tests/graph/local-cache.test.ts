@@ -7,10 +7,10 @@ import { localDocuments, localEntityVersions } from '../../src/lib/local-cache/e
 import { Watch, closeLocalCaches } from '../../src/lib/local-cache/watch';
 import {collectionSourceSnapshot,withSourceCache} from '../../src/lib/local-cache/read-scope';
 
-test('Parquet dataset bootstrap reads never create persistent Firestore listeners',()=>{
+test('Parquet dataset bootstrap reads never create persistent Firestore listeners',async()=>{
  const source={isEqual:()=>false,onSnapshot:()=>{throw Error('Unexpected Firestore listener');}};
  for(const collection of ['eod_prices','corporate_actions']){
-  assert.equal(withSourceCache(()=>collectionSourceSnapshot({},source,collection)),undefined);
+  assert.equal(await withSourceCache(async()=>collectionSourceSnapshot({},source,collection)),undefined);
  }
 });
 
