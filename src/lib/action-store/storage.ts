@@ -21,10 +21,10 @@ function validate(row:Row){
   ||!/^\d{4}-\d{2}-\d{2}$/.test(d.effectiveDate)||row.id!==`${d.market}_${d.ticker}_${d.type}_${d.effectiveDate}`
   ||typeof d.updatedAt!=='string'||!Number.isFinite(Date.parse(d.updatedAt)))throw Error('Invalid corporate action identity or timestamp');
 }
-function merge(a:Record<string,unknown>,b:Record<string,unknown>):Record<string,unknown>{
+export function mergeActionFields(a:Record<string,unknown>,b:Record<string,unknown>):Record<string,unknown>{
  const result={...a};for(const [key,value] of Object.entries(b)){
   result[key]=value&&Object.getPrototypeOf(value)===Object.prototype&&Object.keys(value).length
-   ?merge(result[key]&&Object.getPrototypeOf(result[key])===Object.prototype?result[key] as Record<string,unknown>:{},value as Record<string,unknown>):value;
+   ?mergeActionFields(result[key]&&Object.getPrototypeOf(result[key])===Object.prototype?result[key] as Record<string,unknown>:{},value as Record<string,unknown>):value;
  }return result;
 }
 /** Immutable Parquet shards plus a generation-conditional GCS pointer. A failed
@@ -33,16 +33,18 @@ export class ActionStore implements ActionRepository {
  private files:PriceStore;
  private heads=new Map<string,{until:number;value:Promise<Head>}>();
  private results=new Map<string,{rows:Row[];bytes:number}>();
- private ready?:{until:number;value:Promise<void>};
+ private ready?:{until:number;value:Promise<boolean>};
  constructor(readonly bucket:Bucket){this.files=new PriceStore(bucket,32*1024*1024);}
  async close(){await this.files.close();}
- private async assertReady(){
+ async isReady(){
   if(!this.ready||this.ready.until<Date.now()){
    const value=this.bucket.file(`${ACTION_ROOT}/ready.json`).download().then(([bytes])=>{
-    if(JSON.parse(bytes.toString()).ready!==true)throw Error('Corporate action migration is not ready');
+    const ready=JSON.parse(bytes.toString()).ready;
+    if(typeof ready!=='boolean')throw Error('Invalid action migration state');return ready;
    });this.ready={until:Date.now()+1000,value};value.catch(()=>{this.ready=undefined;});
-  }await this.ready.value;
+  }return this.ready.value;
  }
+ private async assertReady(){if(!await this.isReady())throw Error('Corporate action migration is not ready');}
  private async head(shard:string,cached=false):Promise<Head>{
   if(!/^[0-9a-f]{2}$/.test(shard))throw Error('Invalid action shard');
   const old=this.heads.get(shard);if(cached&&old&&old.until>Date.now())return old.value;
@@ -75,6 +77,7 @@ export class ActionStore implements ActionRepository {
  async mergeTicker(ticker:string,rows:Row[]){
   await this.assertReady();await this.updateShard(actionShard(ticker),rows,ticker);
  }
+ async stageTicker(ticker:string,rows:Row[]){await this.updateShard(actionShard(ticker),rows,ticker);}
  /** Operator import preserves newer production corrections during cutover. */
  async importShard(shard:string,rows:Row[]){for(const row of rows)validate(row);await this.updateShard(shard,rows);}
  private async updateShard(shard:string,changes:Row[],ticker?:string){
@@ -82,7 +85,7 @@ export class ActionStore implements ActionRepository {
   if(new Set(changes.map(r=>r.id)).size!==changes.length)throw Error('Duplicate action mutation');
   for(let attempt=0;attempt<12;attempt++){
    const head=await this.head(shard),current=await this.rows(head),byId=new Map(current.map(r=>[r.id,r]));
-   for(const row of changes){const old=byId.get(row.id),data=merge(old?.data??{},row.data),next={id:row.id,data};validate(next);
+   for(const row of changes){const old=byId.get(row.id),data=mergeActionFields(old?.data??{},row.data),next={id:row.id,data};validate(next);
     if(actionShard(String(data.ticker))!==shard||(ticker!==undefined&&data.ticker!==ticker))throw Error('Action shard mismatch');
     if(old&&Date.parse(old.data.updatedAt)>Date.parse(String(data.updatedAt)))continue;
     byId.set(row.id,next);

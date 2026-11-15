@@ -6,10 +6,11 @@ import {createHash} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {ActionStore,ACTION_ROOT,actionShard} from '../src/lib/action-store/storage';
 import {encode} from '../src/lib/central-cache/codec';
+import {actionBucketName} from '../src/lib/action-store/config';
 import type {Row} from '../src/lib/entity-snapshots/sync';
 
 async function main(){
- const project=process.env.GOOGLE_CLOUD_PROJECT,bucketName=process.env.EODHD_BULK_EOD_BUCKET;
+ const project=process.env.GOOGLE_CLOUD_PROJECT,bucketName=actionBucketName();
  if(project!=='ifindata-80905'||!bucketName)throw Error('Explicit production project and bucket required');
  initializeApp({credential:applicationDefault(),projectId:project});const db=getFirestore();
  const bucket=new Storage({projectId:project}).bucket(bucketName),store=new ActionStore(bucket);
@@ -42,7 +43,9 @@ async function main(){
   if(!total||checked!==total||parquetRows<total)throw Error('Incomplete action migration');
   const audit={startedAt,completedAt:new Date().toISOString(),sourceRows:total,sourceCountAfter:count,parquetRows,checked,newer,sourceIdSha256:hash.digest('hex'),backup,firestoreWrites:0};
   await bucket.file(`${ACTION_ROOT}/operator/${run}/audit.json`).save(JSON.stringify(audit),{resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/json'}});
-  if(process.env.VERIFY_ONLY!=='1')await bucket.file(`${ACTION_ROOT}/ready.json`).save('{"ready":true}',{resumable:false,metadata:{contentType:'application/json',cacheControl:'private, no-store'}});
+  // Readiness is a separate operator step AFTER every old writer has drained.
+  // New writers stage Parquet before updating Firestore throughout this copy.
+  // A cached bootstrap writer finishing after publication is therefore safe.
   console.info(JSON.stringify({event:'action_migration_verified',...audit}));
  }finally{await store.close();}
 }
