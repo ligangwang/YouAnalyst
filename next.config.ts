@@ -15,6 +15,8 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
+  serverExternalPackages: ['@duckdb/node-api'],
+  outputFileTracingIncludes: { '/*': ['node_modules/@duckdb/node-bindings-linux-x64/**/*'] },
   deploymentId: process.env.GIT_SHA,
   // A new document must never ask a draining predecessor for new chunks.
   // These public build assets are published and verified before promotion.

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK snapshots retain their public shape. */
 import { AsyncLocalStorage } from 'node:async_hooks';
+import {parquetReads} from '../price-store/runtime';
 import { Watch, track } from './watch';
 import {companySourceSnapshot,liveCompanyReads,isSnapshotCollection} from './company-directory';
 declare global {
@@ -102,6 +103,7 @@ const policies: Record<string, readonly [number, number]> = {
   events: [8192, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
+ if(collection==='eod_prices'&&parquetReads())return undefined;
   if(isSnapshotCollection(collection)){
     if(liveCompanyReads())return undefined;
     const cached=companySourceSnapshot(owner as import('firebase-admin/firestore').Firestore,source);

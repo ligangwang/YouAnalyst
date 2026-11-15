@@ -19,7 +19,7 @@ async function main(){
   try{
   for(const collection of collections){
     if(collection==='eod_prices'){
-      if(includePrices&&process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'){
+      if(includePrices&&process.env.PRICE_TIMESTAMP_MIGRATION_COMPLETE==='1'&&!['shadow','parquet-read','parquet'].includes(process.env.PRICE_STORAGE??'')){
         const result=await syncPricePartitions(source,getStorage().bucket(bucketName),priceSyncOptions());
         changed+=result.changed;records+=result.records;deleted+=result.deleted;
         console.info(JSON.stringify({job:'sync-entity-snapshots',event:'price_partition_sync',...result}));
