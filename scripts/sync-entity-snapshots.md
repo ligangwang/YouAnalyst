@@ -103,10 +103,10 @@ by setting its `PRICE_TIMESTAMP_MIGRATION_COMPLETE=0` until its next release.
 This leaves the entity schedule and instrument dispatch running normally.
 
 The dedicated job shares the existing price checkpoint, page journal, and lease.
-Default scheduled operation retains 50,000 reads, 500 publications, and a
+Default scheduled operation allows 50,000 reads, 10,000 publications, and a
 20-minute soft deadline. `PRICE_SYNC_PAGE_SIZE` accepts 1-5,000 (the dedicated
 job uses 5,000); `PRICE_SYNC_PUBLISH_CONCURRENCY` accepts 1-8 (the dedicated job
-uses 4). Neither setting increases the per-execution read budget.
+uses 8). Neither setting increases the per-execution read budget.
 
 After scanning, an immutable `staging/<scan-id>/changes.sqlite` index groups the
 saved pages once. If indexing reaches its deadline, `partial.sqlite` preserves
@@ -118,7 +118,9 @@ The index is removed with the journal after checkpoint publication.
 
 For an explicitly approved backlog catch-up, execute the dedicated job
 sequentially with execution-only overrides such as `PRICE_SYNC_MAX_READS=500000`
-and `PRICE_SYNC_MAX_PARTITIONS=10000`. Do not change the saved routine limit.
+and `PRICE_SYNC_MAX_PARTITIONS=10000`. Keep the routine read limit at 50,000.
+The daily publication limit is 10,000 so one market-wide update can finish
+without spreading publication across many days.
 Check each successful execution, the saved scan ID/cursor, and phase logs before
 starting the next. Stop when the fixed scan's completed checkpoint is published;
 then run one normal bounded pass to capture later changes. Never reset the
