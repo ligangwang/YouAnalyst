@@ -1,3 +1,4 @@
+import {actionRepository} from '../action-store/runtime';
 import {randomUUID} from 'node:crypto';
 import {FieldPath, type Firestore} from 'firebase-admin/firestore';
 import {historyProviderSymbol} from './history-backfill';
@@ -88,15 +89,17 @@ export async function syncCorporateActions(input:{db:Firestore;tickers:string[];
           if(!response.ok)throw Error('Provider request failed');
           events=splitHistory(await response.json(),through,claim.from);
         }catch{throw Error('Corporate action provider unavailable or invalid');}
-        const stored=await db.collection('corporate_actions').where('ticker','==',ticker).get();
+        const repository=await actionRepository(db);
+        const records=await repository.readTicker(ticker);
+        const stored={docs:records.map(row=>({id:row.id,data:()=>row.data}))};
         const byId=new Map(stored.docs.map(doc=>[doc.id,doc]));
         const seen=new Set(events.map(event=>event.date));
-        const writes:{ref:FirebaseFirestore.DocumentReference;data:Record<string,unknown>}[]=[];
+        const writes:{id:string;data:Record<string,unknown>}[]=[];
         const stamp=new Date(now()).toISOString();
         for(const event of events){
           const id=`${instrument.market}_${ticker}_split_${event.date}`,existing=byId.get(id)?.data();
           // Preserve original creation metadata when refreshing or correcting an event.
-          writes.push({ref:db.collection('corporate_actions').doc(id),data:{schemaVersion:1,instrumentId:`${instrument.market}_${ticker}`,ticker,market:instrument.market,
+          writes.push({id,data:{schemaVersion:1,instrumentId:`${instrument.market}_${ticker}`,ticker,market:instrument.market,
             providerSymbol,type:'split',effectiveDate:event.date,exDate:event.date,status:'completed',splitNumerator:event.numerator,splitDenominator:event.denominator,
             splitFactor:event.numerator/event.denominator,source:'eodhd-splits',sourceUrl:'https://eodhd.com/financial-apis/api-splits-dividends',providerEventId:`${providerSymbol}:split:${event.date}`,
             sourcePayload:{date:event.date,split:event.split},retrievedAt:stamp,updatedAt:stamp,...(!existing?.createdAt?{createdAt:stamp}:{})}});
@@ -105,12 +108,10 @@ export async function syncCorporateActions(input:{db:Firestore;tickers:string[];
         for(const doc of stored.docs){
           const data=doc.data(),date=data.effectiveDate;
           if(data.market===instrument.market&&data.type==='split'&&data.source==='eodhd-splits'&&validDate(date)&&date<=through&&(!claim.from||date>=claim.from)&&!seen.has(date)&&data.status==='completed'){
-            writes.push({ref:doc.ref,data:{status:'cancelled',updatedAt:stamp,retrievedAt:stamp}});
+            writes.push({id:doc.id,data:{status:'cancelled',updatedAt:stamp,retrievedAt:stamp}});
           }
         }
-        for(let offset=0;offset<writes.length;offset+=400){
-          const batch=db.batch();for(const write of writes.slice(offset,offset+400))batch.set(write.ref,write.data,{merge:true});await batch.commit();
-        }
+        await repository.mergeTicker(ticker,writes);
         await db.runTransaction(async tx=>{
           if((await tx.get(stateRef)).data()?.leaseOwner!==owner)throw Error('Split sync lease lost');
           tx.set(stateRef,{historyComplete:true,lastSuccessfulThrough:through,status:'completed',leaseUntil:0,leaseOwner:null,lastError:null,updatedAt:stamp},{merge:true});
