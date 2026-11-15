@@ -164,6 +164,7 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
     staging=new Database(indexPath,{readonly:true});
    }
    const objects=(staging.prepare('SELECT DISTINCT object FROM changes WHERE object>? ORDER BY object').all(pending.lastPublished??'') as {object:string}[]).map(row=>row.object);
+   let publishedSinceSave=0;
    for(let offset=0;offset<objects.length;){
     if(partitions>=maxPartitions||now()>=deadline)return result('partial');
     const batch=objects.slice(offset,offset+Math.min(publishConcurrency,maxPartitions-partitions));
@@ -186,7 +187,11 @@ export async function syncPricePartitions(source:Source,bucket:Bucket,options:Pr
     const failure=published.find(value=>value.status==='rejected');if(failure?.status==='rejected')throw failure.reason;
     for(const value of published)if(value.status==='fulfilled')records+=value.value;
     partitions+=batch.length;offset+=batch.length;
-    pending.lastPublished=batch.at(-1);await persist();
+    pending.lastPublished=batch.at(-1);publishedSinceSave+=batch.length;
+    // Coalesce cursor writes so storage pacing does not delay every batch.
+    // A crash replays at most 32 immutable, idempotent publications; normal
+    // bounded exits and failures save the latest completed batch in finally.
+    if(publishedSinceSave+publishConcurrency>32||offset>=objects.length){await persist();publishedSinceSave=0;}
     if(partitions%100===0)console.info(JSON.stringify({event:'price_sync_progress',phase:'publish',partitions,lastPublished:pending.lastPublished}));
    }
    const latest=await readObject(bucket,CHECKPOINT);
