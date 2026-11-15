@@ -40,7 +40,11 @@ export class ActionStore implements ActionRepository {
   if(!this.ready||this.ready.until<Date.now()){
    const value=this.bucket.file(`${ACTION_ROOT}/ready.json`).download().then(([bytes])=>{
     const ready=JSON.parse(bytes.toString()).ready;
-    if(typeof ready!=='boolean')throw Error('Invalid action migration state');return ready;
+    if(typeof ready!=='boolean')throw Error('Invalid action migration state');
+    // Readiness changes once during cutover; retain the false state for only a
+    // second, and avoid a GCS configuration read on every subsequent chart.
+    if(ready&&this.ready?.value===value)this.ready.until=Date.now()+10_000;
+    return ready;
    });this.ready={until:Date.now()+1000,value};value.catch(()=>{this.ready=undefined;});
   }return this.ready.value;
  }
@@ -50,13 +54,20 @@ export class ActionStore implements ActionRepository {
   const old=this.heads.get(shard);if(cached&&old&&old.until>Date.now())return old.value;
   const value=(async()=>{
    const file=this.bucket.file(`${ACTION_ROOT}/heads/${shard}.json`);
+   const parse=(bytes:Buffer,generation:string)=>{
+    const data=JSON.parse(bytes.toString());
+    if(typeof data.file!=='string'||!new RegExp(`^${ACTION_ROOT}/data/${shard}-[a-f0-9-]+\\.parquet$`).test(data.file))throw Error('Invalid action shard pointer');
+    return {generation,file:data.file as string};
+   };
+   // Reads only need the atomically downloaded pointer to immutable data. The
+   // extra generation lookup is necessary for writers' CAS, not for queries.
+   if(cached){try{const [bytes]=await file.download();return parse(bytes,'read-only');}
+    catch(e){if(Number((e as {code?:number}).code)===404)return {generation:'0'};throw e;}}
    for(let i=0;i<4;i++){
     let generation:string;
     try{const [meta]=await file.getMetadata();generation=String(meta.generation);}
     catch(e){if(Number((e as {code?:number}).code)===404)return {generation:'0'};throw e;}
-    try{const [bytes]=await this.bucket.file(file.name,{generation}).download();const data=JSON.parse(bytes.toString());
-     if(typeof data.file!=='string'||!new RegExp(`^${ACTION_ROOT}/data/${shard}-[a-f0-9-]+\\.parquet$`).test(data.file))throw Error('Invalid action shard pointer');
-     return {generation,file:data.file};
+    try{const [bytes]=await this.bucket.file(file.name,{generation}).download();return parse(bytes,generation);
     }catch(e){if(Number((e as {code?:number}).code)!==404)throw e;}
    }throw Error('Action shard changed repeatedly');
   })();this.heads.set(shard,{until:Date.now()+1000,value});value.catch(()=>this.heads.delete(shard));return value;
