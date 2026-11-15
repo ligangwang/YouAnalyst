@@ -95,7 +95,10 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
  };
  // One-company requests create one group each. Keep fundamentals independently
  // of company traffic, with both ID and estimated payload limits for larger batches.
- const maxGroups=256;
+ // Single-company fundamentals visits otherwise exhaust 256 groups while
+ // retaining less than 1 MiB. Let these groups use the existing 960-ID budget;
+ // the independent 16 MiB payload bound still closes large snapshots sooner.
+ const maxGroups=storeKey==='company_fundamentals'?960:256;
  // Regional graph requests share thousands of projected market-cap rows. A
  // 2,000-ID limit evicted one region when the next region loaded, repeating both
  // bulk reads and listener initialization. Keep their compact working set while

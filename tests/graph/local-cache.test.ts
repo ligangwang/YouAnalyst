@@ -140,7 +140,7 @@ test('missing sitemap file falls back once; an empty file and file errors do not
 
 test('fundamentals survive individual-company browsing and company-cache churn',async t=>{
  t.after(closeLocalCaches);const f=fixture();
- for(let i=0;i<180;i++){
+ for(let i=0;i<900;i++){
   const load=localDocuments(f.db,'company_fundamentals',[String(i)]);
   f.listeners.at(-1)!.next({docs:[f.doc(String(i),i)]});await load;
  }
@@ -149,8 +149,8 @@ test('fundamentals survive individual-company browsing and company-cache churn',
   f.listeners.at(-1)!.next({docs:[]});await load;
  }
  const count=f.listeners.length;
- const result=await localDocuments(f.db,'company_fundamentals',['0','90','179']);
- assert.deepEqual(result!.map(d=>d.get('n')),[0,90,179]);assert.equal(f.listeners.length,count);
+ const result=await localDocuments(f.db,'company_fundamentals',['0','450','899']);
+ assert.deepEqual(result!.map(d=>d.get('n')),[0,450,899]);assert.equal(f.listeners.length,count);
  f.listeners[0].next({docs:[f.doc('0',999)]});
  assert.equal((await localDocuments(f.db,'company_fundamentals',['0']))![0].get('n'),999);
  f.listeners[0].next({docs:[]});
@@ -164,12 +164,13 @@ test('fundamentals survive individual-company browsing and company-cache churn',
 test('fundamentals capacity evicts idle groups but preserves a pending reader',async t=>{
  t.after(closeLocalCaches);const f=fixture();
  const pending=localDocuments(f.db,'company_fundamentals',['pending']);
- for(let i=0;i<270;i++){
+ for(let i=0;i<970;i++){
   const load=localDocuments(f.db,'company_fundamentals',[String(i)]);
   f.listeners.at(-1)!.next({docs:[]});await load;
  }
  assert.equal(f.listeners[0].closed,false);
- assert.ok(f.listeners.filter(l=>!l.closed).length<=256);
+ assert.ok(f.listeners.filter(l=>!l.closed).length<=960);
+ assert.equal(f.listeners[1].closed,true,'idle entries still close at the existing document bound');
  f.listeners[0].next({docs:[f.doc('pending',1)]});await pending;
 });
 
