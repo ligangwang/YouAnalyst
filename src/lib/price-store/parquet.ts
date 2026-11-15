@@ -9,9 +9,10 @@ export const priceColumns={id:'VARCHAR',market:'VARCHAR',ticker:'VARCHAR',tradin
  close:'DOUBLE',rawClose:'DOUBLE',open:'DOUBLE',high:'DOUBLE',low:'DOUBLE',volume:'DOUBLE',
  isFinal:'BOOLEAN',isDeleted:'BOOLEAN',updatedAt:'BIGINT',payload:'VARCHAR'} as const;
 export const timestampNanos=(value:Timestamp)=>BigInt(value.seconds)*BigInt(1_000_000_000)+BigInt(value.nanoseconds);
-let tail:Promise<unknown>=Promise.resolve();
+declare global {var __youAnalystDuckQueue:{tail:Promise<unknown>}|undefined;}
+const queue=globalThis.__youAnalystDuckQueue??={tail:Promise.resolve()};
 export function withDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
- const result=tail.then(()=>runDuck(work));tail=result.catch(()=>{});return result;
+ const result=queue.tail.then(()=>runDuck(work));queue.tail=result.catch(()=>{});return result;
 }
 async function runDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
  const {DuckDBInstance}=await import('@duckdb/node-api');

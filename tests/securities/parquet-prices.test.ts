@@ -11,6 +11,7 @@ import type {Bucket} from '@google-cloud/storage';
 import {Firestore} from 'firebase-admin/firestore';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {writeCachedPrice,createCachedPriceBatch} from '../../src/lib/intelligence/price-cache';
+import {mirrorParquetPrices} from '../../src/lib/price-store/runtime';
 import {Readable} from 'node:stream';
 import {entitySqliteBuilder} from '../../src/lib/entity-snapshots/sqlite';
 import {importSqlitePrices} from '../../src/lib/price-store/sqlite-import';
@@ -70,7 +71,8 @@ test('immutable publication preserves concurrent corrections, create guards, del
 });
 
 test('production adapter serves point, batch, cursor and price writes without Firestore RPCs',async()=>{
- const f=fixture(),old=process.env.PRICE_STORAGE;try{
+ const f=fixture(),old=process.env.PRICE_STORAGE,clock=Date.now;try{
+  Date.now=()=>1794750000000;
   await seed(f);process.env.PRICE_STORAGE='parquet';globalThis.__youAnalystParquetStore=Promise.resolve(f.store);
   const db=observeFirestore(new Firestore({projectId:'demo-parquet'}),()=>{throw Error('Unexpected Firestore operation');});
   const first=await db.collection('eod_prices').orderBy('tradingDate','desc').limit(1).get();assert.equal(first.docs[0].get('close'),11);
@@ -81,7 +83,7 @@ test('production adapter serves point, batch, cursor and price writes without Fi
   assert.deepEqual(await createCachedPriceBatch(db,[{ref:refs[0],patch:row('A','2026-01-01',99).data}]),{created:0,existing:1});
   const before=f.objects.get(HEAD)!.generation;
   await refs[0].set({close:16},{merge:true});assert.notEqual(f.objects.get(HEAD)!.generation,before);assert.equal((await refs[0].get()).get('rawClose'),10);
- }finally{if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
+ }finally{Date.now=clock;if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
 });
 
 test('compaction preserves every field and retains the newest correction',async()=>{
@@ -158,4 +160,18 @@ test('compaction recovers a crash after manifest publication without losing rows
   assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),expected);
   assert.equal(f.objects.has('price-parquet/v1/compaction.json'),false);
  }finally{await f.store.close();}
+});
+
+
+test('rollback mirror touches only changed rows and never overwrites a newer source',async()=>{
+ const old=process.env.PRICE_FIRESTORE_MIRROR,reads:string[]=[],written:string[]=[];
+ const db={collection:()=>({doc:(id:string)=>({id})}),runTransaction:async(work:(tx:unknown)=>Promise<void>)=>work({
+  getAll:async(...refs:Array<{id:string}>)=>refs.map(ref=>{reads.push(ref.id);return {get:()=>new Timestamp(ref.id.includes('_B_')?30:1,0)};}),
+  set:(ref:{id:string})=>{written.push(ref.id);}
+ })} as unknown as Firestore;
+ try{
+  process.env.PRICE_FIRESTORE_MIRROR='1';
+  await mirrorParquetPrices([row('A','2026-01-01',10),row('B','2026-01-01',20)],db);
+  assert.deepEqual(reads,['US_A_2026-01-01','US_B_2026-01-01']);assert.deepEqual(written,['US_A_2026-01-01']);
+ }finally{if(old===undefined)delete process.env.PRICE_FIRESTORE_MIRROR;else process.env.PRICE_FIRESTORE_MIRROR=old;}
 });

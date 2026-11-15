@@ -194,8 +194,10 @@ export class PriceStore {
    }
    if(!rows.length)return {created,existing};
    const file=await this.upload(rows);
-   try{await saveHead(this.bucket,head,{...head.manifest,files:[...head.manifest.files,file]});return {created,existing};}
-   catch(error){if((error as {code?:number}).code!==412||attempt===4)throw error;}
+   try{await saveHead(this.bucket,head,{...head.manifest,files:[...head.manifest.files,file]});}
+   catch(error){if((error as {code?:number}).code!==412||attempt===4)throw error;continue;}
+   const {mirrorParquetPrices}=await import('./runtime');await mirrorParquetPrices(rows);
+   return {created,existing};
   }
   throw Error('Price publication conflict');
  }

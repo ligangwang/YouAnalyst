@@ -18,7 +18,7 @@ gcloud storage buckets add-iam-policy-binding "gs://$ENTITY_SNAPSHOT_BUCKET" --p
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 2Gi --cpu 1 \
-  --set-env-vars "^|^NODE_OPTIONS=--max-old-space-size=1536|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|PRICE_STORAGE=${PRICE_STORAGE:-firestore}|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests|SEC_BULK_FINANCIALS_ENABLED=1|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --set-env-vars "^|^NODE_OPTIONS=--max-old-space-size=1536|ENTITY_SNAPSHOT_BUCKET=$ENTITY_SNAPSHOT_BUCKET|GCP_PROJECT_ID=$GCP_PROJECT_ID|PRICE_STORAGE=${PRICE_STORAGE:-firestore}|PRICE_FIRESTORE_MIRROR=${PRICE_FIRESTORE_MIRROR:-0}|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests|SEC_BULK_FINANCIALS_ENABLED=1|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 # Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
 ensure_maintenance_job_iam "$job"
 operation=create

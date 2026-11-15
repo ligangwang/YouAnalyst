@@ -40,7 +40,7 @@ gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$DIRECTORY_SYNC_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-cni-directory.cjs --min-instances 0 --max-instances 4 \
   --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|PRICE_STORAGE=${PRICE_STORAGE:-firestore}|GIT_SHA=${GIT_SHA:-unknown}|DIRECTORY_SUBSCRIPTION=$subscription|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|PRICE_STORAGE=${PRICE_STORAGE:-firestore}|PRICE_FIRESTORE_MIRROR=${PRICE_FIRESTORE_MIRROR:-0}|GIT_SHA=${GIT_SHA:-unknown}|DIRECTORY_SUBSCRIPTION=$subscription|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
