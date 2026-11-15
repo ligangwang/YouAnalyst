@@ -1,3 +1,4 @@
+import {setActionRepositoryForTest} from '../../src/lib/action-store/runtime';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {build} from 'esbuild';
@@ -120,6 +121,7 @@ test('company and instrument admission validate backfills without financial data
     ]);
     const snapshot=(path:string)=>({data:()=>rows.get(path)});
     const db={collection:(name:string)=>{assert.notEqual(name,'company_fundamentals','onboarding must not access financial storage');return {doc:(key:string)=>({path:name+'/'+key,get:async()=>snapshot(name+'/'+key)})};},getAll:async(...refs:{path:string}[])=>refs.map(ref=>snapshot(ref.path))} as unknown as Firestore;
+    setActionRepositoryForTest(db,{readTicker:async()=>[...rows].filter(([key])=>key.startsWith('corporate_actions/')).map(([key,data])=>({id:key.split('/')[1],data})),mergeTicker:async()=>{throw Error('Unexpected action write');}});
     const bucket={file:(path:string)=>({download:async()=>{if(!files.has(path))throw Error('Missing backfill cache');return [Buffer.from(JSON.stringify(files.get(path)))];}})};
     const handlers=api.createOnboardingHandlers({db,bucket:bucket as never,token:'unused',log:{runId:'test'} as never,maintenanceReady:async()=>true});
     const context={request,instrument,company,guard:async()=>{}};

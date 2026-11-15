@@ -1,3 +1,4 @@
+import {fixtureActions} from '../helpers/actions';
 import {onboardingFixture} from '../helpers/instrument-onboarding';
 import {onboarding} from '../helpers/company-onboarding';
 import test from 'node:test';
@@ -203,6 +204,7 @@ test('corporate action ingestion resumes from cache, preserves creation metadata
     return endpoint.pathname.includes('/splits/')?new Response(JSON.stringify([{date:'2021-01-02',split:'3/2'}]))
       :failDividend?new Response('unavailable',{status:503}):new Response(JSON.stringify([{date:'2022-02-02',value:0.25,unadjustedValue:0.5,currency:'USD'}]));
   }};
+  fixtureActions(input.db);
   await assert.rejects(()=>backfillOnboardingActions(input));assert.equal(commits,0,'Both provider histories must validate before publishing actions');
   failDividend=false;assert.deepEqual(await backfillOnboardingActions(input),{splits:1,dividends:1});assert.equal(providerCalls,3);
   assert.equal(rows.get('US_NEW_split_2021-01-02')?.createdAt,'original');

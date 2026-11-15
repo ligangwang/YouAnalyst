@@ -1,3 +1,4 @@
+import {fixtureActions} from '../helpers/actions';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {corporateActionTickers,splitHistory,syncCorporateActions} from '../../src/lib/predictions/corporate-actions';
@@ -17,6 +18,7 @@ function memoryDb(){
       const writes:{ref:{path:string};data:Record<string,unknown>}[]=[];
       return {set:(ref:{path:string},data:Record<string,unknown>)=>writes.push({ref,data}),commit:async()=>{if(failCommit)throw Error('write failed');writes.forEach(({ref,data})=>documents.set(ref.path,{...documents.get(ref.path),...data}));}};
     }};
+  fixtureActions(db);
   return {db:db as never,documents,setFailCommit:(value:boolean)=>{failCommit=value;}};
 }
 const through='2026-10-16',now=()=>Date.parse('2026-10-16T22:00:00Z');

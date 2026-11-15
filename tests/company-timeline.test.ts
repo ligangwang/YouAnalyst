@@ -1,3 +1,4 @@
+import {fixtureActions} from './helpers/actions';
 import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } from '../src/lib/ui/chart-share';
 import { eventReturnDays } from '../src/lib/ui/event-return-age';
 import test from "node:test";
@@ -120,7 +121,7 @@ test('stored splits support other listings and reverse splits, exclude future ac
  assert.throws(()=>timelineSplits([split,{...split,splitNumerator:2}],'UNIT','US','2026-10-16'));
 });
 
-test('Firestore split reads change the chart cache revision when actions change and propagate failures',async()=>{
+test('Repository split reads change the chart cache revision when actions change and propagate failures',async()=>{
  let ratio=4;
  const db={collection:(name:string)=>{
   assert.equal(name,'corporate_actions');
@@ -129,6 +130,7 @@ test('Firestore split reads change the chart cache revision when actions change 
    return {get:async()=>({docs:[{data:()=>({ticker:'UNIT',market:'US',type:'split',status:'completed',effectiveDate:'2021-07-20',splitNumerator:ratio,splitDenominator:1})}]})};
   }};
  }};
+ fixtureActions(db);
  const first=await loadTimelineSplits(db as never,'UNIT','US','2026-10-16');
  ratio=5;
  const second=await loadTimelineSplits(db as never,'UNIT','US','2026-10-16');
@@ -136,10 +138,11 @@ test('Firestore split reads change the chart cache revision when actions change 
  const row={ticker:'UNIT',market:'US',tradingDate:'2020-12-31',rawClose:100,close:100};
  assert.equal(mapTimelinePrice(row,'UNIT','US',first.splits)!.close,25);
  assert.equal(mapTimelinePrice(row,'UNIT','US',second.splits)!.close,20);
- await assert.rejects(loadTimelineSplits({collection:()=>{throw Error('unavailable');}} as never,'UNIT','US','2026-10-16'),/unavailable/);
+ const broken={collection:()=>{throw Error('unavailable');}};fixtureActions(broken);
+ await assert.rejects(loadTimelineSplits(broken as never,'UNIT','US','2026-10-16'),/unavailable/);
 });
 
-test('timeline API adjusts Firestore OHLC before aggregation, refreshes changed splits and fails on unreadable actions',async()=>{
+test('timeline API adjusts stored OHLC before aggregation, refreshes changed splits and fails on unreadable actions',async()=>{
  const compiled=await build({entryPoints:['src/app/api/company-timeline/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{
   name:'test-firestore',setup(builder){builder.onResolve({filter:/firebase\/admin$/},()=>({path:'test-firestore',external:true}));},
  }]});
@@ -156,6 +159,7 @@ test('timeline API adjusts Firestore OHLC before aggregation, refreshes changed 
   const query={where:()=>query,orderBy:()=>query,limit:(n:number)=>{limit=n;return query;},get:async()=>({docs:limit===1?[{id:'US_NVDA_2024-06-07',updateTime:{toMillis:()=>1}}]:[{data:()=>row}]})};
   return query;
  }};
+ fixtureActions(db);
  const evaluated={exports:{}};const nativeRequire=createRequire(import.meta.url);
  new Function('require','module','exports',compiled.outputFiles[0].text)((name:string)=>name==='test-firestore'?{getAdminFirestore:()=>db}:nativeRequire(name),evaluated,evaluated.exports);
  const {GET}=evaluated.exports as typeof import('../src/app/api/company-timeline/route');

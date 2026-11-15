@@ -1,3 +1,4 @@
+import {fixtureActions} from './helpers/actions';
 import {ComparisonCoverageError,comparisonErrorResponse} from '../src/lib/compare-error';
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -125,6 +126,7 @@ test("loads only stored prices/actions and uses the same chart mapper", async ()
       get:async()=>({docs:(name==="corporate_actions"?[split]:rows).map(row=>({data:()=>row}))})};
     return query;
   }} as unknown as Firestore;
+  fixtureActions(db);
   const data=await loadStockComparison(db,{...config,symbols:["NVDA"]});
   assert.ok(Math.abs(data.series[0].values[1]-10)<1e-10);
   assert.deepEqual([...new Set(collections)].sort(),["corporate_actions","eod_prices"]);
@@ -142,6 +144,7 @@ test('coverage errors return 422 while infrastructure errors remain redacted 503
   assert.deepEqual(await result.json(),{error:'Unable to load stored price history. Please try again.'});
  }
  const db={collection(){const query={where(){return query;},orderBy(){return query;},limit(){return query;},get:async()=>({docs:[]})};return query;}} as unknown as Firestore;
+ fixtureActions(db);
  await assert.rejects(loadStockComparison(db,{...config,symbols:['YPF']}),error=>{
   assert(error instanceof ComparisonCoverageError);assert.equal(comparisonErrorResponse(error).status,422);return true;
  });
