@@ -152,7 +152,6 @@ test('graph subscriber keeps request and filing delivery isolated and processing
   assert.match(r.calls, /subscriptions describe company-graph-filings.*value\(topic\)/);
   assert.deepEqual(r.workerEnv, {
     ENTITY_SNAPSHOT_BUCKET:'demo-snapshots',
-    PRICE_STORAGE:'firestore',PRICE_FIRESTORE_MIRROR:'0',
     SEC_INCREMENTAL_DOWNLOADS_ENABLED:'0',SEC_DOCUMENT_CACHE_BUCKET:'',
     CENTRAL_CACHE_URL: '',
     GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit', SEC_USER_AGENT: 'test contact',

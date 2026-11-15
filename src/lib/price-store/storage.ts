@@ -199,10 +199,6 @@ export class PriceStore {
    const file=await this.upload(rows);
    try{await saveHead(this.bucket,head,{...head.manifest,files:[...head.manifest.files,file]});}
    catch(error){if((error as {code?:number}).code!==412||attempt===4)throw error;continue;}
-   const {mirrorParquetPrices}=await import('./runtime');
-   try{await mirrorParquetPrices(rows);}catch(error){
-    console.error(JSON.stringify({severity:'ERROR',event:'price_firestore_rollback_copy_failed',file:file.name,rows:rows.length,errorCode:(error as {code?:number}).code??'unknown'}));
-   }
    return {created,existing};
   }
   throw Error('Price publication conflict');

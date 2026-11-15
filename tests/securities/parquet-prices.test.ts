@@ -11,11 +11,10 @@ import type {Bucket} from '@google-cloud/storage';
 import {Firestore} from 'firebase-admin/firestore';
 import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import {writeCachedPrice,createCachedPriceBatch} from '../../src/lib/intelligence/price-cache';
-import {mirrorParquetPrices} from '../../src/lib/price-store/runtime';
 import {Readable} from 'node:stream';
 import {entitySqliteBuilder} from '../../src/lib/entity-snapshots/sqlite';
 import {importSqlitePrices} from '../../src/lib/price-store/sqlite-import';
-import {exportPrices,compactPrices} from '../../src/lib/price-store/migration';
+import {compactPrices} from '../../src/lib/price-store/migration';
 
 function fixture(){
  const failDelete=new Set<string>();
@@ -72,10 +71,10 @@ test('immutable publication preserves concurrent corrections, create guards, del
 });
 
 test('production adapter serves point, batch, cursor and price writes without Firestore RPCs',async()=>{
- const f=fixture(),old=process.env.PRICE_STORAGE,clock=Date.now;try{
+ const f=fixture(),old=process.env.PRICE_STORAGE,mirror=process.env.PRICE_FIRESTORE_MIRROR,clock=Date.now;let operations=0;try{
   Date.now=()=>1794750000000;
-  await seed(f);process.env.PRICE_STORAGE='parquet';globalThis.__youAnalystParquetStore=Promise.resolve(f.store);
-  const db=observeFirestore(new Firestore({projectId:'demo-parquet'}),()=>{throw Error('Unexpected Firestore operation');});
+  await seed(f);process.env.PRICE_STORAGE='firestore';process.env.PRICE_FIRESTORE_MIRROR='1';globalThis.__youAnalystParquetStore=Promise.resolve(f.store);
+  const db=observeFirestore(new Firestore({projectId:'demo-parquet'}),()=>{operations++;});
   const first=await db.collection('eod_prices').orderBy('tradingDate','desc').limit(1).get();assert.equal(first.docs[0].get('close'),11);
   const next=await db.collection('eod_prices').orderBy('tradingDate','desc').startAfter(first.docs[0]).limit(1).get();assert.equal(next.docs[0].get('close'),10);
   const refs=['US_A_2026-01-01','US_MISSING_2026-01-01'].map(id=>db.collection('eod_prices').doc(id));
@@ -85,8 +84,29 @@ test('production adapter serves point, batch, cursor and price writes without Fi
   const before=f.objects.get(HEAD)!.generation;
   await refs[0].set({close:16},{merge:true});assert.notEqual(f.objects.get(HEAD)!.generation,before);assert.equal((await refs[0].get()).get('rawClose'),10);
   await refs[0].delete();assert.equal((await refs[0].get()).exists,false);
-  const remaining=await db.collection('eod_prices').orderBy(FieldPath.documentId()).limit(1).get();assert.equal(remaining.docs[0].id,'US_A_2026-01-02');
- }finally{Date.now=clock;if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
+  const remaining=await db.collection('eod_prices').orderBy(FieldPath.documentId()).limit(1).get();assert.equal(remaining.docs[0].id,'US_A_2026-01-02');assert.equal(operations,0,'legacy flags cannot restore Firestore price access');
+ }finally{if(mirror===undefined)delete process.env.PRICE_FIRESTORE_MIRROR;else process.env.PRICE_FIRESTORE_MIRROR=mirror;Date.now=clock;if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
+});
+
+test('missing Parquet data and unsupported SDK operations never fall back to Firestore',async()=>{
+ const f=fixture();let operations=0;
+ try{
+  globalThis.__youAnalystParquetStore=Promise.resolve(f.store);
+  const db=observeFirestore(new Firestore({projectId:'demo-parquet'}),()=>{operations++;});
+  const prices=db.collection('eod_prices'),ref=prices.doc('US_A_2026-01-01');
+  await assert.rejects(ref.get(),/not ready/);
+  await assert.rejects(db.getAll(ref),/not ready/);
+  await assert.rejects(ref.set({close:1}),/not ready/);
+  assert.throws(()=>prices.stream(),/Unsupported/);
+  assert.throws(()=>prices.listDocuments(),/Unsupported/);
+  assert.throws(()=>ref.listCollections(),/Unsupported/);
+  assert.throws(()=>prices.count().get(),/manifest versions/);
+  assert.throws(()=>prices.onSnapshot(()=>{}),/manifest versions/);
+  assert.throws(()=>db.collectionGroup('eod_prices'),/stored in Parquet/);
+  assert.throws(()=>db.recursiveDelete(prices),/stored in Parquet/);
+  assert.throws(()=>db.batch().set(ref,{close:1}),/price repository/);
+  assert.equal(operations,0);
+ }finally{globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
 });
 
 test('compaction preserves every field and retains the newest correction',async()=>{
@@ -100,22 +120,6 @@ test('compaction preserves every field and retains the newest correction',async(
   assert.equal(rows.length,2);
  }finally{await f.store.close();}
 });
-
-test('full export resumes its cursor and verifies every field before becoming ready',async()=>{
- const f=fixture(),rows=[row('A','2026-01-01',10),row('A','2026-01-02',11),row('B','2025-12-31',20)];
- function query(cursor='',limit=5000):unknown{return {orderBy:()=>query(cursor,limit),limit:(n:number)=>query(cursor,n),startAfter:(id:string)=>query(id,limit),get:async()=>{
-  const docs=rows.filter(r=>r.id>cursor).slice(0,limit).map(r=>({id:r.id,data:()=>r.data}));return {docs,size:docs.length,readTime:new Timestamp(20,0)};
- }};}
- const db={collection:()=>query()} as unknown as Firestore;
- try{
-  assert.equal((await exportPrices(db,f.store,{maxReads:2,maxDurationMs:10000})).status,'partial');
-  const partial=await readHead(f.bucket);assert.equal(partial.manifest.ready,false);assert.equal(partial.manifest.cursor,rows[1].id);
-  assert.equal((await exportPrices(db,f.store,{maxReads:2,maxDurationMs:10000})).status,'complete');
-  const head=await readHead(f.bucket);assert.equal(head.manifest.files.reduce((n,file)=>n+file.rows,0),3);
-  assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),rows);
- }finally{await f.store.close();}
-});
-
 
 test('historical migration resumes from SQLite alone and preserves all source fields',async()=>{
  const f=fixture(),directory=await mkdtemp(join(tmpdir(),'sqlite-source-'));
@@ -163,33 +167,4 @@ test('compaction recovers a crash after manifest publication without losing rows
   assert.deepEqual(await f.store.query([{method:'orderBy',args:['id']}]),expected);
   assert.equal(f.objects.has('price-parquet/v1/compaction.json'),false);
  }finally{await f.store.close();}
-});
-
-
-test('rollback mirror touches only changed rows and never overwrites a newer source',async()=>{
- const old=process.env.PRICE_FIRESTORE_MIRROR,reads:string[]=[],written:string[]=[];
- const db={collection:()=>({doc:(id:string)=>({id})}),runTransaction:async(work:(tx:unknown)=>Promise<void>)=>work({
-  getAll:async(...refs:Array<{id:string}>)=>refs.map(ref=>{reads.push(ref.id);return {get:()=>new Timestamp(ref.id.includes('_B_')?30:1,0)};}),
-  set:(ref:{id:string})=>{written.push(ref.id);}
- })} as unknown as Firestore;
- try{
-  process.env.PRICE_FIRESTORE_MIRROR='1';
-  await mirrorParquetPrices([row('A','2026-01-01',10),row('B','2026-01-01',20)],db);
-  assert.deepEqual(reads,['US_A_2026-01-01','US_B_2026-01-01']);assert.deepEqual(written,['US_A_2026-01-01']);
- }finally{if(old===undefined)delete process.env.PRICE_FIRESTORE_MIRROR;else process.env.PRICE_FIRESTORE_MIRROR=old;}
-});
-
-
-test('a failed shadow copy does not turn a committed source transaction into failure',async()=>{
- const f=fixture(),old=process.env.PRICE_STORAGE,logger=console.error;let committed=0;
- const warnings:string[]=[];
- const raw={collection:(name:string)=>({path:name,doc:(id:string)=>({id,path:`${name}/${id}`})}),
-  getAll:async()=>{throw Object.assign(Error('Replica unavailable'),{code:503});},
-  runTransaction:async(work:(tx:unknown)=>Promise<unknown>)=>work({create:()=>{committed++;}})} as unknown as Firestore;
- try{
-  process.env.PRICE_STORAGE='shadow';globalThis.__youAnalystParquetStore=Promise.resolve(f.store);console.error=(value:string)=>{warnings.push(value);};
-  const db=observeFirestore(raw,()=>{}),ref=db.collection('eod_prices').doc('US_A_2026-01-01');
-  const result=await db.runTransaction(async tx=>{tx.create(ref,row('A','2026-01-01',10).data);return 'committed';});
-  assert.equal(result,'committed');assert.equal(committed,1);assert(warnings.some(value=>value.includes('price_parquet_mirror_failed')));
- }finally{console.error=logger;if(old===undefined)delete process.env.PRICE_STORAGE;else process.env.PRICE_STORAGE=old;globalThis.__youAnalystParquetStore=undefined;await f.store.close();}
 });

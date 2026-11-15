@@ -1,3 +1,4 @@
+import {memoryPrices} from '../helpers/memory-prices';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeHistoryPrices} from '../../src/lib/predictions/normalize-history-prices';
@@ -9,7 +10,8 @@ test('cached history adds raw-close metadata once, preserving scoring prices and
     ['eod_prices/US_MU_2026-01-02',{ticker:'MU',market:'US',tradingDate:'2026-01-02',isFinal:true,close:110}],
   ]);
   let writes=0;
-  const ref=(id:string)=>({get:async()=>({exists:docs.has(id),data:()=>docs.get(id),get:(key:string)=>docs.get(id)?.[key],updateTime:'version'}),update:async(value:Record<string,unknown>,condition:unknown)=>{assert.deepEqual(condition,{lastUpdateTime:'version'});assert.deepEqual(Object.keys(value),['rawClose']);writes++;docs.set(id,{...docs.get(id),...value});}});
+  memoryPrices(docs,async changes=>{for(const row of changes){writes++;docs.set(`eod_prices/${row.id}`,row.data);}});
+  const ref=(id:string)=>({id:id.split('/').at(-1)!,path:id,get:async()=>({exists:docs.has(id),data:()=>docs.get(id),get:(key:string)=>docs.get(id)?.[key],updateTime:'version'}),update:async(value:Record<string,unknown>,condition:unknown)=>{assert.deepEqual(condition,{lastUpdateTime:'version'});assert.deepEqual(Object.keys(value),['rawClose']);writes++;docs.set(id,{...docs.get(id),...value});}});
   const db={runTransaction:async(fn:(tx:unknown)=>unknown)=>fn({get:(r:ReturnType<typeof ref>)=>r.get(),update:(r:ReturnType<typeof ref>,v:Record<string,unknown>,c:unknown)=>r.update(v,c)}),collection:(name:string)=>({doc:(id:string)=>ref(`${name}/${id}`)}),getAll:async(...refs:ReturnType<typeof ref>[])=>Promise.all(refs.map(r=>r.get()))};
   const bucket={file:(path:string)=>{assert.equal(path,'eod-history/US/MU/2025-12-31_2026-01-02.json');return {download:async()=>[Buffer.from(JSON.stringify(['2025-12-31','2026-01-02'].map((date,i)=>({date,open:100+i*10,high:101+i*10,low:99+i*10,close:100+i*10,adjusted_close:90+i*10,volume:100}))))]};}};
   const input={db:db as never,bucket:bucket as never,tickers:['MU','MU']};

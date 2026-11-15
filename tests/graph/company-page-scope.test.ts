@@ -1,3 +1,5 @@
+import {memoryPrices} from '../helpers/memory-prices';
+import {observeFirestore} from '../../src/lib/firebase/firestore-observability';
 import * as demandHelpers from '../../src/lib/peer-comparison/price-demand';
 import test from 'node:test';
 import {isValidElement} from 'react';
@@ -55,7 +57,7 @@ function fixture(hold?:(collection:string,steps:{method:string;args:unknown[]}[]
   registerCompanySource(value,id,steps,collection as 'companies');return value;
  }
  const db={collection:(name:string)=>source(name)} as unknown as Firestore;
- enableCompanyDirectory(db,db,{file:async collection=>{files++;return new Map([...rows].filter(([key])=>key.startsWith(collection+'/')).map(([key,value])=>[key.split('/')[1],value]));},price:{years:async()=>[2026],file:async()=>{files++;throw Error('price partition requested');}},sync:false});
+ enableCompanyDirectory(db,db,{file:async collection=>{files++;return new Map([...rows].filter(([key])=>key.startsWith(collection+'/')).map(([key,value])=>[key.split('/')[1],value]));},sync:false});
  return {db,rows,readDocs,release:()=>{for(const push of pending)push();pending.clear();},push:()=>listeners.forEach(push=>push()),counts:()=>({files,opens,gets})};
 }
 
@@ -98,19 +100,20 @@ test('cold company routes and financial documents never download whole snapshots
  assert.equal(f.counts().files,0);
 });
 
-test('peer prices retain bounded live-query fallback before snapshot readiness',async t=>{
+test('peer prices use Parquet without file listeners even when the old snapshot flag is disabled',async t=>{
  t.after(closeLocalCaches);const f=fixture(),previous=process.env.PRICE_SNAPSHOT_READY;
  process.env.PRICE_SNAPSHOT_READY='0';t.after(()=>{if(previous===undefined)delete process.env.PRICE_SNAPSHOT_READY;else process.env.PRICE_SNAPSHOT_READY=previous;});
  for(let day=1;day<=20;day++)f.rows.set(`eod_prices/US_SMALL_2026-10-${String(day).padStart(2,'0')}`,{close:day});
  f.rows.set('eod_prices/US_OTHER_2026-10-20',{close:999});
- const read=()=>withCompanyPageReads(()=>loadPeerPrices(f.db,'US:SMALL','US','2026-10-19'));
+ memoryPrices(f.rows);const db=observeFirestore(f.db,()=>{throw Error('Unexpected Firestore price access');});
+ const read=()=>withCompanyPageReads(()=>loadPeerPrices(db,'US:SMALL','US','2026-10-19'));
  const results=await Promise.all(Array.from({length:20},read));
  assert.deepEqual(results[0].map(row=>row.close),[19,18,17,16,15,14,13,12,11,10,9,8]);
- assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
+ assert.deepEqual(f.counts(),{files:0,opens:0,gets:0});
  f.rows.set('eod_prices/US_SMALL_2026-10-19',{close:123});f.push();
- assert.equal((await read())[0].close,123);assert.equal(f.counts().opens,1);
- await loadPeerPrices(f.db,'US:SMALL','US','2026-10-19');
- assert.equal(f.counts().files,0,'unready snapshots retain the bounded query fallback');
+ assert.equal((await read())[0].close,123);assert.equal(f.counts().opens,0);
+ await loadPeerPrices(db,'US:SMALL','US','2026-10-19');
+ assert.equal(f.counts().files,0,'legacy snapshot readiness cannot enable Firestore prices');
 });
 
 test('public graph HTTP reads retain the targeted cache boundary for cold company charts',async t=>{

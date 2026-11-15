@@ -1,6 +1,7 @@
 import { Timestamp, type DocumentData } from 'firebase-admin/firestore';
-export const collections = ['companies', 'instruments', 'company_fundamentals', 'company_relationships', 'eod_prices'] as const;
-export type Collection = typeof collections[number];
+export const collections = ['companies', 'instruments', 'company_fundamentals', 'company_relationships'] as const;
+// Legacy SQLite codecs retain this type for the GCS-only price importer.
+export type Collection = typeof collections[number] | 'eod_prices';
 export type Row = { id: string; data: DocumentData };
 export type Snapshot = { version: 1; collection: Collection; watermark: Timestamp; rows: Row[] };
 export type PriceCursor = {id: string; updatedAt?: Timestamp};

@@ -1,5 +1,5 @@
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
-import {parquetPrices,parquetReads,mirrorCommittedPrices,priceSnapshot,priceDocuments,priceStore} from '../price-store/runtime';
+import {parquetPrices,parquetReads,priceSnapshot,priceDocuments,priceStore} from '../price-store/runtime';
 import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, registerCompanySource, refreshCompanyDirectoryIds } from '../local-cache/company-directory';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
 import { timestampWrite } from '../central-cache/write-timestamps';
@@ -88,6 +88,8 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
       if (typeof member !== 'function') return member;
       return (...args: any[]) => {
         const method = String(key);
+        if(method==='collectionGroup'&&args[0]==='eod_prices'||method==='recursiveDelete'&&args[0]?.path?.startsWith('eod_prices'))throw Error('Prices are stored in Parquet');
+        if(shape.collection==='eod_prices'&&['stream','listDocuments','getPartitions','listCollections'].includes(method))throw Error('Unsupported Parquet price operation');
         // Cache equality checks are local comparisons, not SDK operations. Avoid
         // collecting a stack trace for every candidate in the bounded cache.
         if (method === 'isEqual') return Reflect.apply(member, object, args.map(unwrap));
@@ -143,7 +145,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         }
         if (['where', 'orderBy', 'limit', 'limitToLast', 'offset', 'select', 'startAt', 'startAfter', 'endAt', 'endBefore', 'withConverter', 'count', 'aggregate'].includes(method)) {
           let result;
-          if(isSnapshotCollection(shape.collection)&&(companyDirectoryEnabled(observed)||parquetReads()&&shape.collection==='eod_prices')&&['startAt','startAfter','endAt','endBefore'].includes(method)&&args[0]?.get&&args[0]?.ref){
+          if((shape.collection==='eod_prices'||isSnapshotCollection(shape.collection)&&companyDirectoryEnabled(observed))&&['startAt','startAfter','endAt','endBefore'].includes(method)&&args[0]?.get&&args[0]?.ref){
             const orders=(shape.steps??[]).filter(s=>s.method==='orderBy');
             let query=object;
             if(!orders.some(s=>s.args[0] instanceof FieldPath&&(s.args[0] as FieldPath).isEqual(FieldPath.documentId()))){
@@ -219,8 +221,6 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
             }
             return result;
           }, ...args.slice(1)).then(async (result: any) => {
-            try{await mirrorCommittedPrices(object,[...new Set(changedCompanies.filter(row=>row.collection==='eod_prices').map(row=>row.id))]);}
-            catch(error){console.error(JSON.stringify({severity:'ERROR',event:'price_parquet_mirror_failed',repair:'updatedAt catch-up',errorCode:(error as {code?:number}).code??'unknown'}));}
             try{for(const collection of new Set(changedCompanies.map(row=>row.collection)))if(isSnapshotCollection(collection))await refreshCompanyDirectoryIds(observed,changedCompanies.filter(row=>row.collection===collection).map(row=>row.id),collection);}catch{console.warn('Company memory refresh failed after committed write');}
             writes(finalWrites, { status: 'success', transactionId, transactionAttempt: attempt, durationMs: Date.now() - started });
             emit('transaction', shape, site, { status: 'success', transactionId, attempts: attempt, durationMs: Date.now() - started });

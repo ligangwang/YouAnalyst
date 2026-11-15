@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK snapshots retain their public shape. */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import {parquetReads} from '../price-store/runtime';
 import { Watch, track } from './watch';
 import {companySourceSnapshot,liveCompanyReads,isSnapshotCollection} from './company-directory';
 declare global {
@@ -91,10 +90,6 @@ const policies: Record<string, readonly [number, number]> = {
   companies: [1024, 32 * 1024 * 1024],
   instruments: [1024, 16 * 1024 * 1024],
   collectors: [512, 8 * 1024 * 1024],
-  // A browsing cycle spans ~478 tickers. Keep both current and previous date
-  // bounds live across rollover instead of evicting/reloading each twelve-bar
-  // query on the next visit. Retain the existing byte bound and LRU eviction.
-  eod_prices: [1024, 32 * 1024 * 1024],
   // Nov 9: 14,659 event listeners (including empty queries) preceded a 3 GiB
   // heap failure. Document bytes omit SDK streams/query state, so the independent
   // listener bound must leave room for SDK overhead and the other source caches.
@@ -103,7 +98,7 @@ const policies: Record<string, readonly [number, number]> = {
   events: [8192, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
- if(collection==='eod_prices'&&parquetReads())return undefined;
+ if(collection==='eod_prices')return undefined;
   if(isSnapshotCollection(collection)){
     if(liveCompanyReads())return undefined;
     const cached=companySourceSnapshot(owner as import('firebase-admin/firestore').Firestore,source);
