@@ -29,7 +29,7 @@ test('price-only code changes select workers and opted-in releases build a dedic
 
 test('daily price deployment can publish a market-wide update within bounded resources',()=>{
  const script=readFileSync('scripts/deploy-price-snapshots.sh','utf8');
- assert(script.includes('PRICE_SYNC_MAX_PARTITIONS=${PRICE_SYNC_MAX_PARTITIONS:-10000}'));
+ assert(script.includes('PRICE_SYNC_MAX_PARTITIONS=${PRICE_SYNC_MAX_PARTITIONS:-20000}'));
  assert(script.includes('PRICE_SYNC_MAX_READS=${PRICE_SYNC_MAX_READS:-50000}'));
  assert(script.includes('PRICE_SYNC_PUBLISH_CONCURRENCY=8'));
  assert(script.includes('PRICE_SYNC_MAX_DURATION_MS=1200000'));

@@ -238,3 +238,19 @@ test('production progress pacing and transient mutation throttling preserve the 
  assert(throttled);assert.equal(result.status,'complete');assert.equal(s.state.calls,1);
  assert.equal(decode(JSON.parse(f.objects.get(progressName)!.bytes.toString())).pending,undefined);
 });
+
+test('lost coalesced publication cursor replays immutable files without rereading prices',async()=>{
+ const f=fixture(),s=sourceFixture(Array.from({length:40},(_,i)=>row('P'+String(i).padStart(3,'0'))));
+ let crashed=false;
+ f.controls.beforeUpload=async name=>{if(name.endsWith('/P024/2026.sqlite')){crashed=true;throw Error('worker stopped');}};
+ f.controls.beforeSave=name=>{if(crashed&&name===progressName)throw Error('lease release lost');};
+ await assert.rejects(syncPricePartitions(s.source,f.bucket,{publishConcurrency:8,now:()=>0}),/lease release lost/);
+ assert.equal(decode(JSON.parse(f.objects.get(progressName)!.bytes.toString())).pending.lastPublished,undefined);
+ assert.equal(f.objects.has(checkpointName),false);
+ const reads=s.state.reads.length;
+ f.controls.beforeUpload=undefined;f.controls.beforeSave=undefined;
+ const result=await syncPricePartitions(s.source,f.bucket,{publishConcurrency:8,now:()=>36*60_000});
+ assert.equal(result.status,'complete');assert.equal(result.partitions,40);assert.equal(s.state.reads.length,reads);
+ for(let i=0;i<40;i++)assert.deepEqual((await prices(f.bucket,'P'+String(i).padStart(3,'0')))!.rows.map(r=>r.data.close),[9]);
+ assert.equal(decode(JSON.parse(f.objects.get(progressName)!.bytes.toString())).pending,undefined);
+});
