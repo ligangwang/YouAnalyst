@@ -190,7 +190,7 @@ export class MarketRepository {
             const heads = new Map<string, MarketHead>();
             let resolve!: (heads: Map<string, MarketHead>) => void, reject!: (error: unknown) => void;
             const ready = new Promise<Map<string, MarketHead>>((yes, no) => { resolve = yes; reject = no; });
-            const through=new Map<string,Timestamp>();
+            const through=new Map<string,Timestamp>();let initial=true;
             const stop = this.raw.collection('collectors').where('marketCollection', '==', collection).onSnapshot(snapshot => {
                 const changed=new Set<string>();
                 const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
@@ -207,6 +207,14 @@ export class MarketRepository {
                     const head=this.parseHead(collection,shard,doc);
                     if(!isDeepStrictEqual(heads.get(shard),head))changed.add(shard);
                     heads.set(shard,head);through.set(shard,snapshot.readTime);
+                }
+                // A local commit can install a head while the initial listener
+                // is in flight. An initially absent head has no removed change,
+                // so reconcile membership once, without decoding head payloads.
+                if(initial){
+                    const seen=new Set(snapshot.docs.map(doc=>doc.get('marketHead.shard')));
+                    for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
+                    initial=false;
                 }
                 if(changed.size){this.invalidate(collection);this.changed(collection,changed);}
                 resolve(heads);

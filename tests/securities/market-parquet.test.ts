@@ -66,6 +66,19 @@ test('web compact groups can grow while full payload groups remain bounded',asyn
         assert.deepEqual(batches,heads.map(head=>[head.file]));
     }finally{await files.close();}
 });
+test('initial head snapshot reconciles a locally installed head absent from the server',async()=>{
+    for(const readTime of [200,400]){
+        const files=fixture(),id='initial-race',shard=shardFor(id);let emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
+        const doc={exists:true,id:headId('events',shard),readTime:Timestamp.fromMillis(300),get:()=>({collection:'events',shard,rows:0,retained:[],revision:'local'})};
+        const source={where:()=>source,onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};},doc:(id:string)=>({id})};
+        const repo=new MarketRepository({collection:()=>source,getAll:async()=>[doc]} as unknown as Firestore,files);
+        try{
+            const initial=repo.heads('events');await repo.committed(['events/'+id]);
+            emit({docs:[],docChanges:()=>[],readTime:Timestamp.fromMillis(readTime)} as unknown as FirebaseFirestore.QuerySnapshot);
+            assert.equal((await initial).has(shard),readTime<300,'newer initial snapshots must reconcile absent local heads');
+        }finally{await repo.close();}
+    }
+});
 test('production web defaults enable immutable query reuse without a budget override',async()=>{
     const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
     let files:MarketFiles;
