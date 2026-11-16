@@ -77,7 +77,10 @@ export class MarketFiles {
         return this.cache.local([head.file], paths => withDuck(async (db) => (await db.runAndReadAll(`SELECT id,payload,version FROM read_parquet(${quote(paths[0])}) ORDER BY id`)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }))));
     }
     async query(heads: MarketHead[], steps: Step[], indexed = true): Promise<MarketRow[]> {
-        if(!this.queryBudget)return this.queryUncached(heads,steps,indexed);
+        const limit=steps.find(step=>step.method==='limit'||step.method==='limitToLast')?.args[0];
+        const identity=steps.find(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])));
+        const bounded=typeof limit==='number'&&limit<=512||identity&&(identity.args[1]==='=='||Array.isArray(identity.args[2])&&identity.args[2].length<=512);
+        if(!this.queryBudget||!bounded)return this.queryUncached(heads,steps,indexed);
         // Only external values are cached here. Operational overlays are read and
         // merged by the repository on every invalidated query. Immutable file
         // identities change whenever the external contents change; a head's
@@ -89,7 +92,13 @@ export class MarketFiles {
         const entry={value:this.queryUncached(heads,steps,indexed),bytes:0};
         this.queryResults.set(key,entry);
         void entry.value.then(rows=>{
-            entry.bytes=Buffer.byteLength(JSON.stringify(rows))*2+256;
+            // Broad scans have their own page cache. Never serialize an entire
+            // directory merely to discover it cannot fit, or evict hot searches
+            // to make room for an entry larger than the whole result budget.
+            let size=256;
+            for(const row of rows){size+=Buffer.byteLength(JSON.stringify(row))*2;if(size>this.queryBudget)break;}
+            if(size>this.queryBudget){if(this.queryResults.get(key)===entry)this.queryResults.delete(key);return;}
+            entry.bytes=size;
             let bytes=[...this.queryResults.values()].reduce((n,item)=>n+item.bytes,0);
             for(const [id,item] of this.queryResults){
                 if(bytes<=this.queryBudget&&this.queryResults.size<=256)break;
