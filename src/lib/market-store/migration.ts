@@ -44,7 +44,10 @@ export function cleanupRecord(collection: MarketCollection, doc: DocumentSnapsho
         return { kind: 'absent' as const };
     const split = splitRecord(collection, doc.id, doc.data()!);
     const keep=retainsRecord(collection,doc.id,doc.data()!,split.retained);
-    if (!Object.keys(split.external).length&&keep)
+    // Routing fields intentionally exist in both stores. A resumed cleanup must
+    // recognize an already stripped live-state document without comparing its
+    // routing-only projection against the full archived market payload again.
+    if (keep&&isDeepStrictEqual(doc.data(),split.retained))
         return { kind: 'retained' as const };
     return { kind: keep ? 'strip' as const : 'delete' as const, external: split.external, retained: split.retained, archived };
 }

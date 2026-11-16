@@ -43,7 +43,7 @@ async function main() {
                             const ref = db.collection('collectors').doc(headId(collection, shard)), head = (await tx.get(ref)).get('marketHead');
                             if (!head)
                                 throw Error('Initial shard copy is incomplete');
-                            if (head.format >= 4)
+                            if (head.format >= 5)
                                 return;
                             const rows = await files.read(head), next = await files.write(collection, shard, rows, head.retained);
                             if (!isDeepStrictEqual(await files.read(next), rows))

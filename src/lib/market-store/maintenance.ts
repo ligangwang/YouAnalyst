@@ -18,6 +18,8 @@ export async function collectMarketGarbage(raw: Firestore, bucket: Bucket, now =
                 active.add(head.file);
             if (head.indexFile)
                 active.add(head.indexFile);
+            if (head.prefixFile)
+                active.add(head.prefixFile);
         }
     }
     let deleted = 0;
