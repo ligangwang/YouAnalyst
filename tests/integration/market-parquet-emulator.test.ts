@@ -47,6 +47,19 @@ check('staged website reads use Parquet while transactions preserve source mirro
     await f.raw.doc(CONTROL).update({cleanupAuthorized:true});
     await ref.update({score:5});assert.equal((await f.raw.doc('company_directory/NVDA').get()).exists,false);assert.equal((await ref.get()).get('score'),5);
 });
+check('staged snapshot preconditions accept unchanged mirrors and reject stale or divergent sources',async t=>{
+    const f=fixture(true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    const ref=f.db.doc('company_directory/NVDA'),native=f.raw.doc('company_directory/NVDA');
+    await ref.set({score:1});const first=await ref.get();
+    assert(!first.updateTime!.isEqual((await native.get()).updateTime!),'Parquet preparation precedes the native commit');
+    await ref.update({score:2},{lastUpdateTime:first.updateTime!});
+    assert.equal((await native.get()).get('score'),2);
+    await assert.rejects(ref.update({score:3},{lastUpdateTime:first.updateTime!}),/precondition/);
+    const current=await ref.get();await native.update({score:99});
+    await assert.rejects(ref.update({score:3},{lastUpdateTime:current.updateTime!}),/precondition/);
+    assert.equal((await native.get()).get('score'),99);
+});
 check('bootstrap, atomic cutover, mixed-data reads and transactional publication', async (t) => {
     const f = fixture();
     t.after(() => f.db.terminate());

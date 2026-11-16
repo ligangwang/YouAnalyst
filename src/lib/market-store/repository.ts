@@ -411,8 +411,13 @@ export class MarketRepository {
                         lastUpdateTime?: Timestamp;
                     } | undefined;
                     if (options?.lastUpdateTime) {
-                        const matches=(!ready||retained.has(id)) ? doc.updateTime?.isEqual(options.lastUpdateTime)
-                            : doc.updateTime?.isEqual(options.lastUpdateTime)||rows.get(id)?.version.isEqual(options.lastUpdateTime);
+                        let matches=doc.updateTime?.isEqual(options.lastUpdateTime);
+                        if(!matches&&!retained.has(id)&&(ready||this.stagedReads)&&stored?.version.isEqual(options.lastUpdateTime)){
+                            // Staged snapshots expose the Parquet version. Before
+                            // cutover, accept it only while the native source is
+                            // still the same mirrored data, under this transaction.
+                            matches=ready||(doc.exists&&isDeepStrictEqual(splitRecord(collection,id,doc.data()!).external,base));
+                        }
                         if(!matches)throw Object.assign(Error('Market document precondition failed'), {code:9});
                     }
                     complete.set(id, applyMutation(before, change.method, change.args, at));
