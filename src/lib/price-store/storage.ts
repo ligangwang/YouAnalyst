@@ -57,21 +57,26 @@ export class PriceStore {
  async close(){await this.trim(true);await rm(await this.directory,{recursive:true,force:true});}
  private async trim(all=false){
   let bytes=[...this.files.values()].reduce((n,f)=>n+f.bytes,0);
-  for(const [name,f] of this.files){if(!all&&bytes<=this.cacheBytes)break;if(f.users)continue;this.files.delete(name);await f.ready.catch(()=>{});await rm(f.path,{force:true});bytes-=f.bytes;}
+  for(const [name,f] of [...this.files]){if(!all&&bytes<=this.cacheBytes)break;if(f.users||this.files.get(name)!==f)continue;this.files.delete(name);await f.ready.catch(()=>{});await rm(f.path,{force:true});bytes-=f.bytes;}
  }
  async local<T>(names:string[],work:(paths:string[])=>Promise<T>){
   const pinned:Cached[]=[];
+  // Resolve the directory before looking up entries: a first-use await between
+  // lookup and insertion can create two untracked pins for the same file.
+  const directory=await this.directory;
   try{
    for(const name of [...new Set(names)]){
     let f=this.files.get(name);
     if(!f){
-     const path=join(await this.directory,createHash('sha256').update(name).digest('hex')+'.parquet');
+     // Eviction unlinks asynchronously. A replacement must never reuse the
+     // retiring entry's path, even when it downloads before unlink completes.
+     const path=join(directory,createHash('sha256').update(name).digest('hex')+'-'+randomUUID()+'.parquet');
      f={path,bytes:0,users:0,ready:Promise.resolve()};const entry=f;
      f.ready=this.bucket.file(name).download({destination:path}).then(async()=>{entry.bytes=(await stat(path)).size;});
      this.files.set(name,f);
     }
     f.users++;pinned.push(f);this.files.delete(name);this.files.set(name,f);
-    try{await f.ready;}catch(error){this.files.delete(name);await rm(f.path,{force:true});throw error;}
+    try{await f.ready;}catch(error){if(this.files.get(name)===f)this.files.delete(name);await rm(f.path,{force:true});throw error;}
    }
    return await work(pinned.map(f=>f.path));
   }finally{for(const f of pinned)f.users--;await this.trim();}

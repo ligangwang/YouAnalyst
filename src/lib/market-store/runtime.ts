@@ -22,9 +22,11 @@ export async function closeMarketStores() {
 }
 export const marketStoreEnabled = () => process.env.MARKET_PARQUET_ENABLED === '1'
     || [process.env.GCP_PROJECT_ID, process.env.GOOGLE_CLOUD_PROJECT, process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID].includes('ifindata-80905');
-// Local production-data UI verification only. Cloud Run cannot enable this
-// override, and application mutations are rejected by both storage adapters.
-export const marketReadOnlyProbe = () => process.env.MARKET_READ_ONLY_PROBE === '1' && !process.env.K_SERVICE && !process.env.CLOUD_RUN_JOB;
+// Production-data UI checks run locally or in the isolated, zero-user-traffic
+// probe service. The serving website and workers cannot enable this override;
+// application mutations are rejected by both storage adapters.
+export const marketReadOnlyProbe = () => process.env.MARKET_READ_ONLY_PROBE === '1'
+    && (!process.env.K_SERVICE || process.env.K_SERVICE === 'market-parquet-ui-probe') && !process.env.CLOUD_RUN_JOB;
 // Parquet-only projections are enabled only after observing the read gate.
 // Existing snapshot readers are closed by the control subscription at cutover.
 export const marketStoreReady = () => marketStoreEnabled() && (marketReadOnlyProbe() || state.cutover === true);
