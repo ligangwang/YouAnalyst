@@ -8,11 +8,12 @@ import { encode, decode } from '../central-cache/codec';
 import { withDuck, quote } from '../price-store/parquet';
 import { PriceStore } from '../price-store/storage';
 import { queryIndex, fieldName, type Data } from './value';
-import { compileMarketQuery, project, type Step } from './query';
+import { compileMarketQuery, project,filterIdentityOrdered, type Step } from './query';
 import type { MarketCollection } from './policy';
 import { encodeMarket, decodeMarket, hydrateMarket } from './blobs';
 import { MARKET_INDEX_FIELDS, MARKET_INDEX_PAYLOAD_FIELDS, marketIndexField, marketIndexProjectionField } from './index-fields';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup,type PrefixRows,type PrefixLookup} from './prefix-cache';
+import {ANNOUNCEMENT_LOOKUP,announcementLookup,announcementPlan,announcementIds} from './announcement-index';
 export const MARKET_ROOT = 'market-parquet/v1';
 export const shardFor = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 2);
 export type MarketRow = {
@@ -79,6 +80,12 @@ export class MarketFiles {
     async query(heads: MarketHead[], steps: Step[], indexed = true, compactRead = false): Promise<MarketRow[]> {
         const limit=steps.find(step=>step.method==='limit'||step.method==='limitToLast')?.args[0];
         const identity=steps.find(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])));
+        const selection=steps.find(step=>step.method==='select');
+        const ids=identity?.args[1]==='=='?[identity.args[2]]:identity?.args[2];
+        if(this.queryBudget&&indexed&&selection&&Array.isArray(ids)&&ids.length>0&&ids.length<=2048&&ids.every(id=>typeof id==='string')
+            &&steps.filter(step=>step.method==='where').length===1&&steps.filter(step=>step.method==='select').length===1&&steps.every(step=>step.method==='where'||step.method==='select')
+            &&heads.every(head=>head.collection===heads[0]?.collection)&&new Set(heads.map(head=>head.shard)).size===heads.length)
+            return this.projectedDocuments(heads,ids as string[],selection);
         const bounded=typeof limit==='number'&&limit<=512||identity&&(identity.args[1]==='=='||Array.isArray(identity.args[2])&&identity.args[2].length<=512);
         if(!this.queryBudget||!bounded)return this.queryUncached(heads,steps,indexed,compactRead);
         // Only external values are cached here. Operational overlays are read and
@@ -90,6 +97,24 @@ export class MarketFiles {
         const old=this.queryResults.get(key);
         if(old){this.queryResults.delete(key);this.queryResults.set(key,old);return old.value;}
         const entry={value:this.queryUncached(heads,steps,indexed,compactRead),bytes:0};
+        this.remember(key,entry);
+        return entry.value;
+    }
+    private async projectedDocuments(heads:MarketHead[],ids:string[],selection:Step){
+        const byShard=new Map(heads.map(head=>[head.shard,head]));
+        const ordered=[...new Set(ids)].sort((a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b)));
+        const keys=ordered.map(id=>{const head=byShard.get(shardFor(id));return 'd:'+createHash('sha256').update(JSON.stringify([
+            head?.collection??heads[0]?.collection,id,head?.file,head?.indexFile,head?.prefixFile,head?.format,selection.args.map(fieldName),
+        ])).digest('hex');});
+        const found=keys.map(key=>{const entry=this.queryResults.get(key);if(entry){this.queryResults.delete(key);this.queryResults.set(key,entry);}return entry;});
+        const missing=ordered.filter((_,i)=>!found[i]);
+        if(missing.length){
+            const loaded=this.queryUncached(heads,[{method:'where',args:['__name__','in',missing]},selection],true).then(rows=>new Map(rows.map(row=>[row.id,row])));
+            ordered.forEach((id,i)=>{if(found[i])return;const entry={value:loaded.then(rows=>{const row=rows.get(id);return row?[row]:[];}),bytes:0};found[i]=entry;this.remember(keys[i],entry);});
+        }
+        return (await Promise.all(found.map(entry=>entry!.value))).flat();
+    }
+    private remember(key:string,entry:{value:Promise<MarketRow[]>;bytes:number}){
         this.queryResults.set(key,entry);
         void entry.value.then(rows=>{
             // Broad scans have their own page cache. Never serialize an entire
@@ -98,16 +123,49 @@ export class MarketFiles {
             let size=256;
             for(const row of rows){size+=Buffer.byteLength(JSON.stringify(row))*2;if(size>this.queryBudget)break;}
             if(size>this.queryBudget){if(this.queryResults.get(key)===entry)this.queryResults.delete(key);return;}
+            if(this.queryResults.get(key)!==entry)return;
             entry.bytes=size;
             let bytes=[...this.queryResults.values()].reduce((n,item)=>n+item.bytes,0);
+            let queries=[...this.queryResults.keys()].filter(id=>!id.startsWith('d:')).length;
             for(const [id,item] of this.queryResults){
-                if(bytes<=this.queryBudget&&this.queryResults.size<=256)break;
-                this.queryResults.delete(id);bytes-=item.bytes;
+                if(bytes<=this.queryBudget&&this.queryResults.size<=8192&&queries<=256)break;
+                if(bytes<=this.queryBudget&&this.queryResults.size<=8192&&id.startsWith('d:'))continue;
+                this.queryResults.delete(id);bytes-=item.bytes;if(!id.startsWith('d:'))queries--;
             }
         }).catch(()=>{if(this.queryResults.get(key)===entry)this.queryResults.delete(key);});
-        return entry.value;
     }
     private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean, compactRead = false): Promise<MarketRow[]> {
+        const planned=indexed&&heads.length&&heads.every(head=>head.collection==='events')?announcementPlan(steps):undefined;
+        if(planned&&heads.some(head=>head.file&&(head.format??0)>=7)&&heads.some(head=>head.file&&(head.format??0)<7)){
+            // An older live writer may replace one shard during rollout. Keep
+            // its SQL fallback local to that shard instead of rescanning every
+            // upgraded index. Each side supplies enough rows for the final page.
+            const candidates=steps.filter(step=>step.method!=='offset').map(step=>step.method==='limit'?{method:'limit',args:[planned.limit+planned.offset]}:step.method==='select'?{method:'select',args:[...step.args,'companyId','publication_date']}:step);
+            const sides=await Promise.all([heads.filter(head=>(head.format??0)>=7),heads.filter(head=>(head.format??0)<7)].map(group=>this.queryUncached(group,candidates,indexed,compactRead)));
+            return this.filter(sides.flat(),steps);
+        }
+        const announcement=planned&&heads.every(head=>!head.file||(head.format??0)>=7)?planned:undefined;
+        if(announcement){
+            if(heads.some(head=>head.file&&!head.prefixFile))throw Error('Missing announcement index');
+            const matches:string[]=[];
+            const files=heads.filter(head=>head.file&&head.prefixFile);
+            for(let start=0;start<files.length;start+=128){
+                const group=files.slice(start,start+128),key=(head:MarketHead)=>head.prefixFile+'|'+ANNOUNCEMENT_LOOKUP;
+                const missing=group.filter(head=>!this.prefixes.has(key(head)));
+                for(const head of missing)this.validate(head.prefixFile!);
+                let pending:Promise<Map<string,PrefixLookup>>|undefined;
+                const load=()=>pending??=this.local(missing.map(head=>head.prefixFile!),paths=>withDuck(async db=>{
+                    const names=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),missing[i].prefixFile!]));
+                    const rows=(await db.runAndReadAll(`SELECT filename,payload FROM read_parquet([${paths.map(quote).join(',')}],filename=true) WHERE field=${quote(ANNOUNCEMENT_LOOKUP)}`)).getRows();
+                    return new Map(rows.map(([filename,payload])=>{const name=names.get(String(filename).replaceAll('\\','/'));if(!name)throw Error('Unexpected announcement index file');return [name,decodePrefixLookup(String(payload),true)];}));
+                }));
+                matches.push(...(await Promise.all(group.map(head=>this.prefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(head.prefixFile!);if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
+            }
+            const ids=announcementIds(matches,announcement);if(!ids.length)return [];
+            const rows=await this.query(heads,[{method:'where',args:['__name__','in',ids]},...steps.filter(step=>step.method==='select')]);
+            const byId=new Map(rows.map(row=>[row.id,row]));
+            return ids.map(id=>{const row=byId.get(id);if(!row)throw Error('Announcement index references missing row');return row;});
+        }
         const prefix=steps.find(step=>step.method==='where'&&step.args[1]==='array-contains'&&searchPayload.has(fieldName(step.args[0]))&&typeof step.args[2]==='string'&&step.args[2].length>0&&!step.args[2].includes('\0'));
         if(prefix&&heads.every(head=>!head.file||(head.format??0)>=2)){
             const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;
@@ -215,6 +273,7 @@ export class MarketFiles {
         if (!rows.length)
             return [];
         const query = compileMarketQuery(steps);
+        const identityOrdered=filterIdentityOrdered(rows,steps);if(identityOrdered)return identityOrdered;
         const predicates=steps.filter(step=>step.method==='where'),prefix=predicates[0];
         if(predicates.length===1&&prefix.args[1]==='array-contains'&&searchPayload.has(fieldName(prefix.args[0]))&&typeof prefix.args[2]==='string'&&steps.every(step=>['where','select','limit','offset'].includes(step.method))){
             const field=fieldName(prefix.args[0]),selected=rows.filter(row=>Array.isArray(row.data[field])&&(row.data[field] as unknown[]).includes(prefix.args[2])).sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id))).slice(query.offset,query.limit===undefined?undefined:query.offset+query.limit);
@@ -251,13 +310,14 @@ export class MarketFiles {
             throw Error('Invalid market partition');
         if (new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => shardFor(row.id) !== shard))
             throw Error('Invalid market partition rows');
-        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 6 };
+        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 7 };
         if (!rows.length)
             return head;
         const directory = await mkdtemp(join(tmpdir(), 'ya-market-')), path = join(directory, 'rows.parquet'), indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
         try {
             const prefixFields=[...searchPayload].filter(field=>rows.some(row=>Array.isArray(row.data[field])));
             const prefixRows=prefixFields.map(field=>[field,encodePrefixLookup(buildPrefixLookup(rows.map(row=>({id:row.id,values:row.data[field]}))))]);
+            if(collection==='events')prefixRows.push([ANNOUNCEMENT_LOOKUP,encodePrefixLookup(buildPrefixLookup(announcementLookup(rows)))]);
             const payloads: string[] = [], views: string[] = [], compactPayloads:string[]=[], compactIndexes:ReturnType<typeof queryIndex>[]=[];
             for (const row of rows) {
                 const fields: Data = {};

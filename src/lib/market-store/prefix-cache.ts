@@ -1,6 +1,7 @@
 import {deflateRawSync,inflateRawSync} from 'node:zlib';
 export type PrefixRows=Array<{id:string;values:unknown}>;
-export type PrefixLookup={compressed:Buffer;bloom:Uint8Array;ends:Uint32Array;ids:string[];rawBytes:number};
+export type PrefixLookup={compressed:Buffer;bloom:Uint8Array;ends:Uint32Array;ids:string[];packedIds?:{compressed:Buffer;rawBytes:number};rawBytes:number};
+const lookupIds=(value:PrefixLookup):string[]=>value.packedIds?JSON.parse(inflateRawSync(value.packedIds.compressed,{maxOutputLength:value.packedIds.rawBytes}).toString()):value.ids;
 function bits(value:string){let a=2166136261,b=0x9e3779b9;for(let i=0;i<value.length;i++){a=Math.imul(a^value.charCodeAt(i),16777619);b=Math.imul(b^value.charCodeAt(i),2246822519);}return [a&262143,(a+b)&262143,(a+2*b)&262143];}
 export function buildPrefixLookup(rows:PrefixRows):PrefixLookup{
     const chunks:Buffer[]=[],ids:string[]=[],ends:number[]=[],bloom=new Uint8Array(32768);let total=0;
@@ -14,14 +15,15 @@ export function buildPrefixLookup(rows:PrefixRows):PrefixLookup{
 }
 export function encodePrefixLookup(value:PrefixLookup){
     const ends=Buffer.alloc(value.ends.byteLength);value.ends.forEach((end,i)=>ends.writeUInt32LE(end,i*4));
-    return JSON.stringify({version:1,compressed:value.compressed.toString('base64'),bloom:Buffer.from(value.bloom).toString('base64'),ends:ends.toString('base64'),ids:value.ids,rawBytes:value.rawBytes});
+    return JSON.stringify({version:1,compressed:value.compressed.toString('base64'),bloom:Buffer.from(value.bloom).toString('base64'),ends:ends.toString('base64'),ids:lookupIds(value),rawBytes:value.rawBytes});
 }
-export function decodePrefixLookup(payload:string):PrefixLookup{
+export function decodePrefixLookup(payload:string,packIds=false):PrefixLookup{
     const wire=JSON.parse(payload),bloom=Buffer.from(wire.bloom,'base64'),bytes=Buffer.from(wire.ends,'base64');
     if(wire.version!==1||bloom.length!==32768||!Array.isArray(wire.ids)||wire.ids.some((id:unknown)=>typeof id!=='string')||bytes.length!==wire.ids.length*4||!Number.isSafeInteger(wire.rawBytes)||wire.rawBytes<0||wire.rawBytes>256*1024*1024)throw Error('Invalid prefix index');
     const ends=Uint32Array.from(wire.ids.map((_:string,i:number)=>bytes.readUInt32LE(i*4)));
     if((ends.at(-1)??0)!==wire.rawBytes||ends.some((end,i)=>end<1||(i>0&&end<=ends[i-1])))throw Error('Invalid prefix offsets');
-    return {compressed:Buffer.from(wire.compressed,'base64'),bloom,ends,ids:wire.ids,rawBytes:wire.rawBytes};
+    const packed=packIds?Buffer.from(JSON.stringify(wire.ids)):undefined;
+    return {compressed:Buffer.from(wire.compressed,'base64'),bloom,ends,ids:packIds?[]:wire.ids,...(packed?{packedIds:{compressed:deflateRawSync(packed,{level:1}),rawBytes:packed.length}}:{}),rawBytes:wire.rawBytes};
 }
 /** Immutable-file-keyed exact membership cache. Store UTF-8 bytes rather than
  * millions of JavaScript prefix strings; no expiry can hide a new generation. */
@@ -38,7 +40,7 @@ export class PrefixCache {
             })()};
             entry=pending;this.entries.set(key,pending);
             void pending.value.then(lookup=>{
-                pending.bytes=lookup.compressed.length+lookup.bloom.byteLength+lookup.ends.byteLength+lookup.ids.reduce((n,id)=>n+64+Buffer.byteLength(id)*2,0);
+                pending.bytes=lookup.compressed.length+lookup.bloom.byteLength+lookup.ends.byteLength+(lookup.packedIds?.compressed.length??lookup.ids.reduce((n,id)=>n+64+Buffer.byteLength(id)*2,0));
                 let total=[...this.entries.values()].reduce((n,item)=>n+item.bytes,0);
                 for(const [name,item] of this.entries){
                     if(total<=this.budget&&this.entries.size<=512)break;
@@ -49,12 +51,12 @@ export class PrefixCache {
         const lookup=await entry.value;
         // Bloom misses avoid decompression; hits still require exact bytes.
         if(bits(value).some(bit=>!(lookup.bloom[bit>>>3]&(1<<(bit&7)))))return [];
-        const tokens=inflateRawSync(lookup.compressed,{maxOutputLength:lookup.rawBytes}),needle=Buffer.from('\0'+value+'\0'),found=new Set<string>();
+        const tokens=inflateRawSync(lookup.compressed,{maxOutputLength:lookup.rawBytes}),needle=Buffer.from('\0'+value+'\0'),found=new Set<string>(),ids=lookupIds(lookup);
         if(tokens.length!==lookup.rawBytes)throw Error('Invalid prefix data size');
         for(let offset=tokens.indexOf(needle);offset>=0;offset=tokens.indexOf(needle,offset+1)){
             let low=0,high=lookup.ends.length;
             while(low<high){const middle=(low+high)>>>1;if(lookup.ends[middle]<=offset)low=middle+1;else high=middle;}
-            if(low<lookup.ids.length)found.add(lookup.ids[low]);
+            if(low<ids.length)found.add(ids[low]);
         }
         return [...found];
     }
