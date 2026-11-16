@@ -31,6 +31,54 @@ test('announcement projections use covering indexes with safe fallback for older
         const older={...head,format:5};assert.deepEqual(await files.query([older],steps),rows);assert(downloads.includes(head.file!),'older index formats must use full payload fallback');
     }finally{await files.close();}
 });
+test('head listeners decode only changed shards and preserve newer committed heads',async()=>{
+    const files=fixture();let decoded=0,emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
+    const id='watched-event',target=shardFor(id),time=(n:number)=>Timestamp.fromMillis(n);
+    const head=(shard:string,revision='initial')=>({collection:'events' as const,shard,rows:0,retained:[],revision});
+    const doc=(value:ReturnType<typeof head>,at=100)=>({id:headId('events',value.shard),exists:true,readTime:time(at),get:(field:string)=>{if(field==='marketHead'){decoded++;return value;}return value.shard;}});
+    const committed=doc(head(target,'committed'),300);
+    const source={where:()=>source,onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};},doc:(id:string)=>({path:'collectors/'+id})};
+    const raw={collection:()=>source,getAll:async()=>[committed]} as unknown as Firestore;
+    const repo=new MarketRepository(raw,files);
+    const docs=Array.from({length:256},(_,i)=>doc(head(i.toString(16).padStart(2,'0'))));
+    const snapshot=(changes:Array<{type:string;doc:ReturnType<typeof doc>}>,at:number)=>({docs,readTime:time(at),docChanges:()=>changes}) as unknown as FirebaseFirestore.QuerySnapshot;
+    try{
+        const ready=repo.heads('events');emit(snapshot(docs.map(doc=>({type:'added',doc})),100));assert.equal((await ready).size,256);
+        decoded=0;const changed=doc(head(target,'changed'));docs[parseInt(target,16)]=changed;emit(snapshot([{type:'modified',doc:changed}],200));
+        assert.equal(decoded,1,'one changed shard must not decode the other 255 retained-ID arrays');
+        assert.equal((await repo.heads('events')).get(target)?.revision,'changed');
+        await repo.committed(['events/'+id]);assert.equal((await repo.heads('events')).get(target)?.revision,'committed');
+        emit(snapshot([{type:'modified',doc:changed}],250));assert.equal((await repo.heads('events')).get(target)?.revision,'committed');
+        emit(snapshot([{type:'removed',doc:committed}],400));assert.equal((await repo.heads('events')).has(target),false);
+    }finally{await repo.close();}
+});
+test('web compact groups can grow while full payload groups remain bounded',async()=>{
+    const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';let files:MarketFiles;
+    try{files=fixture([],0);}finally{if(previous===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=previous;}
+    const batches:string[][]=[],internal=files as unknown as {local:(names:string[],work:(paths:string[])=>Promise<unknown>)=>Promise<unknown>};
+    const local=internal.local.bind(files);internal.local=(names,work)=>{batches.push(names);return local(names,work);};
+    try{
+        const rows=['a','b'].map(id=>({id,version:Timestamp.now(),data:{name:id,body:'full payload'}}));assert.notEqual(shardFor('a'),shardFor('b'));
+        const heads=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));for(const head of heads){head.bytes=20*1024*1024;head.indexBytes=20*1024*1024;}
+        assert.deepEqual((await files.query(heads,[{method:'select',args:['name']},{method:'limit',args:[2]}])).map(row=>row.data),[{name:'a'},{name:'b'}]);
+        assert.deepEqual(batches,[heads.map(head=>head.indexFile)]);batches.length=0;
+        assert.deepEqual((await files.query(heads,[{method:'where',args:['__name__','in',['a','b']]}])).map(row=>row.data.body),['full payload','full payload']);
+        assert.deepEqual(batches,heads.map(head=>[head.file]));
+    }finally{await files.close();}
+});
+test('initial head snapshot reconciles a locally installed head absent from the server',async()=>{
+    for(const readTime of [200,400]){
+        const files=fixture(),id='initial-race',shard=shardFor(id);let emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
+        const doc={exists:true,id:headId('events',shard),readTime:Timestamp.fromMillis(300),get:()=>({collection:'events',shard,rows:0,retained:[],revision:'local'})};
+        const source={where:()=>source,onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};},doc:(id:string)=>({id})};
+        const repo=new MarketRepository({collection:()=>source,getAll:async()=>[doc]} as unknown as Firestore,files);
+        try{
+            const initial=repo.heads('events');await repo.committed(['events/'+id]);
+            emit({docs:[],docChanges:()=>[],readTime:Timestamp.fromMillis(readTime)} as unknown as FirebaseFirestore.QuerySnapshot);
+            assert.equal((await initial).has(shard),readTime<300,'newer initial snapshots must reconcile absent local heads');
+        }finally{await repo.close();}
+    }
+});
 test('production web defaults enable immutable query reuse without a budget override',async()=>{
     const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
     let files:MarketFiles;
@@ -228,13 +276,14 @@ test('large binary captures stay in GCS and only selected records hydrate their 
 test('a local shard refresh cannot hide another shard in an older listener snapshot',async()=>{
     const files=fixture(),a=shardFor('a'),b=shardFor('b');assert.notEqual(a,b);
     const doc=(shard:string,revision:string,seconds:number)=>({exists:true,id:headId('events',shard),readTime:new Timestamp(seconds,0),get:(field:string)=>field==='marketHead.shard'?shard:{collection:'events',shard,rows:0,retained:[],revision}});
-    let emit: (snapshot:{readTime:Timestamp;docs:ReturnType<typeof doc>[]})=>void=()=>{throw Error('Listener not connected');};
+    type Change={type:'added'|'modified';doc:ReturnType<typeof doc>};
+    let emit: (snapshot:{readTime:Timestamp;docs:ReturnType<typeof doc>[];docChanges:()=>Change[]})=>void=()=>{throw Error('Listener not connected');};
     const raw={collection:()=>({doc:(id:string)=>({id}),where:()=>({onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}})}),getAll:async()=>[doc(a,'a-new',30)]} as unknown as Firestore;
     const repo=new MarketRepository(raw,files);
     try{
-        const initial=repo.heads('events');emit({readTime:new Timestamp(10,0),docs:[doc(a,'a-old',10),doc(b,'b-old',10)]});await initial;
+        const initial=repo.heads('events'),initialDocs=[doc(a,'a-old',10),doc(b,'b-old',10)];emit({readTime:new Timestamp(10,0),docs:initialDocs,docChanges:()=>initialDocs.map(doc=>({type:'added',doc}))});await initial;
         await repo.committed(['events/a']);
-        emit({readTime:new Timestamp(20,0),docs:[doc(a,'a-old',20),doc(b,'b-new',20)]});
+        emit({readTime:new Timestamp(20,0),docs:[doc(a,'a-old',20),doc(b,'b-new',20)],docChanges:()=>[{type:'modified',doc:doc(b,'b-new',20)}]});
         const heads=await repo.heads('events');assert.equal(heads.get(a)?.revision,'a-new');assert.equal(heads.get(b)?.revision,'b-new');
     }finally{await repo.close();}
 });
