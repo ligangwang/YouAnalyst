@@ -11,7 +11,7 @@ import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup} fro
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
 import {cleanupRecord} from '../../src/lib/market-store/migration';
-function fixture(downloads:string[] = [],queryBudget=0) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
+function fixture(downloads:string[] = [],queryBudget?:number) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
             destination: string;
         }) => { downloads.push(name); const bytes = objects.get(name); if (!bytes)
             throw Error('Missing object'); if (options)
@@ -19,6 +19,19 @@ function fixture(downloads:string[] = [],queryBudget=0) { const objects = new Ma
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('production web defaults enable immutable query reuse without a budget override',async()=>{
+    const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
+    let files:MarketFiles;
+    try{files=fixture();}finally{if(previous===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=previous;}
+    const internal=files as unknown as {queryUncached:MarketFiles['query']};
+    const original=internal.queryUncached.bind(files);let scans=0;
+    internal.queryUncached=async(...args)=>{scans++;return original(...args);};
+    try{
+        const id='web-default',head=await files.write('companies',shardFor(id),[{id,version:Timestamp.now(),data:{name:'Company'}}],[]);
+        const steps=[{method:'where',args:['__name__','==',id]}];
+        await files.query([head],steps);const first=scans;await files.query([head],steps);assert.equal(scans,first);
+    }finally{await files.close();}
+});
 test('immutable queries survive operational revisions but observe new files and distinct bounds',async()=>{
     const files=fixture([],1024*1024),id='cached-company',version=Timestamp.now();
     const internal=files as unknown as {queryUncached:MarketFiles['query']};

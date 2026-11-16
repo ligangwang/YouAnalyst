@@ -40,11 +40,16 @@ export class MarketFiles {
     private cache: PriceStore;
     private prefixes=new PrefixCache();
     private queryResults=new Map<string,{value:Promise<MarketRow[]>;bytes:number}>();
+    private queryBudget:number;
     // The 6 GiB web service can retain the compact market working set. Smaller
     // workers keep their original limit; all caches remain bounded.
     private readonly web = ['ifindata-web', 'market-parquet-ui-probe'].includes(process.env.K_SERVICE ?? '');
-    constructor(readonly bucket: Bucket, private queryBudget = this.web ? 32 * 1024 * 1024 : 0) {
+    constructor(readonly bucket: Bucket, queryBudget?:number) {
+        // Bundlers can lower class fields into constructor statements. Resolve
+        // defaults here, after `web` is initialized, not in parameter bindings.
+        queryBudget ??= this.web ? 32 * 1024 * 1024 : 0;
         if(!Number.isSafeInteger(queryBudget)||queryBudget<0||queryBudget>32*1024*1024)throw Error('Invalid market query cache budget');
+        this.queryBudget=queryBudget;
         this.cache = new PriceStore(bucket, (this.web ? 512 : 64) * 1024 * 1024-queryBudget);
     }
     close() { this.queryResults.clear();this.prefixes.clear();return this.cache.close(); }
