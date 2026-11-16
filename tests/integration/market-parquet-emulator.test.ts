@@ -561,3 +561,29 @@ check('fundamentals gate preserves source through staged reads and independent c
  assert.equal((await f.raw.doc(fund.path).get()).get('pending'),true);
  assert.equal((await fund.get()).get('marketCap.value'),901);
 });
+
+check('live fundamentals state bypasses Parquet scans while preserving shard data and notifications',async t=>{
+ const f=fixture(false,false,true);t.after(()=>f.db.terminate());
+ // This collection has an independent gate, even without a global control read.
+ await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:false});
+ const db=routeMarketFirestore(f.raw,f.repository),live=db.doc('company_fundamentals/_worker');
+ let id='US:S0';for(let i=1;shardFor(id)!==shardFor('_worker');i++)id='US:S'+i;
+ const external=db.doc('company_fundamentals/'+id);
+ await db.batch().set(live,{leaseOwner:'first',leaseUntil:1}).set(external,{marketCap:{value:123},pending:false}).commit();
+ const headRef=f.raw.collection('collectors').doc(headId('company_fundamentals',shardFor('_worker'))),before=(await headRef.get()).get('marketHead'),objects=f.objects.size;
+ const read=f.repository.files.read.bind(f.repository.files),query=f.repository.files.query.bind(f.repository.files);
+ f.repository.files.read=async()=>{throw Error('Live state must not decode a Parquet shard');};
+ f.repository.files.query=async()=>{throw Error('Live state must not scan Parquet');};
+ f.repository.invalidate();assert.equal((await live.get()).get('leaseOwner'),'first');
+ await db.runTransaction(async tx=>{const doc=await tx.get(live);assert.equal(doc.get('leaseOwner'),'first');tx.update(live,{leaseOwner:'second',leaseUntil:FieldValue.increment(1)});});
+ assert.equal((await live.get()).get('leaseOwner'),'second');assert.equal((await live.get()).get('leaseUntil'),2);
+ const after=(await headRef.get()).get('marketHead');assert.equal(after.file,before.file);assert.equal(after.rows,before.rows);assert.notEqual(after.revision,before.revision);assert.equal(f.objects.size,objects);
+ await f.raw.doc(live.path).update({leaseOwner:'third'});assert.equal((await live.get()).get('leaseOwner'),'third','live state must never reuse a stale Parquet result cache');
+ f.repository.files.read=read;f.repository.files.query=query;
+ assert.equal((await external.get()).get('marketCap.value'),123);
+ // Completing a live record must still archive its external history.
+ await live.set({completed:true,result:{ok:true}},{merge:true});
+ assert.equal((await live.get()).get('result.ok'),true);assert.notEqual((await headRef.get()).get('marketHead.file'),before.file);
+ await db.batch().update(external,{marketCap:{value:456}}).update(live,{verificationDuplicateRunId:'verified'}).commit();
+ assert.equal((await external.get()).get('marketCap.value'),456);assert.equal((await live.get()).get('verificationDuplicateRunId'),'verified');
+});

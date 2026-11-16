@@ -317,6 +317,9 @@ export class MarketRepository {
         return found;
     }
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
+        // Live reserved records must not wait for a collection-wide file watch
+        // or serve cached leases/checkpoints. Completed history still joins Parquet.
+        if(collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_')))return this.documentsUncached(collection,ids,context,fields);
         if (!context) {
             await this.heads(collection);
             // Initial ID listeners reuse the preceding bulk projection. The same
@@ -339,6 +342,8 @@ export class MarketRepository {
     }
     private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         await this.ready(context,collection);
+        const reserved=collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
+        if(reserved&&[...reserved.values()].every(doc=>doc.exists&&doc.get('completed')!==true))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
         const retained = this.retainedMembership(heads);
         // Full company reads already require these live records. A complete
@@ -346,8 +351,8 @@ export class MarketRepository {
         // field as positive evidence of a whole record: a stripped operational
         // overlay lacks status and must still merge its Parquet row. Never apply
         // the whole-record predicate to incomplete overlays in other collections.
-        const native = !fields && collection === 'companies' ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined;
-        const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && typeof doc.get('status') === 'string' && retainedWhole(collection, doc.id, doc.data()!)).map(doc => doc.id));
+        const native = reserved ?? (!fields && (collection === 'companies' || collection === 'company_fundamentals') ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined);
+        const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && (collection==='companies' ? typeof doc.get('status') === 'string' && retainedWhole(collection,doc.id,doc.data()!) : doc.id.startsWith('_') && doc.get('completed')!==true)).map(doc => doc.id));
         const externalIds = ids.filter(id => !whole.has(id));
         const result = new Map((externalIds.length ? await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', externalIds] }, ...(fields ? [{method:'select',args:fields}] : [])]) : []).map(row => [row.id, row]));
         // An external-only projection needs no live-state document read. Whole
@@ -475,7 +480,10 @@ export class MarketRepository {
     async prepare(context: MarketContext, tx: Transaction, mutations: Mutation[]) {
         if (this.readOnlyProbe)
             throw Error('Read-only market probe cannot mutate production');
-        const ready = await this.ready(context), groups = new Map<string, {
+        // Fundamentals has its own transactional gate; unrelated global control
+        // reads add latency to every lease/checkpoint transaction.
+        const fundamentalsOnly=!!this.fundamentals&&mutations.every(write=>write.path.startsWith('company_fundamentals/'));
+        const ready = fundamentalsOnly ? false : await this.ready(context), groups = new Map<string, {
             collection: MarketCollection;
             shard: string;
             writes: Mutation[];
@@ -514,15 +522,30 @@ export class MarketRepository {
                     return;
                 const { collection, shard, writes: changes } = queued[index];
                 const {ready,cleanedCollections}=modeFor(collection),retire=retires(collection);
-                const head = await this.head(collection, shard, context), previous = await this.files.read(head), rows = new Map(previous.map(row => [row.id, row])), retained = new Set(head.retained);
+                const head = await this.head(collection, shard, context), retained = new Set(head.retained);
                 const paths = [...new Set(changes.map(change => change.path))].filter(path => !context.documents.has(path));
                 for (const path of paths)
                     if (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1]))
                         context.documents.set(path, { exists: false, id: path.split('/')[1], ref: this.raw.doc(path), data: () => undefined } as DocumentSnapshot);
                 const refs = paths.filter(path => !context.documents.has(path)).map(path => this.raw.doc(path));
                 await this.rawDocuments(refs, context);
-                const complete = new Map<string, Data | undefined>();
                 const at = Timestamp.now();
+                // Live reserved fundamentals records are wholly operational. They
+                // already reside in Firestore, so a lease/checkpoint update does
+                // not need to decode an unrelated Parquet shard. A transition to
+                // a completed historical record still takes the archival path.
+                const live = new Map<string, Data | undefined>();
+                let retainedOnly=ready&&collection==='company_fundamentals';
+                for(const change of changes){
+                    if(!retainedOnly)break;
+                    const id=change.path.split('/')[1],doc=context.documents.get(change.path)!;
+                    if(!id.startsWith('_')||!doc.exists||!retained.has(id)||doc.get('completed')===true){retainedOnly=false;break;}
+                    const value=applyMutation(live.has(id)?live.get(id):doc.data(),change.method,change.args,at);
+                    live.set(id,value);
+                }
+                if([...live.values()].some(value=>value?.completed===true))retainedOnly=false;
+                const previous=retainedOnly?[]:await this.files.read(head),rows=new Map(previous.map(row=>[row.id,row]));
+                const complete = new Map<string, Data | undefined>();
                 for (const change of changes) {
                     const id = change.path.split('/')[1], doc = context.documents.get(change.path)!;
                     const overlay = doc.exists && retained.has(id) ? rows.has(id) ? splitRecord(collection, id, doc.data()!, true).retained : doc.data() : undefined;
