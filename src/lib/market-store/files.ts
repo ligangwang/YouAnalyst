@@ -11,7 +11,7 @@ import { queryIndex, fieldName, type Data } from './value';
 import { compileMarketQuery, project,filterIdentityOrdered, type Step } from './query';
 import type { MarketCollection } from './policy';
 import { encodeMarket, decodeMarket, hydrateMarket } from './blobs';
-import { MARKET_INDEX_FIELDS, MARKET_INDEX_PAYLOAD_FIELDS, marketIndexField, marketIndexProjectionField } from './index-fields';
+import { MARKET_INDEX_FIELDS, MARKET_INDEX_PAYLOAD_FIELDS, marketIndexField, marketIndexProjectionField,marketIndexBundled,marketIndexFormat } from './index-fields';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup,type PrefixRows,type PrefixLookup} from './prefix-cache';
 import {ANNOUNCEMENT_LOOKUP,announcementLookup,announcementPlan,announcementIds} from './announcement-index';
 export const MARKET_ROOT = 'market-parquet/v1';
@@ -81,7 +81,7 @@ export class MarketFiles {
     private async loadPrefixes(heads:MarketHead[],field:string,packIds=false){
         const names=[...new Set(heads.map(head=>head.prefixFile!))];
         for(const name of names)this.validate(name);
-        const storedField=(head:MarketHead)=>(head.format??0)>=8?`${field}:${head.shard}`:field;
+        const storedField=(head:MarketHead)=>marketIndexBundled(head.format)?`${field}:${head.shard}`:field;
         const wanted=new Map(heads.map(head=>[`${head.prefixFile}|${storedField(head)}`,this.prefixKey(head,field)]));
         return this.local(names,paths=>withDuck(async db=>{
             const originals=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),names[i]]));
@@ -156,15 +156,15 @@ export class MarketFiles {
     }
     private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean, compactRead = false): Promise<MarketRow[]> {
         const planned=indexed&&heads.length&&heads.every(head=>head.collection==='events')?announcementPlan(steps):undefined;
-        if(planned&&heads.some(head=>head.file&&(head.format??0)>=7)&&heads.some(head=>head.file&&(head.format??0)<7)){
+        if(planned&&heads.some(head=>head.file&&marketIndexFormat(head.format)>=7)&&heads.some(head=>head.file&&marketIndexFormat(head.format)<7)){
             // An older live writer may replace one shard during rollout. Keep
             // its SQL fallback local to that shard instead of rescanning every
             // upgraded index. Each side supplies enough rows for the final page.
             const candidates=steps.filter(step=>step.method!=='offset').map(step=>step.method==='limit'?{method:'limit',args:[planned.limit+planned.offset]}:step.method==='select'?{method:'select',args:[...step.args,'companyId','publication_date']}:step);
-            const sides=await Promise.all([heads.filter(head=>(head.format??0)>=7),heads.filter(head=>(head.format??0)<7)].map(group=>this.queryUncached(group,candidates,indexed,compactRead)));
+            const sides=await Promise.all([heads.filter(head=>marketIndexFormat(head.format)>=7),heads.filter(head=>marketIndexFormat(head.format)<7)].map(group=>this.queryUncached(group,candidates,indexed,compactRead)));
             return this.filter(sides.flat(),steps);
         }
-        const announcement=planned&&heads.every(head=>!head.file||(head.format??0)>=7)?planned:undefined;
+        const announcement=planned&&heads.every(head=>!head.file||marketIndexFormat(head.format)>=7)?planned:undefined;
         if(announcement){
             if(heads.some(head=>head.file&&!head.prefixFile))throw Error('Missing announcement index');
             const matches:string[]=[];
@@ -183,9 +183,9 @@ export class MarketFiles {
             return ids.map(id=>{const row=byId.get(id);if(!row)throw Error('Announcement index references missing row');return row;});
         }
         const prefix=steps.find(step=>step.method==='where'&&step.args[1]==='array-contains'&&searchPayload.has(fieldName(step.args[0]))&&typeof step.args[2]==='string'&&step.args[2].length>0&&!step.args[2].includes('\0'));
-        if(prefix&&heads.every(head=>!head.file||(head.format??0)>=2)){
+        if(prefix&&heads.every(head=>!head.file||marketIndexFormat(head.format)>=2)){
             const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;const counted=new Set<string>();
-            for(const head of heads){if(!head.file||((head.format??0)>=5&&!head.prefixFile))continue;this.validate(head.file);if(head.prefixFile)this.validate(head.prefixFile);const name=head.prefixFile??head.file,size=(head.prefixFile?head.prefixBytes:head.bytes)??8*1024*1024;
+            for(const head of heads){if(!head.file||(marketIndexFormat(head.format)>=5&&!head.prefixFile))continue;this.validate(head.file);if(head.prefixFile)this.validate(head.prefixFile);const name=head.prefixFile??head.file,size=(head.prefixFile?head.prefixBytes:head.bytes)??8*1024*1024;
                 const modern=!!head.prefixFile,limit=modern?32*1024*1024:8*1024*1024;
                 if(group.length&&(!!group[0].prefixFile!==modern||group.length>=(modern?128:16)||bytes+(counted.has(name)?0:size)>limit)){groups.push(group);group=[];bytes=0;counted.clear();}group.push(head);if(!counted.has(name)){bytes+=size;counted.add(name);}
             }if(group.length)groups.push(group);
@@ -223,12 +223,12 @@ export class MarketFiles {
         const directIds=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])))&&predicates.every(step=>fieldName(step.args[0])==='__name__');
         const compactProjection=selection&&heads.every(head=>!head.file||selection.args.every(field=>marketIndexProjectionField(fieldName(field),head.format??0)));
         if(indexed && !(directIds&&!compactProjection) && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
-            const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:(head.format??0)>=8?8:2,indexFile:undefined}));
+            const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:marketIndexBundled(head.format)?head.format:2,indexFile:undefined}));
             // Calendar records are sparse among hundreds of thousands of news
             // events. Their complete external values fit in the compact index.
             const calendar=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
                 (step.args[1]==='=='&&step.args[2]==='scheduled_event'||step.args[1]==='in'&&Array.isArray(step.args[2])&&step.args[2].length>0&&step.args[2].every(value=>value==='scheduled_event')));
-            if(calendar&&heads.every(head=>!head.file||(head.format??0)>=4))return this.query(compact,steps,false,true);
+            if(calendar&&heads.every(head=>!head.file||marketIndexFormat(head.format)>=4))return this.query(compact,steps,false,true);
             if(compactProjection)
                 return this.query(compact,steps,false,true);
             const identities=await this.query(compact,[...steps.filter(step=>step.method!=='select'),{method:'select',args:[]}],false,true);
@@ -269,15 +269,15 @@ export class MarketFiles {
             const names=[...new Set(group.map(head => head.file!))];
             const rows = await this.local(names, localPaths => withDuck(async (db) => {
                 const paths=localPaths.map(path=>path.replaceAll('\\','/'));
-                const compiled = compileMarketQuery(steps, group.every(head => (head.format??0) >= 2));
+                const compiled = compileMarketQuery(steps, group.every(head => marketIndexFormat(head.format) >= 2));
                 const roots = [...new Set([...(query.selection ?? []), ...steps.filter(step => ['where', 'orderBy'].includes(step.method)).map(step => fieldName(step.args[0]))].map(field => field.split('.')[0]).filter(field => field !== '__name__'))];
                 // A single-group projection can discard large search indexes in DuckDB,
                 // before allocating JavaScript documents. Older bootstrap files still read.
-                const source = group.every(head => (head.format??0) >= 2) && !roots.some(root => searchPayload.has(root)) ? 'view_payload' : 'payload';
+                const source = group.every(head => marketIndexFormat(head.format) >= 2) && !roots.some(root => searchPayload.has(root)) ? 'view_payload' : 'payload';
                 const payload = query.selection !== undefined ? `CASE WHEN json_type(${source})='OBJECT' THEN json_object(${roots.flatMap(root => [quote(root), `coalesce(json_extract(${source},${quote('$.' + JSON.stringify(root))}),'["undefined"]'::JSON)`]).join(',')}) ELSE ${source} END` : 'payload';
                 // A shared index may also contain shards whose heads now point
                 // at newer files. Read only the shards represented by this group.
-                const bundled=compactRead&&group.some(head=>(head.format??0)>=8);
+                const bundled=compactRead&&group.some(head=>marketIndexBundled(head.format));
                 const scope=bundled?` AND (${paths.map((path,i)=>`(filename=${quote(path)} AND substr(sha256(id),1,2) IN (${group.filter(head=>head.file===names[i]).map(head=>quote(head.shard)).join(',')}))`).join(' OR ')})`:'';
                 const sql = `SELECT id,${payload},version FROM read_parquet([${paths.map(quote).join(',')}],union_by_name=true${bundled?',filename=true':''}) WHERE (${compiled.where})${scope} ORDER BY ${compiled.order}${query.limit === undefined ? '' : ` LIMIT ${query.limit + query.offset}`}`;
                 return (await db.runAndReadAll(sql)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }));
@@ -335,7 +335,7 @@ export class MarketFiles {
      * Callers must publish the returned heads with a compare-and-swap transaction. */
     async bundleIndexes(heads:MarketHead[]):Promise<MarketHead[]>{
         if(!heads.length||heads.length>16||new Set(heads.map(head=>head.shard)).size!==heads.length
-            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||(head.format??0)<6))throw Error('Invalid index bundle');
+            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>7))throw Error('Invalid index bundle');
         const directory=await mkdtemp(join(tmpdir(),'ya-market-bundle-')),indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
         const destination=()=>`${MARKET_ROOT}/data/${heads[0].collection}/${heads[0].shard}/${randomUUID()}.parquet`;
         const names=[...new Set(heads.flatMap(head=>[head.indexFile!,...(head.prefixFile?[head.prefixFile]:[])]))];
@@ -350,7 +350,7 @@ export class MarketFiles {
                 if(Number(difference)!==0)throw Error('Index bundle parity failed');
                 const counts=new Map((await db.runAndReadAll(`SELECT substr(sha256(id),1,2),count(*) FROM read_parquet(${quote(indexPath)}) GROUP BY 1`)).getRows().map(([shard,count])=>[String(shard),Number(count)]));
                 if(heads.some(head=>(counts.get(head.shard)??0)!==head.rows))throw Error('Index bundle shard count mismatch');
-                const prefixes=heads.filter(head=>head.prefixFile).map(head=>`SELECT ${(head.format??0)>=8?'field':`field || ${quote(':'+head.shard)}`} AS field,payload FROM read_parquet(${quote(local.get(head.prefixFile!)!)})${(head.format??0)>=8?` WHERE ends_with(field,${quote(':'+head.shard)})`:''}`).join(' UNION ALL ');
+                const prefixes=heads.filter(head=>head.prefixFile).map(head=>`SELECT ${marketIndexBundled(head.format)?'field':`field || ${quote(':'+head.shard)}`} AS field,payload FROM read_parquet(${quote(local.get(head.prefixFile!)!)})${marketIndexBundled(head.format)?` WHERE ends_with(field,${quote(':'+head.shard)})`:''}`).join(' UNION ALL ');
                 if(prefixes){
                     await db.run(`COPY (${prefixes}) TO ${quote(prefixPath)} (FORMAT PARQUET,COMPRESSION ZSTD)`);
                     const [[changed]]=(await db.runAndReadAll(`WITH original AS (${prefixes}), differences AS ((SELECT * FROM original EXCEPT ALL SELECT * FROM read_parquet(${quote(prefixPath)})) UNION ALL (SELECT * FROM read_parquet(${quote(prefixPath)}) EXCEPT ALL SELECT * FROM original)) SELECT count(*) FROM differences`)).getRows();
@@ -366,7 +366,7 @@ export class MarketFiles {
                 prefixFile=destination();prefixBytes=(await import('node:fs/promises').then(fs=>fs.stat(prefixPath))).size;
                 await this.bucket.upload(prefixPath,{destination:prefixFile,resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});
             }
-            return heads.map(head=>({...head,format:8,indexFile,indexBytes,...(head.prefixFile?{prefixFile,prefixBytes}:{})}));
+            return heads.map(head=>({...head,format:100+marketIndexFormat(head.format),indexFile,indexBytes,...(head.prefixFile?{prefixFile,prefixBytes}:{})}));
         }finally{await rm(directory,{recursive:true,force:true});}
     }
     async write(collection: MarketCollection, shard: string, rows: MarketRow[], retained: string[]): Promise<MarketHead> {

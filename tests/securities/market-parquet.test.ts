@@ -46,6 +46,22 @@ test('shared index bundles preserve shard boundaries across live rewrites and re
         assert.deepEqual(await files.query(heads,scan),await files.filter(rows,scan),'deleted shard data inside an old bundle stays invisible');
     }finally{await files.close();}
 });
+test('bundled legacy indexes preserve missing-column fallbacks and mixed-format announcements',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
+    const ids=['legacy-bundle-one','legacy-bundle-two','legacy-bundle-three'];assert.equal(new Set(ids.map(shardFor)).size,3);
+    const rows=ids.map((id,i)=>({id,version,data:{companyId:'US:AMD',publication_date:`2026-11-${10+i}`,title:'Full title '+i}}));
+    try{
+        const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+        const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
+        const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
+        assert.deepEqual(heads.map(head=>head.format),[103,105,107]);
+        const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
+        const start=downloads.length;
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert(downloads.slice(start).includes(full[0].file!));assert(downloads.slice(start).includes(full[1].file!));
+        assert(!downloads.slice(start).includes(full[2].file!),'modern rows still use their covering index');
+    }finally{await files.close();}
+});
 test('shared search indexes never leak another shard after a prefix changes',async()=>{
     const files=fixture(),version=Timestamp.now();
     const ids=['search-one','search-two','search-three'];assert.equal(new Set(ids.map(shardFor)).size,3);

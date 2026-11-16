@@ -6,6 +6,7 @@ import {MARKET_COLLECTIONS,type MarketCollection} from './policy';
 import {MarketFiles,type MarketHead} from './files';
 import {CONTROL,headId} from './repository';
 import {compactHead,pointerId,pointerCollection} from './head-pointer';
+import {marketIndexBundled} from './index-fields';
 
 type Result={collection:MarketCollection;changed:number;skipped:number;rows:number};
 /** Immutable indexes are published only if all source heads still match. The
@@ -28,7 +29,7 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
                 const docs=await raw.getAll(...shards.map(shard=>raw.collection('collectors').doc(headId(collection,shard))));
                 const heads=docs.map((doc,i)=>{const head=doc.get('marketHead') as MarketHead;assert(head&&head.collection===collection&&head.shard===shards[i]);return head;});
                 const indexed=heads.filter(head=>head.file&&head.indexFile);
-                if(indexed.length<2||indexed.every(head=>(head.format??0)>=8)&&new Set(indexed.map(head=>head.indexFile)).size===1){skipped+=indexed.length;published=true;break;}
+                if(indexed.length<2||indexed.every(head=>marketIndexBundled(head.format))&&new Set(indexed.map(head=>head.indexFile)).size===1){skipped+=indexed.length;published=true;break;}
                 const bundled=await files.bundleIndexes(indexed);
                 await options.prepared?.(indexed,bundled);
                 await options.before(bundled.length*2);
