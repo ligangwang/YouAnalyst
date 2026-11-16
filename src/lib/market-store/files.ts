@@ -39,8 +39,10 @@ const decodePayload = (payload: string): Data => { const wire = JSON.parse(paylo
 export class MarketFiles {
     private cache: PriceStore;
     private prefixes=new PrefixCache();
-    // Keep the combined file/membership budget at the existing 128 MiB.
-    constructor(readonly bucket: Bucket) { this.cache = new PriceStore(bucket, 64 * 1024 * 1024); }
+    // The 6 GiB web service can retain the compact market working set. Smaller
+    // workers keep their original limit; all caches remain bounded.
+    private readonly web = ['ifindata-web', 'market-parquet-ui-probe'].includes(process.env.K_SERVICE ?? '');
+    constructor(readonly bucket: Bucket) { this.cache = new PriceStore(bucket, (this.web ? 512 : 64) * 1024 * 1024); }
     close() { this.prefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
         const paths: string[] = [], holds: Promise<unknown>[] = [];
@@ -102,9 +104,11 @@ export class MarketFiles {
             return this.query(heads,[{method:'where',args:['__name__','in',[...new Set(matches)]]},...rest],indexed);
         }
         const predicates = steps.filter(step=>['where','orderBy'].includes(step.method));
-        if(indexed && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
+        const selection=steps.find(step=>step.method==='select');
+        const directIds=predicates.length>0&&predicates.every(step=>fieldName(step.args[0])==='__name__');
+        const compactProjection=selection&&selection.args.every(field=>marketIndexField(fieldName(field)));
+        if(indexed && !(directIds&&!compactProjection) && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
             const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:2,indexFile:undefined}));
-            const selection=steps.find(step=>step.method==='select');
             // Calendar records are sparse among hundreds of thousands of news
             // events. Their complete external values fit in the compact index.
             const calendar=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
@@ -128,7 +132,7 @@ export class MarketFiles {
         let group: MarketHead[] = [], bytes = 0;
         for (const head of files) {
             const size = head.bytes ?? 8 * 1024 * 1024;
-            if (group.length && bytes + size > 8 * 1024 * 1024) {
+            if (group.length && bytes + size > (this.web ? 32 : 8) * 1024 * 1024) {
                 groups.push(group);
                 group = [];
                 bytes = 0;
