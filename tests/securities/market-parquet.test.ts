@@ -178,3 +178,12 @@ test('direct ID reads skip the compact index while projections retain the smalle
         assert.deepEqual(downloads,[head.indexFile]);
     }finally{await files.close();}
 });
+
+test('ID ordering without an exact predicate still uses the compact index',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),row={id:'range-id',version:Timestamp.now(),data:{name:'Company',body:'External body'}};
+    try{
+        const head=await files.write('companies',shardFor(row.id),[row],[]);
+        assert.deepEqual(await files.query([head],[{method:'orderBy',args:['__name__']},{method:'startAt',args:['range']},{method:'limit',args:[1]}]),[row]);
+        assert.deepEqual(downloads,[head.indexFile,head.file]);
+    }finally{await files.close();}
+});

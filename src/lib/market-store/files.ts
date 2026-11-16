@@ -105,7 +105,7 @@ export class MarketFiles {
         }
         const predicates = steps.filter(step=>['where','orderBy'].includes(step.method));
         const selection=steps.find(step=>step.method==='select');
-        const directIds=predicates.length>0&&predicates.every(step=>fieldName(step.args[0])==='__name__');
+        const directIds=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])))&&predicates.every(step=>fieldName(step.args[0])==='__name__');
         const compactProjection=selection&&selection.args.every(field=>marketIndexField(fieldName(field)));
         if(indexed && !(directIds&&!compactProjection) && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
             const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:2,indexFile:undefined}));
