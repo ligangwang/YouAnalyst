@@ -10,6 +10,7 @@ import { MarketBlob } from '../../src/lib/market-store/blobs';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup} from '../../src/lib/market-store/prefix-cache';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
+import {cleanupRecord} from '../../src/lib/market-store/migration';
 function fixture(downloads:string[] = []) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
             destination: string;
         }) => { downloads.push(name); const bytes = objects.get(name); if (!bytes)
@@ -125,6 +126,12 @@ test('UGC, active queues, leases and deduplication stay in Firestore', () => {
     assert.deepEqual(splitRecord('sec_filings', 'accession', filing), { external: { form: '10-K' }, retained: { discoveryPending: true, discoveryEvents: filing.discoveryEvents } });
     const history = { completed: true, request: { eventId: 'dedup' }, result: { records: 20 } };
     assert.deepEqual(splitRecord('company_fundamentals', '_finished_work', history), { external: { result: { records: 20 } }, retained: { completed: true, request: { eventId: 'dedup' } } });
+});
+test('cleanup resumes safely after external fields have already been stripped',()=>{
+    const doc=(data:Record<string,unknown>)=>({exists:true,id:'US:NVDA',data:()=>data}) as Parameters<typeof cleanupRecord>[1];
+    const retained={companyId:'US:NVDA',pending:true,updatedAt:Timestamp.now()};
+    assert.equal(cleanupRecord('company_fundamentals',doc(retained),undefined).kind,'retained');
+    assert.equal(cleanupRecord('company_fundamentals',doc({...retained,value:{revenue:100}}),undefined).kind,'strip');
 });
 test('large binary captures stay in GCS and only selected records hydrate their bytes', async () => {
     const files = fixture(), data = { recordType: 'raw_chunk', bytes: Buffer.alloc(400000, 42) }, row = { id: 'chunk', data, version: Timestamp.now() };
