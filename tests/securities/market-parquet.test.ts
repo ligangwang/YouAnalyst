@@ -54,7 +54,7 @@ test('bounded shared-index scans preserve global ordering, offsets, and projecti
         const standalone=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
         const heads=[];
         for(let i=0;i<standalone.length;i+=2)heads.push(...await files.bundleIndexes(standalone.slice(i,i+2)));
-        const steps=[{method:'where',args:['sourceType','==','news']},{method:'orderBy',args:['publication_date','desc']},{method:'offset',args:[3]},{method:'limit',args:[7]},{method:'select',args:['title']}];
+        const steps=[{method:'where',args:['__name__','in',ids]},{method:'where',args:['sourceType','==','news']},{method:'orderBy',args:['publication_date','desc']},{method:'offset',args:[3]},{method:'limit',args:[7]},{method:'select',args:['title']}];
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
     }finally{await files.close();}
 });
