@@ -63,8 +63,11 @@ check('production routing keeps events and fundamentals native after cutover and
     assert.equal((await f.raw.doc(fund.path).get()).get('marketCap'),456);
     assert.equal((await ticker.get()).get('name'),'Updated Parquet');
     assert.equal((await db.collection('events').where('companyId','==','US:NVDA').get()).size,1);
-    const live=await new Promise<string>((resolve,reject)=>{const stop=db.collection('events').where('companyId','==','US:NVDA').onSnapshot(s=>resolve(s.docs[0].get('title')),reject);t.after(stop);});
-    assert.equal(live,'Updated native','native query listeners remain available after global cutover');
+    let stop=()=>{};
+    try{
+        const live=await new Promise<string>((resolve,reject)=>{stop=db.collection('events').where('companyId','==','US:NVDA').onSnapshot(s=>resolve(s.docs[0].get('title')),reject);});
+        assert.equal(live,'Updated native','native query listeners remain available after global cutover');
+    }finally{stop();}
     assert.equal((await f.raw.collection('collectors').where('marketCollection','in',['events','company_fundamentals']).get()).size,0,'deferred writes must not create Parquet heads');
 });
 check('website deployments default to the complete compact pointer inventory',async t=>{

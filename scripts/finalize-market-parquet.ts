@@ -90,7 +90,8 @@ async function main() {
             sourceRows: number;
             operatorRoot: string;
         }>;
-        if (audits.length !== MARKET_COLLECTIONS.length || MARKET_COLLECTIONS.some(c => !audits.some(a => a.collection === c)))
+        if (PARQUET_MARKET_COLLECTIONS.some(c => !audits.some(a => a.collection === c))
+            || audits.some((a,i)=>!MARKET_COLLECTIONS.includes(a.collection)||audits.findIndex(other=>other.collection===a.collection)!==i))
             throw Error('Incomplete initial-copy audit');
         if (mode === 'cleanup') {
             const proof = process.env.MARKET_VERIFICATION_PROOF;
