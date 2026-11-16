@@ -35,11 +35,13 @@ export type MarketHead = {
     prefixFile?: string;
     prefixBytes?: number;
 };
+const CALENDAR_LOOKUP='type/scheduled_date';
 const searchPayload = new Set(['searchPrefixes', 'searchTerms', 'namePrefixes', 'symbolPrefixes']);
 const decodePayload = (payload: string): Data => { const wire = JSON.parse(payload); return Array.isArray(wire) ? decodeMarket(wire) : Object.fromEntries(Object.entries(wire).map(([key, value]) => [key, decodeMarket(value)])); };
 export class MarketFiles {
     private cache: PriceStore;
     private prefixes=new PrefixCache();
+    private announcementPrefixes:PrefixCache;
     private queryResults=new Map<string,{value:Promise<MarketRow[]>;bytes:number}>();
     private queryBudget:number;
     // The 6 GiB web service can retain the compact market working set. Smaller
@@ -51,9 +53,13 @@ export class MarketFiles {
         queryBudget ??= this.web ? 32 * 1024 * 1024 : 0;
         if(!Number.isSafeInteger(queryBudget)||queryBudget<0||queryBudget>32*1024*1024)throw Error('Invalid market query cache budget');
         this.queryBudget=queryBudget;
-        this.cache = new PriceStore(bucket, (this.web ? 512 : 64) * 1024 * 1024-queryBudget);
+        // Event IDs need ~84 MiB as UTF-8. Reserve a separate 96 MiB lookup
+        // cache on the website so search prefixes cannot evict every timeline.
+        // Borrow the same bytes from file caching; total cache budget is unchanged.
+        this.announcementPrefixes=this.web?new PrefixCache(96*1024*1024):this.prefixes;
+        this.cache = new PriceStore(bucket, (this.web ? 416 : 64) * 1024 * 1024-queryBudget);
     }
-    close() { this.queryResults.clear();this.prefixes.clear();return this.cache.close(); }
+    close() { this.queryResults.clear();this.prefixes.clear();this.announcementPrefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
         const paths: string[] = [], holds: Promise<unknown>[] = [];
         let release!: () => void;
@@ -96,6 +102,36 @@ export class MarketFiles {
             }
             return found;
         }));
+    }
+    private calendarRows(heads:MarketHead[]):Promise<MarketRow[]> {
+        const active=heads.filter(head=>head.file);
+        const key='calendar:'+createHash('sha256').update(JSON.stringify(active.map(head=>[head.shard,head.prefixFile,head.format]))).digest('hex');
+        const old=this.queryBudget?this.queryResults.get(key):undefined;
+        if(old){this.queryResults.delete(key);this.queryResults.set(key,old);return old.value;}
+        const work=async()=>{
+            if(active.some(head=>!head.prefixFile))throw Error('Missing calendar projection');
+            const names=[...new Set(active.map(head=>head.prefixFile!))];for(const name of names)this.validate(name);
+            const wanted=new Map(active.map(head=>[head.prefixFile+'|'+(marketIndexBundled(head.format)?CALENDAR_LOOKUP+':'+head.shard:CALENDAR_LOOKUP),head.shard]));
+            return this.local(names,paths=>withDuck(async db=>{
+                const originals=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),names[i]]));
+                const fields=[...new Set(active.map(head=>marketIndexBundled(head.format)?CALENDAR_LOOKUP+':'+head.shard:CALENDAR_LOOKUP))];
+                const rows=(await db.runAndReadAll(`SELECT filename,field,payload FROM read_parquet([${paths.map(quote).join(',')}],filename=true) WHERE field IN (${fields.map(quote).join(',')})`)).getRows();
+                const found=new Set<string>(),result:MarketRow[]=[];
+                for(const [filename,field,payload] of rows){
+                    const name=originals.get(String(filename).replaceAll('\\','/')),identity=name+'|'+field,shard=wanted.get(identity);
+                    if(!shard)continue;if(found.has(identity))throw Error('Duplicate calendar projection');found.add(identity);
+                    const records:unknown=JSON.parse(String(payload));if(!Array.isArray(records))throw Error('Invalid calendar projection');
+                    for(const record of records){
+                        if(!Array.isArray(record)||record.length!==3||record.some(value=>typeof value!=='string')||shardFor(record[0])!==shard)throw Error('Invalid calendar row');
+                        const data=decodePayload(record[1]);if(data.type!=='scheduled_event')throw Error('Invalid calendar event type');
+                        result.push({id:record[0],data,version:decode(JSON.parse(record[2])) as Timestamp});
+                    }
+                }
+                if(found.size!==wanted.size)throw Error('Incomplete calendar projection');return result;
+            }));
+        };
+        if(!active.length)return Promise.resolve([]);
+        const entry={value:work(),bytes:0};if(this.queryBudget)this.remember(key,entry);return entry.value;
     }
     async query(heads: MarketHead[], steps: Step[], indexed = true, compactRead = false): Promise<MarketRow[]> {
         const limit=steps.find(step=>step.method==='limit'||step.method==='limitToLast')?.args[0];
@@ -155,6 +191,10 @@ export class MarketFiles {
         }).catch(()=>{if(this.queryResults.get(key)===entry)this.queryResults.delete(key);});
     }
     private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean, compactRead = false): Promise<MarketRow[]> {
+        const calendar=steps.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
+            (step.args[1]==='=='&&step.args[2]==='scheduled_event'||step.args[1]==='in'&&Array.isArray(step.args[2])&&step.args[2].length>0&&step.args[2].every(value=>value==='scheduled_event')));
+        if(indexed&&calendar&&heads.every(head=>head.collection==='events'&&(!head.file||marketIndexFormat(head.format)>=8)))
+            return this.filter(await this.calendarRows(heads),steps);
         const planned=indexed&&heads.length&&heads.every(head=>head.collection==='events')?announcementPlan(steps):undefined;
         if(planned&&heads.some(head=>head.file&&marketIndexFormat(head.format)>=7)&&heads.some(head=>head.file&&marketIndexFormat(head.format)<7)){
             // An older live writer may replace one shard during rollout. Keep
@@ -171,11 +211,11 @@ export class MarketFiles {
             const files=heads.filter(head=>head.file&&head.prefixFile);
             for(let start=0;start<files.length;start+=128){
                 const group=files.slice(start,start+128),key=(head:MarketHead)=>this.prefixKey(head,ANNOUNCEMENT_LOOKUP);
-                const missing=group.filter(head=>!this.prefixes.has(key(head)));
+                const missing=group.filter(head=>!this.announcementPrefixes.has(key(head)));
                 for(const head of missing)this.validate(head.prefixFile!);
                 let pending:Promise<Map<string,PrefixLookup>>|undefined;
                 const load=()=>pending??=this.loadPrefixes(missing,ANNOUNCEMENT_LOOKUP,true);
-                matches.push(...(await Promise.all(group.map(head=>this.prefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(key(head));if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
+                matches.push(...(await Promise.all(group.map(head=>this.announcementPrefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(key(head));if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
             }
             const ids=announcementIds(matches,announcement);if(!ids.length)return [];
             const rows=await this.query(heads,[{method:'where',args:['__name__','in',ids]},...steps.filter(step=>step.method==='select')]);
@@ -340,7 +380,7 @@ export class MarketFiles {
      * Callers must publish the returned heads with a compare-and-swap transaction. */
     async bundleIndexes(heads:MarketHead[]):Promise<MarketHead[]>{
         if(!heads.length||heads.length>16||new Set(heads.map(head=>head.shard)).size!==heads.length
-            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>7))throw Error('Invalid index bundle');
+            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>8))throw Error('Invalid index bundle');
         const directory=await mkdtemp(join(tmpdir(),'ya-market-bundle-')),indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
         const destination=()=>`${MARKET_ROOT}/data/${heads[0].collection}/${heads[0].shard}/${randomUUID()}.parquet`;
         const names=[...new Set(heads.flatMap(head=>[head.indexFile!,...(head.prefixFile?[head.prefixFile]:[])]))];
@@ -390,7 +430,7 @@ export class MarketFiles {
             throw Error('Invalid market partition');
         if (new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => shardFor(row.id) !== shard))
             throw Error('Invalid market partition rows');
-        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 7 };
+        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: collection==='events'?8:7 };
         if (!rows.length)
             return head;
         const directory = await mkdtemp(join(tmpdir(), 'ya-market-')), path = join(directory, 'rows.parquet'), indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
@@ -410,6 +450,7 @@ export class MarketFiles {
                 compactPayloads.push(JSON.stringify(compactWire));
                 compactIndexes.push(queryIndex(project(compact,[...MARKET_INDEX_FIELDS])));
             }
+            if(collection==='events')prefixRows.push([CALENDAR_LOOKUP,JSON.stringify(rows.flatMap((row,i)=>row.data.type==='scheduled_event'?[[row.id,payloads[i],JSON.stringify(encode(row.version))]]:[]))]);
             await withDuck(async (db) => {
                 await db.run('CREATE TABLE records (id VARCHAR,payload VARCHAR,version VARCHAR,keys JSON,arrays JSON,view_payload VARCHAR,view_keys JSON,index_payload VARCHAR,index_keys JSON,index_arrays JSON)');
                 const appender = await db.createAppender('records');

@@ -133,7 +133,7 @@ test('announcements read a twelve-document prefix and only the remaining search 
   assert.equal(queries.length,2);
 });
 
-test('deferred announcements retain native full-document pagination with Parquet enabled',async t=>{
+test('events read gate switches native pagination to a bounded Parquet projection',async t=>{
  const keys=['MARKET_PARQUET_ENABLED','MARKET_READ_ONLY_PROBE','K_SERVICE','CLOUD_RUN_JOB'] as const,previous=keys.map(key=>process.env[key]);
  process.env.MARKET_PARQUET_ENABLED='1';process.env.MARKET_READ_ONLY_PROBE='1';delete process.env.K_SERVICE;delete process.env.CLOUD_RUN_JOB;
  t.after(()=>keys.forEach((key,i)=>{if(previous[i]===undefined)delete process.env[key];else process.env[key]=previous[i];}));
@@ -144,9 +144,12 @@ test('deferred announcements retain native full-document pagination with Parquet
  function query(after=-1,limit=0,fields:string[]=[]){return {
   where:()=>query(after,limit,fields),orderBy:()=>query(after,limit,fields),
   select:(...selected:string[])=>query(after,limit,selected),limit:(n:number)=>query(after,n,fields),startAfter:(doc:{id:string})=>query(Number(doc.id),limit,fields),
-  get:async()=>{assert.deepEqual(fields,[],'native queries must not use a field mask');counts.push(limit);return {docs:records.slice(after+1,after+1+limit).map(row=>({id:row.id,data:()=>row}))};},
+  get:async()=>{assert.deepEqual(fields,process.env.MARKET_READ_ONLY_PROBE==='1'?['version','companyId','id','title','url','published_at','publication_date','type','sourceType','sourceId','category','form']:[]);counts.push(limit);return {docs:records.slice(after+1,after+1+limit).map(row=>({id:row.id,data:()=>row}))};},
  };}
  const db={collection:()=>query()} as unknown as Firestore;
- assert.deepEqual((await companyAnnouncementsFromEvents(db,'US:AMD',[],'2026-01-03')).map(row=>row.id),Array.from({length:12},(_,i)=>String(i+1)));
- assert.deepEqual(counts,[12,18]);
+ for(const probe of ['0','1']){
+  process.env.MARKET_READ_ONLY_PROBE=probe;counts.length=0;
+  assert.deepEqual((await companyAnnouncementsFromEvents(db,'US:AMD',[],'2026-01-03')).map(row=>row.id),Array.from({length:12},(_,i)=>String(i+1)));
+  assert.deepEqual(counts,probe==='1'?[30]:[12,18]);
+ }
 });

@@ -6,9 +6,9 @@ export const MARKET_COLLECTIONS = [
     'security_id_mapping_sync_runs', 'security_id_mappings', 'tickers',
 ] as const;
 export type MarketCollection = typeof MARKET_COLLECTIONS[number];
-// Deferred from this cutover: keep native reads, writes, and live listeners
-// until their latency-sensitive paths are migrated and verified separately.
-export const DEFERRED_MARKET_COLLECTIONS = ['events'] as const;
+// Collections can be deferred here until their read paths are verified.
+// Events and fundamentals now use independent read and retirement controls.
+export const DEFERRED_MARKET_COLLECTIONS = [] as const;
 const deferred = new Set<string>(DEFERRED_MARKET_COLLECTIONS);
 export const PARQUET_MARKET_COLLECTIONS = MARKET_COLLECTIONS.filter(name=>!deferred.has(name));
 const collections = new Set<string>(MARKET_COLLECTIONS);

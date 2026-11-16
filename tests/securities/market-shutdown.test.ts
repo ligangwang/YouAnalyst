@@ -18,13 +18,13 @@ test('completed jobs close control and shard streams and can create a fresh clie
         assert.equal(enableMarketStore(raw,bucket),first);
         await [...globalThis.__youAnalystMarketStore.repositories][0].heads('events');
         const closing=closeLocalCaches();
-        assert.equal(closed,3,'shutdown releases streams synchronously');
+        assert.equal(closed,4,'shutdown releases streams synchronously');
         const second=enableMarketStore(raw,bucket);
         assert.notEqual(second,first,'closed clients must not be reused');
         await closing;
-        assert.equal(closed,3,'an earlier cleanup must not close a later client');
+        assert.equal(closed,4,'an earlier cleanup must not close a later client');
         await closeLocalCaches();
-        assert.equal(closed,5);
+        assert.equal(closed,7,'global, fundamentals and events control streams all close');
         console.log('job exited with all streams closed');
         })().catch(error=>{console.error(error);process.exitCode=1;});
     `;
