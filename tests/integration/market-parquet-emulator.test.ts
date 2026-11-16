@@ -186,6 +186,11 @@ check('production query adapter agrees with native Firestore for filters, projec
     const grouped=await f.db.getAll(...[1,5,8].map(i=>f.db.doc('company_directory/item-'+String(i).padStart(2,'0'))),{fieldMask:['name']});
     assert.deepEqual(grouped.map(doc=>doc.get('name')),['Company 1','Company 5','Company 8']);
     assert.equal(queries,1,'bulk document reads must use one grouped Parquet query');
+    const subset=await f.db.collection('company_directory').where('__name__','in',['item-08','item-01']).select('name').get();
+    assert.deepEqual(subset.docs.map(doc=>doc.data()),[{name:'Company 1'},{name:'Company 8'}]);
+    assert.equal(queries,1,'initial ID listeners must reuse the bulk projection');
+    await f.db.doc('company_directory/item-08').update({name:'Updated'});
+    assert.equal((await f.db.collection('company_directory').where('__name__','==','item-08').select('name').get()).docs[0].get('name'),'Updated');
     f.repository.files.query=query;
     assert.equal((await f.db.collection('company_directory').where('score','>=',4).count().get()).data().count,8);
     await f.db.runTransaction(async tx=>{

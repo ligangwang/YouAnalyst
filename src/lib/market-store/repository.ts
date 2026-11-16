@@ -220,6 +220,18 @@ export class MarketRepository {
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         if (!context) {
             await this.heads(collection);
+            // Initial ID listeners reuse the preceding bulk projection. The same
+            // bounded cache and head invalidation govern both access patterns.
+            const remaining=new Set(ids), pending:Promise<MarketRow[]>[]=[];
+            const prefix='docs:'+collection+':';
+            for(const [key,entry] of this.results){
+                if(!key.startsWith(prefix)||entry.until<=Date.now())continue;
+                const [cachedIds,cachedFields]=JSON.parse(key.slice(prefix.length)) as [string[],string[]|null];
+                if(JSON.stringify(cachedFields)!==JSON.stringify(fields??null))continue;
+                if(!cachedIds.some(id=>remaining.has(id)))continue;
+                pending.push(entry.value);for(const id of cachedIds)remaining.delete(id);
+                if(!remaining.size){const found=new Map((await Promise.all(pending)).flat().map(row=>[row.id,row]));return ids.flatMap(id=>found.has(id)?[found.get(id)!]:[]);}
+            }
             return this.cached('docs:' + collection + ':' + JSON.stringify([ids,fields]), () => this.documentsUncached(collection, ids, undefined, fields));
         }
         return this.documentsUncached(collection, ids, context, fields);
@@ -283,6 +295,12 @@ export class MarketRepository {
         return query;
     }
     async query(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
+        const predicate=steps.filter(step=>step.method==='where'), selection=steps.find(step=>step.method==='select');
+        if(predicate.length===1&&steps.every(step=>step.method==='where'||step.method==='select')&&fieldName(predicate[0].args[0])==='__name__'){
+            const [,op,value]=predicate[0].args;
+            const ids=op==='=='&&typeof value==='string'?[value]:op==='in'&&Array.isArray(value)&&value.length&&value.every(id=>typeof id==='string')?value as string[]:undefined;
+            if(ids){const rows=await this.documents(collection,[...new Set(ids)],context,selection?.args.map(fieldName));return rows.sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id)));}
+        }
         if (!context) {
             await this.heads(collection);
             const normalized = steps.map(step => ({ method: step.method, args: step.args.map(value => value instanceof FieldPath ? { field: fieldName(value) } : value && typeof value === 'object' && 'ref' in value ? { cursor: (value as DocumentSnapshot).ref.path, version: encode((value as DocumentSnapshot).updateTime) } : encode(value)) }));
