@@ -7,9 +7,19 @@ declare global {
     var __youAnalystMarketStore: {
         clients: WeakMap<Firestore, Firestore>;
         cutover: boolean | undefined;
+        repositories?: Set<MarketRepository>;
     } | undefined;
 }
 const state = globalThis.__youAnalystMarketStore ??= { clients: new WeakMap<Firestore, Firestore>(), cutover: undefined };
+const repositories = state.repositories ??= new Set<MarketRepository>();
+/** Jobs must release control/head streams as well as UI cache subscriptions. */
+export async function closeMarketStores() {
+    const active = [...repositories];
+    repositories.clear();
+    state.clients = new WeakMap<Firestore, Firestore>();
+    state.cutover = undefined;
+    await Promise.all(active.map(repository => repository.close()));
+}
 export const marketStoreEnabled = () => process.env.MARKET_PARQUET_ENABLED === '1'
     || [process.env.GCP_PROJECT_ID, process.env.GOOGLE_CLOUD_PROJECT, process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID].includes('ifindata-80905');
 // Local production-data UI verification only. Cloud Run cannot enable this
@@ -27,8 +37,10 @@ export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     const name = bucket?.name || process.env.ENTITY_SNAPSHOT_BUCKET || process.env.EODHD_BULK_EOD_BUCKET;
     if (!name)
         throw Error('Market Parquet bucket is required');
-    client = marketFirestore(raw, new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), ready => { state.cutover = ready; if (ready)
-        void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe()));
+    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), ready => { state.cutover = ready; if (ready)
+        void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe());
+    repositories.add(repository);
+    client = marketFirestore(raw, repository);
     state.clients.set(raw, client);
     return client;
 }
