@@ -6,6 +6,7 @@ import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files'
 import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
+import {DocumentBatcher} from './document-batcher';
 export const CONTROL = 'collectors/_market_parquet_control';
 export const headId = (collection: MarketCollection, shard: string) => `_market_parquet_${collection}_${shard}`;
 export type Mutation = {
@@ -27,6 +28,7 @@ export type MarketContext = {
     writes: Mutation[];
 };
 export class MarketRepository {
+    private documentReads=new DocumentBatcher<MarketRow>();
     private controls?: {
         until: number;
         value: Promise<boolean>;
@@ -232,7 +234,9 @@ export class MarketRepository {
                 pending.push(entry.value);for(const id of cachedIds)remaining.delete(id);
                 if(!remaining.size){const found=new Map((await Promise.all(pending)).flat().map(row=>[row.id,row]));return ids.flatMap(id=>found.has(id)?[found.get(id)!]:[]);}
             }
-            return this.cached('docs:' + collection + ':' + JSON.stringify([ids,fields]), () => this.documentsUncached(collection, ids, undefined, fields));
+            return this.cached('docs:' + collection + ':' + JSON.stringify([ids,fields]), () =>
+                this.documentReads.load(JSON.stringify([collection,fields??null]),ids,
+                    batch=>this.documentsUncached(collection,batch,undefined,fields)));
         }
         return this.documentsUncached(collection, ids, context, fields);
     }
