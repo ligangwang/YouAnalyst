@@ -79,6 +79,27 @@ test('initial head snapshot reconciles a locally installed head absent from the 
         }finally{await repo.close();}
     }
 });
+test('small queries inspect only matching retained shards and refresh membership with new heads',async()=>{
+    const id='membership-event',target=shardFor(id);let reads=0,emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
+    const counted=(ids:string[])=>new Proxy(ids,{get:(array,key,receiver)=>{if(typeof key==='string'&&/^\d+$/.test(key))reads++;return Reflect.get(array,key,receiver);}});
+    const head=(shard:string,ids:string[])=>({collection:'events',shard,rows:1,retained:counted(ids),revision:'fixture'});
+    const doc=(value:ReturnType<typeof head>)=>({exists:true,get:(field:string)=>field==='marketHead'?value:value.shard});
+    const docs=Array.from({length:256},(_,i)=>{const shard=i.toString(16).padStart(2,'0');return doc(head(shard,shard===target?[id]:['unrelated-'+shard]));});
+    const query={where:()=>query,limit:()=>query,get:async()=>({docs:[]}),doc:(id:string)=>({id}),onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}};
+    let overlays=0;
+    const raw={collection:()=>query,getAll:async(...refs:unknown[])=>{overlays+=refs.length;return [];}} as unknown as Firestore;
+    const row={id,data:{type:'news'},version:Timestamp.now()};
+    const files={query:async()=>[row],filter:async(rows:MarketRow[])=>rows,hydrate:async(row:MarketRow)=>row,close:async()=>{}} as unknown as MarketFiles;
+    const repo=new MarketRepository(raw,files,undefined,true);
+    try{
+        const ready=repo.heads('events');emit({docs,readTime:Timestamp.fromMillis(100),docChanges:()=>docs.map(doc=>({type:'added',doc}))} as unknown as FirebaseFirestore.QuerySnapshot);await ready;reads=0;
+        const steps=[{method:'where',args:['type','==','news']},{method:'limit',args:[1]}];
+        assert.deepEqual(await repo.query('events',steps),[row]);assert.equal(reads,1,'unrelated retained shards must not be expanded');assert.equal(overlays,1);
+        repo.invalidate('events');await repo.query('events',steps);assert.equal(reads,1,'immutable membership must be reused');assert.equal(overlays,2);
+        const changed=doc(head(target,[]));emit({docs,readTime:Timestamp.fromMillis(200),docChanges:()=>[{type:'modified',doc:changed}]} as unknown as FirebaseFirestore.QuerySnapshot);
+        await repo.query('events',steps);assert.equal(overlays,2,'new head membership must replace the preceding set');
+    }finally{await repo.close();}
+});
 test('production web defaults enable immutable query reuse without a budget override',async()=>{
     const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
     let files:MarketFiles;

@@ -9,6 +9,7 @@ import {isSupportedCompany} from '../company-support/model';
 import {canonicalEvidenceUrl,observation} from '../intelligence/model';
 import {loadCompanyEventSnapshot} from './company-events-cache';
 import {newsArticles} from '../intelligence/collectors/article-quality';
+import {marketStoreReady} from '../market-store/runtime';
 
 export type CompanyAnnouncement={id:string;title:string;url:string;date:string;channel:'IR'|'SEC'|'Exchange';earnings:boolean;form?:string};
 /** A page needs this publisher's current approval, not the global source directory. */
@@ -41,11 +42,15 @@ export async function companyAnnouncementsFromEvents(db:Firestore,companyId:stri
       .slice(0,announcementLimit);
   // Some publishers need older rows to identify duplicate child articles.
   const limit=sources.some(source=>source.excludedCategories?.length)?searchLimit:announcementLimit;
-  const first=await loadCompanyEventSnapshot(db,companyId,limit);
-  const items=select(first.docs);
-  if(limit===searchLimit||first.docs.length<limit||items.length===announcementLimit)return items;
-  const tail=await loadCompanyEventSnapshot(db,companyId,searchLimit-limit,first.docs[limit-1]);
-  return select([...first.docs,...tail.docs]);
+  // Both Parquet limits scan the same shards. Fetch the bounded fallback window
+  // once, but keep the original prefix-selection behavior when it is sufficient.
+  const prefetched=marketStoreReady()&&limit<searchLimit;
+  const first=await loadCompanyEventSnapshot(db,companyId,prefetched?searchLimit:limit);
+  const leading=first.docs.slice(0,limit),items=select(leading);
+  if(limit===searchLimit||leading.length<limit||items.length===announcementLimit)return items;
+  if(prefetched)return select(first.docs);
+  const tail=await loadCompanyEventSnapshot(db,companyId,searchLimit-limit,leading[limit-1]);
+  return select([...leading,...tail.docs]);
 }
 
 export async function loadCompanyAnnouncements(companyId:string){

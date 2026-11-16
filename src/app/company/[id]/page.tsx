@@ -31,8 +31,12 @@ const load = cache((id: string) => withCompanyPageReads(async()=>{
 }));
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
  return traceCompanyPage('metadata',await headers(),async()=>{
-  const resolved = await resolveCompanyRoute((await params).id);
+  const rawId=(await params).id;
+  const resolved = await resolveCompanyRoute(rawId);
   if (!resolved?.path) notFound();
+  // The page redirects aliases to their canonical URL. Loading earnings and
+  // metadata for the discarded response delays that redirect on a cold server.
+  if(decodeURIComponent(`/company/${rawId}`)!==decodeURIComponent(resolved.path))return {};
   if (resolved.id.startsWith('US:') || /^(XSHG|XSHE):/.test(resolved.id)) {
     const {companyTickerMetadata}=await timeCompanyPhase('ticker_module',()=>import('@/components/company-ticker-route'));
     return timeCompanyPhase('metadata_content',()=>companyTickerMetadata({ resolved, params: Promise.resolve({ symbol: resolved.id.startsWith('US:')?resolved.id.slice(3):resolved.id }) }));

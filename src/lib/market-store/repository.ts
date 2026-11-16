@@ -28,6 +28,22 @@ export type MarketContext = {
     writes: Mutation[];
 };
 export class MarketRepository {
+    private readonly bootstrapHeads=['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'');
+    private unknownRetained=new WeakSet<MarketHead>();
+    private retainedSets=new WeakMap<string[],Set<string>>();
+    private retainedMembership(heads:MarketHead[]){
+        const byShard=new Map(heads.map(head=>[head.shard,head]));
+        return {has:(id:string)=>{
+            const head=byShard.get(shardFor(id));if(!head)return false;
+            // Bootstrap metadata omits the large operational ID catalog. Until
+            // its listener arrives, conservatively read the live document.
+            if(this.unknownRetained.has(head))return true;
+            const ids=head.retained;if(!ids.length)return false;
+            let set=this.retainedSets.get(ids);
+            if(!set){set=new Set(ids);this.retainedSets.set(ids,set);}
+            return set.has(id);
+        }};
+    }
     private documentReads=new DocumentBatcher<MarketRow>();
     private controls?: {
         until: number;
@@ -191,7 +207,13 @@ export class MarketRepository {
             let resolve!: (heads: Map<string, MarketHead>) => void, reject!: (error: unknown) => void;
             const ready = new Promise<Map<string, MarketHead>>((yes, no) => { resolve = yes; reject = no; });
             const through=new Map<string,Timestamp>();let initial=true;
-            const stop = this.raw.collection('collectors').where('marketCollection', '==', collection).onSnapshot(snapshot => {
+            const source=this.raw.collection('collectors').where('marketCollection', '==', collection);
+            const sameMetadata=(a:MarketHead|undefined,b:MarketHead)=>{
+                if(!a)return false;
+                const left={...a},right={...b};left.retained=[];right.retained=[];
+                return isDeepStrictEqual(left,right);
+            };
+            const stop = source.onSnapshot(snapshot => {
                 const changed=new Set<string>();
                 const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
                 // A head can contain thousands of retained IDs. Firestore's
@@ -199,13 +221,21 @@ export class MarketRepository {
                 // decoding; re-expanding all arrays blocks unrelated requests.
                 for (const change of snapshot.docChanges()) {
                     const doc=change.doc,shard = doc.get('marketHead.shard');
-                    if(newer(shard))continue;
+                    if(newer(shard)){
+                        const prior=heads.get(shard);
+                        if(change.type!=='removed'&&prior&&this.unknownRetained.has(prior)){
+                            const head=this.parseHead(collection,shard,doc);
+                            if(sameMetadata(prior,head))heads.set(shard,head);
+                        }
+                        continue;
+                    }
                     if(change.type==='removed'){
                         if(heads.delete(shard))changed.add(shard);
                         through.set(shard,snapshot.readTime);continue;
                     }
                     const head=this.parseHead(collection,shard,doc);
-                    if(!isDeepStrictEqual(heads.get(shard),head))changed.add(shard);
+                    const prior=heads.get(shard);
+                    if(!(prior&&this.unknownRetained.has(prior)&&sameMetadata(prior,head))&&!isDeepStrictEqual(prior,head))changed.add(shard);
                     heads.set(shard,head);through.set(shard,snapshot.readTime);
                 }
                 // A local commit can install a head while the initial listener
@@ -222,6 +252,27 @@ export class MarketRepository {
                 listener.error(error); });
             watch = { ready, heads, stop, through };
             this.watches.set(collection, watch);
+            if(this.bootstrapHeads){
+                const fields=['collection','shard','file','bytes','rows','revision','format','indexFile','indexBytes','prefixFile','prefixBytes'];
+                // A field-masked get can initialize immutable file pointers
+                // without blocking small queries on every operational ID. The
+                // unmasked listener remains authoritative for live changes.
+                void source.select(...fields.map(field=>'marketHead.'+field)).get().then(snapshot=>{
+                    if(!initial||this.watches.get(collection)?.heads!==heads)return;
+                    const seen=new Set<string>(),changed=new Set<string>();
+                    const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
+                    for(const doc of snapshot.docs){
+                        const shard=doc.get('marketHead.shard');seen.add(shard);if(newer(shard))continue;
+                        const value={...doc.get('marketHead'),retained:[]};
+                        const head=this.parseHead(collection,shard,{exists:doc.exists,get:()=>value} as unknown as DocumentSnapshot);
+                        if(!sameMetadata(heads.get(shard),head))changed.add(shard);
+                        this.unknownRetained.add(head);heads.set(shard,head);through.set(shard,snapshot.readTime);
+                    }
+                    for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
+                    if(changed.size){this.invalidate(collection);this.changed(collection,changed);}
+                    resolve(heads);
+                }).catch(()=>{/* The normal listener still supplies readiness or its error. */});
+            }
         }
         await watch.ready;
         return new Map(watch.heads);
@@ -262,13 +313,14 @@ export class MarketRepository {
         await this.ready(context);
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
         const result = new Map((await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', ids] }, ...(fields ? [{method:'select',args:fields}] : [])])).map(row => [row.id, row]));
-        const retained = new Set(heads.flatMap(head => head.retained));
+        const retained = this.retainedMembership(heads);
         // An external-only projection needs no live-state document read. Whole
         // authored records still come from Firestore when no external row exists.
         const refs = ids.filter(id => retained.has(id) && (!fields || !result.has(id) || fields.some(field => isOperationalField(collection,field) || isRoutingField(field)))).map(id => this.raw.collection(collection).doc(id));
         for (const doc of (await this.rawDocuments(refs, context, fields)).values())
             if (doc.exists) {
                 const previous = result.get(doc.id), overlay = previous ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
+                if(previous&&!Object.keys(overlay??{}).length)continue;
                 result.set(doc.id, { id: doc.id, data: { ...previous?.data, ...overlay }, version: doc.updateTime ?? previous?.version ?? Timestamp.now() });
             }
         const selected: MarketRow[] = [];
@@ -334,8 +386,8 @@ export class MarketRepository {
     private async queryUncached(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
         const heads = [...(await this.heads(collection, context)).values()];
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
-        const native = this.nativeQuery(collection, steps, operational), retainedIds = new Set(heads.flatMap(head => head.retained));
-        const rawPage = retainedIds.size ? (context ? await context.reader.get(native) : await native.get()) as FirebaseFirestore.QuerySnapshot : { docs: [] };
+        const native = this.nativeQuery(collection, steps, operational), retainedIds = this.retainedMembership(heads);
+        const rawPage = heads.some(head=>head.retained.length||this.unknownRetained.has(head)) ? (context ? await context.reader.get(native) : await native.get()) as FirebaseFirestore.QuerySnapshot : { docs: [] };
         if (!steps.some(s => s.method === 'select'))
             for (const doc of rawPage.docs)
                 context?.documents.set(doc.ref.path, doc);
@@ -352,7 +404,6 @@ export class MarketRepository {
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
             && isOperationalField(collection, fieldName(step.args[0])));
         const external = onlyRetained || requiresOverlay ? [] : await this.files.query(heads, candidateSteps), result = new Map(external.map(row => [row.id, row]));
-        const overlayIds = new Set(heads.flatMap(head => head.retained));
         const raw = new Map<string, DocumentSnapshot>(rawPage.docs.filter(doc => retainedIds.has(doc.id)).map(doc => [doc.id, doc]));
         // An unbounded identity-ordered scan already returned every external
         // row. Missing IDs are retained-only records, so a second Parquet scan
@@ -369,12 +420,13 @@ export class MarketRepository {
         // overlay. Retained-only (including authored) records still come from
         // rawPage; operational predicates/projections retain their live reads.
         const externalProjection = !operational && projection && projection.args.every(field => !isOperationalField(collection, fieldName(field)));
-        const needed = externalProjection ? [] : external.filter(row => overlayIds.has(row.id) && !raw.has(row.id)).map(row => this.raw.collection(collection).doc(row.id));
+        const needed = externalProjection ? [] : external.filter(row => retainedIds.has(row.id) && !raw.has(row.id)).map(row => this.raw.collection(collection).doc(row.id));
         for (const doc of (await this.rawDocuments(needed, context)).values())
             raw.set(doc.id, doc);
         for (const doc of raw.values())
             if (doc.exists) {
                 const prior = result.get(doc.id), overlay = prior ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
+                if(prior&&!Object.keys(overlay??{}).length)continue;
                 result.set(doc.id, { id: doc.id, data: { ...prior?.data, ...overlay }, version: doc.updateTime ?? prior?.version ?? Timestamp.now() });
             }
         const selected = await this.files.filter([...result.values()], steps), hydrated: MarketRow[] = [];
