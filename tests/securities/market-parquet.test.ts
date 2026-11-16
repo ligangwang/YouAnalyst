@@ -62,6 +62,30 @@ test('immutable query cache evicts oversized results and does not cache failures
         await files.query([head],steps);assert(scans>first,'oversized results must not remain cached');
     }finally{await files.close();}
 });
+test('broad and oversized queries cannot evict a cached bounded lookup',async()=>{
+    const files=fixture([],2048),id='small-result',version=Timestamp.now();
+    const internal=files as unknown as {queryUncached:MarketFiles['query']};
+    const original=internal.queryUncached.bind(files);let scans=0;
+    internal.queryUncached=async(...args)=>{scans++;return original(...args);};
+    try{
+        const head=await files.write('companies',shardFor(id),[{id,version,data:{name:'Small',body:'large'.repeat(10000)}}],[]);
+        const small=[{method:'where',args:['__name__','==',id]},{method:'select',args:['name']}];
+        await files.query([head],small);
+        await files.query([head],[]);const broad=scans;await files.query([head],[]);assert(scans>broad,'unbounded scans must not be retained');
+        await files.query([head],[{method:'where',args:['__name__','==',id]}]);
+        const before=scans;assert.equal((await files.query([head],small))[0].data.name,'Small');assert.equal(scans,before,'large results must not evict the small lookup');
+    }finally{await files.close();}
+});
+test('merged filtering reads only predicate and ordering fields while retaining full rows',async()=>{
+    const files=fixture(),version=Timestamp.now();
+    const rows=[1,2,3].map(score=>({id:String(score),version,data:{score,name:'Company '+score}}));
+    for(const row of rows)Object.defineProperty(row.data,'unusedEvidence',{enumerable:true,get(){throw Error('Unrelated field was indexed');}});
+    try{
+        const selected=await files.filter(rows,[{method:'where',args:['score','>=',2]},{method:'orderBy',args:['score','desc']},{method:'limit',args:[2]}]);
+        assert.deepEqual(selected.map(row=>row.id),['3','2']);assert.equal(selected[0],rows[2]);assert.equal(selected[0].data.name,'Company 3');
+        assert.deepEqual((await files.filter(rows,[{method:'startAfter',args:['1']}])).map(row=>row.id),['2','3']);
+    }finally{await files.close();}
+});
 test('prefix bytes preserve exact membership, reuse generations and evict within the budget',async()=>{
     let loads=0;const cache=new PrefixCache(),load=async()=>{loads++;return [{id:'a',values:['nvda','nv','英伟达','nvda']},{id:'b',values:['amd','nvda-x','bad\0nvda\0value']},{id:'c',values:['nvda']}];};
     assert.deepEqual(await cache.matching('generation1','nvda',load),['a','c']);
