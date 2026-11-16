@@ -4,6 +4,7 @@ import { CONTROL, headId } from './repository';
 import { MarketFiles, type MarketHead, type MarketRow } from './files';
 import { splitRecord, retainsRecord, type MarketCollection } from './policy';
 import { encodeMarket, decodeMarket } from './blobs';
+import {compactHead,pointerCollection,pointerId} from './head-pointer';
 /** An operator catch-up imports the authoritative source without touching it.
  * Native source + head reads ensure a concurrent application write either wins
  * before this import or causes the complete import transaction to retry. */
@@ -36,6 +37,7 @@ export async function reconcileMarketShard(raw: Firestore, files: MarketFiles, c
         }
         const next = await files.write(collection, shard, [...rows.values()], [...retained]);
         tx.set(ref, { marketCollection: collection, marketHead: next });
+        tx.set(raw.collection('collectors').doc(pointerId(collection,shard)),{marketCollection:pointerCollection(collection),marketHead:compactHead(next)});
         return docs.map(doc => ({ id: doc.id, version: doc.updateTime }));
     });
 }

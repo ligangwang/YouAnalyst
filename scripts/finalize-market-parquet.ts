@@ -10,6 +10,7 @@ import { reconcileMarketShard, cleanupMarketShard, sameVersion } from '../src/li
 import { decode, encode } from '../src/lib/central-cache/codec';
 import { decodeMarket } from '../src/lib/market-store/blobs';
 import {CleanupGate,migrationCapacity} from './market-migration-safety';
+import {compactHead,pointerCollection,pointerId} from '../src/lib/market-store/head-pointer';
 async function main() {
     const project = process.env.GOOGLE_CLOUD_PROJECT, bucketName = process.env.ENTITY_SNAPSHOT_BUCKET;
     if (project !== 'ifindata-80905' || bucketName !== 'ifindata-80905-eodhd-bulk-eod')
@@ -49,6 +50,7 @@ async function main() {
                             if (!isDeepStrictEqual(await files.read(next), rows))
                                 throw Error('File upgrade changed data');
                             tx.set(ref, { marketCollection: collection, marketHead: next });
+                            tx.set(db.collection('collectors').doc(pointerId(collection,shard)),{marketCollection:pointerCollection(collection),marketHead:compactHead(next)});
                         });
                         updated++;
                     }

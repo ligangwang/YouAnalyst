@@ -12,6 +12,7 @@ import { reconcileMarketShard, cleanupMarketShard } from '../../src/lib/market-s
 import { shardFor } from '../../src/lib/market-store/files';
 import {loadCompanyEventSnapshot} from '../../src/lib/events/company-events-cache';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
+import {compactHead,pointerId,pointerCollection,pointerHasRetained} from '../../src/lib/market-store/head-pointer';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
@@ -26,7 +27,7 @@ check('native announcement snapshots remain listenable before Parquet cutover',a
     for(let n=0;n<50;n++){title=(await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title');if(title==='Updated')break;await new Promise(resolve=>setTimeout(resolve,20));}
     assert.equal(title,'Updated');
 });
-function fixture(stagedReads=false) {
+function fixture(stagedReads=false,compact=false) {
     const objects = new Map<string, Buffer>();
     let fail = false;
     const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -37,9 +38,65 @@ function fixture(stagedReads=false) {
             destination: string;
         }) => { if (fail)
             throw Error('Injected upload failure'); assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket;
+    const previous=process.env.MARKET_PARQUET_HEAD_POINTERS;
+    if(compact)process.env.MARKET_PARQUET_HEAD_POINTERS='1';
     const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads);
+    if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('compact live heads preserve external data, operational changes and transactional originals',async t=>{
+    const f=fixture(false,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const batch=f.raw.batch();
+    for(let i=0;i<256;i++){
+        const shard=i.toString(16).padStart(2,'0');
+        batch.set(f.raw.collection('collectors').doc(pointerId('events',shard)),{marketCollection:pointerCollection('events'),marketHead:compactHead({collection:'events',shard,rows:0,retained:[]})});
+    }
+    await batch.commit();
+    const ref=f.db.doc('events/compact'),shard=shardFor('compact');
+    await ref.set({companyId:'US:NVDA',title:'External',newsAnalysisPending:true});
+    const pointer=await f.raw.collection('collectors').doc(pointerId('events',shard)).get();
+    assert.equal(pointerHasRetained(pointer.get('marketHead')),true);
+    assert.equal((await ref.get()).get('newsAnalysisPending'),true);
+    await f.db.runTransaction(async tx=>{const doc=await tx.get(ref);assert.equal(doc.get('title'),'External');tx.update(ref,{newsAnalysisPending:false});});
+    assert.equal((await ref.get()).get('newsAnalysisPending'),false);
+    // A different writer must invalidate cached readers through the live pointer.
+    const writer=new MarketRepository(f.raw,new MarketFiles(f.repository.files.bucket,0));
+    const other=marketFirestore(f.raw,writer);t.after(()=>writer.close());
+    await other.doc(ref.path).update({title:'Changed remotely'});
+    let title:unknown;
+    for(let i=0;i<100;i++){title=(await ref.get()).get('title');if(title==='Changed remotely')break;await new Promise(resolve=>setTimeout(resolve,20));}
+    assert.equal(title,'Changed remotely');
+    await ref.delete();assert.equal((await ref.get()).exists,false);
+});
+check('compact reads reject incomplete inventories instead of returning partial market data',async t=>{
+    const f=fixture(false,true);t.after(()=>f.db.terminate());
+    await assert.rejects(f.repository.heads('events'),/Incomplete compact market head inventory/);
+});
+check('conservative pointers never replace Parquet with an external-only source mirror',async t=>{
+    const f=fixture(false,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true});
+    const batch=f.raw.batch();
+    for(let i=0;i<256;i++){
+        const shard=i.toString(16).padStart(2,'0');
+        batch.set(f.raw.collection('collectors').doc(pointerId('events',shard)),{marketCollection:pointerCollection('events'),marketHead:compactHead({collection:'events',shard,rows:0,retained:[]})});
+    }
+    await batch.commit();
+    const live='operational',shard=shardFor(live);let external='';
+    for(let i=0;!external;i++)if(shardFor('external-'+i)===shard)external='external-'+i;
+    await f.db.doc('events/'+live).set({companyId:'US:AMD',title:'Live event',newsAnalysisPending:true});
+    const ref=f.db.doc('events/'+external);await ref.set({companyId:'US:AMD',title:'Parquet value'});
+    await f.raw.doc(ref.path).update({title:'Divergent mirror'});
+    const expected={companyId:'US:AMD',title:'Parquet value'};
+    assert.deepEqual((await ref.get()).data(),expected);
+    const query=f.db.collection('events').where('companyId','==','US:AMD');
+    assert.deepEqual((await query.get()).docs.find(doc=>doc.id===external)?.data(),expected);
+    assert.deepEqual((await ref.get()).updateTime,(await f.repository.files.read(await f.repository.head('events',shard))).find(row=>row.id===external)?.version);
+    // This is the normal post-cleanup state for an external-only record.
+    await f.raw.doc(ref.path).delete();f.repository.invalidate('events');
+    assert.deepEqual((await ref.get()).data(),expected);
+    assert.deepEqual((await query.get()).docs.find(doc=>doc.id===external)?.data(),expected);
+});
 check('cached external queries merge fresh operational state and replace changed external data',async t=>{
     const f=fixture();t.after(()=>f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
