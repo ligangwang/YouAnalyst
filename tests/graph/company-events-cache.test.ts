@@ -150,4 +150,3 @@ test('Parquet announcement reads project card fields and preserve the fallback p
  assert.deepEqual((await companyAnnouncementsFromEvents(db,'US:AMD',[],'2026-01-03')).map(row=>row.id),Array.from({length:12},(_,i)=>String(i+1)));
  assert.deepEqual(counts,[12,18]);
 });
-
