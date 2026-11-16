@@ -76,11 +76,11 @@ export class MarketFiles {
         this.validate(head.file);
         return this.cache.local([head.file], paths => withDuck(async (db) => (await db.runAndReadAll(`SELECT id,payload,version FROM read_parquet(${quote(paths[0])}) ORDER BY id`)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }))));
     }
-    async query(heads: MarketHead[], steps: Step[], indexed = true): Promise<MarketRow[]> {
+    async query(heads: MarketHead[], steps: Step[], indexed = true, compactRead = false): Promise<MarketRow[]> {
         const limit=steps.find(step=>step.method==='limit'||step.method==='limitToLast')?.args[0];
         const identity=steps.find(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])));
         const bounded=typeof limit==='number'&&limit<=512||identity&&(identity.args[1]==='=='||Array.isArray(identity.args[2])&&identity.args[2].length<=512);
-        if(!this.queryBudget||!bounded)return this.queryUncached(heads,steps,indexed);
+        if(!this.queryBudget||!bounded)return this.queryUncached(heads,steps,indexed,compactRead);
         // Only external values are cached here. Operational overlays are read and
         // merged by the repository on every invalidated query. Immutable file
         // identities change whenever the external contents change; a head's
@@ -89,7 +89,7 @@ export class MarketFiles {
             [head.collection,head.shard,head.file,head.indexFile,head.prefixFile,head.format])])).digest('hex');
         const old=this.queryResults.get(key);
         if(old){this.queryResults.delete(key);this.queryResults.set(key,old);return old.value;}
-        const entry={value:this.queryUncached(heads,steps,indexed),bytes:0};
+        const entry={value:this.queryUncached(heads,steps,indexed,compactRead),bytes:0};
         this.queryResults.set(key,entry);
         void entry.value.then(rows=>{
             // Broad scans have their own page cache. Never serialize an entire
@@ -107,7 +107,7 @@ export class MarketFiles {
         }).catch(()=>{if(this.queryResults.get(key)===entry)this.queryResults.delete(key);});
         return entry.value;
     }
-    private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean): Promise<MarketRow[]> {
+    private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean, compactRead = false): Promise<MarketRow[]> {
         const prefix=steps.find(step=>step.method==='where'&&step.args[1]==='array-contains'&&searchPayload.has(fieldName(step.args[0]))&&typeof step.args[2]==='string'&&step.args[2].length>0&&!step.args[2].includes('\0'));
         if(prefix&&heads.every(head=>!head.file||(head.format??0)>=2)){
             const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;
@@ -153,10 +153,10 @@ export class MarketFiles {
             // events. Their complete external values fit in the compact index.
             const calendar=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
                 (step.args[1]==='=='&&step.args[2]==='scheduled_event'||step.args[1]==='in'&&Array.isArray(step.args[2])&&step.args[2].length>0&&step.args[2].every(value=>value==='scheduled_event')));
-            if(calendar&&heads.every(head=>!head.file||(head.format??0)>=4))return this.query(compact,steps,false);
+            if(calendar&&heads.every(head=>!head.file||(head.format??0)>=4))return this.query(compact,steps,false,true);
             if(compactProjection)
-                return this.query(compact,steps,false);
-            const identities=await this.query(compact,[...steps.filter(step=>step.method!=='select'),{method:'select',args:[]}],false);
+                return this.query(compact,steps,false,true);
+            const identities=await this.query(compact,[...steps.filter(step=>step.method!=='select'),{method:'select',args:[]}],false,true);
             if(!identities.length)return [];
             const payloads=await this.query(heads,[{method:'where',args:['__name__','in',identities.map(row=>row.id)]},...(selection?[selection]:[])],false);
             const byId=new Map(payloads.map(row=>[row.id,row]));
@@ -172,7 +172,10 @@ export class MarketFiles {
         let group: MarketHead[] = [], bytes = 0;
         for (const head of files) {
             const size = head.bytes ?? 8 * 1024 * 1024;
-            if (group.length && bytes + size > (this.web ? 32 : 8) * 1024 * 1024) {
+            // Compact indexes contain bounded response fields, without article
+            // captures or prefix arrays. Larger groups reduce repeated scans
+            // within the web service's existing file-cache/memory budget.
+            if (group.length && bytes + size > (this.web ? compactRead ? 128 : 32 : 8) * 1024 * 1024) {
                 groups.push(group);
                 group = [];
                 bytes = 0;

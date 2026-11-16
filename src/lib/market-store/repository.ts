@@ -192,16 +192,22 @@ export class MarketRepository {
             const ready = new Promise<Map<string, MarketHead>>((yes, no) => { resolve = yes; reject = no; });
             const through=new Map<string,Timestamp>();
             const stop = this.raw.collection('collectors').where('marketCollection', '==', collection).onSnapshot(snapshot => {
-                const changed=new Set<string>(),seen=new Set<string>();
+                const changed=new Set<string>();
                 const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
-                for (const doc of snapshot.docs) {
-                    const shard = doc.get('marketHead.shard');seen.add(shard);
+                // A head can contain thousands of retained IDs. Firestore's
+                // snapshot includes every head, but only changed documents need
+                // decoding; re-expanding all arrays blocks unrelated requests.
+                for (const change of snapshot.docChanges()) {
+                    const doc=change.doc,shard = doc.get('marketHead.shard');
                     if(newer(shard))continue;
+                    if(change.type==='removed'){
+                        if(heads.delete(shard))changed.add(shard);
+                        through.set(shard,snapshot.readTime);continue;
+                    }
                     const head=this.parseHead(collection,shard,doc);
                     if(!isDeepStrictEqual(heads.get(shard),head))changed.add(shard);
                     heads.set(shard,head);through.set(shard,snapshot.readTime);
                 }
-                for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
                 if(changed.size){this.invalidate(collection);this.changed(collection,changed);}
                 resolve(heads);
             }, error => { this.watches.delete(collection); reject(error); for (const listener of this.listeners.get(collection) ?? [])
