@@ -64,14 +64,18 @@ const companies={
  'ORG:GLOBAL-LAB':{ name: 'Global Lab', slug:'global-lab', status: 'DIRECTORY', country: 'FR', listingStatus: 'PRIVATE', description: 'Global profile fixture' }
 };
 const doc=id=>({id,exists:Boolean(companies[id]),data:()=>companies[id]});
-globalThis.__adminApp = { firestore: () => ({ collection: name => {
+const fixtureDb = { collection: name => {
   if (name === 'investment_themes') {
     const query = { where:()=>query, select:()=>query, limit:()=>query, get:async()=>({docs:themeNodes.map(node=>({id:node.id,data:()=>node}))}) };
     return query;
   }
   if (name !== 'companies') throw new Error('Unexpected fixture collection');
   return {doc:id=>({get:async()=>doc(id)}),where:(field,op,value)=>({limit:()=>({get:async()=>({docs:Object.keys(companies).filter(id=>op==='array-contains'?(companies[id][field]||[]).includes(value):companies[id][field]===value).map(doc)})})})};
-} }) };
+} };
+globalThis.__adminApp = { firestore: () => fixtureDb };
+// This isolated page fixture has no cloud client. Keep its injected records
+// outside the storage adapter; real Parquet transactions have emulator tests.
+globalThis.__youAnalystMarketStore = { clients: new WeakMap([[fixtureDb,fixtureDb]]), cutover: false };
 `);
 const server = spawn(process.execPath, ["--require", fixture, "server.js"], {
   cwd: isolated,
