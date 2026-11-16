@@ -78,6 +78,8 @@ check('index publication retries concurrent writers, updates both heads, and res
     await f.db.doc('events/'+ids[1]).update({title:'After cleanup'});
     assert.equal((await f.raw.doc('events/'+ids[1]).get()).exists,false);
     await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,options));
+    await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true,prepared:async()=>{throw Error('audit unavailable');}}),/audit unavailable/);
+    assert.equal((await f.raw.collection('collectors').doc(headId('events',shardFor(ids[1]))).get()).get('marketHead.format'),7,'failed audit must not publish new heads');
     const daily=await bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true});
     assert.equal(daily[0].changed,2);
     assert.equal((await query.get()).docs.find(doc=>doc.id===ids[1])?.get('title'),'After cleanup');

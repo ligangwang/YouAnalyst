@@ -10,7 +10,7 @@ import {compactHead,pointerId,pointerCollection} from './head-pointer';
 type Result={collection:MarketCollection;changed:number;skipped:number;rows:number};
 /** Immutable indexes are published only if all source heads still match. The
  * same operation supports staged rollout and the existing daily maintenance job. */
-export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,options:{ready:boolean;before:(writes:number)=>Promise<void>;collections?:readonly MarketCollection[];completed?:(result:Result)=>void}){
+export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,options:{ready:boolean;before:(writes:number)=>Promise<void>;collections?:readonly MarketCollection[];prepared?:(before:MarketHead[],after:MarketHead[])=>Promise<void>;completed?:(result:Result)=>void}){
     const results:Result[]=[];
     const controlCheck=(data:FirebaseFirestore.DocumentSnapshot)=>{
         assert.equal(data.get('ready'),options.ready);
@@ -22,12 +22,15 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
             const shards=Array.from({length:16},(_,i)=>(start+i).toString(16).padStart(2,'0'));
             let published=false;
             for(let attempt=0;attempt<3&&!published;attempt++){
-                await options.before(32);controlCheck(await raw.doc(CONTROL).get());
+                // Check capacity before reading/building; reserve actual metadata
+                // writes only at publication, so unchanged groups do not idle.
+                await options.before(1);controlCheck(await raw.doc(CONTROL).get());
                 const docs=await raw.getAll(...shards.map(shard=>raw.collection('collectors').doc(headId(collection,shard))));
                 const heads=docs.map((doc,i)=>{const head=doc.get('marketHead') as MarketHead;assert(head&&head.collection===collection&&head.shard===shards[i]);return head;});
                 const indexed=heads.filter(head=>head.file&&head.indexFile);
                 if(indexed.length<2||indexed.every(head=>(head.format??0)>=8)&&new Set(indexed.map(head=>head.indexFile)).size===1){skipped+=indexed.length;published=true;break;}
                 const bundled=await files.bundleIndexes(indexed);
+                await options.prepared?.(indexed,bundled);
                 await options.before(bundled.length*2);
                 const committed=await raw.runTransaction(async tx=>{
                     controlCheck(await tx.get(raw.doc(CONTROL)));
