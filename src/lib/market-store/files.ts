@@ -40,6 +40,7 @@ const decodePayload = (payload: string): Data => { const wire = JSON.parse(paylo
 export class MarketFiles {
     private cache: PriceStore;
     private prefixes=new PrefixCache();
+    private announcementPrefixes:PrefixCache;
     private queryResults=new Map<string,{value:Promise<MarketRow[]>;bytes:number}>();
     private queryBudget:number;
     // The 6 GiB web service can retain the compact market working set. Smaller
@@ -51,9 +52,13 @@ export class MarketFiles {
         queryBudget ??= this.web ? 32 * 1024 * 1024 : 0;
         if(!Number.isSafeInteger(queryBudget)||queryBudget<0||queryBudget>32*1024*1024)throw Error('Invalid market query cache budget');
         this.queryBudget=queryBudget;
-        this.cache = new PriceStore(bucket, (this.web ? 512 : 64) * 1024 * 1024-queryBudget);
+        // Event IDs need ~84 MiB as UTF-8. Reserve a separate 96 MiB lookup
+        // cache on the website so search prefixes cannot evict every timeline.
+        // Borrow the same bytes from file caching; total cache budget is unchanged.
+        this.announcementPrefixes=this.web?new PrefixCache(96*1024*1024):this.prefixes;
+        this.cache = new PriceStore(bucket, (this.web ? 416 : 64) * 1024 * 1024-queryBudget);
     }
-    close() { this.queryResults.clear();this.prefixes.clear();return this.cache.close(); }
+    close() { this.queryResults.clear();this.prefixes.clear();this.announcementPrefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
         const paths: string[] = [], holds: Promise<unknown>[] = [];
         let release!: () => void;
@@ -171,11 +176,11 @@ export class MarketFiles {
             const files=heads.filter(head=>head.file&&head.prefixFile);
             for(let start=0;start<files.length;start+=128){
                 const group=files.slice(start,start+128),key=(head:MarketHead)=>this.prefixKey(head,ANNOUNCEMENT_LOOKUP);
-                const missing=group.filter(head=>!this.prefixes.has(key(head)));
+                const missing=group.filter(head=>!this.announcementPrefixes.has(key(head)));
                 for(const head of missing)this.validate(head.prefixFile!);
                 let pending:Promise<Map<string,PrefixLookup>>|undefined;
                 const load=()=>pending??=this.loadPrefixes(missing,ANNOUNCEMENT_LOOKUP,true);
-                matches.push(...(await Promise.all(group.map(head=>this.prefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(key(head));if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
+                matches.push(...(await Promise.all(group.map(head=>this.announcementPrefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(key(head));if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
             }
             const ids=announcementIds(matches,announcement);if(!ids.length)return [];
             const rows=await this.query(heads,[{method:'where',args:['__name__','in',ids]},...steps.filter(step=>step.method==='select')]);
