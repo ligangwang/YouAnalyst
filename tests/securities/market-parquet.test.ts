@@ -66,7 +66,7 @@ test('bundled legacy indexes preserve missing-column fallbacks and mixed-format 
         const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
         const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
         const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
-        assert.deepEqual(heads.map(head=>head.format),[103,105,107]);
+        assert.deepEqual(heads.map(head=>head.format),[103,105,108]);
         const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
         const start=downloads.length;
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
@@ -452,4 +452,25 @@ test('ID ordering without an exact predicate still uses the compact index',async
         assert.deepEqual(await files.query([head],[{method:'orderBy',args:['__name__']},{method:'startAt',args:['range']},{method:'limit',args:[1]}]),[row]);
         assert.deepEqual(downloads,[head.indexFile,head.file]);
     }finally{await files.close();}
+});
+test('sparse calendar projections avoid news scans and follow live shard replacements',async()=>{
+ const downloads:string[]=[],files=fixture(downloads,32*1024*1024),version=Timestamp.now();
+ const ids=['calendar-a','calendar-b','calendar-c'];assert.equal(new Set(ids.map(shardFor)).size,3);
+ let rows:MarketRow[]=ids.map((id,i)=>({id,version,data:{type:'scheduled_event',scheduled_date:`2026-11-${16+i}`,title:'Calendar '+i,summary:'Evidence'}}));
+ const steps=[{method:'where',args:['type','==','scheduled_event']},{method:'where',args:['scheduled_date','>=','2026-11-16']},{method:'orderBy',args:['scheduled_date']},{method:'limit',args:[1000]}];
+ try{
+  const original=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+  let heads=await files.bundleIndexes(original);const start=downloads.length;
+  assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+  assert(downloads.slice(start).every(name=>heads.some(head=>head.prefixFile===name)),'calendar must load only sparse lookup files');
+  assert.deepEqual(await files.query([heads[1]],steps),await files.filter([rows[1]],steps),'old bundled shards cannot leak into a partial read');
+  rows=rows.map((row,i)=>i?row:{...row,data:{...row.data,scheduled_date:'2026-11-25',title:'Rescheduled'}});
+  heads[0]=await files.write('events',heads[0].shard,[rows[0]],[]);
+  assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+  assert.deepEqual(await files.query(heads,[...steps,{method:'select',args:['title']}]),await files.filter(rows,[...steps,{method:'select',args:['title']}]));
+  assert.deepEqual(await files.query(heads.map((head,i)=>i?head:{...head,format:7}),steps),await files.filter(rows,steps),'mixed old/new writers keep the legacy fallback');
+  heads=await files.bundleIndexes(heads);assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+  heads[0]=await files.write('events',heads[0].shard,[],[]);rows=rows.slice(1);
+  assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+ }finally{await files.close();}
 });
