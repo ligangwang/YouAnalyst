@@ -7,6 +7,7 @@ import {MarketRepository,headId} from '../../src/lib/market-store/repository';
 import {CleanupGate,capacityRegression} from '../../scripts/market-migration-safety';
 import { MarketFiles, shardFor, type MarketRow } from '../../src/lib/market-store/files';
 import { MarketBlob } from '../../src/lib/market-store/blobs';
+import {PrefixCache} from '../../src/lib/market-store/prefix-cache';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
 function fixture(downloads:string[] = []) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -17,6 +18,28 @@ function fixture(downloads:string[] = []) { const objects = new Map<string, Buff
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket); }
+test('prefix bytes preserve exact membership, reuse generations and evict within the budget',async()=>{
+    let loads=0;const cache=new PrefixCache(),load=async()=>{loads++;return [{id:'a',values:['nvda','nv','英伟达','nvda']},{id:'b',values:['amd','nvda-x','bad\0nvda\0value']},{id:'c',values:['nvda']}];};
+    assert.deepEqual(await cache.matching('generation1','nvda',load),['a','c']);
+    assert.deepEqual(await cache.matching('generation1','英伟达',load),['a']);
+    assert.deepEqual(await cache.matching('generation1','amd',load),['b']);assert.equal(loads,1);
+    assert.deepEqual(await cache.matching('generation2','nvda',async()=>[{id:'b',values:['nvda']}]),['b']);
+    const tiny=new PrefixCache(1);await tiny.matching('generation1','amd',load);await tiny.matching('generation1','amd',load);assert.equal(loads,3);
+});
+test('prefix candidate lookup preserves other predicates, order, projection and new head contents',async()=>{
+    const files=fixture(),version=Timestamp.now();
+    const rows=Array.from({length:12},(_,i)=>({id:'prefix-'+i,version,data:{searchPrefixes:[i%2?'amd':'nvda','英伟达'],score:i,name:'Company '+i}}));
+    try{
+        const heads=[];for(const shard of new Set(rows.map(row=>shardFor(row.id))))heads.push(await files.write('companies',shard,rows.filter(row=>shardFor(row.id)===shard),[]));
+        const steps=[{method:'where',args:['searchPrefixes','array-contains','nvda']},{method:'where',args:['score','>=',4]},{method:'orderBy',args:['score','desc']},{method:'limit',args:[2]},{method:'select',args:['name']}];
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        const old=heads[0],oldRows=rows.filter(row=>shardFor(row.id)===old.shard);
+        const next=await files.write('companies',old.shard,oldRows.map(row=>({...row,data:{...row.data,searchPrefixes:['changed']}})),[]);
+        const updated=[next,...heads.slice(1)];
+        assert.deepEqual((await files.query(updated,[{method:'where',args:['searchPrefixes','array-contains','changed']}])).map(row=>row.id).sort(),oldRows.map(row=>row.id).sort());
+        assert.equal((await files.query([next],[{method:'where',args:['searchPrefixes','array-contains','nvda']}])).length,0);
+    }finally{await files.close();}
+});
 test('Parquet round trips timestamps, bytes, nested arrays and query semantics', async () => {
     const files = fixture(), version = new Timestamp(1794770000, 123);
     const ids = Array.from({ length: 40 }, (_, i) => 'record-' + i);

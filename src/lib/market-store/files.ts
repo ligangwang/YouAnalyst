@@ -12,6 +12,7 @@ import { compileMarketQuery, project, type Step } from './query';
 import type { MarketCollection } from './policy';
 import { encodeMarket, decodeMarket, hydrateMarket } from './blobs';
 import { MARKET_INDEX_FIELDS, marketIndexField } from './index-fields';
+import {PrefixCache} from './prefix-cache';
 export const MARKET_ROOT = 'market-parquet/v1';
 export const shardFor = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 2);
 export type MarketRow = {
@@ -35,8 +36,10 @@ const searchPayload = new Set(['searchPrefixes', 'searchTerms', 'namePrefixes', 
 const decodePayload = (payload: string): Data => { const wire = JSON.parse(payload); return Array.isArray(wire) ? decodeMarket(wire) : Object.fromEntries(Object.entries(wire).map(([key, value]) => [key, decodeMarket(value)])); };
 export class MarketFiles {
     private cache: PriceStore;
-    constructor(readonly bucket: Bucket) { this.cache = new PriceStore(bucket, 128 * 1024 * 1024); }
-    close() { return this.cache.close(); }
+    private prefixes=new PrefixCache();
+    // Keep the combined file/membership budget at the existing 128 MiB.
+    constructor(readonly bucket: Bucket) { this.cache = new PriceStore(bucket, 64 * 1024 * 1024); }
+    close() { this.prefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
         const paths: string[] = [], holds: Promise<unknown>[] = [];
         let release!: () => void;
@@ -61,6 +64,28 @@ export class MarketFiles {
         return this.cache.local([head.file], paths => withDuck(async (db) => (await db.runAndReadAll(`SELECT id,payload,version FROM read_parquet(${quote(paths[0])}) ORDER BY id`)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }))));
     }
     async query(heads: MarketHead[], steps: Step[], indexed = true): Promise<MarketRow[]> {
+        const prefix=steps.find(step=>step.method==='where'&&step.args[1]==='array-contains'&&searchPayload.has(fieldName(step.args[0]))&&typeof step.args[2]==='string'&&step.args[2].length>0&&!step.args[2].includes('\0'));
+        if(prefix&&heads.every(head=>!head.file||(head.format??0)>=2)){
+            const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;
+            for(const head of heads){if(!head.file)continue;this.validate(head.file);const size=head.bytes??8*1024*1024;
+                if(group.length&&(group.length>=16||bytes+size>8*1024*1024)){groups.push(group);group=[];bytes=0;}group.push(head);bytes+=size;
+            }if(group.length)groups.push(group);
+            for(const group of groups){
+                const missing=group.filter(head=>!this.prefixes.has(head.file+'|'+field));
+                let pending:Promise<Map<string,Array<{id:string;values:unknown}>>>|undefined;
+                const load=()=>pending??=this.local(missing.map(head=>head.file!),paths=>withDuck(async db=>{
+                    const names=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),missing[i].file!]));
+                    const found=new Map<string,Array<{id:string;values:unknown}>>();
+                    const rows=(await db.runAndReadAll(`SELECT filename,id,json_extract(payload,${quote('$.'+JSON.stringify(field))}) FROM read_parquet([${paths.map(quote).join(',')}],filename=true)`)).getRows();
+                    for(const [filename,id,values] of rows){const name=names.get(String(filename).replaceAll('\\','/'));if(!name)throw Error('Unexpected prefix index file');const entries=found.get(name)??[];entries.push({id:String(id),values:values==null?undefined:decodeMarket(JSON.parse(String(values)))});found.set(name,entries);}
+                    return found;
+                }));
+                const selected=await Promise.all(group.map(head=>this.prefixes.matching(head.file+'|'+field,prefix.args[2] as string,async()=>(await load()).get(head.file!)??[])));
+                matches.push(...selected.flat());
+            }
+            if(!matches.length)return [];
+            return this.query(heads,[{method:'where',args:['__name__','in',[...new Set(matches)]]},...steps.filter(step=>step!==prefix)],indexed);
+        }
         const predicates = steps.filter(step=>['where','orderBy'].includes(step.method));
         if(indexed && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
             const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:2,indexFile:undefined}));
