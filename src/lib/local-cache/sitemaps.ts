@@ -33,6 +33,12 @@ async function filePaths():Promise<Paths|undefined>{
 }
 async function firestorePaths(db:Firestore):Promise<Paths>{
   const base=db.collection('companies').select('name','slug','status','market','isDeleted','source','sourceLabel').orderBy(FieldPath.documentId());
+  // A Parquet page scans the compact company index. Read this small projection
+  // once instead of rescanning every shard for each 500-company cursor page.
+  if(marketStoreReady()){
+    const page=await base.get();
+    return index(page.docs.flatMap(doc=>{const path=companySitemapPath(doc.id,doc.data());return path?[{id:doc.id,path}]:[];}));
+  }
   const rows:{id:string;path:string}[]=[];let cursor:string|undefined;
   for(;;){
     const page=await(cursor?base.startAfter(cursor):base).limit(500).get();
