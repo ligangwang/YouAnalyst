@@ -66,7 +66,7 @@ test('bundled legacy indexes preserve missing-column fallbacks and mixed-format 
         const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
         const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
         const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
-        assert.deepEqual(heads.map(head=>head.format),[103,105,108]);
+        assert.deepEqual(heads.map(head=>head.format),[103,105,109]);
         const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
         const start=downloads.length;
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
@@ -473,4 +473,21 @@ test('sparse calendar projections avoid news scans and follow live shard replace
   heads[0]=await files.write('events',heads[0].shard,[],[]);rows=rows.slice(1);
   assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
  }finally{await files.close();}
+});
+
+test('company postings avoid decoding unrelated IDs and coexist with legacy shards',async()=>{
+    const files=fixture(),version=Timestamp.now(),company="US:O'Reilly/测试:ab";
+    const ids:string[]=[];for(let i=0;ids.length<4;i++)if(!ids.some(id=>shardFor(id)===shardFor('posting-'+i)))ids.push('posting-'+i);
+    const rows=ids.map((id,i)=>({id,version,data:{companyId:i===3?'US:OTHER':company,publication_date:'2026-11-0'+(i+1),title:'row-'+i}}));
+    const cache=(files as unknown as {announcementPrefixes:PrefixCache}).announcementPrefixes,matching=cache.matching.bind(cache);let legacyCalls=0;
+    cache.matching=(...args:Parameters<PrefixCache['matching']>)=>{legacyCalls++;return matching(...args);};
+    try{
+        const original=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[]))),heads=await files.bundleIndexes(original);
+        const steps=[{method:'where',args:['companyId','==',company]},{method:'orderBy',args:['publication_date','desc']},{method:'offset',args:[1]},{method:'limit',args:[2]},{method:'select',args:['title']}];
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));assert.equal(legacyCalls,0);
+        assert.deepEqual(await files.query([heads[3]],steps),[],'another company in the shared file cannot leak into this shard');
+        assert.deepEqual(await files.query(heads,[{method:'where',args:['companyId','==','US:MISSING']},...steps.slice(1)]),[]);
+        const mixed=[{...heads[0],format:108},...heads.slice(1)];
+        assert.deepEqual(await files.query(mixed,steps),await files.filter(rows,steps));assert(legacyCalls>0,'old shards retain their original lookup');
+    }finally{await files.close();}
 });

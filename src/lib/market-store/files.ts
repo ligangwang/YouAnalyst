@@ -36,6 +36,7 @@ export type MarketHead = {
     prefixBytes?: number;
 };
 const CALENDAR_LOOKUP='type/scheduled_date';
+const ANNOUNCEMENT_COMPANY=ANNOUNCEMENT_LOOKUP+'/company/';
 const searchPayload = new Set(['searchPrefixes', 'searchTerms', 'namePrefixes', 'symbolPrefixes']);
 const decodePayload = (payload: string): Data => { const wire = JSON.parse(payload); return Array.isArray(wire) ? decodeMarket(wire) : Object.fromEntries(Object.entries(wire).map(([key, value]) => [key, decodeMarket(value)])); };
 export class MarketFiles {
@@ -102,6 +103,36 @@ export class MarketFiles {
             }
             return found;
         }));
+    }
+    /** Return only this company's posting lists; decoding every event identity
+     * on a cold company page competes with all other DuckDB work. Legacy
+     * lookup rows also serve as completeness markers for each requested shard. */
+    private async announcementMatches(heads:MarketHead[],company:string):Promise<string[]> {
+        if(!heads.length)return [];
+        const names=[...new Set(heads.map(head=>head.prefixFile!))];for(const name of names)this.validate(name);
+        const stored=(head:MarketHead,field:string)=>marketIndexBundled(head.format)?field+':'+head.shard:field;
+        const markers=new Set(heads.map(head=>head.prefixFile+'|'+stored(head,ANNOUNCEMENT_LOOKUP)));
+        const postings=new Set(heads.map(head=>head.prefixFile+'|'+stored(head,ANNOUNCEMENT_COMPANY+company)));
+        const fields=[...new Set(heads.flatMap(head=>[stored(head,ANNOUNCEMENT_LOOKUP),stored(head,ANNOUNCEMENT_COMPANY+company)]))];
+        const selected=[...new Set(heads.map(head=>stored(head,ANNOUNCEMENT_COMPANY+company)))];
+        const rows=await this.local(names,paths=>withDuck(async db=>{
+            const original=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),names[i]]));
+            return (await db.runAndReadAll(`SELECT filename,field,CASE WHEN field IN (${selected.map(quote).join(',')}) THEN payload ELSE NULL END FROM read_parquet([${paths.map(quote).join(',')}],filename=true) WHERE field IN (${fields.map(quote).join(',')})`)).getRows().map(([filename,field,payload])=>{
+                const name=original.get(String(filename).replaceAll('\\','/'));if(!name)throw Error('Unexpected announcement index file');
+                return {key:name+'|'+String(field),payload};
+            });
+        }));
+        const seen=new Set<string>(),matches:string[]=[];
+        for(const {key,payload} of rows){
+            if(!markers.has(key)&&!postings.has(key))continue;
+            if(seen.has(key))throw Error('Duplicate announcement posting');seen.add(key);
+            if(markers.has(key))continue;
+            const ids:unknown=JSON.parse(String(payload));
+            if(!Array.isArray(ids)||ids.some(id=>typeof id!=='string'))throw Error('Invalid announcement postings');
+            matches.push(...ids);
+        }
+        if([...markers].some(key=>!seen.has(key)))throw Error('Incomplete announcement index');
+        return matches;
     }
     private calendarRows(heads:MarketHead[]):Promise<MarketRow[]> {
         const active=heads.filter(head=>head.file);
@@ -207,8 +238,9 @@ export class MarketFiles {
         const announcement=planned&&heads.every(head=>!head.file||marketIndexFormat(head.format)>=7)?planned:undefined;
         if(announcement){
             if(heads.some(head=>head.file&&!head.prefixFile))throw Error('Missing announcement index');
-            const matches:string[]=[];
-            const files=heads.filter(head=>head.file&&head.prefixFile);
+            const indexedHeads=heads.filter(head=>head.file&&head.prefixFile);
+            const matches=await this.announcementMatches(indexedHeads.filter(head=>marketIndexFormat(head.format)>=9),announcement.company);
+            const files=indexedHeads.filter(head=>marketIndexFormat(head.format)<9);
             for(let start=0;start<files.length;start+=128){
                 const group=files.slice(start,start+128),key=(head:MarketHead)=>this.prefixKey(head,ANNOUNCEMENT_LOOKUP);
                 const missing=group.filter(head=>!this.announcementPrefixes.has(key(head)));
@@ -380,7 +412,7 @@ export class MarketFiles {
      * Callers must publish the returned heads with a compare-and-swap transaction. */
     async bundleIndexes(heads:MarketHead[]):Promise<MarketHead[]>{
         if(!heads.length||heads.length>16||new Set(heads.map(head=>head.shard)).size!==heads.length
-            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>8))throw Error('Invalid index bundle');
+            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>9))throw Error('Invalid index bundle');
         const directory=await mkdtemp(join(tmpdir(),'ya-market-bundle-')),indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
         const destination=()=>`${MARKET_ROOT}/data/${heads[0].collection}/${heads[0].shard}/${randomUUID()}.parquet`;
         const names=[...new Set(heads.flatMap(head=>[head.indexFile!,...(head.prefixFile?[head.prefixFile]:[])]))];
@@ -430,14 +462,20 @@ export class MarketFiles {
             throw Error('Invalid market partition');
         if (new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => shardFor(row.id) !== shard))
             throw Error('Invalid market partition rows');
-        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: collection==='events'?8:7 };
+        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: collection==='events'?9:7 };
         if (!rows.length)
             return head;
         const directory = await mkdtemp(join(tmpdir(), 'ya-market-')), path = join(directory, 'rows.parquet'), indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
         try {
             const prefixFields=[...searchPayload].filter(field=>rows.some(row=>Array.isArray(row.data[field])));
             const prefixRows=prefixFields.map(field=>[field,encodePrefixLookup(buildPrefixLookup(rows.map(row=>({id:row.id,values:row.data[field]}))))]);
-            if(collection==='events')prefixRows.push([ANNOUNCEMENT_LOOKUP,encodePrefixLookup(buildPrefixLookup(announcementLookup(rows)))]);
+            if(collection==='events'){
+                const announcements=announcementLookup(rows),companies=new Map<string,string[]>();
+                // Preserve the prior lookup for readers during a rolling release.
+                prefixRows.push([ANNOUNCEMENT_LOOKUP,encodePrefixLookup(buildPrefixLookup(announcements))]);
+                for(const row of announcements){const company=(row.values as string[])[0],ids=companies.get(company)??[];ids.push(row.id);companies.set(company,ids);}
+                for(const [company,ids] of companies)prefixRows.push([ANNOUNCEMENT_COMPANY+company,JSON.stringify(ids)]);
+            }
             const payloads: string[] = [], views: string[] = [], compactPayloads:string[]=[], compactIndexes:ReturnType<typeof queryIndex>[]=[];
             for (const row of rows) {
                 const fields: Data = {};
