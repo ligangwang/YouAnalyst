@@ -119,3 +119,17 @@ test('alternating regional market-cap batches retain the observed 3519-company w
  f.values.set(ids[0],{marketCap:{value:2}});f.emit(f.listeners[0],200);
  assert.deepEqual((await read(f.db,[ids[0]]))[0].get('marketCap'),{value:2});
 });
+
+
+test('Parquet market caps use bounded projected subscriptions without duplicate bulk reads',async t=>{
+ const keys=['MARKET_PARQUET_ENABLED','MARKET_FUNDAMENTALS_READ_READY','K_SERVICE','CLOUD_RUN_JOB'] as const,previous=keys.map(k=>process.env[k]);
+ process.env.MARKET_PARQUET_ENABLED='1';process.env.MARKET_FUNDAMENTALS_READ_READY='1';process.env.K_SERVICE='ifindata-web';delete process.env.CLOUD_RUN_JOB;
+ t.after(()=>{closeLocalCaches();keys.forEach((k,i)=>{if(previous[i]===undefined)delete process.env[k];else process.env[k]=previous[i];});});
+ const ids=Array.from({length:2100},(_,i)=>`US:P${i}`),values=new Map(ids.map(id=>[id,{marketCap:{value:1},isDeleted:false}]));
+ const listeners:{ids:string[];emit:()=>void;closed:boolean}[]=[];
+ const raw={collection:()=>({doc:(id:string)=>({id,path:'company_fundamentals/'+id}),onSnapshot:()=>{throw Error('Unbounded collection listener');},where:(_field:unknown,_op:string,batch:string[])=>({select:(...fields:string[])=>{assert.deepEqual(fields,['marketCap','isDeleted']);return {onSnapshot:(next:(s:unknown)=>void)=>{const l={ids:batch,closed:false,emit:()=>next({docs:batch.filter(id=>values.has(id)).map(id=>({id,exists:true,ref:{id,path:'company_fundamentals/'+id},data:()=>structuredClone(values.get(id)),get:(key:string)=>values.get(id)?.[key as 'marketCap'|'isDeleted']}))})};listeners.push(l);queueMicrotask(l.emit);return ()=>{l.closed=true;};}};}})}),getAll:()=>{throw Error('Duplicate initial bulk read');}} as unknown as Firestore;
+ const docs=await read(raw,ids);assert.equal(docs.length,2100);assert.deepEqual(listeners.map(l=>l.ids.length),[1000,1000,100]);
+ values.set(ids[0],{marketCap:{value:2},isDeleted:false});values.set(ids[1],{marketCap:{value:3},isDeleted:true});values.delete(ids[2]);listeners[0].emit();
+ const changed=await read(raw,ids.slice(0,3));assert.equal(changed[0].get('marketCap').value,2);assert.equal(changed[1].exists,false);assert.equal(changed[2].exists,false);assert.equal(listeners.length,3);
+ closeLocalCaches();assert(listeners.every(l=>l.closed));
+});

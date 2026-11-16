@@ -5,6 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Firestore, FieldValue, Timestamp, type Query } from '@google-cloud/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { MarketFiles } from '../../src/lib/market-store/files';
+import {FUNDAMENTALS_CONTROL} from '../../src/lib/market-store/fundamentals-control';
 import { MarketRepository, CONTROL,headId } from '../../src/lib/market-store/repository';
 import {bundleMarketIndexes} from '../../src/lib/market-store/index-bundles';
 import { marketFirestore as routeMarketFirestore } from '../../src/lib/market-store/adapter';
@@ -30,7 +31,7 @@ check('native announcement snapshots remain listenable before Parquet cutover',a
     for(let n=0;n<50;n++){title=(await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title');if(title==='Updated')break;await new Promise(resolve=>setTimeout(resolve,20));}
     assert.equal(title,'Updated');
 });
-function fixture(stagedReads=false,compact:boolean|'default'=false) {
+function fixture(stagedReads=false,compact:boolean|'default'=false,fundamentalsGate=false,stagedFundamentals=false) {
     const objects = new Map<string, Buffer>();
     let fail = false;
     const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -44,12 +45,13 @@ function fixture(stagedReads=false,compact:boolean|'default'=false) {
     const previous=process.env.MARKET_PARQUET_HEAD_POINTERS;
     if(compact==='default')delete process.env.MARKET_PARQUET_HEAD_POINTERS;
     else process.env.MARKET_PARQUET_HEAD_POINTERS=compact?'1':'0';
-    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads);
+    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads,fundamentalsGate,stagedFundamentals);
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
 check('production routing keeps events and fundamentals native after cutover and cleanup authorization',async t=>{
-    const f=fixture(true);t.after(()=>f.db.terminate());
+    const f=fixture(true,false,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:false});
     const db=routeMarketFirestore(f.raw,f.repository);
     await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
     const event=db.doc('events/native'),fund=db.doc('company_fundamentals/US:NVDA'),ticker=db.doc('tickers/NVDA');
@@ -68,7 +70,7 @@ check('production routing keeps events and fundamentals native after cutover and
         const live=await new Promise<string>((resolve,reject)=>{stop=db.collection('events').where('companyId','==','US:NVDA').onSnapshot(s=>resolve(s.docs[0].get('title')),reject);});
         assert.equal(live,'Updated native','native query listeners remain available after global cutover');
     }finally{stop();}
-    assert.equal((await f.raw.collection('collectors').where('marketCollection','in',['events','company_fundamentals']).get()).size,0,'deferred writes must not create Parquet heads');
+    assert.equal((await f.raw.collection('collectors').where('marketCollection','in',['events']).get()).size,0,'deferred event writes must not create Parquet heads');
 });
 check('website deployments default to the complete compact pointer inventory',async t=>{
     const service=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
@@ -535,4 +537,27 @@ check('mixed-record preconditions reject an external projection after live state
     const current=await ref.get();await ref.update({form:'10-Q'},{lastUpdateTime:current.updateTime!});
     assert.equal((await ref.get()).get('form'),'10-Q');
     assert.equal((await ref.get()).get('discoveryPending'),false);
+});
+
+check('fundamentals gate preserves source through staged reads and independent cleanup authorization',async t=>{
+ const f=fixture(true,false,true,true);t.after(()=>f.db.terminate());
+ await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:['tickers']});
+ await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:false,cleanupAuthorized:false});
+ const db=routeMarketFirestore(f.raw,f.repository),fund=db.doc('company_fundamentals/US:TEST'),ticker=db.doc('tickers/TEST');
+ await db.batch().set(fund,{marketCap:{value:123},pending:true}).set(ticker,{symbol:'TEST'}).commit();
+ assert.equal((await f.raw.doc(fund.path).get()).get('marketCap.value'),123,'global retirement must not strip fundamentals');
+ assert.equal((await f.raw.doc(ticker.path).get()).exists,false);
+ await f.raw.doc(fund.path).update({marketCap:{value:456}});
+ assert.equal((await fund.get()).get('marketCap.value'),123,'candidate reads staged Parquet');
+ await db.runTransaction(async tx=>{const [a,b]=await tx.getAll(fund,ticker);assert.equal(a.get('marketCap.value'),456,'transactions retain native fundamentals before cutover');assert.equal(b.get('symbol'),'TEST');tx.update(fund,{marketCap:{value:789}});});
+ assert.equal((await f.raw.doc(fund.path).get()).get('marketCap.value'),789);
+ await assert.rejects(cleanupMarketShard(f.raw,f.repository.files,'company_fundamentals',shardFor('US:TEST'),['US:TEST']),/verified cutover/);
+ await f.raw.doc(FUNDAMENTALS_CONTROL).update({ready:true});
+ await fund.update({marketCap:{value:900}});
+ assert.equal((await f.raw.doc(fund.path).get()).get('marketCap.value'),900,'read cutover alone must not retire the source');
+ await f.raw.doc(FUNDAMENTALS_CONTROL).update({cleanupAuthorized:true});
+ await fund.update({marketCap:{value:901}});
+ assert.equal((await f.raw.doc(fund.path).get()).get('marketCap'),undefined);
+ assert.equal((await f.raw.doc(fund.path).get()).get('pending'),true);
+ assert.equal((await fund.get()).get('marketCap.value'),901);
 });

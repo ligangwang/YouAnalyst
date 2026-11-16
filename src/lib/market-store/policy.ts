@@ -8,7 +8,7 @@ export const MARKET_COLLECTIONS = [
 export type MarketCollection = typeof MARKET_COLLECTIONS[number];
 // Deferred from this cutover: keep native reads, writes, and live listeners
 // until their latency-sensitive paths are migrated and verified separately.
-export const DEFERRED_MARKET_COLLECTIONS = ['events','company_fundamentals'] as const;
+export const DEFERRED_MARKET_COLLECTIONS = ['events'] as const;
 const deferred = new Set<string>(DEFERRED_MARKET_COLLECTIONS);
 export const PARQUET_MARKET_COLLECTIONS = MARKET_COLLECTIONS.filter(name=>!deferred.has(name));
 const collections = new Set<string>(MARKET_COLLECTIONS);

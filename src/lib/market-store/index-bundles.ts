@@ -5,6 +5,7 @@ import type {Firestore} from 'firebase-admin/firestore';
 import {PARQUET_MARKET_COLLECTIONS,type MarketCollection} from './policy';
 import {MarketFiles,type MarketHead} from './files';
 import {CONTROL,headId} from './repository';
+import {FUNDAMENTALS_CONTROL} from './fundamentals-control';
 import {compactHead,pointerId,pointerCollection} from './head-pointer';
 import {marketIndexBundled} from './index-fields';
 
@@ -18,6 +19,8 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
         if(!options.ready)assert.notEqual(data.get('cleanupAuthorized'),true);
     };
     for(const collection of options.collections??PARQUET_MARKET_COLLECTIONS){
+        const control=collection==='company_fundamentals'?FUNDAMENTALS_CONTROL:CONTROL;
+        if(collection==='company_fundamentals'&&options.ready&&(await raw.doc(control).get()).get('ready')!==true)continue;
         let changed=0,skipped=0,rows=0;
         for(let start=0;start<256;start+=16){
             const shards=Array.from({length:16},(_,i)=>(start+i).toString(16).padStart(2,'0'));
@@ -25,7 +28,7 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
             for(let attempt=0;attempt<3&&!published;attempt++){
                 // Check capacity before reading/building; reserve actual metadata
                 // writes only at publication, so unchanged groups do not idle.
-                await options.before(1);controlCheck(await raw.doc(CONTROL).get());
+                await options.before(1);controlCheck(await raw.doc(control).get());
                 const docs=await raw.getAll(...shards.map(shard=>raw.collection('collectors').doc(headId(collection,shard))));
                 const heads=docs.map((doc,i)=>{const head=doc.get('marketHead') as MarketHead;assert(head&&head.collection===collection&&head.shard===shards[i]);return head;});
                 const indexed=heads.filter(head=>head.file&&head.indexFile);
@@ -34,7 +37,7 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
                 await options.prepared?.(indexed,bundled);
                 await options.before(bundled.length*2);
                 const committed=await raw.runTransaction(async tx=>{
-                    controlCheck(await tx.get(raw.doc(CONTROL)));
+                    controlCheck(await tx.get(raw.doc(control)));
                     const latest=await tx.getAll(...docs.map(doc=>doc.ref));
                     if(latest.some((doc,i)=>!isDeepStrictEqual(doc.get('marketHead'),heads[i])))return false;
                     for(const head of bundled){

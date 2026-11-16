@@ -45,6 +45,14 @@ export async function localQuery(db:Firestore,key:string,query:Query,collection:
 }
 
 function watchMarketCaps(db:Firestore,ids:string[],changed:(docs:DocumentSnapshot[])=>void){
+ // Parquet listeners follow shared head pointers, so the Firestore 30-ID limit
+ // does not apply. Coalesce projected groups into one bounded DuckDB read,
+ // without a duplicate initial bulk read and dozens of follow-up scans.
+ if(marketStoreReady('company_fundamentals'))return track(new Watch<Map<string,DocumentSnapshot>>((next,error)=>
+  db.collection('company_fundamentals').where(FieldPath.documentId(),'in',ids).select('marketCap','isDeleted').onSnapshot(snapshot=>{
+   const docs=snapshot.docs.filter(doc=>doc.get('isDeleted')!==true);changed(docs);next(new Map(docs.map(doc=>[doc.id,doc])));
+  },error)));
+
  return track(new Watch<Map<string,DocumentSnapshot>>((next,error)=>{
   let stopped=false;
   const subscriptions:Array<()=>void>=[];
