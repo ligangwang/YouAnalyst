@@ -2,6 +2,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Watch, track } from './watch';
 import {companySourceSnapshot,liveCompanyReads,isSnapshotCollection} from './company-directory';
+import {marketStoreReady} from '../market-store/runtime';
+import {isMarketCollection} from '../market-store/policy';
 declare global {
   var __youAnalystReadScopeV1: AsyncLocalStorage<boolean> | undefined;
   var __youAnalystSourceStoresV1: WeakMap<object, Set<Entry>> | undefined;
@@ -98,6 +100,7 @@ const policies: Record<string, readonly [number, number]> = {
   events: [8192, 160 * 1024 * 1024],
 };
 export function collectionSourceSnapshot(owner: object, source: Source, collection: string, context?:CacheContext): Promise<any> | undefined {
+ if(marketStoreReady()&&isMarketCollection(collection))return undefined;
  // These datasets move to Parquet. Bootstrap action reads must be one-shot:
  // a retained Firestore listener would otherwise survive the readiness switch.
  if(collection==='eod_prices'||collection==='corporate_actions')return undefined;

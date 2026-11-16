@@ -4,6 +4,7 @@ import { GRAPH_COMPANY_FIELDS, queryThemeCompanies,themeIdBatches } from '../com
 import { withCompanyPageReads } from '../local-cache/company-page-scope';
 import { sourceSnapshot } from '../local-cache/read-scope';
 import {loadPublishedGraphCompanies} from '../local-cache/graph-companies';
+import {marketStoreReady} from '../market-store/runtime';
 
 declare global {var __themeGraphSourceOwnersV1:WeakMap<Firestore,object>|undefined;}
 const themeFields=[...GRAPH_COMPANY_FIELDS,'newsSources','onboarding','supersededByCompanyId'];
@@ -26,7 +27,8 @@ function graphSource(query:Query){
  * callers without downloading the market directory or subscribing to all themes. */
 export async function loadSingleThemeCompanies(db: Firestore, theme: string) {
   return withCompanyPageReads(async () => {
-    const query = db.collection('companies').where('themeIds', 'array-contains', theme);
+    const base = db.collection('companies').where('themeIds', 'array-contains', theme);
+    const query = marketStoreReady()?base.select(...themeFields):base;
     let owner=themeOwners.get(db);if(!owner){owner={};themeOwners.set(db,owner);}
     // Retain projected graph data, not full search payloads. Keep the
     // same byte/listener bounds in a separate partition from full-company reads.

@@ -2,8 +2,8 @@
 set -euo pipefail
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
-: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
-gcloud storage objects describe "gs://$ENTITY_SNAPSHOT_BUCKET/entity-snapshots/companies.sqlite" --project "$GCP_PROJECT_ID" >/dev/null
+: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for Parquet company reads}"
+gcloud storage buckets describe "gs://$ENTITY_SNAPSHOT_BUCKET" --project "$GCP_PROJECT_ID" >/dev/null
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE to a built image digest}"
 region="${GCP_REGION:-us-central1}"
 job="refresh-cn-fundamentals-production"

@@ -1,6 +1,7 @@
 import type {Firestore,DocumentSnapshot,QuerySnapshot} from 'firebase-admin/firestore';
 import {GRAPH_COMPANY_FIELDS} from '../company-themes/company-query';
 import {Watch,track} from './watch';
+import {marketStoreReady} from '../market-store/runtime';
 
 const fields=[...GRAPH_COMPANY_FIELDS,'newsSources','onboarding','supersededByCompanyId'];
 declare global {var __publishedGraphCompaniesV1:WeakMap<Firestore,Watch<DocumentSnapshot[]>>|undefined;}
@@ -15,7 +16,8 @@ function compact(doc:DocumentSnapshot):DocumentSnapshot{
 export function loadPublishedGraphCompanies(db:Firestore):Promise<DocumentSnapshot[]>{
   let watch=stores.get(db);
   if(!watch){
-    const query=db.collection('companies').where('inGraph.status','==','PUBLISHED');
+    const source=db.collection('companies').where('inGraph.status','==','PUBLISHED');
+    const query=marketStoreReady()?source.select(...fields):source;
     watch=track(new Watch<DocumentSnapshot[]>((next,error)=>{
       let last: QuerySnapshot['readTime'] | undefined;
       return query.onSnapshot(snapshot => {

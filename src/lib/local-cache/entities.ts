@@ -7,6 +7,7 @@ import { dataBytes } from './read-scope';
 import {companyDirectoryEnabled,companyDirectoryVersion,enableCompanyDirectoryForReader,withSharedCompanyQuery,withCompanyViewQuery} from './company-directory';
 import { themeIdBatches, GRAPH_COMPANY_FIELDS } from '../company-themes/company-query';
 import {MARKET_CAP_BATCH_SIZE,readMarketCapBatch} from './market-cap-batch';
+import {marketStoreReady} from '../market-store/runtime';
 
 type Group={users:number;ids:string[];bytes:number; watch:Watch<Map<string,DocumentSnapshot>>};
 type DocumentStore={documents:Map<string,Group>;groups:Set<Group>};
@@ -170,7 +171,7 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
   const found=new Map<string,DocumentSnapshot>();
   // Firestore listeners do not support select(). The shared file reader does;
   // retain unprojected push subscriptions when snapshots are not configured.
-  const projected=_projection==='graph'&&await withSharedCompanyQuery(()=>Promise.resolve(companyDirectoryEnabled(db)));
+  const projected=_projection==='graph'&&(marketStoreReady()||await withSharedCompanyQuery(()=>Promise.resolve(companyDirectoryEnabled(db))));
   for(const ids of batches){
    const source=db.collection(collection).where('themeIds','array-contains-any',ids);
    const query=projected?source.select(...GRAPH_COMPANY_FIELDS):source;

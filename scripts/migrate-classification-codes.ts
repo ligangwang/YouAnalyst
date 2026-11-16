@@ -1,5 +1,5 @@
 import {initializeApp,applicationDefault} from 'firebase-admin/app';
-import {getFirestore,FieldValue} from 'firebase-admin/firestore';
+import {getFirestore,FieldValue} from '../src/lib/firebase/firestore';
 import {isDeepStrictEqual} from 'node:util';
 import {mkdir,readFile,writeFile,appendFile} from 'node:fs/promises';
 import {resolve,join} from 'node:path';

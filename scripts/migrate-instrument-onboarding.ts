@@ -25,6 +25,7 @@ async function main(){
   const token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN,authClient=token?new OAuth2Client():undefined;
   authClient?.setCredentials({access_token:token});
   const db=migrationDb=new Firestore({projectId:project,preferRest:true,...(authClient?{authClient}:{})});
+  if((await db.doc('collectors/_market_parquet_control').get()).get('ready')===true)throw Error('Legacy Firestore onboarding migration is retired; use the instrument repository');
   const inputs:{id:string;company:Record<string,unknown>;instrument:Instrument|undefined;companyDoc:DocumentSnapshot;instrumentDoc:DocumentSnapshot}[]=[];
   for(let offset=0;offset<selected.length;offset+=100){
     const ids=selected.slice(offset,offset+100),docs=await db.getAll(...ids.flatMap(id=>[db.collection('companies').doc(id),db.collection('instruments').doc(instrumentId(id))]));

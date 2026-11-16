@@ -17,6 +17,7 @@ async function main(){
  const groups=new Map<string,Row[]>();let cursor:string|undefined,total=0;
  const startedAt=new Date().toISOString();
  try{
+  if(await store.isReady())throw Error('Corporate actions already use Parquet; the Firestore import is retired');
   for(;;){let query=db.collection('corporate_actions').orderBy(FieldPath.documentId()).limit(500);if(cursor)query=query.startAfter(cursor);
    const page=await query.get();for(const doc of page.docs){const row={id:doc.id,data:doc.data()},shard=actionShard(String(row.data.ticker));
     const rows=groups.get(shard)??[];rows.push(row);groups.set(shard,rows);total++;

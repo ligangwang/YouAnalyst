@@ -14,8 +14,8 @@ topic=news-source-requests
 subscription=news-source-worker
 dead=news-source-dead-letter
 snapshot_bucket="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-$GCP_PROJECT_ID-eodhd-bulk-eod}}"
-# Refuse to deploy a worker that would fall back to a full company scan.
-gcloud storage objects describe "gs://$snapshot_bucket/entity-snapshots/companies.sqlite" --project "$GCP_PROJECT_ID" >/dev/null
+# Validate storage access; the transactional migration control gates reads.
+gcloud storage buckets describe "gs://$snapshot_bucket" --project "$GCP_PROJECT_ID" >/dev/null
 number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
 [[ "$number" =~ ^[0-9]+$ ]] || { echo 'Missing project number' >&2; exit 1; }
 pipeline_agent="service-$number@gcp-sa-pubsub.iam.gserviceaccount.com"

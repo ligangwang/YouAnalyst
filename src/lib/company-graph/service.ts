@@ -43,7 +43,8 @@ export type CompanyGraphDependencies = {
 };
 
 const MIN_EDGE_CONFIDENCE = 0.45;
-const EDGE_BATCH_SIZE = 450;
+// Leave room for transactional Parquet heads alongside retained editorial data.
+const EDGE_BATCH_SIZE = 100;
 const MAX_CATEGORY_EDGES = 8;
 const GENERIC_TARGET_PATTERNS = [
   /\b(vendors?|suppliers?|providers?|retailers?|publishers?|manufacturers?|producers?|distributors?|developers?|licensors?)\b/i,

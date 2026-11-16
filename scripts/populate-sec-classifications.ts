@@ -1,5 +1,5 @@
 import {initializeApp, applicationDefault} from 'firebase-admin/app';
-import {FieldPath, FieldValue, getFirestore} from 'firebase-admin/firestore';
+import {FieldPath, FieldValue, getFirestore} from '../src/lib/firebase/firestore';
 import {mkdir, writeFile} from 'node:fs/promises';
 import {resolve, join} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';

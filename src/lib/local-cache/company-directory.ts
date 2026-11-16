@@ -1,4 +1,5 @@
 import {setImmediate as yieldToRequests} from 'node:timers/promises';
+import {marketStoreReady} from '../market-store/runtime';
 import {COMPANY_VIEW_OBJECT,companyViewData,isCompanyViewField} from '../entity-snapshots/company-view';
 import {syncEntityChanges,type EntitySync,type EntityChange} from './entity-sync';
 import {collections,type Collection} from '../entity-snapshots/sync';
@@ -41,6 +42,7 @@ export function enableCompanyDirectory(db:Firestore,raw:Firestore,options:Option
 /** Collector/graph readers use the same directory; unwrapped test adapters are unchanged. */
 export function enableCompanyDirectoryForReader(db:Firestore,onlyCollections?:readonly Collection[]){if(typeof db.settings==='function'&&typeof db.getAll==='function'&&state.sources.has(db.collection('companies')))enableCompanyDirectory(db,db,{onlyCollections});}
 export function companyDirectoryEnabled(db:Firestore,collection:Collection='companies'){
+ if(marketStoreReady())return false;
  const client=state.clients.get(db);
  return !!client&&(!client.options.onlyCollections||client.options.onlyCollections.includes(collection))&&!state.live.getStore()
   &&!(pageReads.getStore()&&['companies','company_fundamentals','company_relationships'].includes(collection))

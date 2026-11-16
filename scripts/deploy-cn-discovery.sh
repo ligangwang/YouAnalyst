@@ -2,8 +2,8 @@
 set -euo pipefail
 : "${GCP_PROJECT_ID:?Set GCP_PROJECT_ID}"
 export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET:-}}"
-: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for SQLite company reads}"
-gcloud storage objects describe "gs://$ENTITY_SNAPSHOT_BUCKET/entity-snapshots/companies.sqlite" --project "$GCP_PROJECT_ID" >/dev/null
+: "${ENTITY_SNAPSHOT_BUCKET:?Set ENTITY_SNAPSHOT_BUCKET or EODHD_BULK_EOD_BUCKET for Parquet company reads}"
+gcloud storage buckets describe "gs://$ENTITY_SNAPSHOT_BUCKET" --project "$GCP_PROJECT_ID" >/dev/null
 case "${1:-}" in ''|--check) ;; *) echo 'Usage: deploy-cn-discovery.sh [--check]' >&2; exit 1 ;; esac
 case "${CN_DISCOVERY_BOOTSTRAP_IAM:-0}" in 0|1) ;; *) echo 'CN_DISCOVERY_BOOTSTRAP_IAM must be 0 or 1' >&2; exit 1 ;; esac
 case "${EARNINGS_COLLECTION_ENABLED:-0}" in 0|1) ;; *) echo 'Invalid earnings collection flag' >&2; exit 1 ;; esac

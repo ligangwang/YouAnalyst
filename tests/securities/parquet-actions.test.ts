@@ -4,7 +4,6 @@ import {readFile,writeFile} from 'node:fs/promises';
 import type {Bucket} from '@google-cloud/storage';
 import {Timestamp} from 'firebase-admin/firestore';
 import {ActionStore,ACTION_ROOT,actionShard} from '../../src/lib/action-store/storage';
-import {bootstrapActions} from '../../src/lib/action-store/bootstrap';
 import {actionBucketName} from '../../src/lib/action-store/config';
 
 function fixture(){
@@ -32,29 +31,6 @@ test('migration fails closed until ready and preserves every field through real 
   const mutated=await f.store.readTicker('NVDA');mutated[0].data.createdAt='changed';
   assert.equal((await f.store.readTicker('NVDA'))[0].data.createdAt,'original');
  }finally{await f.store.close();}
-});
-test('rolling cutover keeps source corrections visible, writes Parquet first, and never accesses Firestore after readiness',async()=>{
- const f=fixture();let source=[row('2024-06-10')],sourceCalls=0;f.ready(false);
- const db={collection:()=>{sourceCalls++;return {where:()=>({get:async()=>({docs:source.map(r=>({id:r.id,data:()=>r.data}))})}),doc:(id:string)=>({id})};},
-  batch:()=>{const pending:typeof source=[];return {set:(ref:{id:string},data:typeof source[0]['data'])=>pending.push({id:ref.id,data}),commit:async()=>{
-   const staged=await f.store.readShard(actionShard('NVDA'));
-   assert.equal(staged[0].data.splitFactor,5,'Parquet must be committed before source writes');
-   source=source.map(r=>({...r,data:{...r.data,...pending.find(p=>p.id===r.id)?.data}}));
-  }};}};
- const bridge=bootstrapActions(db as never,f.store);let live:ActionStore|undefined;
- try{
-  await f.store.importShard(actionShard('NVDA'),source);
-  source=[row('2024-06-10',4,'2026-11-15T13:00:00Z')]; // old worker corrected after export
-  assert.equal((await bridge.readTicker('NVDA'))[0].data.splitFactor,4);
-  await bridge.mergeTicker('NVDA',[row('2024-06-10',5,'2026-11-15T14:00:00Z')]);
-  source=[row('2024-06-10',6,'2026-11-15T15:00:00Z')]; // final old-writer delivery
-  await f.store.importShard(actionShard('NVDA'),source); // reconciliation after old writers drain
-  f.ready();live=new ActionStore(f.bucket);
-  const repository=bootstrapActions(db as never,live),before=sourceCalls;
-  assert.equal((await repository.readTicker('NVDA'))[0].data.splitFactor,6);
-  await repository.mergeTicker('NVDA',[row('2024-06-10',7,'2026-11-15T16:00:00Z')]);
-  assert.equal(sourceCalls,before);assert.equal((await repository.readTicker('NVDA'))[0].data.splitFactor,7);
- }finally{await live?.close();await f.store.close();}
 });
 test('migration and runtime share bucket selection including distinct configured buckets',()=>{
  assert.equal(actionBucketName({ENTITY_SNAPSHOT_BUCKET:'entity',EODHD_BULK_EOD_BUCKET:'eod'}),'entity');

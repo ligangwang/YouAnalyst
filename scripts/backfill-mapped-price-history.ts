@@ -1,5 +1,6 @@
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { observeFirestore } from '../src/lib/firebase/firestore-observability';
+import { enableMarketStore } from '../src/lib/market-store/runtime';
 import { Firestore } from '@google-cloud/firestore';
 import { Storage, type StorageOptions } from '@google-cloud/storage';
 import { createRequire } from 'node:module';
@@ -18,7 +19,9 @@ const sdkRequire=createRequire(createRequire(resolve('package.json')).resolve('@
 const {OAuth2Client}=sdkRequire('google-auth-library') as typeof import('google-auth-library');
 const authClient=capturedToken ? new OAuth2Client() : undefined;
 authClient?.setCredentials({access_token:capturedToken});
-const db=observeFirestore(new Firestore({projectId,authClient,preferRest:true}));
+const marketBucket=process.env.ENTITY_SNAPSHOT_BUCKET||process.env.EODHD_BULK_EOD_BUCKET;
+if(!marketBucket)throw Error('Existing market data bucket required');
+const db=observeFirestore(enableMarketStore(new Firestore({projectId,authClient,preferRest:true}),new Storage({projectId,authClient:authClient as unknown as StorageOptions['authClient']}).bucket(marketBucket)));
 const graph=await loadSupportedInstrumentUniverse(db);
 const universes={US:usMapTickers(graph),CN_A:cnMapCompanies(graph)};
 const now=new Date();
