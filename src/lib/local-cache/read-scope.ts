@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { Watch, track } from './watch';
 import {companySourceSnapshot,liveCompanyReads,isSnapshotCollection} from './company-directory';
 import {marketStoreReady} from '../market-store/runtime';
-import {isMarketCollection} from '../market-store/policy';
+import {isParquetMarketCollection as isMarketCollection} from '../market-store/policy';
 declare global {
   var __youAnalystReadScopeV1: AsyncLocalStorage<boolean> | undefined;
   var __youAnalystSourceStoresV1: WeakMap<object, Set<Entry>> | undefined;

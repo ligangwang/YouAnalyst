@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import type {Firestore} from 'firebase-admin/firestore';
-import {MARKET_COLLECTIONS,type MarketCollection} from './policy';
+import {PARQUET_MARKET_COLLECTIONS,type MarketCollection} from './policy';
 import {MarketFiles,type MarketHead} from './files';
 import {CONTROL,headId} from './repository';
 import {compactHead,pointerId,pointerCollection} from './head-pointer';
@@ -17,7 +17,7 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
         assert.equal(data.get('ready'),options.ready);
         if(!options.ready)assert.notEqual(data.get('cleanupAuthorized'),true);
     };
-    for(const collection of options.collections??MARKET_COLLECTIONS){
+    for(const collection of options.collections??PARQUET_MARKET_COLLECTIONS){
         let changed=0,skipped=0,rows=0;
         for(let start=0;start<256;start+=16){
             const shards=Array.from({length:16},(_,i)=>(start+i).toString(16).padStart(2,'0'));

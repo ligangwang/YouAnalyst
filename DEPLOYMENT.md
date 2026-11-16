@@ -236,6 +236,12 @@ Maintenance uses three fixed accounts:
    OAuth identity for starting jobs, with `roles/run.invoker` on every job.
 
 The shared accounts keep their original directory-sync names for now.
+The current market-data cutover keeps `events` and `company_fundamentals` in
+Firestore, including reads, writes, and live listeners. The other 17 collection
+targets use Parquet after verification. Routing and cleanup share the explicit
+scope in `src/lib/market-store/policy.ts`, so future deployments preserve this
+deferral. These two collections require a separate verified migration.
+
 The daily Parquet index maintenance also needs the project custom role
 `marketIndexCapacityReader`, containing only `logging.logEntries.list` and
 `monitoring.timeSeries.list`, on the maintenance runtime. These read permissions

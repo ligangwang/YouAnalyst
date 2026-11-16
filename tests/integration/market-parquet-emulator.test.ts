@@ -7,13 +7,15 @@ import type { Bucket } from '@google-cloud/storage';
 import { MarketFiles } from '../../src/lib/market-store/files';
 import { MarketRepository, CONTROL,headId } from '../../src/lib/market-store/repository';
 import {bundleMarketIndexes} from '../../src/lib/market-store/index-bundles';
-import { marketFirestore } from '../../src/lib/market-store/adapter';
+import { marketFirestore as routeMarketFirestore } from '../../src/lib/market-store/adapter';
+import {MARKET_COLLECTIONS} from '../../src/lib/market-store/policy';
 import { observeFirestore } from '../../src/lib/firebase/firestore-observability';
 import { reconcileMarketShard, cleanupMarketShard } from '../../src/lib/market-store/migration';
 import { shardFor } from '../../src/lib/market-store/files';
 import {loadCompanyEventSnapshot} from '../../src/lib/events/company-events-cache';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 import {compactHead,pointerId,pointerCollection,pointerHasRetained} from '../../src/lib/market-store/head-pointer';
+const marketFirestore:typeof routeMarketFirestore=(raw,repository)=>routeMarketFirestore(raw,repository,MARKET_COLLECTIONS);
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
@@ -46,6 +48,25 @@ function fixture(stagedReads=false,compact:boolean|'default'=false) {
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('production routing keeps events and fundamentals native after cutover and cleanup authorization',async t=>{
+    const f=fixture(true);t.after(()=>f.db.terminate());
+    const db=routeMarketFirestore(f.raw,f.repository);
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const event=db.doc('events/native'),fund=db.doc('company_fundamentals/US:NVDA'),ticker=db.doc('tickers/NVDA');
+    await db.batch().set(event,{companyId:'US:NVDA',title:'Native event'}).set(fund,{marketCap:123}).set(ticker,{symbol:'NVDA',name:'Parquet ticker'}).commit();
+    assert.equal((await f.raw.doc(event.path).get()).get('title'),'Native event');
+    assert.equal((await f.raw.doc(fund.path).get()).get('marketCap'),123);
+    assert.equal((await f.raw.doc(ticker.path).get()).exists,false);
+    assert.deepEqual((await db.getAll(event,fund,ticker)).map(doc=>doc.data()),[{companyId:'US:NVDA',title:'Native event'},{marketCap:123},{symbol:'NVDA',name:'Parquet ticker'}]);
+    await db.runTransaction(async tx=>{await tx.getAll(event,fund,ticker);tx.update(event,{title:'Updated native'});tx.update(fund,{marketCap:456});tx.update(ticker,{name:'Updated Parquet'});});
+    assert.equal((await f.raw.doc(event.path).get()).get('title'),'Updated native');
+    assert.equal((await f.raw.doc(fund.path).get()).get('marketCap'),456);
+    assert.equal((await ticker.get()).get('name'),'Updated Parquet');
+    assert.equal((await db.collection('events').where('companyId','==','US:NVDA').get()).size,1);
+    const live=await new Promise<string>((resolve,reject)=>{const stop=db.collection('events').where('companyId','==','US:NVDA').onSnapshot(s=>resolve(s.docs[0].get('title')),reject);t.after(stop);});
+    assert.equal(live,'Updated native','native query listeners remain available after global cutover');
+    assert.equal((await f.raw.collection('collectors').where('marketCollection','in',['events','company_fundamentals']).get()).size,0,'deferred writes must not create Parquet heads');
+});
 check('website deployments default to the complete compact pointer inventory',async t=>{
     const service=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
     const f=fixture(true,'default');

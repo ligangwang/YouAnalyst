@@ -3,6 +3,7 @@ import { Storage, type Bucket } from '@google-cloud/storage';
 import { MarketFiles } from './files';
 import { MarketRepository } from './repository';
 import { marketFirestore } from './adapter';
+import {isParquetMarketCollection} from './policy';
 declare global {
     var __youAnalystMarketStore: {
         clients: WeakMap<Firestore, Firestore>;
@@ -34,7 +35,7 @@ export const marketStagedReads = () => process.env.MARKET_PARQUET_READ_READY ===
 // Use Parquet projections from startup for an opted-in candidate, or after the
 // shared read gate is observed by other processes.
 // Existing snapshot readers are closed by the control subscription at cutover.
-export const marketStoreReady = () => marketStoreEnabled() && (marketStagedReads() || marketReadOnlyProbe() || state.cutover === true);
+export const marketStoreReady = (collection?:string) => (collection===undefined||isParquetMarketCollection(collection))&&marketStoreEnabled() && (marketStagedReads() || marketReadOnlyProbe() || state.cutover === true);
 export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     if (!marketStoreEnabled())
         return raw;

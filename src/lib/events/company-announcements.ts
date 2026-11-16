@@ -44,7 +44,7 @@ export async function companyAnnouncementsFromEvents(db:Firestore,companyId:stri
   const limit=sources.some(source=>source.excludedCategories?.length)?searchLimit:announcementLimit;
   // Both Parquet limits scan the same shards. Fetch the bounded fallback window
   // once, but keep the original prefix-selection behavior when it is sufficient.
-  const prefetched=marketStoreReady()&&limit<searchLimit;
+  const prefetched=marketStoreReady('events')&&limit<searchLimit;
   const first=await loadCompanyEventSnapshot(db,companyId,prefetched?searchLimit:limit);
   const leading=first.docs.slice(0,limit),items=select(leading);
   if(limit===searchLimit||leading.length<limit||items.length===announcementLimit)return items;

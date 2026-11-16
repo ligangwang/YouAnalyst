@@ -3,7 +3,7 @@ import { getFirestore, FieldPath, FieldValue, type Timestamp } from 'firebase-ad
 import { Storage } from '@google-cloud/storage';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { MarketFiles, MARKET_ROOT, shardFor, type MarketRow, type MarketHead } from '../src/lib/market-store/files';
-import { MARKET_COLLECTIONS, type MarketCollection } from '../src/lib/market-store/policy';
+import { MARKET_COLLECTIONS, PARQUET_MARKET_COLLECTIONS, type MarketCollection } from '../src/lib/market-store/policy';
 import { CONTROL, headId, MarketRepository } from '../src/lib/market-store/repository';
 import { isDeepStrictEqual } from 'node:util';
 import { reconcileMarketShard, cleanupMarketShard, sameVersion } from '../src/lib/market-store/migration';
@@ -28,7 +28,7 @@ async function main() {
         if(mode==='capacity'){await cleanupGate.before(1);return;}
         if (mode === 'upgrade') {
             const selected = process.env.MARKET_UPGRADE_COLLECTIONS?.split(',') ?? [];
-            if (!selected.length || selected.some(c => !MARKET_COLLECTIONS.includes(c as MarketCollection)))
+            if (!selected.length || selected.some(c => !PARQUET_MARKET_COLLECTIONS.includes(c as MarketCollection)))
                 throw Error('Explicit copied collection scope required');
             for (const collection of selected as MarketCollection[]) {
                 let cursor = 0, updated = 0;
@@ -99,9 +99,11 @@ async function main() {
             const [bytes] = await bucket.file(proof).download(), verified = JSON.parse(bytes.toString()), live = await health();
             if (verified.commit !== live.commitSha || verified.uiPassed !== true || verified.apiPassed !== true || verified.performancePassed !== true || verified.baseline !== baseline)
                 throw Error('Verification proof does not match production and migration');
+            if(JSON.stringify(verified.collections)!==JSON.stringify(PARQUET_MARKET_COLLECTIONS))
+                throw Error('Verification proof does not match active collection scope');
         }
         const results = [];
-        for (const collection of MARKET_COLLECTIONS) {
+        for (const collection of PARQUET_MARKET_COLLECTIONS) {
             await health();
             const initial = audits.find(a => a.collection === collection)!;
             const versions = new Map<string, Timestamp | undefined>();
