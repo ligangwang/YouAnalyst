@@ -227,3 +227,14 @@ check('empty external and operational documents retain their identities through 
     assert.equal((await f.raw.doc('company_directory/_live').get()).exists,true);
     assert.equal((await f.db.doc('company_directory/empty').get()).exists,true);
 });
+check('mixed-record preconditions reject an external projection after live state changes',async t=>{
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const ref=f.db.doc('sec_filings/precondition');await ref.set({form:'10-K',discoveryPending:true});
+    const [old]=await f.db.getAll(ref,{fieldMask:['form']});
+    await ref.update({discoveryPending:false});
+    await assert.rejects(ref.update({form:'stale'},{lastUpdateTime:old.updateTime!}),/precondition/);
+    const current=await ref.get();await ref.update({form:'10-Q'},{lastUpdateTime:current.updateTime!});
+    assert.equal((await ref.get()).get('form'),'10-Q');
+    assert.equal((await ref.get()).get('discoveryPending'),false);
+});

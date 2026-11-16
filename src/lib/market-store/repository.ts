@@ -100,7 +100,11 @@ export class MarketRepository {
                 shards.add(pair.shard);
                 changed.set(pair.collection, shards);
             }
-            for (const [collection, shards] of changed) this.changed(collection, shards);
+            for (const [collection, shards] of changed) {
+                // Reads started while getAll was in flight may have cached the
+                // preceding head. Discard those entries after installing heads.
+                this.invalidate(collection);this.changed(collection, shards);
+            }
         }
         catch {
             for (const { collection } of pairs.values()) {
@@ -380,8 +384,11 @@ export class MarketRepository {
                     const options = change.args.at(-1) as {
                         lastUpdateTime?: Timestamp;
                     } | undefined;
-                    if (options?.lastUpdateTime && !doc.updateTime?.isEqual(options.lastUpdateTime) && !rows.get(id)?.version.isEqual(options.lastUpdateTime))
-                        throw Object.assign(Error('Market document precondition failed'), { code: 9 });
+                    if (options?.lastUpdateTime) {
+                        const matches=(!ready||retained.has(id)) ? doc.updateTime?.isEqual(options.lastUpdateTime)
+                            : doc.updateTime?.isEqual(options.lastUpdateTime)||rows.get(id)?.version.isEqual(options.lastUpdateTime);
+                        if(!matches)throw Object.assign(Error('Market document precondition failed'), {code:9});
+                    }
                     complete.set(id, applyMutation(before, change.method, change.args, at));
                 }
                 for (const [id, data] of complete) {
