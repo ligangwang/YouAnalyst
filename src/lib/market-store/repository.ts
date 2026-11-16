@@ -36,7 +36,7 @@ export class MarketRepository {
         ready: Promise<Map<string, MarketHead>>;
         heads: Map<string, MarketHead>;
         stop: () => void;
-        through?: Timestamp;
+        through: Map<string,Timestamp>;
     }>();
     private results = new Map<string, {
         until: number;
@@ -95,7 +95,7 @@ export class MarketRepository {
                 if (!watch)
                     continue;
                 watch.heads.set(pair.shard, this.parseHead(pair.collection, pair.shard, doc));
-                watch.through = doc.readTime;
+                watch.through.set(pair.shard,doc.readTime);
                 const shards = changed.get(pair.collection) ?? new Set<string>();
                 shards.add(pair.shard);
                 changed.set(pair.collection, shards);
@@ -180,16 +180,23 @@ export class MarketRepository {
             const heads = new Map<string, MarketHead>();
             let resolve!: (heads: Map<string, MarketHead>) => void, reject!: (error: unknown) => void;
             const ready = new Promise<Map<string, MarketHead>>((yes, no) => { resolve = yes; reject = no; });
-            const stop = this.raw.collection('collectors').where('marketCollection', '==', collection).onSnapshot(snapshot => { const current = this.watches.get(collection), through = current?.through; if (through && (snapshot.readTime.seconds < through.seconds || snapshot.readTime.seconds === through.seconds && snapshot.readTime.nanoseconds < through.nanoseconds)) {
+            const through=new Map<string,Timestamp>();
+            const stop = this.raw.collection('collectors').where('marketCollection', '==', collection).onSnapshot(snapshot => {
+                const changed=new Set<string>(),seen=new Set<string>();
+                const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
+                for (const doc of snapshot.docs) {
+                    const shard = doc.get('marketHead.shard');seen.add(shard);
+                    if(newer(shard))continue;
+                    const head=this.parseHead(collection,shard,doc);
+                    if(!isDeepStrictEqual(heads.get(shard),head))changed.add(shard);
+                    heads.set(shard,head);through.set(shard,snapshot.readTime);
+                }
+                for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
+                if(changed.size){this.invalidate(collection);this.changed(collection,changed);}
                 resolve(heads);
-                return;
-            } if (current)
-                current.through = snapshot.readTime; this.invalidate(collection); heads.clear(); for (const doc of snapshot.docs) {
-                const shard = doc.get('marketHead.shard');
-                heads.set(shard, this.parseHead(collection, shard, doc));
-            } resolve(heads); this.changed(collection, new Set(snapshot.docChanges().map(change => change.doc.get('marketHead.shard')))); }, error => { this.watches.delete(collection); reject(error); for (const listener of this.listeners.get(collection) ?? [])
+            }, error => { this.watches.delete(collection); reject(error); for (const listener of this.listeners.get(collection) ?? [])
                 listener.error(error); });
-            watch = { ready, heads, stop };
+            watch = { ready, heads, stop, through };
             this.watches.set(collection, watch);
         }
         await watch.ready;

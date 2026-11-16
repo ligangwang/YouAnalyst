@@ -65,6 +65,11 @@ export class MarketFiles {
         if(indexed && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
             const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:2,indexFile:undefined}));
             const selection=steps.find(step=>step.method==='select');
+            // Calendar records are sparse among hundreds of thousands of news
+            // events. Their complete external values fit in the compact index.
+            const calendar=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
+                (step.args[1]==='=='&&step.args[2]==='scheduled_event'||step.args[1]==='in'&&Array.isArray(step.args[2])&&step.args[2].length>0&&step.args[2].every(value=>value==='scheduled_event')));
+            if(calendar&&heads.every(head=>!head.file||(head.format??0)>=4))return this.query(compact,steps,false);
             if(selection && selection.args.every(field=>marketIndexField(fieldName(field))))
                 return this.query(compact,steps,false);
             const identities=await this.query(compact,[...steps.filter(step=>step.method!=='select'),{method:'select',args:[]}],false);
@@ -150,7 +155,7 @@ export class MarketFiles {
             throw Error('Invalid market partition');
         if (new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => shardFor(row.id) !== shard))
             throw Error('Invalid market partition rows');
-        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 3 };
+        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 4 };
         if (!rows.length)
             return head;
         const directory = await mkdtemp(join(tmpdir(), 'ya-market-')), path = join(directory, 'rows.parquet'), indexPath=join(directory,'index.parquet');
@@ -162,7 +167,7 @@ export class MarketFiles {
                     fields[key] = await encodeMarket(value, this.bucket);
                 payloads.push(JSON.stringify(fields));
                 views.push(JSON.stringify(Object.fromEntries(Object.entries(fields).filter(([key]) => !searchPayload.has(key)))));
-                const compact=project(row.data,[...MARKET_INDEX_FIELDS]), compactWire:Data={};
+                const compact=row.data.type==='scheduled_event'?row.data:project(row.data,[...MARKET_INDEX_FIELDS]), compactWire:Data={};
                 for(const [key,value] of Object.entries(compact))compactWire[key]=await encodeMarket(value,this.bucket);
                 compactPayloads.push(JSON.stringify(compactWire));
                 compactIndexes.push(queryIndex(compact));

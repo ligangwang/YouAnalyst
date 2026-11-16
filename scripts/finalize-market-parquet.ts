@@ -9,6 +9,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { reconcileMarketShard, cleanupMarketShard, sameVersion } from '../src/lib/market-store/migration';
 import { decode, encode } from '../src/lib/central-cache/codec';
 import { decodeMarket } from '../src/lib/market-store/blobs';
+import {CleanupGate,migrationCapacity} from './market-migration-safety';
 async function main() {
     const project = process.env.GOOGLE_CLOUD_PROJECT, bucketName = process.env.ENTITY_SNAPSHOT_BUCKET;
     if (project !== 'ifindata-80905' || bucketName !== 'ifindata-80905-eodhd-bulk-eod')
@@ -16,12 +17,14 @@ async function main() {
     initializeApp({ projectId: project, credential: applicationDefault() });
     const db = getFirestore(), bucket = new Storage().bucket(bucketName), files = new MarketFiles(bucket);
     const mode = process.env.MARKET_OPERATION, baseline = process.env.MARKET_BASELINE_ROOT;
+    const cleanupGate=new CleanupGate(migrationCapacity(project));
     const run = `${MARKET_ROOT}/operator/${new Date().toISOString().replaceAll(':', '-')}`;
     const save = async (name: string, value: unknown) => bucket.file(`${run}/${name}.json`).save(JSON.stringify(value), { resumable: false, preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'application/json' } });
     const health = async () => { const response = await fetch('https://ifindata-web-zcgfwde4aa-uc.a.run.app/api/health', { signal: AbortSignal.timeout(15000) }); if (!response.ok)
         throw Error('Production health failed'); const body = await response.json(); if (body.status !== 'ok')
         throw Error('Production health degraded'); return body; };
     try {
+        if(mode==='capacity'){await cleanupGate.before(1);return;}
         if (mode === 'upgrade') {
             const selected = process.env.MARKET_UPGRADE_COLLECTIONS?.split(',') ?? [];
             if (!selected.length || selected.some(c => !MARKET_COLLECTIONS.includes(c as MarketCollection)))
@@ -40,7 +43,7 @@ async function main() {
                             const ref = db.collection('collectors').doc(headId(collection, shard)), head = (await tx.get(ref)).get('marketHead');
                             if (!head)
                                 throw Error('Initial shard copy is incomplete');
-                            if (head.format === 3)
+                            if (head.format >= 4)
                                 return;
                             const rows = await files.read(head), next = await files.write(collection, shard, rows, head.retained);
                             if (!isDeepStrictEqual(await files.read(next), rows))
@@ -142,8 +145,11 @@ async function main() {
             }
             const entries = [...groups];
             let next = 0, processed = 0, deleted = 0, stripped = 0, retained = 0;
-            await Promise.all(Array.from({ length: 4 }, async () => {
+            let failure:unknown;
+            const workers=await Promise.allSettled(Array.from({ length: 4 }, async () => {
+              try{
                 for (;;) {
+                    if(failure)return;
                     const index = next++;
                     if (index >= entries.length)
                         return;
@@ -152,8 +158,10 @@ async function main() {
                         rows?: Map<string, MarketRow>;
                     } = {};
                     for (let offset = 0; offset < group.length; offset += collection === 'earnings_sources' ? 10 : 100) {
+                        if(failure)return;
                         await health();
                         const batch = group.slice(offset, offset + (collection === 'earnings_sources' ? 10 : 100));
+                        if(mode==='cleanup')await cleanupGate.before(batch.length);
                         if (mode === 'reconcile') {
                             for (const row of await reconcileMarketShard(db, files, collection, shard, batch)) {
                                 if (row.version)
@@ -172,7 +180,10 @@ async function main() {
                     }
                     console.info(JSON.stringify({ event: 'market_operator_progress', mode, collection, processed, total: ids.length, deleted, stripped, retained }));
                 }
+              }catch(error){failure=error;throw error;}
             }));
+            const failed=workers.find(result=>result.status==='rejected');
+            if(failed?.status==='rejected')throw failed.reason;
             if (mode === 'reconcile')
                 await bucket.file(`${run}/${collection}/ledger.json.gz`).save(gzipSync(JSON.stringify([...current].map(([id, version]) => ({ id, version: encode(version) })))), { resumable: false, preconditionOpts: { ifGenerationMatch: 0 } });
             let verifiedIds: number | undefined;

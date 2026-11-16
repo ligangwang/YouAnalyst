@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import type { Bucket } from '@google-cloud/storage';
-import { Timestamp, FieldValue, FieldPath } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue, FieldPath, type Firestore } from 'firebase-admin/firestore';
+import {MarketRepository,headId} from '../../src/lib/market-store/repository';
+import {CleanupGate,capacityRegression} from '../../scripts/market-migration-safety';
 import { MarketFiles, shardFor, type MarketRow } from '../../src/lib/market-store/files';
 import { MarketBlob } from '../../src/lib/market-store/blobs';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
@@ -61,6 +63,10 @@ test('compact predicates and projections avoid downloading full payload shards',
         assert.deepEqual(full[0].data,row.data);assert(downloads.includes(head.file!));
         const fallback=await files.query([head],[{method:'where',args:['body','==',row.data.body]}]);
         assert.equal(fallback.length,1);
+        const calendar={...row,id:'calendar',data:{type:'scheduled_event',scheduled_date:'2026-11-13',confirmation:'official',dateEvidence:'Company announcement'}};
+        const calendarHead=await files.write('events',shardFor(calendar.id),[calendar],[]);
+        const schedule=await files.query([calendarHead],[{method:'where',args:['type','==','scheduled_event']}]);
+        assert.deepEqual(schedule[0].data,calendar.data);assert(!downloads.includes(calendarHead.file!));
     }finally{await files.close();}
 });
 test('UGC, active queues, leases and deduplication stay in Firestore', () => {
@@ -87,4 +93,24 @@ test('large binary captures stay in GCS and only selected records hydrate their 
     finally {
         await files.close();
     }
+});
+test('a local shard refresh cannot hide another shard in an older listener snapshot',async()=>{
+    const files=fixture(),a=shardFor('a'),b=shardFor('b');assert.notEqual(a,b);
+    const doc=(shard:string,revision:string,seconds:number)=>({exists:true,id:headId('events',shard),readTime:new Timestamp(seconds,0),get:(field:string)=>field==='marketHead.shard'?shard:{collection:'events',shard,rows:0,retained:[],revision}});
+    let emit: (snapshot:{readTime:Timestamp;docs:ReturnType<typeof doc>[]})=>void=()=>{throw Error('Listener not connected');};
+    const raw={collection:()=>({doc:(id:string)=>({id}),where:()=>({onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}})}),getAll:async()=>[doc(a,'a-new',30)]} as unknown as Firestore;
+    const repo=new MarketRepository(raw,files);
+    try{
+        const initial=repo.heads('events');emit({readTime:new Timestamp(10,0),docs:[doc(a,'a-old',10),doc(b,'b-old',10)]});await initial;
+        await repo.committed(['events/a']);
+        emit({readTime:new Timestamp(20,0),docs:[doc(a,'a-old',20),doc(b,'b-new',20)]});
+        const heads=await repo.heads('events');assert.equal(heads.get(a)?.revision,'a-new');assert.equal(heads.get(b)?.revision,'b-new');
+    }finally{await repo.close();}
+});
+test('cleanup capacity failures latch closed and queue growth cannot pass a healthy endpoint',async()=>{
+    const base={requestErrors:0,backlogs:{cache:10}};
+    assert.equal(capacityRegression(base,{requestErrors:0,backlogs:{cache:20}}),undefined);
+    assert.match(capacityRegression(base,{requestErrors:0,backlogs:{cache:111}})!,/backlog/);
+    let samples=0;const gate=new CleanupGate(async()=>{samples++;return {requestErrors:1,backlogs:{cache:0}};});
+    await assert.rejects(gate.before(1),/request errors/);await assert.rejects(gate.before(1),/request errors/);assert.equal(samples,1);
 });
