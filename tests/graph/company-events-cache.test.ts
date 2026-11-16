@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
-import { loadCompanyEventSnapshot } from '../../src/lib/events/company-events-cache';
+import { loadCompanyEventSnapshot, ANNOUNCEMENT_EVENT_FIELDS } from '../../src/lib/events/company-events-cache';
 import { closeLocalCaches } from '../../src/lib/local-cache/watch';
 import {sourceSnapshot,withSourceCache} from '../../src/lib/local-cache/read-scope';
 
