@@ -1,10 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runtimeManifest, pruneInstalledPackages } from '../../scripts/prune-worker-dependencies.mjs';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildSync } from 'esbuild';
+
+test('every deployed worker bundle declares its external runtime packages', () => {
+  const pkg=JSON.parse(readFileSync('package.json','utf8'));
+  for(const dockerfile of ['Dockerfile.fundamentals','Dockerfile.directory-sync','Dockerfile.price-sync']){
+    const entryPoints=[...readFileSync(dockerfile,'utf8').matchAll(/esbuild (scripts\/[\w.-]+\.ts)/g)].map(match=>match[1]);
+    assert(entryPoints.length>0,dockerfile);
+    const result=buildSync({entryPoints,outdir:'dist',bundle:true,platform:'node',packages:'external',format:'cjs',metafile:true,write:false});
+    const runtime=runtimeManifest(pkg,[result.metafile]);
+    assert.equal(runtime.dependencies['@google-cloud/storage'],'7.19.0');
+  }
+});
 
 test('SEC bulk ZIP runtime package is visible in worker bundle metadata', () => {
   const result = buildSync({ entryPoints: ['src/lib/fundamentals/sec-bulk-zip.ts'], bundle: true,
