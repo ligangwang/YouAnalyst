@@ -8,7 +8,7 @@ import type {MarketFiles,MarketRow} from '../../src/lib/market-store/files';
 test('repository batches concurrent subscriptions without weakening generation invalidation',async()=>{
     let queries=0,generation=1;
     const raw={collection:()=>({where:()=>({onSnapshot:(next:(snapshot:unknown)=>void)=>{
-        queueMicrotask(()=>next({docs:[],readTime:Timestamp.now()}));return()=>{};
+        queueMicrotask(()=>next({docs:[],docChanges:()=>[],readTime:Timestamp.now()}));return()=>{};
     }})})} as unknown as Firestore;
     const files={query:async(_heads:unknown,steps:Array<{args:unknown[]}>)=>{
         queries++;return (steps[0].args[2] as string[]).map(id=>({id,data:{generation},version:Timestamp.now()}));

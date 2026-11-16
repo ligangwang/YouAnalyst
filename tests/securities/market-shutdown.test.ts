@@ -12,7 +12,7 @@ test('completed jobs close control and shard streams and can create a fresh clie
         (async()=>{
         let closed=0;
         const listen=(callback,value)=>{const timer=setInterval(()=>{},1000);queueMicrotask(()=>callback(value));return ()=>{clearInterval(timer);closed++;};};
-        const raw={doc:()=>({onSnapshot:callback=>listen(callback,{data:()=>({version:1,ready:false})})}),collection:()=>({where:()=>({onSnapshot:callback=>listen(callback,{docs:[],readTime:Timestamp.now()})})})};
+        const raw={doc:()=>({onSnapshot:callback=>listen(callback,{data:()=>({version:1,ready:false})})}),collection:()=>({where:()=>({onSnapshot:callback=>listen(callback,{docs:[],docChanges:()=>[],readTime:Timestamp.now()})})})};
         const bucket={name:'shutdown-fixture'};
         const first=enableMarketStore(raw,bucket);
         assert.equal(enableMarketStore(raw,bucket),first);
