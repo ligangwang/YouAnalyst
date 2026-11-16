@@ -32,6 +32,7 @@ test('ordered company lookup matches SQL pages and downloads only selected paylo
             const selected=new Set(expected.map(row=>shardFor(row.id)));
             assert(downloads.slice(start).filter(name=>heads.some(head=>head.indexFile===name)).every(name=>heads.some(head=>selected.has(head.shard)&&head.indexFile===name)));
             assert(!downloads.some(name=>heads.some(head=>head.file===name)));
+            assert.deepEqual(await files.query(heads.map((head,i)=>i?head:{...head,format:6}),steps),expected,'mixed generations preserve the global page');
         }
         const steps=[{method:'where',args:['companyId','==','absent']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[2]}];
         assert.deepEqual(await files.query(heads,steps),[]);

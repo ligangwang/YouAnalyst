@@ -135,7 +135,16 @@ export class MarketFiles {
         }).catch(()=>{if(this.queryResults.get(key)===entry)this.queryResults.delete(key);});
     }
     private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean, compactRead = false): Promise<MarketRow[]> {
-        const announcement=indexed&&heads.length&&heads.every(head=>head.collection==='events'&&(!head.file||(head.format??0)>=7))?announcementPlan(steps):undefined;
+        const planned=indexed&&heads.length&&heads.every(head=>head.collection==='events')?announcementPlan(steps):undefined;
+        if(planned&&heads.some(head=>head.file&&(head.format??0)>=7)&&heads.some(head=>head.file&&(head.format??0)<7)){
+            // An older live writer may replace one shard during rollout. Keep
+            // its SQL fallback local to that shard instead of rescanning every
+            // upgraded index. Each side supplies enough rows for the final page.
+            const candidates=steps.filter(step=>step.method!=='offset').map(step=>step.method==='limit'?{method:'limit',args:[planned.limit+planned.offset]}:step.method==='select'?{method:'select',args:[...step.args,'companyId','publication_date']}:step);
+            const sides=await Promise.all([heads.filter(head=>(head.format??0)>=7),heads.filter(head=>(head.format??0)<7)].map(group=>this.queryUncached(group,candidates,indexed,compactRead)));
+            return this.filter(sides.flat(),steps);
+        }
+        const announcement=planned&&heads.every(head=>!head.file||(head.format??0)>=7)?planned:undefined;
         if(announcement){
             if(heads.some(head=>head.file&&!head.prefixFile))throw Error('Missing announcement index');
             const matches:string[]=[];
