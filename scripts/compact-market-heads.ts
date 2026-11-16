@@ -5,7 +5,7 @@ import {getFirestore} from 'firebase-admin/firestore';
 import {Storage} from '@google-cloud/storage';
 import {MARKET_COLLECTIONS} from '../src/lib/market-store/policy';
 import {CONTROL,headId} from '../src/lib/market-store/repository';
-import {compactHead,pointerId,pointerCollection,pointerRetained} from '../src/lib/market-store/head-pointer';
+import {compactHead,pointerId,pointerCollection,pointerHasRetained} from '../src/lib/market-store/head-pointer';
 import {MARKET_ROOT,type MarketHead} from '../src/lib/market-store/files';
 import {CleanupGate,migrationCapacity} from './market-migration-safety';
 
@@ -37,7 +37,7 @@ async function main(){
                         for(let i=0;i<shards.length;i++){
                             const head=originals[i].get('marketHead') as MarketHead;
                             assert(head&&head.collection===collection&&head.shard===shards[i]&&Array.isArray(head.retained));
-                            const packed=compactHead(head);assert.deepEqual({...packed,retained:pointerRetained(packed)},head);
+                            const packed=compactHead(head);assert.deepEqual({...packed,retained:head.retained},head);assert.equal(pointerHasRetained(packed),head.retained.length>0);
                             const value={marketCollection:pointerCollection(collection),marketHead:packed};
                             sourceBytes+=Buffer.byteLength(JSON.stringify(head));packedBytes+=Buffer.byteLength(JSON.stringify(packed));
                             if(!isDeepStrictEqual(pointers[i].data(),value)){

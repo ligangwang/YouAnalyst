@@ -12,7 +12,7 @@ import { reconcileMarketShard, cleanupMarketShard } from '../../src/lib/market-s
 import { shardFor } from '../../src/lib/market-store/files';
 import {loadCompanyEventSnapshot} from '../../src/lib/events/company-events-cache';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
-import {compactHead,pointerId,pointerCollection,pointerRetained} from '../../src/lib/market-store/head-pointer';
+import {compactHead,pointerId,pointerCollection,pointerHasRetained} from '../../src/lib/market-store/head-pointer';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
@@ -56,7 +56,7 @@ check('compact live heads preserve external data, operational changes and transa
     const ref=f.db.doc('events/compact'),shard=shardFor('compact');
     await ref.set({companyId:'US:NVDA',title:'External',newsAnalysisPending:true});
     const pointer=await f.raw.collection('collectors').doc(pointerId('events',shard)).get();
-    assert.deepEqual(pointerRetained(pointer.get('marketHead')),['compact']);
+    assert.equal(pointerHasRetained(pointer.get('marketHead')),true);
     assert.equal((await ref.get()).get('newsAnalysisPending'),true);
     await f.db.runTransaction(async tx=>{const doc=await tx.get(ref);assert.equal(doc.get('title'),'External');tx.update(ref,{newsAnalysisPending:false});});
     assert.equal((await ref.get()).get('newsAnalysisPending'),false);
@@ -72,6 +72,30 @@ check('compact live heads preserve external data, operational changes and transa
 check('compact reads reject incomplete inventories instead of returning partial market data',async t=>{
     const f=fixture(false,true);t.after(()=>f.db.terminate());
     await assert.rejects(f.repository.heads('events'),/Incomplete compact market head inventory/);
+});
+check('conservative pointers never replace Parquet with an external-only source mirror',async t=>{
+    const f=fixture(false,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true});
+    const batch=f.raw.batch();
+    for(let i=0;i<256;i++){
+        const shard=i.toString(16).padStart(2,'0');
+        batch.set(f.raw.collection('collectors').doc(pointerId('events',shard)),{marketCollection:pointerCollection('events'),marketHead:compactHead({collection:'events',shard,rows:0,retained:[]})});
+    }
+    await batch.commit();
+    const live='operational',shard=shardFor(live);let external='';
+    for(let i=0;!external;i++)if(shardFor('external-'+i)===shard)external='external-'+i;
+    await f.db.doc('events/'+live).set({companyId:'US:AMD',title:'Live event',newsAnalysisPending:true});
+    const ref=f.db.doc('events/'+external);await ref.set({companyId:'US:AMD',title:'Parquet value'});
+    await f.raw.doc(ref.path).update({title:'Divergent mirror'});
+    const expected={companyId:'US:AMD',title:'Parquet value'};
+    assert.deepEqual((await ref.get()).data(),expected);
+    const query=f.db.collection('events').where('companyId','==','US:AMD');
+    assert.deepEqual((await query.get()).docs.find(doc=>doc.id===external)?.data(),expected);
+    assert.deepEqual((await ref.get()).updateTime,(await f.repository.files.read(await f.repository.head('events',shard))).find(row=>row.id===external)?.version);
+    // This is the normal post-cleanup state for an external-only record.
+    await f.raw.doc(ref.path).delete();f.repository.invalidate('events');
+    assert.deepEqual((await ref.get()).data(),expected);
+    assert.deepEqual((await query.get()).docs.find(doc=>doc.id===external)?.data(),expected);
 });
 check('cached external queries merge fresh operational state and replace changed external data',async t=>{
     const f=fixture();t.after(()=>f.db.terminate());
