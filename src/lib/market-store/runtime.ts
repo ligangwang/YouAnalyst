@@ -27,9 +27,14 @@ export const marketStoreEnabled = () => process.env.MARKET_PARQUET_ENABLED === '
 // application mutations are rejected by both storage adapters.
 export const marketReadOnlyProbe = () => process.env.MARKET_READ_ONLY_PROBE === '1'
     && (!process.env.K_SERVICE || process.env.K_SERVICE === 'market-parquet-ui-probe') && !process.env.CLOUD_RUN_JOB;
-// Parquet-only projections are enabled only after observing the read gate.
+// Opt in one web revision before traffic promotion. Unlike the isolated probe,
+// this does not reject user writes or override transactional cleanup controls.
+export const marketStagedReads = () => process.env.MARKET_PARQUET_READ_READY === '1'
+    && process.env.K_SERVICE === 'ifindata-web' && !process.env.CLOUD_RUN_JOB;
+// Use Parquet projections from startup for an opted-in candidate, or after the
+// shared read gate is observed by other processes.
 // Existing snapshot readers are closed by the control subscription at cutover.
-export const marketStoreReady = () => marketStoreEnabled() && (marketReadOnlyProbe() || state.cutover === true);
+export const marketStoreReady = () => marketStoreEnabled() && (marketStagedReads() || marketReadOnlyProbe() || state.cutover === true);
 export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     if (!marketStoreEnabled())
         return raw;
@@ -39,8 +44,8 @@ export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     const name = bucket?.name || process.env.ENTITY_SNAPSHOT_BUCKET || process.env.EODHD_BULK_EOD_BUCKET;
     if (!name)
         throw Error('Market Parquet bucket is required');
-    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), ready => { state.cutover = ready; if (ready)
-        void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe());
+    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), ready => { state.cutover = ready; if (ready || marketStagedReads())
+        void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe(), marketStagedReads());
     repositories.add(repository);
     client = marketFirestore(raw, repository);
     state.clients.set(raw, client);

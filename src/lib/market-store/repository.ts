@@ -50,7 +50,7 @@ export class MarketRepository {
         change: () => void;
         error: (error: unknown) => void;
     }>>();
-    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean) => void, private readOnlyProbe = false) {
+    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean) => void, private readOnlyProbe = false, private stagedReads = false) {
         if (onMode)
             this.controlStop = raw.doc(CONTROL).onSnapshot(doc => { const data = doc.data(); if (data?.version === 1 && typeof data.ready === 'boolean') {
                 this.controls = { until: Date.now() + 10000, value: Promise.resolve(data.ready) };
@@ -135,6 +135,9 @@ export class MarketRepository {
         return entry.value;
     }
     async ready(context?: MarketContext): Promise<boolean> {
+        // A candidate may read the verified copy before the shared cutover.
+        // Transactions still consult the shared control, preserving native reads,
+        // dual writes and the independent source-retirement authorization.
         if (this.readOnlyProbe)
             return true;
         const read = async () => { const doc = await (context ? context.reader.get(this.raw.doc(CONTROL)) : this.raw.doc(CONTROL).get()) as DocumentSnapshot; const data = doc.data(); if (data?.version !== 1 || typeof data.ready !== 'boolean')
@@ -149,7 +152,8 @@ export class MarketRepository {
             value.then(ready => { if (ready && this.controls?.value === value)
                 this.controls.until = Date.now() + 10000; }).catch(() => { this.controls = undefined; });
         }
-        return this.controls.value;
+        const ready=await this.controls.value;
+        return this.stagedReads || ready;
     }
     private parseHead(collection: MarketCollection, shard: string, doc: DocumentSnapshot): MarketHead {
         if (!doc.exists)
@@ -407,8 +411,13 @@ export class MarketRepository {
                         lastUpdateTime?: Timestamp;
                     } | undefined;
                     if (options?.lastUpdateTime) {
-                        const matches=(!ready||retained.has(id)) ? doc.updateTime?.isEqual(options.lastUpdateTime)
-                            : doc.updateTime?.isEqual(options.lastUpdateTime)||rows.get(id)?.version.isEqual(options.lastUpdateTime);
+                        let matches=doc.updateTime?.isEqual(options.lastUpdateTime);
+                        if(!matches&&!retained.has(id)&&(ready||this.stagedReads)&&stored?.version.isEqual(options.lastUpdateTime)){
+                            // Staged snapshots expose the Parquet version. Before
+                            // cutover, accept it only while the native source is
+                            // still the same mirrored data, under this transaction.
+                            matches=ready||(doc.exists&&isDeepStrictEqual(splitRecord(collection,id,doc.data()!).external,base));
+                        }
                         if(!matches)throw Object.assign(Error('Market document precondition failed'), {code:9});
                     }
                     complete.set(id, applyMutation(before, change.method, change.args, at));
