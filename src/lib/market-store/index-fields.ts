@@ -14,3 +14,8 @@ export const MARKET_INDEX_FIELDS = [
 ] as const;
 const fields = new Set<string>(MARKET_INDEX_FIELDS);
 export const marketIndexField = (field:string) => field==='__name__'||fields.has(field);
+// Existing announcement fields are response payloads, not predicate keys.
+// Format 6 indexes cover these projections without opening full event shards.
+export const MARKET_INDEX_PAYLOAD_FIELDS = ['version','id','title','url','sourceId','category','form'] as const;
+const payloadFields=new Set<string>(MARKET_INDEX_PAYLOAD_FIELDS);
+export const marketIndexProjectionField=(field:string,format:number)=>marketIndexField(field)||format>=6&&payloadFields.has(field);

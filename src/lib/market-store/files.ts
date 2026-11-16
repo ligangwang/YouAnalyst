@@ -11,7 +11,7 @@ import { queryIndex, fieldName, type Data } from './value';
 import { compileMarketQuery, project, type Step } from './query';
 import type { MarketCollection } from './policy';
 import { encodeMarket, decodeMarket, hydrateMarket } from './blobs';
-import { MARKET_INDEX_FIELDS, marketIndexField } from './index-fields';
+import { MARKET_INDEX_FIELDS, MARKET_INDEX_PAYLOAD_FIELDS, marketIndexField, marketIndexProjectionField } from './index-fields';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup,type PrefixRows,type PrefixLookup} from './prefix-cache';
 export const MARKET_ROOT = 'market-parquet/v1';
 export const shardFor = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 2);
@@ -146,7 +146,7 @@ export class MarketFiles {
         const predicates = steps.filter(step=>['where','orderBy'].includes(step.method));
         const selection=steps.find(step=>step.method==='select');
         const directIds=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])))&&predicates.every(step=>fieldName(step.args[0])==='__name__');
-        const compactProjection=selection&&selection.args.every(field=>marketIndexField(fieldName(field)));
+        const compactProjection=selection&&heads.every(head=>!head.file||selection.args.every(field=>marketIndexProjectionField(fieldName(field),head.format??0)));
         if(indexed && !(directIds&&!compactProjection) && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
             const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:2,indexFile:undefined}));
             // Calendar records are sparse among hundreds of thousands of news
@@ -154,7 +154,7 @@ export class MarketFiles {
             const calendar=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
                 (step.args[1]==='=='&&step.args[2]==='scheduled_event'||step.args[1]==='in'&&Array.isArray(step.args[2])&&step.args[2].length>0&&step.args[2].every(value=>value==='scheduled_event')));
             if(calendar&&heads.every(head=>!head.file||(head.format??0)>=4))return this.query(compact,steps,false);
-            if(selection && selection.args.every(field=>marketIndexField(fieldName(field))))
+            if(compactProjection)
                 return this.query(compact,steps,false);
             const identities=await this.query(compact,[...steps.filter(step=>step.method!=='select'),{method:'select',args:[]}],false);
             if(!identities.length)return [];
@@ -248,7 +248,7 @@ export class MarketFiles {
             throw Error('Invalid market partition');
         if (new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => shardFor(row.id) !== shard))
             throw Error('Invalid market partition rows');
-        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 5 };
+        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: 6 };
         if (!rows.length)
             return head;
         const directory = await mkdtemp(join(tmpdir(), 'ya-market-')), path = join(directory, 'rows.parquet'), indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
@@ -262,10 +262,10 @@ export class MarketFiles {
                     fields[key] = await encodeMarket(value, this.bucket);
                 payloads.push(JSON.stringify(fields));
                 views.push(JSON.stringify(Object.fromEntries(Object.entries(fields).filter(([key]) => !searchPayload.has(key)))));
-                const compact=row.data.type==='scheduled_event'?row.data:project(row.data,[...MARKET_INDEX_FIELDS]), compactWire:Data={};
+                const compact=row.data.type==='scheduled_event'?row.data:project(row.data,[...MARKET_INDEX_FIELDS,...MARKET_INDEX_PAYLOAD_FIELDS]), compactWire:Data={};
                 for(const [key,value] of Object.entries(compact))compactWire[key]=await encodeMarket(value,this.bucket);
                 compactPayloads.push(JSON.stringify(compactWire));
-                compactIndexes.push(queryIndex(compact));
+                compactIndexes.push(queryIndex(project(compact,[...MARKET_INDEX_FIELDS])));
             }
             await withDuck(async (db) => {
                 await db.run('CREATE TABLE records (id VARCHAR,payload VARCHAR,version VARCHAR,keys JSON,arrays JSON,view_payload VARCHAR,view_keys JSON,index_payload VARCHAR,index_keys JSON,index_arrays JSON)');

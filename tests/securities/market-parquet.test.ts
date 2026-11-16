@@ -19,6 +19,18 @@ function fixture(downloads:string[] = [],queryBudget?:number) { const objects = 
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('announcement projections use covering indexes with safe fallback for older heads',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),id='announcement',version=Timestamp.now();
+    const data={companyId:'US:NVDA',publication_date:version,title:'Quarterly results',url:'https://example.com/results',sourceId:'filing',category:'earnings',form:'10-Q',version:2,id:'source-id',body:'irrelevant'.repeat(1000)};
+    const fields=['companyId','publication_date','title','url','sourceId','category','form','version','id'];
+    const steps=[{method:'where',args:['companyId','==','US:NVDA']},{method:'orderBy',args:['publication_date','desc']},{method:'select',args:fields},{method:'limit',args:[12]}];
+    try{
+        const head=await files.write('events',shardFor(id),[{id,version,data}],[]);
+        const rows=await files.query([head],steps);assert.equal(rows.length,1);assert.deepEqual(rows[0].data,Object.fromEntries(fields.map(field=>[field,data[field as keyof typeof data]])));
+        assert(downloads.includes(head.indexFile!));assert(!downloads.includes(head.file!),'covered projection must not download full shards');
+        const older={...head,format:5};assert.deepEqual(await files.query([older],steps),rows);assert(downloads.includes(head.file!),'older index formats must use full payload fallback');
+    }finally{await files.close();}
+});
 test('production web defaults enable immutable query reuse without a budget override',async()=>{
     const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
     let files:MarketFiles;
