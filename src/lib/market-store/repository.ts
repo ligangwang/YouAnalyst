@@ -7,6 +7,7 @@ import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retaine
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {DocumentBatcher} from './document-batcher';
+import {compactHead,pointerCollection,pointerId,pointerRetained} from './head-pointer';
 export const CONTROL = 'collectors/_market_parquet_control';
 export const headId = (collection: MarketCollection, shard: string) => `_market_parquet_${collection}_${shard}`;
 export type Mutation = {
@@ -29,6 +30,8 @@ export type MarketContext = {
 };
 export class MarketRepository {
     private readonly bootstrapHeads=['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'');
+    private readonly compactHeads=process.env.MARKET_PARQUET_HEAD_POINTERS==='1';
+    private compactCatalogs=new WeakSet<MarketHead>();
     private unknownRetained=new WeakSet<MarketHead>();
     private retainedSets=new WeakMap<string[],Set<string>>();
     private retainedMembership(heads:MarketHead[]){
@@ -40,7 +43,7 @@ export class MarketRepository {
             if(this.unknownRetained.has(head))return true;
             const ids=head.retained;if(!ids.length)return false;
             let set=this.retainedSets.get(ids);
-            if(!set){set=new Set(ids);this.retainedSets.set(ids,set);}
+            if(!set){set=new Set(this.compactCatalogs.has(head)?pointerRetained(head):ids);this.retainedSets.set(ids,set);}
             return set.has(id);
         }};
     }
@@ -102,7 +105,7 @@ export class MarketRepository {
         const pairs = new Map(paths.map(path => { const [collection, id] = path.split('/') as [
             MarketCollection,
             string
-        ], shard = shardFor(id); return [headId(collection, shard), { collection, shard }]; }));
+        ], shard = shardFor(id); return [(this.compactHeads?pointerId:headId)(collection, shard), { collection, shard }]; }));
         if (!pairs.size)
             return;
         try {
@@ -112,7 +115,11 @@ export class MarketRepository {
                 const pair = pairs.get(doc.id)!, watch = this.watches.get(pair.collection);
                 if (!watch)
                     continue;
-                watch.heads.set(pair.shard, this.parseHead(pair.collection, pair.shard, doc));
+                const head=this.parseHead(pair.collection, pair.shard, doc);
+                if(this.compactHeads){if(!doc.exists)throw Error('Missing compact market head');this.compactCatalogs.add(head);}
+                const prior=watch.through.get(pair.shard);
+                if(prior&&(prior.seconds>doc.readTime.seconds||prior.seconds===doc.readTime.seconds&&prior.nanoseconds>doc.readTime.nanoseconds))continue;
+                watch.heads.set(pair.shard, head);
                 watch.through.set(pair.shard,doc.readTime);
                 const shards = changed.get(pair.collection) ?? new Set<string>();
                 shards.add(pair.shard);
@@ -207,13 +214,19 @@ export class MarketRepository {
             let resolve!: (heads: Map<string, MarketHead>) => void, reject!: (error: unknown) => void;
             const ready = new Promise<Map<string, MarketHead>>((yes, no) => { resolve = yes; reject = no; });
             const through=new Map<string,Timestamp>();let initial=true;
-            const source=this.raw.collection('collectors').where('marketCollection', '==', collection);
+            const source=this.raw.collection('collectors').where('marketCollection', '==', this.compactHeads?pointerCollection(collection):collection);
             const sameMetadata=(a:MarketHead|undefined,b:MarketHead)=>{
                 if(!a)return false;
                 const left={...a},right={...b};left.retained=[];right.retained=[];
                 return isDeepStrictEqual(left,right);
             };
             const stop = source.onSnapshot(snapshot => {
+                if(this.compactHeads&&(snapshot.size!==256||new Set(snapshot.docs.map(doc=>doc.get('marketHead.shard'))).size!==256||snapshot.docs.some(doc=>!/^[a-f0-9]{2}$/.test(doc.get('marketHead.shard'))))){
+                    const error=Error('Incomplete compact market head inventory');
+                    this.watches.get(collection)?.stop();this.watches.delete(collection);reject(error);
+                    for(const listener of this.listeners.get(collection)??[])listener.error(error);
+                    return;
+                }
                 const changed=new Set<string>();
                 const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
                 // A head can contain thousands of retained IDs. Firestore's
@@ -234,6 +247,7 @@ export class MarketRepository {
                         through.set(shard,snapshot.readTime);continue;
                     }
                     const head=this.parseHead(collection,shard,doc);
+                    if(this.compactHeads)this.compactCatalogs.add(head);
                     const prior=heads.get(shard);
                     if(!(prior&&this.unknownRetained.has(prior)&&sameMetadata(prior,head))&&!isDeepStrictEqual(prior,head))changed.add(shard);
                     heads.set(shard,head);through.set(shard,snapshot.readTime);
@@ -252,7 +266,7 @@ export class MarketRepository {
                 listener.error(error); });
             watch = { ready, heads, stop, through };
             this.watches.set(collection, watch);
-            if(this.bootstrapHeads){
+            if(this.bootstrapHeads&&!this.compactHeads){
                 const fields=['collection','shard','file','bytes','rows','revision','format','indexFile','indexBytes','prefixFile','prefixBytes'];
                 // A field-masked get can initialize immutable file pointers
                 // without blocking small queries on every operational ID. The
@@ -556,6 +570,8 @@ export class MarketRepository {
                 const next = changed ? await this.files.write(collection, shard, nextRows, [...retained]) : { ...head, retained: [...retained].sort() };
                 next.revision = randomUUID();
                 writes.push(() => tx.set(this.raw.collection('collectors').doc(headId(collection, shard)), { marketCollection: collection, marketHead: next }));
+                const pointer=compactHead(next);
+                writes.push(() => tx.set(this.raw.collection('collectors').doc(pointerId(collection,shard)),{marketCollection:pointerCollection(collection),marketHead:pointer}));
             }
         }));
         return () => { for (const write of writes)

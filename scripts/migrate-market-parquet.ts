@@ -12,6 +12,7 @@ import { MARKET_COLLECTIONS, splitRecord, retainsRecord, type MarketCollection }
 import { MarketFiles, MARKET_ROOT, shardFor } from '../src/lib/market-store/files';
 import { encodeMarket, decodeMarket } from '../src/lib/market-store/blobs';
 import { CONTROL, headId } from '../src/lib/market-store/repository';
+import {compactHead,pointerCollection,pointerId} from '../src/lib/market-store/head-pointer';
 import { encode, decode } from '../src/lib/central-cache/codec';
 type Saved = {
     id: string;
@@ -106,7 +107,10 @@ async function main() {
                             throw Error(`Parquet parity mismatch ${collection}/${shard}`);
                         await bucket.file(`${MARKET_ROOT}/operator/${run}/${collection}/${shard}.jsonl.gz`).save(gzipSync(content), { resumable: false, preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'application/gzip' } });
                         // The initial source stays authoritative throughout this pre-deploy copy.
-                        await db.collection('collectors').doc(headId(collection, shard)).set({ marketCollection: collection, marketHead: head });
+                        const batch=db.batch();
+                        batch.set(db.collection('collectors').doc(headId(collection, shard)),{marketCollection:collection,marketHead:head});
+                        batch.set(db.collection('collectors').doc(pointerId(collection,shard)),{marketCollection:pointerCollection(collection),marketHead:compactHead(head)});
+                        await batch.commit();
                         checked += saved.length;
                     }
                 }));
