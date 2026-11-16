@@ -60,6 +60,37 @@ check('staged snapshot preconditions accept unchanged mirrors and reject stale o
     await assert.rejects(ref.update({score:3},{lastUpdateTime:current.updateTime!}),/precondition/);
     assert.equal((await native.get()).get('score'),99);
 });
+check('full directory scans do not reread absent external payloads for retained companies',async t=>{
+    const f=fixture(true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    await f.db.doc('companies/external').set({name:'External',status:'DIRECTORY',onboarding:{status:'complete'}});
+    await f.db.doc('companies/authored').set({name:'Authored',status:'PUBLISHED',createdBy:'user'});
+    const query=f.repository.files.query.bind(f.repository.files);
+    f.repository.files.query=async(heads,steps,indexed)=>{
+        assert(!steps.some(step=>step.method==='where'&&String(step.args[0])==='__name__'&&Array.isArray(step.args[2])&&step.args[2].includes('authored')),'complete scan must not reload absent authored IDs');
+        return query(heads,steps,indexed);
+    };
+    for(const ordered of [false,true]){
+        const base=f.db.collection('companies').select('name','status');
+        const snapshot=await (ordered?base.orderBy('__name__'):base).get();
+        const expected=await f.raw.collection('companies').select('name','status').orderBy('__name__').get();
+        assert.deepEqual(snapshot.docs.map(doc=>doc.data()),expected.docs.map(doc=>doc.data()));
+    }
+    f.repository.files.query=query;
+    assert.equal((await f.db.collection('companies').where('name','==','Authored').limit(1).get()).docs[0].get('createdBy'),'user');
+});
+check('external event projections avoid overlay document reads but live-state projections still merge',async t=>{
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    await f.db.doc('events/news').set({companyId:'US:NVDA',title:'Headline',publication_date:'2026-11-13',feedCacheChangedAt:new Timestamp(1700000000,0)});
+    const getAll=f.raw.getAll.bind(f.raw);let reads=0;
+    f.raw.getAll=((...args:Parameters<typeof f.raw.getAll>)=>{if(args.some(arg=>'path' in arg&&typeof arg.path==='string'&&arg.path.startsWith('events/')))reads++;return getAll(...args);}) as typeof f.raw.getAll;
+    const base=f.db.collection('events').where('companyId','==','US:NVDA').orderBy('publication_date','desc');
+    assert.deepEqual((await base.select('title','companyId','publication_date').get()).docs[0].data(),{title:'Headline',companyId:'US:NVDA',publication_date:'2026-11-13'});
+    assert.equal(reads,0,'external fields must not fetch stripped live-state documents');
+    const live=await base.select('title','feedCacheChangedAt').get();
+    assert.equal(live.docs[0].get('title'),'Headline');assert(live.docs[0].get('feedCacheChangedAt').isEqual(new Timestamp(1700000000,0)));assert(reads>0);
+});
 check('bootstrap, atomic cutover, mixed-data reads and transactional publication', async (t) => {
     const f = fixture();
     t.after(() => f.db.terminate());

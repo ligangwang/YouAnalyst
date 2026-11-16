@@ -340,13 +340,22 @@ export class MarketRepository {
         const external = onlyRetained || requiresOverlay ? [] : await this.files.query(heads, candidateSteps), result = new Map(external.map(row => [row.id, row]));
         const overlayIds = new Set(heads.flatMap(head => head.retained));
         const raw = new Map<string, DocumentSnapshot>(rawPage.docs.filter(doc => retainedIds.has(doc.id)).map(doc => [doc.id, doc]));
-        const missingExternal = rawPage.docs.filter(doc => !result.has(doc.id)).map(doc => doc.id);
+        // An unbounded identity-ordered scan already returned every external
+        // row. Missing IDs are retained-only records, so a second Parquet scan
+        // cannot add payloads (and is expensive for the company directory).
+        const completeExternalScan = !onlyRetained && !requiresOverlay && candidateSteps.every(step =>
+            step.method === 'select' || step.method === 'orderBy' && fieldName(step.args[0]) === '__name__');
+        const missingExternal = completeExternalScan ? [] : rawPage.docs.filter(doc => !result.has(doc.id)).map(doc => doc.id);
         if (missingExternal.length && !onlyRetained) {
             const selected = heads.filter(head => missingExternal.some(id => shardFor(id) === head.shard));
             for (const row of await this.files.query(selected, [{ method: 'where', args: [FieldPath.documentId(), 'in', missingExternal] }, ...candidateSteps.filter(step => step.method === 'select')]))
                 result.set(row.id, row);
         }
-        const needed = external.filter(row => overlayIds.has(row.id) && !raw.has(row.id)).map(row => this.raw.collection(collection).doc(row.id));
+        // A projection containing only external fields needs no transactional
+        // overlay. Retained-only (including authored) records still come from
+        // rawPage; operational predicates/projections retain their live reads.
+        const externalProjection = !operational && projection && projection.args.every(field => !isOperationalField(collection, fieldName(field)));
+        const needed = externalProjection ? [] : external.filter(row => overlayIds.has(row.id) && !raw.has(row.id)).map(row => this.raw.collection(collection).doc(row.id));
         for (const doc of (await this.rawDocuments(needed, context)).values())
             raw.set(doc.id, doc);
         for (const doc of raw.values())

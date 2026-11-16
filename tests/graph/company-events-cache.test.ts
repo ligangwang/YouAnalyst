@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
-import { loadCompanyEventSnapshot } from '../../src/lib/events/company-events-cache';
+import { loadCompanyEventSnapshot, ANNOUNCEMENT_EVENT_FIELDS } from '../../src/lib/events/company-events-cache';
 import { closeLocalCaches } from '../../src/lib/local-cache/watch';
 import {sourceSnapshot,withSourceCache} from '../../src/lib/local-cache/read-scope';
 
@@ -42,6 +42,7 @@ test('company events share loads, receive changes and remain bounded', async t =
     orderBy(field: string, direction: string) {
       assert.equal(field, 'publication_date'); assert.equal(direction, 'desc'); return this;
     },
+    select(...fields:string[]) { assert.deepEqual(fields,[...ANNOUNCEMENT_EVENT_FIELDS]);return this; },
     limit(count: number) { assert.equal(count, 12); return this; },
     get: async () => { throw Error('Unexpected repeated query'); },
     onSnapshot(next: (snapshot: unknown) => void) {
@@ -106,6 +107,7 @@ test('announcements read a twelve-document prefix and only the remaining search 
   function query(after=-1,limit=0){
     const key=after+'/'+limit;
     return {key,where:()=>query(after,limit),orderBy:()=>query(after,limit),
+      select:(...fields:string[])=>{assert.deepEqual(fields,['version','companyId','id','title','url','published_at','publication_date','type','sourceType','sourceId','category','form']);return query(after,limit);},
       limit:(n:number)=>query(after,n),startAfter:(doc:typeof docs[number])=>query(Number(doc.id),limit),
       isEqual:(other:{key:string})=>key===other.key,
       onSnapshot(next:(s:unknown)=>void){
