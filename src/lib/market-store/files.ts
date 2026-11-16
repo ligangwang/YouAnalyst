@@ -217,12 +217,16 @@ export class MarketFiles {
             const field=fieldName(prefix.args[0]),selected=rows.filter(row=>Array.isArray(row.data[field])&&(row.data[field] as unknown[]).includes(prefix.args[2])).sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id))).slice(query.offset,query.limit===undefined?undefined:query.offset+query.limit);
             return query.selection?selected.map(row=>({...row,data:project(row.data,query.selection!)})):selected;
         }
+        // The merged rows retain full response payloads, but DuckDB only needs
+        // predicate/order keys to choose them. Indexing unrelated prefix arrays,
+        // article bodies and evidence blocks can monopolize the request thread.
+        const filterFields=[...new Set(steps.filter(step=>step.method==='where'||step.method==='orderBy').map(step=>fieldName(step.args[0])))].filter(field=>field!=='__name__');
         const selected = await withDuck(async (db) => {
             await db.run('CREATE TABLE records (id VARCHAR, keys JSON, arrays JSON, position INTEGER)');
             const appender = await db.createAppender('records');
             try {
                 for (let i = 0; i < rows.length; i++) {
-                    const index = queryIndex(rows[i].data);
+                    const index = queryIndex(project(rows[i].data,filterFields));
                     appender.appendVarchar(rows[i].id);
                     appender.appendVarchar(JSON.stringify(index.keys));
                     appender.appendVarchar(JSON.stringify(index.arrays));
