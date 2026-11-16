@@ -7,7 +7,7 @@ import {MarketRepository,headId} from '../../src/lib/market-store/repository';
 import {CleanupGate,capacityRegression} from '../../scripts/market-migration-safety';
 import { MarketFiles, shardFor, type MarketRow } from '../../src/lib/market-store/files';
 import { MarketBlob } from '../../src/lib/market-store/blobs';
-import {PrefixCache} from '../../src/lib/market-store/prefix-cache';
+import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup} from '../../src/lib/market-store/prefix-cache';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
 function fixture(downloads:string[] = []) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -25,6 +25,26 @@ test('prefix bytes preserve exact membership, reuse generations and evict within
     assert.deepEqual(await cache.matching('generation1','amd',load),['b']);assert.equal(loads,1);
     assert.deepEqual(await cache.matching('generation2','nvda',async()=>[{id:'b',values:['nvda']}]),['b']);
     const tiny=new PrefixCache(1);await tiny.matching('generation1','amd',load);await tiny.matching('generation1','amd',load);assert.equal(loads,3);
+});
+test('persisted prefix indexes preserve exact values and reject invalid offsets',async()=>{
+    const encoded=encodePrefixLookup(buildPrefixLookup([{id:'a',values:['nvda','英伟达']},{id:'b',values:['amd']}]));
+    const cache=new PrefixCache();
+    assert.deepEqual(await cache.matching('stored','英伟达',async()=>decodePrefixLookup(encoded)),['a']);
+    const invalid=JSON.parse(encoded);invalid.rawBytes++;
+    assert.throws(()=>decodePrefixLookup(JSON.stringify(invalid)),/offsets/);
+});
+test('prefix projections use persisted indexes and remain compatible with legacy heads',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),row={id:'company',version:Timestamp.now(),data:{name:'Company',searchPrefixes:['nvda','nv'],body:'large '.repeat(10000)}};
+    try{
+        const head=await files.write('companies',shardFor(row.id),[row],[]);
+        const steps=[{method:'where',args:['searchPrefixes','array-contains','nvda']},{method:'select',args:['name']}];
+        assert.deepEqual((await files.query([head],steps))[0].data,{name:'Company'});
+        assert(downloads.includes(head.prefixFile!));assert(!downloads.includes(head.file!));
+        const legacy={...head,format:4,prefixFile:undefined,prefixBytes:undefined};
+        (files as unknown as {prefixes:PrefixCache}).prefixes.clear();
+        assert.deepEqual((await files.query([legacy],steps))[0].data,{name:'Company'});
+        assert(downloads.includes(head.file!));
+    }finally{await files.close();}
 });
 test('prefix candidate lookup preserves other predicates, order, projection and new head contents',async()=>{
     const files=fixture(),version=Timestamp.now();
