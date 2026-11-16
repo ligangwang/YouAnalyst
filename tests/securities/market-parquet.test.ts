@@ -11,14 +11,44 @@ import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup} fro
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
 import {cleanupRecord} from '../../src/lib/market-store/migration';
-function fixture(downloads:string[] = []) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
+function fixture(downloads:string[] = [],queryBudget=0) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
             destination: string;
         }) => { downloads.push(name); const bytes = objects.get(name); if (!bytes)
             throw Error('Missing object'); if (options)
             await writeFile(options.destination, bytes); return [bytes]; }, save: async (bytes: Buffer) => { if (objects.has(name))
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
-    }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket); }
+    }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('immutable queries survive operational revisions but observe new files and distinct bounds',async()=>{
+    const files=fixture([],1024*1024),id='cached-company',version=Timestamp.now();
+    const internal=files as unknown as {queryUncached:MarketFiles['query']};
+    const original=internal.queryUncached.bind(files);let scans=0;
+    internal.queryUncached=async(...args)=>{scans++;return original(...args);};
+    const steps=[{method:'where',args:['__name__','==',id]},{method:'select',args:['name']}];
+    try{
+        const head=await files.write('companies',shardFor(id),[{id,version,data:{name:'Before'}}],[]);
+        assert.equal((await files.query([head],steps))[0].data.name,'Before');const first=scans;
+        await Promise.all([files.query([{...head,revision:'operational-change',retained:[id]}],steps),files.query([head],steps)]);
+        assert.equal(scans,first,'unchanged external files must not be rescanned');
+        assert.deepEqual(await files.query([head],[...steps,{method:'startAfter',args:[id]}]),[]);
+        const next=await files.write('companies',shardFor(id),[{id,version,data:{name:'After'}}],[]);
+        assert.equal((await files.query([next],steps))[0].data.name,'After');
+        assert.equal((await files.query([head],steps))[0].data.name,'Before','old immutable generation remains addressable');
+    }finally{await files.close();}
+});
+test('immutable query cache evicts oversized results and does not cache failures',async()=>{
+    const files=fixture([],1),id='tiny-cache',version=Timestamp.now();
+    const internal=files as unknown as {queryUncached:MarketFiles['query']};
+    const original=internal.queryUncached.bind(files);let scans=0,fail=true;
+    internal.queryUncached=async(...args)=>{scans++;if(fail){fail=false;throw Error('transient read');}return original(...args);};
+    const steps=[{method:'where',args:['__name__','==',id]}];
+    try{
+        const head=await files.write('companies',shardFor(id),[{id,version,data:{name:'Company'}}],[]);
+        await assert.rejects(files.query([head],steps),/transient read/);
+        assert.equal((await files.query([head],steps))[0].data.name,'Company');const first=scans;
+        await files.query([head],steps);assert(scans>first,'oversized results must not remain cached');
+    }finally{await files.close();}
+});
 test('prefix bytes preserve exact membership, reuse generations and evict within the budget',async()=>{
     let loads=0;const cache=new PrefixCache(),load=async()=>{loads++;return [{id:'a',values:['nvda','nv','英伟达','nvda']},{id:'b',values:['amd','nvda-x','bad\0nvda\0value']},{id:'c',values:['nvda']}];};
     assert.deepEqual(await cache.matching('generation1','nvda',load),['a','c']);

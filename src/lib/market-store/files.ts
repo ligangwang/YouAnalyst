@@ -39,11 +39,15 @@ const decodePayload = (payload: string): Data => { const wire = JSON.parse(paylo
 export class MarketFiles {
     private cache: PriceStore;
     private prefixes=new PrefixCache();
+    private queryResults=new Map<string,{value:Promise<MarketRow[]>;bytes:number}>();
     // The 6 GiB web service can retain the compact market working set. Smaller
     // workers keep their original limit; all caches remain bounded.
     private readonly web = ['ifindata-web', 'market-parquet-ui-probe'].includes(process.env.K_SERVICE ?? '');
-    constructor(readonly bucket: Bucket) { this.cache = new PriceStore(bucket, (this.web ? 512 : 64) * 1024 * 1024); }
-    close() { this.prefixes.clear();return this.cache.close(); }
+    constructor(readonly bucket: Bucket, private queryBudget = this.web ? 32 * 1024 * 1024 : 0) {
+        if(!Number.isSafeInteger(queryBudget)||queryBudget<0||queryBudget>32*1024*1024)throw Error('Invalid market query cache budget');
+        this.cache = new PriceStore(bucket, (this.web ? 512 : 64) * 1024 * 1024-queryBudget);
+    }
+    close() { this.queryResults.clear();this.prefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
         const paths: string[] = [], holds: Promise<unknown>[] = [];
         let release!: () => void;
@@ -68,6 +72,28 @@ export class MarketFiles {
         return this.cache.local([head.file], paths => withDuck(async (db) => (await db.runAndReadAll(`SELECT id,payload,version FROM read_parquet(${quote(paths[0])}) ORDER BY id`)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }))));
     }
     async query(heads: MarketHead[], steps: Step[], indexed = true): Promise<MarketRow[]> {
+        if(!this.queryBudget)return this.queryUncached(heads,steps,indexed);
+        // Only external values are cached here. Operational overlays are read and
+        // merged by the repository on every invalidated query. Immutable file
+        // identities change whenever the external contents change; a head's
+        // retained IDs/revision alone must not force another DuckDB scan.
+        const key=createHash('sha256').update(JSON.stringify([indexed,compileMarketQuery(steps),heads.map(head=>
+            [head.collection,head.shard,head.file,head.indexFile,head.prefixFile,head.format])])).digest('hex');
+        const old=this.queryResults.get(key);
+        if(old){this.queryResults.delete(key);this.queryResults.set(key,old);return old.value;}
+        const entry={value:this.queryUncached(heads,steps,indexed),bytes:0};
+        this.queryResults.set(key,entry);
+        void entry.value.then(rows=>{
+            entry.bytes=Buffer.byteLength(JSON.stringify(rows))*2+256;
+            let bytes=[...this.queryResults.values()].reduce((n,item)=>n+item.bytes,0);
+            for(const [id,item] of this.queryResults){
+                if(bytes<=this.queryBudget&&this.queryResults.size<=256)break;
+                this.queryResults.delete(id);bytes-=item.bytes;
+            }
+        }).catch(()=>{if(this.queryResults.get(key)===entry)this.queryResults.delete(key);});
+        return entry.value;
+    }
+    private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean): Promise<MarketRow[]> {
         const prefix=steps.find(step=>step.method==='where'&&step.args[1]==='array-contains'&&searchPayload.has(fieldName(step.args[0]))&&typeof step.args[2]==='string'&&step.args[2].length>0&&!step.args[2].includes('\0'));
         if(prefix&&heads.every(head=>!head.file||(head.format??0)>=2)){
             const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;
