@@ -19,6 +19,27 @@ function fixture(downloads:string[] = [],queryBudget?:number) { const objects = 
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('ordered company lookup matches SQL pages and downloads only selected payload shards',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
+    const ids=['a','b','c','d','e','f','é','😀'];
+    const rows=ids.map((id,i)=>({id,version,data:{companyId:i===7?'other':'company',...(i===6?{}:{publication_date:i===5?null:Timestamp.fromMillis(Math.floor(i/2)*1000)}),title:id}}));
+    try{
+        const heads=await Promise.all([...new Set(ids.map(shardFor))].map(shard=>files.write('events',shard,rows.filter(row=>shardFor(row.id)===shard),[])));
+        for(const direction of ['asc','desc'])for(const offset of [0,1,4]){
+            const steps=[{method:'where',args:['companyId','==','company']},{method:'orderBy',args:['publication_date',direction]},{method:'offset',args:[offset]},{method:'limit',args:[2]},{method:'select',args:['title']}];
+            const expected=await files.filter(rows,steps),start=downloads.length;
+            assert.deepEqual(await files.query(heads,steps),expected);
+            const selected=new Set(expected.map(row=>shardFor(row.id)));
+            assert(downloads.slice(start).filter(name=>heads.some(head=>head.indexFile===name)).every(name=>heads.some(head=>selected.has(head.shard)&&head.indexFile===name)));
+            assert(!downloads.some(name=>heads.some(head=>head.file===name)));
+        }
+        const steps=[{method:'where',args:['companyId','==','absent']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[2]}];
+        assert.deepEqual(await files.query(heads,steps),[]);
+        // A mixed generation cannot assume older shards contain the lookup.
+        assert.deepEqual(await files.query(heads.map((head,i)=>i?head:{...head,format:6}),steps),[]);
+        await assert.rejects(files.query(heads.map(head=>({...head,prefixFile:undefined})),steps),/Missing announcement index/);
+    }finally{await files.close();}
+});
 test('announcement projections use covering indexes with safe fallback for older heads',async()=>{
     const downloads:string[]=[],files=fixture(downloads),id='announcement',version=Timestamp.now();
     const data={companyId:'US:NVDA',publication_date:version,title:'Quarterly results',url:'https://example.com/results',sourceId:'filing',category:'earnings',form:'10-Q',version:2,id:'source-id',body:'irrelevant'.repeat(1000)};
@@ -78,6 +99,25 @@ test('initial head snapshot reconciles a locally installed head absent from the 
             assert.equal((await initial).has(shard),readTime<300,'newer initial snapshots must reconcile absent local heads');
         }finally{await repo.close();}
     }
+});
+test('projected ID reads reuse unchanged documents across batches and shard updates',async()=>{
+    const files=fixture([],1024*1024),calls:string[][]=[];
+    const internal=files as unknown as {local:(names:string[],work:(paths:string[])=>Promise<unknown>)=>Promise<unknown>};
+    const local=internal.local.bind(files);internal.local=(names,work)=>{calls.push(names);return local(names,work);};
+    try{
+        const row=(id:string,value:number)=>({id,data:{marketCap:value},version:Timestamp.fromMillis(value)});
+        const a=await files.write('company_fundamentals',shardFor('a'),[row('a',1)],[]),b=await files.write('company_fundamentals',shardFor('b'),[row('b',2)],[]);
+        const query=(heads:typeof a[],ids:string[])=>files.query(heads,[{method:'where',args:['__name__','in',ids]},{method:'select',args:['marketCap']}]);
+        assert.deepEqual((await query([a,b],['a','b'])).map(row=>row.data.marketCap),[1,2]);calls.length=0;
+        assert.deepEqual((await query([{...a,revision:'operational'},b],['a'])).map(row=>row.data.marketCap),[1]);assert.equal(calls.length,0);
+        const changed=await files.write('company_fundamentals',b.shard,[row('b',3)],[]);
+        assert.deepEqual((await query([a,changed],['b','a'])).map(row=>row.data.marketCap),[1,3]);
+        assert(calls.flat().every(name=>name===changed.indexFile),'only the changed shard should be scanned');calls.length=0;
+        const deleted=await files.write('company_fundamentals',b.shard,[],[]);
+        assert.deepEqual((await query([a,deleted],['a','b'])).map(row=>row.id),['a']);
+        const restored=await files.write('company_fundamentals',b.shard,[row('b',4)],[]);
+        assert.deepEqual((await query([a,restored],['b'])).map(row=>row.data.marketCap),[4]);
+    }finally{await files.close();}
 });
 test('small queries inspect only matching retained shards and refresh membership with new heads',async()=>{
     const id='membership-event',target=shardFor(id);let reads=0,emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
@@ -179,6 +219,11 @@ test('persisted prefix indexes preserve exact values and reject invalid offsets'
     const encoded=encodePrefixLookup(buildPrefixLookup([{id:'a',values:['nvda','英伟达']},{id:'b',values:['amd']}]));
     const cache=new PrefixCache();
     assert.deepEqual(await cache.matching('stored','英伟达',async()=>decodePrefixLookup(encoded)),['a']);
+    const packed=decodePrefixLookup(encoded,true);
+    assert.deepEqual(packed.ids,[]);assert(packed.packedIds);
+    assert.equal(encodePrefixLookup(packed),encoded);
+    assert.deepEqual(await cache.matching('packed','英伟达',async()=>packed),['a']);
+    assert.deepEqual(await cache.matching('packed','amd',async()=>{throw Error('cached');}),['b']);
     const invalid=JSON.parse(encoded);invalid.rawBytes++;
     assert.throws(()=>decodePrefixLookup(JSON.stringify(invalid)),/offsets/);
 });

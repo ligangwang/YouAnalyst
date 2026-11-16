@@ -1,5 +1,5 @@
 import { quote } from '../price-store/parquet';
-import { fieldName, sortKey, type Data, getField } from './value';
+import { fieldName, sortKey, type Data, getField,queryIndex } from './value';
 export type Step = {
     method: string;
     args: unknown[];
@@ -100,4 +100,28 @@ export function project(data: Data, fields: string[]): Data {
         into[parts.at(-1)!] = value;
     }
     return result;
+}
+/** Equality-only, identity-ordered merges need no database connection. Use the
+ * same encoded keys as SQL; complex ordering, inequalities and cursors retain
+ * the DuckDB path. This keeps live UGC merges out of the scan queue. */
+export function filterIdentityOrdered<T extends {id:string;data:Data}>(rows:T[],steps:Step[]):T[]|undefined{
+    if(steps.some(step=>step.method==='where'&&!['==','in'].includes(String(step.args[1]))
+        ||step.method==='orderBy'&&fieldName(step.args[0])!=='__name__'
+        ||!['where','orderBy','select','limit','limitToLast','offset','count'].includes(step.method)))return undefined;
+    const plan=compileMarketQuery(steps),predicates=steps.filter(step=>step.method==='where');
+    const fields=[...new Set(predicates.map(step=>fieldName(step.args[0])).filter(field=>field!=='__name__'))];
+    let selected=rows.filter(row=>{
+        const index=fields.length?queryIndex(project(row.data,fields)):undefined;
+        return predicates.every(step=>{
+            const field=fieldName(step.args[0]),key=field==='__name__'?row.id:index!.keys[field];
+            if(key===undefined)return false;
+            const values=step.args[1]==='in'?step.args[2] as unknown[]:[step.args[2]];
+            return values.some(value=>key===(field==='__name__'?String(value):sortKey(value)??'missing'));
+        });
+    });
+    const desc=(steps.find(step=>step.method==='orderBy')?.args[1]==='desc')!==plan.last;
+    selected.sort((a,b)=>(desc?-1:1)*Buffer.compare(Buffer.from(a.id),Buffer.from(b.id)));
+    selected=selected.slice(plan.offset,plan.limit===undefined?undefined:plan.offset+plan.limit);
+    if(plan.last)selected.reverse();
+    return plan.selection?selected.map(row=>({...row,data:project(row.data,plan.selection!)})):selected;
 }
