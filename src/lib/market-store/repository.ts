@@ -330,7 +330,14 @@ export class MarketRepository {
         if (projection)
             candidateSteps.push({ method: 'select', args: [...new Set([...projection.args.map(fieldName), ...steps.filter(step => ['where', 'orderBy'].includes(step.method)).map(step => fieldName(step.args[0]))])].filter(field => field !== '__name__') });
         const onlyRetained = retainedOnlyQuery(collection, steps);
-        const external = onlyRetained ? [] : await this.files.query(heads, candidateSteps), result = new Map(external.map(row => [row.id, row]));
+        // These fields exist only in the transactional overlay. Native matches
+        // identify every candidate; scanning Parquet for an absent field adds
+        // a full collection read without finding any additional records.
+        // updatedAt is special: external-only records keep it in Parquet.
+        const requiresOverlay = steps.some(step => ['where', 'orderBy'].includes(step.method)
+            && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
+            && isOperationalField(collection, fieldName(step.args[0])));
+        const external = onlyRetained || requiresOverlay ? [] : await this.files.query(heads, candidateSteps), result = new Map(external.map(row => [row.id, row]));
         const overlayIds = new Set(heads.flatMap(head => head.retained));
         const raw = new Map<string, DocumentSnapshot>(rawPage.docs.filter(doc => retainedIds.has(doc.id)).map(doc => [doc.id, doc]));
         const missingExternal = rawPage.docs.filter(doc => !result.has(doc.id)).map(doc => doc.id);

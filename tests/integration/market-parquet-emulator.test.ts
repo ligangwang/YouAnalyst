@@ -102,6 +102,26 @@ check('feed marker and retained event timestamp use the same server commit', asy
     assert(event.get('feedCacheChangedAt').isEqual(marker.get('changedAt')));
     assert.equal(event.get('title'), undefined);
 });
+check('operational feed queries fetch only matching Parquet IDs and preserve pagination', async t => {
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    for(let n=0;n<5;n++)await f.db.doc('events/news-'+n).set({type:'company_news',title:'Headline '+n,feedCacheChangedAt:new Timestamp(1700000000+n,0),score:n});
+    await f.db.doc('events/unrelated').set({type:'company_news',title:'Not changed',updatedAt:new Timestamp(1700000009,0)});
+    const query=f.repository.files.query.bind(f.repository.files);let calls=0;
+    f.repository.files.query=async(heads,steps,indexed)=>{
+        assert(steps.some(step=>step.method==='where'&&String(step.args[0])==='__name__'),'operational query must use explicit IDs');
+        calls++;return query(heads,steps,indexed);
+    };
+    const first=await f.db.collection('events').where('feedCacheChangedAt','>',new Timestamp(1700000000,0)).orderBy('feedCacheChangedAt').limit(2).get();
+    assert.deepEqual(first.docs.map(doc=>doc.get('title')),['Headline 1','Headline 2']);
+    const next=await f.db.collection('events').orderBy('feedCacheChangedAt').startAfter(first.docs[1]).limit(2).select('title').get();
+    assert.deepEqual(next.docs.map(doc=>doc.data()),[{title:'Headline 3'},{title:'Headline 4'}]);
+    const mixed=await f.db.collection('events').where('feedCacheChangedAt','>',new Timestamp(1700000000,0)).where('score','>=',3).orderBy('score','desc').limit(1).get();
+    assert.equal(mixed.docs[0].get('title'),'Headline 4');assert(calls>0);
+    f.repository.files.query=query;
+    const external=await f.db.collection('events').where('updatedAt','>',new Timestamp(1700000008,0)).get();
+    assert(external.docs.some(doc=>doc.id==='unrelated'),'external updatedAt must still be queried');
+});
 check('entity soft deletion and restoration survive the production lifecycle adapter', async (t) => {
     const f = fixture();
     t.after(() => f.db.terminate());
