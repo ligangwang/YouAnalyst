@@ -18,4 +18,8 @@ export const marketIndexField = (field:string) => field==='__name__'||fields.has
 // Format 6 indexes cover these projections without opening full event shards.
 export const MARKET_INDEX_PAYLOAD_FIELDS = ['version','id','title','url','sourceId','category','form'] as const;
 const payloadFields=new Set<string>(MARKET_INDEX_PAYLOAD_FIELDS);
-export const marketIndexProjectionField=(field:string,format:number)=>marketIndexField(field)||format>=6&&payloadFields.has(field);
+// Shared indexes retain the source schema's capabilities. Bundling a v3/v5
+// index must not claim the announcement payload columns introduced in v6/v7.
+export const marketIndexBundled=(format=0)=>format>=100;
+export const marketIndexFormat=(format=0)=>marketIndexBundled(format)?format-100:format;
+export const marketIndexProjectionField=(field:string,format:number)=>marketIndexField(field)||marketIndexFormat(format)>=6&&payloadFields.has(field);

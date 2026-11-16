@@ -14,7 +14,7 @@ export function loadCompanyEventSnapshot(db: Firestore, companyId: string, limit
     .orderBy('publication_date', 'desc');
   // Native Firestore listeners cannot use a field mask. Parquet uses projected
   // one-shot reads here; bootstrap keeps its original live query.
-  const selected=marketStoreReady()?base.select(...ANNOUNCEMENT_EVENT_FIELDS):base;
+  const selected=marketStoreReady(EVENTS_COLLECTION)?base.select(...ANNOUNCEMENT_EVENT_FIELDS):base;
   const query = (after ? selected.startAfter(after) : selected).limit(limit);
   const afterCursor=after?{id:after.id,publicationDate:typeof after.get==='function'?after.get('publication_date'):after.data()?.publication_date}:undefined;
   return withSourceCache(() => collectionSourceSnapshot(db, query, EVENTS_COLLECTION, {collection:EVENTS_COLLECTION,companyId,limit,afterCursor}) ?? query.get());

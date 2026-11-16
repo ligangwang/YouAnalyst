@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { MARKET_COLLECTIONS, splitRecord, retainsRecord, type MarketCollection } from '../src/lib/market-store/policy';
+import { PARQUET_MARKET_COLLECTIONS, splitRecord, retainsRecord, type MarketCollection } from '../src/lib/market-store/policy';
 import { MarketFiles, MARKET_ROOT, shardFor } from '../src/lib/market-store/files';
 import { encodeMarket, decodeMarket } from '../src/lib/market-store/blobs';
 import { CONTROL, headId } from '../src/lib/market-store/repository';
@@ -33,8 +33,8 @@ async function main() {
         throw Error('Initial import cannot run after cutover');
     if (!existing.exists)
         await control.create({ version: 1, ready: false });
-    const selected = process.env.MIGRATE_COLLECTIONS?.split(',') ?? [...MARKET_COLLECTIONS];
-    if (selected.some(c => !MARKET_COLLECTIONS.includes(c as MarketCollection)))
+    const selected = process.env.MIGRATE_COLLECTIONS?.split(',') ?? [...PARQUET_MARKET_COLLECTIONS];
+    if (selected.some(c => !PARQUET_MARKET_COLLECTIONS.includes(c as MarketCollection)))
         throw Error('Unapproved collection');
     const run = new Date().toISOString().replaceAll(':', '-'), audits = [];
     try {

@@ -5,14 +5,17 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Firestore, FieldValue, Timestamp, type Query } from '@google-cloud/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { MarketFiles } from '../../src/lib/market-store/files';
-import { MarketRepository, CONTROL } from '../../src/lib/market-store/repository';
-import { marketFirestore } from '../../src/lib/market-store/adapter';
+import { MarketRepository, CONTROL,headId } from '../../src/lib/market-store/repository';
+import {bundleMarketIndexes} from '../../src/lib/market-store/index-bundles';
+import { marketFirestore as routeMarketFirestore } from '../../src/lib/market-store/adapter';
+import {MARKET_COLLECTIONS} from '../../src/lib/market-store/policy';
 import { observeFirestore } from '../../src/lib/firebase/firestore-observability';
 import { reconcileMarketShard, cleanupMarketShard } from '../../src/lib/market-store/migration';
 import { shardFor } from '../../src/lib/market-store/files';
 import {loadCompanyEventSnapshot} from '../../src/lib/events/company-events-cache';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 import {compactHead,pointerId,pointerCollection,pointerHasRetained} from '../../src/lib/market-store/head-pointer';
+const marketFirestore:typeof routeMarketFirestore=(raw,repository)=>routeMarketFirestore(raw,repository,MARKET_COLLECTIONS);
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
@@ -27,7 +30,7 @@ check('native announcement snapshots remain listenable before Parquet cutover',a
     for(let n=0;n<50;n++){title=(await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title');if(title==='Updated')break;await new Promise(resolve=>setTimeout(resolve,20));}
     assert.equal(title,'Updated');
 });
-function fixture(stagedReads=false,compact=false) {
+function fixture(stagedReads=false,compact:boolean|'default'=false) {
     const objects = new Map<string, Buffer>();
     let fail = false;
     const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -39,11 +42,86 @@ function fixture(stagedReads=false,compact=false) {
         }) => { if (fail)
             throw Error('Injected upload failure'); assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket;
     const previous=process.env.MARKET_PARQUET_HEAD_POINTERS;
-    if(compact)process.env.MARKET_PARQUET_HEAD_POINTERS='1';
+    if(compact==='default')delete process.env.MARKET_PARQUET_HEAD_POINTERS;
+    else process.env.MARKET_PARQUET_HEAD_POINTERS=compact?'1':'0';
     const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads);
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('production routing keeps events and fundamentals native after cutover and cleanup authorization',async t=>{
+    const f=fixture(true);t.after(()=>f.db.terminate());
+    const db=routeMarketFirestore(f.raw,f.repository);
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const event=db.doc('events/native'),fund=db.doc('company_fundamentals/US:NVDA'),ticker=db.doc('tickers/NVDA');
+    await db.batch().set(event,{companyId:'US:NVDA',title:'Native event'}).set(fund,{marketCap:123}).set(ticker,{symbol:'NVDA',name:'Parquet ticker'}).commit();
+    assert.equal((await f.raw.doc(event.path).get()).get('title'),'Native event');
+    assert.equal((await f.raw.doc(fund.path).get()).get('marketCap'),123);
+    assert.equal((await f.raw.doc(ticker.path).get()).exists,false);
+    assert.deepEqual((await db.getAll(event,fund,ticker)).map(doc=>doc.data()),[{companyId:'US:NVDA',title:'Native event'},{marketCap:123},{symbol:'NVDA',name:'Parquet ticker'}]);
+    await db.runTransaction(async tx=>{await tx.getAll(event,fund,ticker);tx.update(event,{title:'Updated native'});tx.update(fund,{marketCap:456});tx.update(ticker,{name:'Updated Parquet'});});
+    assert.equal((await f.raw.doc(event.path).get()).get('title'),'Updated native');
+    assert.equal((await f.raw.doc(fund.path).get()).get('marketCap'),456);
+    assert.equal((await ticker.get()).get('name'),'Updated Parquet');
+    assert.equal((await db.collection('events').where('companyId','==','US:NVDA').get()).size,1);
+    let stop=()=>{};
+    try{
+        const live=await new Promise<string>((resolve,reject)=>{stop=db.collection('events').where('companyId','==','US:NVDA').onSnapshot(s=>resolve(s.docs[0].get('title')),reject);});
+        assert.equal(live,'Updated native','native query listeners remain available after global cutover');
+    }finally{stop();}
+    assert.equal((await f.raw.collection('collectors').where('marketCollection','in',['events','company_fundamentals']).get()).size,0,'deferred writes must not create Parquet heads');
+});
+check('website deployments default to the complete compact pointer inventory',async t=>{
+    const service=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
+    const f=fixture(true,'default');
+    if(service===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=service;
+    t.after(()=>f.db.terminate());
+    const batch=f.raw.batch();
+    for(let i=0;i<256;i++){
+        const shard=i.toString(16).padStart(2,'0');
+        batch.set(f.raw.collection('collectors').doc(pointerId('events',shard)),{marketCollection:pointerCollection('events'),marketHead:compactHead({collection:'events',shard,rows:0,retained:[]})});
+    }
+    await batch.commit();assert.equal((await f.repository.heads('events')).size,256);
+});
+check('index publication retries concurrent writers, updates both heads, and resumes daily after cutover',async t=>{
+    const f=fixture(true,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    for(const pointer of [false,true]){
+        const batch=f.raw.batch();
+        for(let i=0;i<256;i++){
+            const shard=i.toString(16).padStart(2,'0'),head={collection:'events' as const,shard,rows:0,retained:[]};
+            batch.set(f.raw.collection('collectors').doc((pointer?pointerId:headId)('events',shard)),{marketCollection:pointer?pointerCollection('events'):'events',marketHead:pointer?compactHead(head):head});
+        }
+        await batch.commit();
+    }
+    const ids:string[]=[];for(let i=0;ids.length<2;i++){const id='bundle-race-'+i,shard=shardFor(id);if(shard.startsWith('0')&&!ids.some(id=>shardFor(id)===shard))ids.push(id);}
+    for(const id of ids)await f.db.doc('events/'+id).set({companyId:'US:NVDA',title:'Original',publication_date:'2026-11-13'});
+    const bundle=f.repository.files.bundleIndexes.bind(f.repository.files);let calls=0;
+    f.repository.files.bundleIndexes=async heads=>{
+        const result=await bundle(heads);
+        if(calls++===0)await f.db.doc('events/'+ids[0]).update({title:'Concurrent writer'});
+        return result;
+    };
+    const options={ready:false,collections:['events'] as const,before:async()=>{}};
+    const result=await bundleMarketIndexes(f.raw,f.repository.files,options);
+    assert.equal(calls,2,'changed heads must discard the obsolete bundle and rebuild');
+    assert.equal(result[0].changed,2);
+    const heads=await f.raw.getAll(...ids.map(id=>f.raw.collection('collectors').doc(headId('events',shardFor(id)))));
+    assert.equal(heads[0].get('marketHead.indexFile'),heads[1].get('marketHead.indexFile'));
+    for(const doc of heads){const head=doc.get('marketHead');assert.equal(head.format,107);assert.deepEqual((await f.raw.collection('collectors').doc(pointerId('events',head.shard)).get()).get('marketHead'),compactHead(head));}
+    const query=f.db.collection('events').where('companyId','==','US:NVDA').orderBy('publication_date','desc').limit(5).select('title');
+    assert.equal((await query.get()).docs.find(doc=>doc.id===ids[0])?.get('title'),'Concurrent writer');
+    assert.equal((await bundleMarketIndexes(f.raw,f.repository.files,options))[0].changed,0,'unchanged bundles are not rebuilt');
+    await f.raw.doc(CONTROL).update({ready:true,cleanupAuthorized:true});
+    await f.db.doc('events/'+ids[1]).update({title:'After cleanup'});
+    assert.equal((await f.raw.doc('events/'+ids[1]).get()).exists,false);
+    await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,options));
+    await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true,prepared:async()=>{throw Error('audit unavailable');}}),/audit unavailable/);
+    assert.equal((await f.raw.collection('collectors').doc(headId('events',shardFor(ids[1]))).get()).get('marketHead.format'),7,'failed audit must not publish new heads');
+    const daily=await bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true});
+    assert.equal(daily[0].changed,2);
+    assert.equal((await query.get()).docs.find(doc=>doc.id===ids[1])?.get('title'),'After cleanup');
+    await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true,before:async()=>{throw Error('capacity');}}),/capacity/);
+});
 check('compact live heads preserve external data, operational changes and transactional originals',async t=>{
     const f=fixture(false,true);t.after(()=>f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
@@ -144,6 +222,53 @@ check('staged snapshot preconditions accept unchanged mirrors and reject stale o
     const current=await ref.get();await native.update({score:99});
     await assert.rejects(ref.update({score:3},{lastUpdateTime:current.updateTime!}),/precondition/);
     assert.equal((await native.get()).get('score'),99);
+});
+for(const compact of [false,true])check(`full document reads skip retained records without hiding external data (compact=${compact})`,async t=>{
+    const f=fixture(true,compact);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    if(compact){
+        const batch=f.raw.batch();
+        for(let i=0;i<256;i++){
+            const shard=i.toString(16).padStart(2,'0');
+            batch.set(f.raw.collection('collectors').doc(pointerId('companies',shard)),{marketCollection:pointerCollection('companies'),marketHead:compactHead({collection:'companies',shard,rows:0,retained:[]})});
+        }
+        await batch.commit();
+    }
+    const authored=f.db.doc('companies/authored'),external=f.db.doc('companies/external');
+    await authored.set({name:'Editorial',status:'PUBLISHED',createdBy:'user',onboarding:{status:'complete'}});
+    await external.set({name:'External',status:'DIRECTORY',onboarding:{status:'complete'}});
+    await f.raw.doc(external.path).update({name:'Stale source mirror'});
+    const query=f.repository.files.query.bind(f.repository.files);
+    const scanned:string[][]=[];
+    f.repository.files.query=async(heads,steps,indexed)=>{
+        const ids=steps.find(step=>step.method==='where'&&step.args[1]==='in')?.args[2] as string[];
+        if(ids)scanned.push(ids);
+        return query(heads,steps,indexed);
+    };
+    const docs=await f.db.getAll(authored,external,f.db.doc('companies/missing'));
+    assert.deepEqual(docs.map(doc=>doc.get('name')),['Editorial','External',undefined]);
+    assert.deepEqual(docs[0].get('onboarding'),{status:'complete'});
+    assert(scanned.length>0);assert(scanned.every(ids=>!ids.includes('authored')));
+    assert(scanned.some(ids=>ids.includes('external')),'external mirrors cannot replace Parquet');
+    await authored.update({name:'Revised editorial'});
+    assert.equal((await authored.get()).get('name'),'Revised editorial');
+    // Cleanup strips the external status/name from a mixed native document.
+    // An absent status is not evidence that the overlay is a whole company.
+    await f.raw.doc(CONTROL).update({ready:true,cleanupAuthorized:true});
+    await marketFirestore(f.raw,f.repository).doc(external.path).update({onboarding:{status:'pending'}});
+    const stripped=await f.raw.doc(external.path).get();
+    assert.equal(stripped.get('name'),undefined);assert.equal(stripped.get('status'),undefined);
+    assert.deepEqual(stripped.get('onboarding'),{status:'pending'});
+    assert.equal((await external.get()).get('name'),'External');
+    assert.equal((await external.get()).get('status'),'DIRECTORY');
+    assert.deepEqual((await external.get()).get('onboarding'),{status:'pending'});
+    assert.equal((await authored.get()).get('name'),'Revised editorial');
+    await authored.delete();assert.equal((await authored.get()).get('isDeleted'),true,'entity deletion preserves its tombstone');
+    const direct=marketFirestore(f.raw,f.repository).doc(authored.path);
+    await direct.delete();assert.equal((await authored.get()).exists,false);
+    await direct.set({name:'Now external',status:'DIRECTORY'});
+    assert.equal((await authored.get()).get('name'),'Now external');
+    assert(scanned.some(ids=>ids.includes('authored')),'reclassification must resume external reads');
 });
 check('full directory scans do not reread absent external payloads for retained companies',async t=>{
     const f=fixture(true);t.after(()=>f.db.terminate());

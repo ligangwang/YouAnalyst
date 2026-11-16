@@ -236,6 +236,20 @@ Maintenance uses three fixed accounts:
    OAuth identity for starting jobs, with `roles/run.invoker` on every job.
 
 The shared accounts keep their original directory-sync names for now.
+The current market-data cutover keeps `events` and `company_fundamentals` in
+Firestore, including reads, writes, and live listeners. The other 17 collection
+targets use Parquet after verification. Routing and cleanup share the explicit
+scope in `src/lib/market-store/policy.ts`, so future deployments preserve this
+deferral. These two collections require a separate verified migration.
+
+The daily Parquet index maintenance also needs the project custom role
+`marketIndexCapacityReader`, containing only `logging.logEntries.list` and
+`monitoring.timeSeries.list`, on the maintenance runtime. These read permissions
+let it stop index publication on website errors or growing subscriber backlogs.
+Provision this binding once during setup; routine releases do not modify
+project-level IAM. Index maintenance reuses the daily snapshot job and preserves
+the existing CPU, memory, schedule, and disabled earnings/onboarding settings.
+
 `scripts/lib/maintenance-job-iam.sh` applies this model to a job: it sets the
 maintenance runtime account and adds (never removes) the two job-level
 `roles/run.invoker` bindings. The web account comes from the GitHub environment

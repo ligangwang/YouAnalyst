@@ -19,6 +19,77 @@ function fixture(downloads:string[] = [],queryBudget?:number) { const objects = 
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('shared index bundles preserve shard boundaries across live rewrites and rebundling',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
+    const ids:string[]=[];for(let n=0;ids.length<8;n++)if(!ids.some(id=>shardFor(id)===shardFor('bundle-'+n)))ids.push('bundle-'+n);
+    let rows=ids.map((id,i)=>({id,version,data:{companyId:'US:NVDA',publication_date:`2026-11-${String(i+1).padStart(2,'0')}`,title:'original-'+i}}));
+    try{
+        const original=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+        let heads=await files.bundleIndexes(original);
+        assert.equal(new Set(heads.map(head=>head.indexFile)).size,1);assert.equal(new Set(heads.map(head=>head.prefixFile)).size,1);
+        assert.deepEqual(heads.map(head=>head.file),original.map(head=>head.file),'data shards remain unchanged');
+        const steps=[{method:'where',args:['companyId','==','US:NVDA']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[5]},{method:'select',args:['title','companyId']}];
+        const start=downloads.length;
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert.equal(new Set(downloads.slice(start)).size,2,'one shared lookup and one shared covering index');
+        assert.deepEqual(await files.query([heads[0]],steps),await files.filter([rows[0]],steps),'a partial head set cannot expose other bundled shards');
+        // A normal writer replaces one head with a standalone v7 index. The old
+        // shared file still contains its obsolete row, which must not leak in.
+        rows=rows.map((row,i)=>i?row:{...row,data:{...row.data,title:'changed',publication_date:'2026-11-30'}});
+        heads[0]=await files.write('events',heads[0].shard,[rows[0]],[]);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        heads=await files.bundleIndexes(heads);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        await assert.rejects(files.bundleIndexes(heads.map((head,i)=>i?head:{...head,rows:head.rows+1})),/shard count mismatch/);
+        heads[0]=await files.write('events',heads[0].shard,[],[]);rows=rows.slice(1);
+        const scan=[{method:'where',args:['companyId','==','US:NVDA']},{method:'select',args:['title']}];
+        assert.deepEqual(await files.query(heads,scan),await files.filter(rows,scan),'deleted shard data inside an old bundle stays invisible');
+    }finally{await files.close();}
+});
+test('bounded shared-index scans preserve global ordering, offsets, and projections',async()=>{
+    const files=fixture(),version=Timestamp.now(),ids:string[]=[];
+    for(let i=0;ids.length<12;i++){const id='bounded-bundle-'+i;if(!ids.some(other=>shardFor(other)===shardFor(id)))ids.push(id);}
+    const rows=ids.map((id,i)=>({id,version,data:{sourceType:'news',publication_date:`2026-11-${String(i+1).padStart(2,'0')}`,title:'Title '+i}}));
+    try{
+        const standalone=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+        const heads=[];
+        for(let i=0;i<standalone.length;i+=2)heads.push(...await files.bundleIndexes(standalone.slice(i,i+2)));
+        const steps=[{method:'where',args:['__name__','in',ids]},{method:'where',args:['sourceType','==','news']},{method:'orderBy',args:['publication_date','desc']},{method:'offset',args:[3]},{method:'limit',args:[7]},{method:'select',args:['title']}];
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+    }finally{await files.close();}
+});
+test('bundled legacy indexes preserve missing-column fallbacks and mixed-format announcements',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
+    const ids=['legacy-bundle-one','legacy-bundle-two','legacy-bundle-three'];assert.equal(new Set(ids.map(shardFor)).size,3);
+    const rows=ids.map((id,i)=>({id,version,data:{companyId:'US:AMD',publication_date:`2026-11-${10+i}`,title:'Full title '+i}}));
+    try{
+        const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+        const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
+        const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
+        assert.deepEqual(heads.map(head=>head.format),[103,105,107]);
+        const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
+        const start=downloads.length;
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert(downloads.slice(start).includes(full[0].file!));assert(downloads.slice(start).includes(full[1].file!));
+        assert(!downloads.slice(start).includes(full[2].file!),'modern rows still use their covering index');
+    }finally{await files.close();}
+});
+test('shared search indexes never leak another shard after a prefix changes',async()=>{
+    const files=fixture(),version=Timestamp.now();
+    const ids=['search-one','search-two','search-three'];assert.equal(new Set(ids.map(shardFor)).size,3);
+    const rows=ids.map(id=>({id,version,data:{name:id,searchPrefixes:['nv','nvd']}}));
+    try{
+        let heads=await files.bundleIndexes(await Promise.all(rows.map(row=>files.write('company_directory',shardFor(row.id),[row],[]))));
+        const steps=[{method:'where',args:['searchPrefixes','array-contains','nv']},{method:'select',args:['name']},{method:'limit',args:[10]}];
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert.deepEqual(await files.query([heads[1]],steps),await files.filter([rows[1]],steps));
+        rows[0]={...rows[0],data:{...rows[0].data,searchPrefixes:['amd']}};
+        heads[0]=await files.write('company_directory',heads[0].shard,[rows[0]],[]);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        heads=await files.bundleIndexes(heads);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+    }finally{await files.close();}
+});
 test('ordered company lookup matches SQL pages and downloads only selected payload shards',async()=>{
     const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
     const ids=['a','b','c','d','e','f','é','😀'];

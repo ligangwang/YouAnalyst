@@ -62,7 +62,7 @@ function watchMarketCaps(db:Firestore,ids:string[],changed:(docs:DocumentSnapsho
    for(let start=0;start<ids.length;start+=30){
     const batch=ids.slice(start,start+30);
     const source=db.collection('company_fundamentals').where(FieldPath.documentId(),'in',batch);
-    const query=marketStoreReady()?source.select('marketCap','isDeleted'):source;
+    const query=marketStoreReady('company_fundamentals')?source.select('marketCap','isDeleted'):source;
     const unsubscribe=query.onSnapshot(snapshot=>{
      if(stopped)return;
      const incoming=new Map(snapshot.docs.map(doc=>[doc.id,doc]));

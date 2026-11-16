@@ -1,6 +1,6 @@
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
 import {marketStoreReady,marketReadOnlyProbe} from '../market-store/runtime';
-import {isMarketCollection} from '../market-store/policy';
+import {isParquetMarketCollection as isMarketCollection} from '../market-store/policy';
 import {parquetPrices,parquetReads,priceSnapshot,priceDocuments,priceStore} from '../price-store/runtime';
 import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, registerCompanySource, refreshCompanyDirectoryIds } from '../local-cache/company-directory';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */

@@ -2,7 +2,7 @@
 import { Timestamp, DocumentSnapshot, type Firestore } from 'firebase-admin/firestore';
 import { Readable } from 'node:stream';
 import { MarketRepository, type MarketContext, type Mutation } from './repository';
-import { isMarketCollection, type MarketCollection } from './policy';
+import { isMarketCollection as isCatalogCollection, PARQUET_MARKET_COLLECTIONS, type MarketCollection } from './policy';
 import { clone, getField, fieldName } from './value';
 import { project, type Step } from './query';
 import type { MarketRow } from './files';
@@ -13,7 +13,9 @@ type Spec = {
     steps: Step[];
     kind: 'doc' | 'query' | 'aggregate';
 };
-export function marketFirestore(raw: Firestore, repository: MarketRepository): Firestore {
+export function marketFirestore(raw: Firestore, repository: MarketRepository, collections:readonly MarketCollection[]=PARQUET_MARKET_COLLECTIONS): Firestore {
+    const enabled=new Set<string>(collections);
+    const isMarketCollection=(name:string):name is MarketCollection=>enabled.has(name)&&isCatalogCollection(name);
     const originals = new WeakMap<object, any>(), specs = new WeakMap<object, Spec>();
     const unwrap = (value: any): any => originals.get(value) ?? value;
     const specification = (ref: any): Spec | undefined => { const known = specs.get(ref); if (known)

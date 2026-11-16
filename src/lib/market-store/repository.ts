@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedOnlyQuery, type MarketCollection } from './policy';
+import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {DocumentBatcher} from './document-batcher';
@@ -30,7 +30,10 @@ export type MarketContext = {
 };
 export class MarketRepository {
     private readonly bootstrapHeads=['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'');
-    private readonly compactHeads=process.env.MARKET_PARQUET_HEAD_POINTERS==='1';
+    // Website deployments keep the compact pointer path without relying on an
+    // operator-only environment override. Explicit 0 remains a rollback switch.
+    private readonly compactHeads=process.env.MARKET_PARQUET_HEAD_POINTERS==='1'
+        || this.bootstrapHeads&&process.env.MARKET_PARQUET_HEAD_POINTERS!=='0';
     private unknownRetained=new WeakSet<MarketHead>();
     private retainedSets=new WeakMap<string[],Set<string>>();
     private retainedMembership(heads:MarketHead[]){
@@ -322,12 +325,20 @@ export class MarketRepository {
     private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         await this.ready(context);
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
-        const result = new Map((await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', ids] }, ...(fields ? [{method:'select',args:fields}] : [])])).map(row => [row.id, row]));
         const retained = this.retainedMembership(heads);
+        // Full company reads already require these live records. A complete
+        // editorial company has no external payload. Require its external status
+        // field as positive evidence of a whole record: a stripped operational
+        // overlay lacks status and must still merge its Parquet row. Never apply
+        // the whole-record predicate to incomplete overlays in other collections.
+        const native = !fields && collection === 'companies' ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined;
+        const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && typeof doc.get('status') === 'string' && retainedWhole(collection, doc.id, doc.data()!)).map(doc => doc.id));
+        const externalIds = ids.filter(id => !whole.has(id));
+        const result = new Map((externalIds.length ? await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', externalIds] }, ...(fields ? [{method:'select',args:fields}] : [])]) : []).map(row => [row.id, row]));
         // An external-only projection needs no live-state document read. Whole
         // authored records still come from Firestore when no external row exists.
         const refs = ids.filter(id => retained.has(id) && (!fields || !result.has(id) || fields.some(field => isOperationalField(collection,field) || isRoutingField(field)))).map(id => this.raw.collection(collection).doc(id));
-        for (const doc of (await this.rawDocuments(refs, context, fields)).values())
+        for (const doc of (native ?? await this.rawDocuments(refs, context, fields)).values())
             if (doc.exists) {
                 const previous = result.get(doc.id), overlay = previous ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
                 if(previous&&!Object.keys(overlay??{}).length)continue;

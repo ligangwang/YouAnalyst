@@ -15,8 +15,12 @@ function fixture(){
     const raw={collection:(name:string)=>name==='collectors'?source:{doc:()=>rawDoc.ref},getAll:async()=>{reads++;return [rawDoc];}} as unknown as Firestore;
     const row:MarketRow={id,data:{type:'news',title:'Parquet title'},version:time(100)};
     const files={query:async()=>[row],hydrate:async(row:MarketRow)=>row,close:async()=>{}} as unknown as MarketFiles;
-    const previous=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';let repo:MarketRepository;
-    try{repo=new MarketRepository(raw,files,undefined,true);}finally{if(previous===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=previous;}
+    const previous=process.env.K_SERVICE,previousPointers=process.env.MARKET_PARQUET_HEAD_POINTERS;
+    process.env.K_SERVICE='ifindata-web';process.env.MARKET_PARQUET_HEAD_POINTERS='0';let repo:MarketRepository;
+    try{repo=new MarketRepository(raw,files,undefined,true);}finally{
+        if(previous===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=previous;
+        if(previousPointers===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previousPointers;
+    }
     return {repo,id,head,selected,reads:()=>reads,project:(head:MarketHead,at:number)=>project(snapshot(head,at)),emit:(head:MarketHead,at:number)=>emit(snapshot(head,at))};
 }
 test('projected heads unblock external reads while preserving live overlays before the full stream arrives',async()=>{

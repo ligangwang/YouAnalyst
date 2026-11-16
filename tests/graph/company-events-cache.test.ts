@@ -133,7 +133,7 @@ test('announcements read a twelve-document prefix and only the remaining search 
   assert.equal(queries.length,2);
 });
 
-test('Parquet announcement reads project card fields and fetch the fallback window in one scan',async t=>{
+test('deferred announcements retain native full-document pagination with Parquet enabled',async t=>{
  const keys=['MARKET_PARQUET_ENABLED','MARKET_READ_ONLY_PROBE','K_SERVICE','CLOUD_RUN_JOB'] as const,previous=keys.map(key=>process.env[key]);
  process.env.MARKET_PARQUET_ENABLED='1';process.env.MARKET_READ_ONLY_PROBE='1';delete process.env.K_SERVICE;delete process.env.CLOUD_RUN_JOB;
  t.after(()=>keys.forEach((key,i)=>{if(previous[i]===undefined)delete process.env[key];else process.env[key]=previous[i];}));
@@ -144,9 +144,9 @@ test('Parquet announcement reads project card fields and fetch the fallback wind
  function query(after=-1,limit=0,fields:string[]=[]){return {
   where:()=>query(after,limit,fields),orderBy:()=>query(after,limit,fields),
   select:(...selected:string[])=>query(after,limit,selected),limit:(n:number)=>query(after,n,fields),startAfter:(doc:{id:string})=>query(Number(doc.id),limit,fields),
-  get:async()=>{assert.deepEqual(fields,[...ANNOUNCEMENT_EVENT_FIELDS]);counts.push(limit);return {docs:records.slice(after+1,after+1+limit).map(row=>({id:row.id,data:()=>Object.fromEntries(Object.entries(row).filter(([key])=>new Set<string>(fields).has(key)))}))};},
+  get:async()=>{assert.deepEqual(fields,[],'native queries must not use a field mask');counts.push(limit);return {docs:records.slice(after+1,after+1+limit).map(row=>({id:row.id,data:()=>row}))};},
  };}
  const db={collection:()=>query()} as unknown as Firestore;
  assert.deepEqual((await companyAnnouncementsFromEvents(db,'US:AMD',[],'2026-01-03')).map(row=>row.id),Array.from({length:12},(_,i)=>String(i+1)));
- assert.deepEqual(counts,[30]);
+ assert.deepEqual(counts,[12,18]);
 });

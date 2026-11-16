@@ -9,6 +9,9 @@ import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 import {getFirestore as rawFirestore,FieldPath} from 'firebase-admin/firestore';
 import {CONTROL} from '../src/lib/market-store/repository';
 import {collectMarketGarbage} from '../src/lib/market-store/maintenance';
+import {MarketFiles} from '../src/lib/market-store/files';
+import {bundleMarketIndexes} from '../src/lib/market-store/index-bundles';
+import {CleanupGate,migrationCapacity} from './market-migration-safety';
 
 async function main(){
   const {dispatchInstruments}=snapshotSyncOptions(process.argv.slice(2));
@@ -26,8 +29,15 @@ async function main(){
         const synchronized=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`market-${Date.now()}`,ids,'sec-fundamentals-requests','instruments');
         console.info(JSON.stringify({job:'sync-entity-snapshots',event:'instrument_directory_sync',...synchronized}));
       }
-      const garbage=await collectMarketGarbage(raw,getStorage().bucket(bucketName));
-      console.info(JSON.stringify({severity:'INFO',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_completed',storage:'parquet',...garbage}));
+      const bucket=getStorage().bucket(bucketName),files=new MarketFiles(bucket,0);
+      const gate=new CleanupGate(migrationCapacity(projectId),50);
+      let indexShards=0;
+      try{
+        const results=await bundleMarketIndexes(raw,files,{ready:true,before:count=>gate.before(count)});
+        indexShards=results.reduce((sum,result)=>sum+result.changed,0);
+      }finally{await files.close();}
+      const garbage=await collectMarketGarbage(raw,bucket);
+      console.info(JSON.stringify({severity:'INFO',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_completed',storage:'parquet',indexShards,...garbage}));
     }finally{await db.terminate();}
     return;
   }
