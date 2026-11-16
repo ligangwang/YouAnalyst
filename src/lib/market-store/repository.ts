@@ -1,3 +1,4 @@
+import {reportNativeRead} from './native-read-observability';
 import { FieldPath, FieldValue, Timestamp, type Firestore, type Transaction, type DocumentReference, type DocumentSnapshot, type Query } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
@@ -429,6 +430,7 @@ export class MarketRepository {
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
         const native = this.nativeQuery(collection, steps, operational), retainedIds = this.retainedMembership(heads);
         const rawPage = heads.some(head=>head.retained.length||this.unknownRetained.has(head)) ? (context ? await context.reader.get(native) : await native.get()) as FirebaseFirestore.QuerySnapshot : { docs: [] };
+        reportNativeRead(collection,steps,rawPage.docs.length,!!context);
         if (!steps.some(s => s.method === 'select'))
             for (const doc of rawPage.docs)
                 context?.documents.set(doc.ref.path, doc);
