@@ -42,6 +42,11 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
   assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
   assert(Array.isArray(feed.graph?.nodes)&&feed.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate feed has no companies');
   assert(Array.isArray(relationships.nodes)&&relationships.nodes.some(node=>node.id==='US:NVDA')&&Array.isArray(relationships.relationships),'Candidate relationship graph is invalid');
+  // Validate and initialize the search index before the first visitor types.
+  const searchResponse=await request(`${url}/api/tickers/search?q=NVIDIA`,{signal:AbortSignal.timeout(30000)});
+  assert.equal(searchResponse.status,200,'Candidate company search failed');
+  const search=await searchResponse.json();
+  assert(Array.isArray(search.items)&&search.items.some(item=>item.symbol==='NVDA'),'Candidate company search is missing NVIDIA');
   for (const path of ['/', '/feed']) {
     const response = await request(`${url}${path}`, {signal:AbortSignal.timeout(60000)});
     assert.equal(response.status, 200, `Candidate ${path} failed; existing traffic stays unchanged`);

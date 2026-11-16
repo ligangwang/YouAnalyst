@@ -16,7 +16,7 @@ test('website release validates a pinned candidate before changing traffic', () 
   assert(Number(fields.periodSeconds)<=2,'Readiness must not wait a long polling interval');
   assert(Number(fields.failureThreshold)*Number(fields.periodSeconds)>=60,'Allow bounded startup without restarting healthy slow boots');
   assert.match(build, /--update-env-vars/);
-  assert.doesNotMatch(build, /--set-env-vars/); // Preserve CACHE_EVENT_AUDIENCE on the pinned candidate.
+  assert.doesNotMatch(build, /--set-env-vars/); // Preserve CACHE_EVENT_AUDIENCE and MARKET_PARQUET_READ_READY on the pinned candidate.
   assert.match(build, /--tag\s+- candidate/);
   const deploy = readFileSync('scripts/deploy-cloud-run.sh', 'utf8');
   assert(deploy.indexOf('node scripts/verify-release-candidate.mjs') < deploy.indexOf('node scripts/promote-release.mjs'));
@@ -31,6 +31,7 @@ test('candidate checks reject wrong versions and failed pages before promotion',
     : String(url).endsWith('/about') ? new Response('<html>Understand the companies behind your investments. 了解你所投资的公司。 <a href="mailto:support@youanalyst.com">Email</a><a href="https://x.com/knoics321">X</a></html>')
     : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]},events:[],enrichmentDeferred:true,session:{startAt:'2026-10-31T00:00:00Z'}})
     : String(url).includes('/api/company-relationships?') ? Response.json({nodes:[{id:'US:NVDA'}],relationships:[]})
+    : String(url).includes('/api/tickers/search?') ? Response.json({items:[{symbol:'NVDA'}]})
     : /\/(industries|investment-themes)\?/.test(String(url)) ? new Response('<html><h2 id="category-title">Semiconductors &amp; Related Devices 集成电路 Chips</h2></html>')
     : new Response('<html>' + 'x'.repeat(1100) + '</html>');
   await verifyCandidate({...options, request: ok});
@@ -55,4 +56,5 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).includes('/industries?') ? new Response('<html>Category not found</html>') : ok(url, init)}), /missing selected category/);
   await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url).endsWith('/api/intelligence?theme=ai')?Response.json({events:[],eventsPending:true}):ok(url,init)}),/refresh is incomplete/);
   await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url).includes('/api/company-relationships?')?Response.json({error:'Unavailable'},{status:503}):ok(url,init)}),/company relationships failed/);
+  await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url).includes('/api/tickers/search?')?Response.json({items:[]}):ok(url,init)}),/search is missing NVIDIA/);
 });

@@ -14,7 +14,7 @@ const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
 const check = host ? test : test.skip;
-function fixture() {
+function fixture(stagedReads=false) {
     const objects = new Map<string, Buffer>();
     let fail = false;
     const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -25,9 +25,28 @@ function fixture() {
             destination: string;
         }) => { if (fail)
             throw Error('Injected upload failure'); assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket;
-    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket));
+    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket),undefined,false,stagedReads);
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('staged website reads use Parquet while transactions preserve source mirrors and UGC',async t=>{
+    const f=fixture(true);t.after(()=>f.db.terminate());
+    await assert.rejects(f.db.doc('company_directory/NVDA').get(),/control is missing/);
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    const ref=f.db.doc('company_directory/NVDA');await ref.set({name:'NVIDIA',score:1});
+    assert.equal((await f.raw.doc('company_directory/NVDA').get()).get('score'),1);
+    // Diverge the native copy deliberately in the isolated emulator to prove
+    // ordinary reads and transactional reads follow their separate gates.
+    await f.raw.doc('company_directory/NVDA').update({score:2});
+    assert.equal((await ref.get()).get('score'),1);
+    await f.db.runTransaction(async tx=>{const current=await tx.get(ref);assert.equal(current.get('score'),2);tx.update(ref,{score:3});tx.set(f.db.doc('users/user'),{note:'User content'});});
+    assert.equal((await ref.get()).get('score'),3);
+    assert.equal((await f.raw.doc('company_directory/NVDA').get()).get('score'),3);
+    assert.equal((await f.raw.doc('users/user').get()).get('note'),'User content');
+    await f.raw.doc(CONTROL).update({ready:true});
+    await ref.update({score:4});assert.equal((await f.raw.doc('company_directory/NVDA').get()).get('score'),4,'read cutover alone must not retire the source');
+    await f.raw.doc(CONTROL).update({cleanupAuthorized:true});
+    await ref.update({score:5});assert.equal((await f.raw.doc('company_directory/NVDA').get()).exists,false);assert.equal((await ref.get()).get('score'),5);
+});
 check('bootstrap, atomic cutover, mixed-data reads and transactional publication', async (t) => {
     const f = fixture();
     t.after(() => f.db.terminate());
