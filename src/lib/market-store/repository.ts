@@ -30,7 +30,10 @@ export type MarketContext = {
 };
 export class MarketRepository {
     private readonly bootstrapHeads=['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'');
-    private readonly compactHeads=process.env.MARKET_PARQUET_HEAD_POINTERS==='1';
+    // Website deployments keep the compact pointer path without relying on an
+    // operator-only environment override. Explicit 0 remains a rollback switch.
+    private readonly compactHeads=process.env.MARKET_PARQUET_HEAD_POINTERS==='1'
+        || this.bootstrapHeads&&process.env.MARKET_PARQUET_HEAD_POINTERS!=='0';
     private unknownRetained=new WeakSet<MarketHead>();
     private retainedSets=new WeakMap<string[],Set<string>>();
     private retainedMembership(heads:MarketHead[]){

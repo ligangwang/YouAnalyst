@@ -28,7 +28,7 @@ check('native announcement snapshots remain listenable before Parquet cutover',a
     for(let n=0;n<50;n++){title=(await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title');if(title==='Updated')break;await new Promise(resolve=>setTimeout(resolve,20));}
     assert.equal(title,'Updated');
 });
-function fixture(stagedReads=false,compact=false) {
+function fixture(stagedReads=false,compact:boolean|'default'=false) {
     const objects = new Map<string, Buffer>();
     let fail = false;
     const bucket = { file: (name: string) => ({ download: async (options?: {
@@ -40,11 +40,24 @@ function fixture(stagedReads=false,compact=false) {
         }) => { if (fail)
             throw Error('Injected upload failure'); assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket;
     const previous=process.env.MARKET_PARQUET_HEAD_POINTERS;
-    if(compact)process.env.MARKET_PARQUET_HEAD_POINTERS='1';
+    if(compact==='default')delete process.env.MARKET_PARQUET_HEAD_POINTERS;
+    else process.env.MARKET_PARQUET_HEAD_POINTERS=compact?'1':'0';
     const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads);
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('website deployments default to the complete compact pointer inventory',async t=>{
+    const service=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
+    const f=fixture(true,'default');
+    if(service===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=service;
+    t.after(()=>f.db.terminate());
+    const batch=f.raw.batch();
+    for(let i=0;i<256;i++){
+        const shard=i.toString(16).padStart(2,'0');
+        batch.set(f.raw.collection('collectors').doc(pointerId('events',shard)),{marketCollection:pointerCollection('events'),marketHead:compactHead({collection:'events',shard,rows:0,retained:[]})});
+    }
+    await batch.commit();assert.equal((await f.repository.heads('events')).size,256);
+});
 check('index publication retries concurrent writers, updates both heads, and resumes daily after cutover',async t=>{
     const f=fixture(true,true);t.after(()=>f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:false});
