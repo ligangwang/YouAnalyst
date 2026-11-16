@@ -46,6 +46,18 @@ test('shared index bundles preserve shard boundaries across live rewrites and re
         assert.deepEqual(await files.query(heads,scan),await files.filter(rows,scan),'deleted shard data inside an old bundle stays invisible');
     }finally{await files.close();}
 });
+test('bounded shared-index scans preserve global ordering, offsets, and projections',async()=>{
+    const files=fixture(),version=Timestamp.now(),ids:string[]=[];
+    for(let i=0;ids.length<12;i++){const id='bounded-bundle-'+i;if(!ids.some(other=>shardFor(other)===shardFor(id)))ids.push(id);}
+    const rows=ids.map((id,i)=>({id,version,data:{sourceType:'news',publication_date:`2026-11-${String(i+1).padStart(2,'0')}`,title:'Title '+i}}));
+    try{
+        const standalone=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+        const heads=[];
+        for(let i=0;i<standalone.length;i+=2)heads.push(...await files.bundleIndexes(standalone.slice(i,i+2)));
+        const steps=[{method:'where',args:['sourceType','==','news']},{method:'orderBy',args:['publication_date','desc']},{method:'offset',args:[3]},{method:'limit',args:[7]},{method:'select',args:['title']}];
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+    }finally{await files.close();}
+});
 test('bundled legacy indexes preserve missing-column fallbacks and mixed-format announcements',async()=>{
     const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
     const ids=['legacy-bundle-one','legacy-bundle-two','legacy-bundle-three'];assert.equal(new Set(ids.map(shardFor)).size,3);

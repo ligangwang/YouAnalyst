@@ -253,7 +253,8 @@ export class MarketFiles {
             // Compact indexes contain bounded response fields, without article
             // captures or prefix arrays. Larger groups reduce repeated scans
             // within the web service's existing file-cache/memory budget.
-            if (group.length && bytes + size > (this.web ? compactRead ? 128 : 32 : 8) * 1024 * 1024) {
+            if (group.length && (bytes + size > (this.web ? compactRead ? 128 : 32 : 8) * 1024 * 1024
+                || compactRead && (marketIndexBundled(head.format)||group.some(item=>marketIndexBundled(item.format))) && new Set(group.map(item=>item.file)).size>=4)) {
                 groups.push(group);
                 group = [];
                 bytes = 0;
@@ -278,8 +279,10 @@ export class MarketFiles {
                 // A shared index may also contain shards whose heads now point
                 // at newer files. Read only the shards represented by this group.
                 const bundled=compactRead&&group.some(head=>marketIndexBundled(head.format));
-                const scope=bundled?` AND (${paths.map((path,i)=>`(filename=${quote(path)} AND substr(sha256(id),1,2) IN (${group.filter(head=>head.file===names[i]).map(head=>quote(head.shard)).join(',')}))`).join(' OR ')})`:'';
-                const sql = `SELECT id,${payload},version FROM read_parquet([${paths.map(quote).join(',')}],union_by_name=true${bundled?',filename=true':''}) WHERE (${compiled.where})${scope} ORDER BY ${compiled.order}${query.limit === undefined ? '' : ` LIMIT ${query.limit + query.offset}`}`;
+                // Separate file scans let DuckDB push identity filters into each
+                // Parquet reader instead of evaluating a filename OR expression.
+                const scan=bundled?`(${paths.map((path,i)=>`SELECT * FROM read_parquet(${quote(path)}) WHERE substr(sha256(id),1,2) IN (${group.filter(head=>head.file===names[i]).map(head=>quote(head.shard)).join(',')})`).join(' UNION ALL BY NAME ')})`:`read_parquet([${paths.map(quote).join(',')}],union_by_name=true)`;
+                const sql = `SELECT id,${payload},version FROM ${scan} WHERE (${compiled.where}) ORDER BY ${compiled.order}${query.limit === undefined ? '' : ` LIMIT ${query.limit + query.offset}`}`;
                 return (await db.runAndReadAll(sql)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }));
             }));
             candidates.push(...rows);
