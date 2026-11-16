@@ -37,9 +37,25 @@ function fixture(stagedReads=false) {
             destination: string;
         }) => { if (fail)
             throw Error('Injected upload failure'); assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket;
-    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket),undefined,false,stagedReads);
+    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads);
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('cached external queries merge fresh operational state and replace changed external data',async t=>{
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const ref=f.db.doc('events/cached'),query=f.db.collection('events').where('companyId','==','US:NVDA');
+    await ref.set({companyId:'US:NVDA',title:'Before',newsAnalysisPending:true});
+    assert.equal((await query.get()).docs[0].get('newsAnalysisPending'),true);
+    const head=()=>f.repository.head('events',shardFor('cached'));
+    const first=await head();
+    await ref.update({newsAnalysisPending:false});
+    assert.equal((await head()).file,first.file,'operational update retains immutable external file');
+    const updated=(await query.get()).docs[0];assert.equal(updated.get('title'),'Before');assert.equal(updated.get('newsAnalysisPending'),false);
+    await ref.update({title:'After'});
+    assert.notEqual((await head()).file,first.file);
+    assert.equal((await query.get()).docs[0].get('title'),'After');
+    await ref.delete();assert.equal((await query.get()).size,0);
+});
 check('staged website reads use Parquet while transactions preserve source mirrors and UGC',async t=>{
     const f=fixture(true);t.after(()=>f.db.terminate());
     await assert.rejects(f.db.doc('company_directory/NVDA').get(),/control is missing/);
