@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { Firestore } from '@google-cloud/firestore';
 import { observeFirestore, type FirestoreOperationLog } from '../src/lib/firebase/firestore-observability';
 
-function fixture() {
+function fixture(documentCount=2) {
   const logs: FirestoreOperationLog[] = [];
   let calls = 0, fail = false;
   class Ref {
@@ -21,7 +21,7 @@ function fixture() {
     startAfter(value: any) { assert.equal(value.ref instanceof Ref, true); return this; }
     doc(id: string) { return new Ref(`${this.path}/${id}`); }
     count() { return { get: async () => { calls++; return { data: () => ({ count: 12345 }) }; } }; }
-    async get() { calls++; const docs = [snap(this.doc('secret-id')), snap(this.doc('other'))]; return { docs, size: docs.length, forEach: (fn: any) => docs.forEach(fn) }; }
+    async get() { calls++; const docs = Array.from({length:documentCount},(_,i)=>snap(this.doc(i===0?'secret-id':i===1?'other':String(i)))); return { docs, size: docs.length, forEach: (fn: any) => docs.forEach(fn) }; }
   }
   class Batch {
     set(ref: Ref) { assert(ref instanceof Ref); return this; }
@@ -200,4 +200,16 @@ test('document fingerprints distinguish actual IDs including missing reads witho
   assert.match(String(hashes[0]),/^[a-f0-9]{64}$/);
   assert.equal(hashes[0],hashes[1]);assert.notEqual(hashes[0],hashes[2]);assert.notEqual(hashes[3],hashes[4]);
   assert.equal(f.calls(),5);assert.doesNotMatch(JSON.stringify(f.logs),/private-a|private-c|events\/missing/);
+});
+
+
+test('immutable query snapshots materialize wrapped documents only once',async()=>{
+  const f=fixture(1200),query=f.db.collection('companies');
+  const result=await query.get(),docs=result.docs;
+  for(let i=0;i<result.docs.length;i++)assert.equal(result.docs,docs);
+  assert.equal(f.calls(),1);
+  const context={seen:[] as unknown[]};
+  result.forEach(function(this:typeof context,doc){this.seen.push(doc);},context);
+  assert.equal(context.seen.length,1200);assert.equal(context.seen[0],docs[0]);
+  const next=await query.get();assert.notEqual(next.docs,docs);assert.equal(next.docs.length,1200);
 });
