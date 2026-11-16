@@ -3,6 +3,7 @@ import { COMPANY_SITEMAP_BUCKETS, companyBucketPrefix, companySitemapPath } from
 import {getAdminStorageBucket} from '../firebase/admin';
 import {snapshotFiles} from '../entity-snapshots/storage';
 import {companyDirectory,companyDirectoryEnabled} from './company-directory';
+import {marketStoreReady} from '../market-store/runtime';
 
 const prefixes = new Set(COMPANY_SITEMAP_BUCKETS.map(companyBucketPrefix).filter((p):p is string=>!!p));
 type Paths = Map<string, readonly string[]>;
@@ -58,7 +59,7 @@ export async function loadSitemapPaths(db:Firestore,prefix:string,options:Option
     current.pending=Promise.resolve().then(async()=>{
       // Only an absent file falls back. Permission/corruption/network failures
       // must not silently turn crawler traffic into full Firestore scans.
-      const paths=await(options.file??filePaths)()??await firestorePaths(db);
+      const paths=marketStoreReady()?await firestorePaths(db):await(options.file??filePaths)()??await firestorePaths(db);
       current.paths=paths;current.expires=now()+DAY;return paths;
     }).catch(error=>{
       if(!current.paths)throw error;

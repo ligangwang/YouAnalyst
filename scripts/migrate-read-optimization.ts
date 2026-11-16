@@ -20,6 +20,7 @@ async function main(){
   };
   initializeApp({projectId:project,credential:applicationDefault()});
   const db=getFirestore(),marker=db.collection('collectors').doc('_read_optimization_migration_v1');
+  if((await db.doc('collectors/_market_parquet_control').get()).get('ready')===true)throw Error('Legacy Firestore projection migration is retired after Parquet cutover');
   if((await marker.get()).get('complete')===true){console.log('Read optimization migration already complete');return;}
   const started=new Date().toISOString();let scanned=0,writes=0;
   // Discover any remaining Eventarc/cache subscriptions. Source listeners do not

@@ -6,6 +6,9 @@ import {collections,syncCollection} from '../src/lib/entity-snapshots/sync';
 import {snapshotSource} from '../src/lib/entity-snapshots/firestore-source';
 import {companyViewSnapshotFiles} from '../src/lib/entity-snapshots/company-view-storage';
 import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
+import {getFirestore as rawFirestore,FieldPath} from 'firebase-admin/firestore';
+import {CONTROL} from '../src/lib/market-store/repository';
+import {collectMarketGarbage} from '../src/lib/market-store/maintenance';
 
 async function main(){
   const {dispatchInstruments}=snapshotSyncOptions(process.argv.slice(2));
@@ -13,6 +16,21 @@ async function main(){
   if(!projectId||!bucketName)throw Error('GCP_PROJECT_ID and ENTITY_SNAPSHOT_BUCKET are required');
   if(process.env.ENTITY_TIMESTAMP_MIGRATION_COMPLETE!=='1')throw Error('Verify entity timestamp migration before enabling snapshot sync');
   initializeApp({credential:applicationDefault(),projectId});
+  const raw=rawFirestore();
+  if((await raw.doc(CONTROL).get()).get('ready')===true){
+    const db=getFirestore();
+    try{
+      if(dispatchInstruments){
+        const companies=await db.collection('companies').select('isDeleted').orderBy(FieldPath.documentId()).get();
+        const ids=companies.docs.filter(doc=>doc.get('isDeleted')!==true).map(doc=>doc.id);
+        const synchronized=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`market-${Date.now()}`,ids,'sec-fundamentals-requests','instruments');
+        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'instrument_directory_sync',...synchronized}));
+      }
+      const garbage=await collectMarketGarbage(raw,getStorage().bucket(bucketName));
+      console.info(JSON.stringify({severity:'INFO',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_completed',storage:'parquet',...garbage}));
+    }finally{await db.terminate();}
+    return;
+  }
   const db=getFirestore(),source=snapshotSource(db),files=companyViewSnapshotFiles(getStorage().bucket(bucketName));
   let changed=0,records=0,deleted=0;
   try{

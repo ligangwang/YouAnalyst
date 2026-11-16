@@ -12,7 +12,7 @@ function run(script: string, extra: Record<string, string> = {}) {
       gcloud() {
         echo "$*" >> "$CALLS"
         case "$*" in
-          "storage objects describe"*) [[ "\${MISSING_SNAPSHOT:-0}" != 1 ]] || return 1 ;;
+          "storage buckets describe gs://demo-snapshots"*|"storage buckets describe gs://fallback"*) [[ "\${MISSING_SNAPSHOT:-0}" != 1 ]] || return 1 ;;
           "storage buckets get-iam-policy"*)
             [[ "$*" != *"--filter"* ]] || return 2
             if [[ "\${MISSING_IAM:-0}" == 1 ]]; then echo '{"bindings":[]}';
@@ -287,9 +287,9 @@ test('SEC collector requires and passes the SQLite snapshot bucket', () => {
  assert.equal(missing.calls,'');
 });
 
-test('graph snapshots fail closed before deployment and support the existing bucket fallback',()=>{
+test('graph storage checks fail closed before deployment and support the existing bucket fallback',()=>{
   const normal=run('scripts/deploy-company-graph-pubsub.sh');assert.equal(normal.status,0,normal.stderr);
-  assert.match(normal.calls,/storage objects describe gs:\/\/demo-snapshots\/entity-snapshots\/companies.sqlite/);
+  assert.match(normal.calls,/storage buckets describe gs:\/\/demo-snapshots/);
   const fallback=run('scripts/deploy-company-graph-pubsub.sh',{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:'fallback'});
   assert.equal(fallback.status,0,fallback.stderr);assert.equal(fallback.workerEnv.ENTITY_SNAPSHOT_BUCKET,'fallback');
   const failures:Record<string,string>[]=[{ENTITY_SNAPSHOT_BUCKET:'',EODHD_BULK_EOD_BUCKET:''},{MISSING_SNAPSHOT:'1'}];

@@ -1,4 +1,5 @@
 import { observeFirestore } from './firestore-observability';
+import {enableMarketStore} from '../market-store/runtime';
 import * as admin from "firebase-admin";
 import { getStorage } from "firebase-admin/storage";
 import {enableCompanyDirectory} from '../local-cache/company-directory';
@@ -43,7 +44,7 @@ export function getAdminAuth() { return getAdminApp().auth(); }
 
 export function getAdminFirestore(): admin.firestore.Firestore {
  return timeCompanyPhaseSync('firestore_client',()=>{
-  const raw=getAdminApp().firestore(),db=observeFirestore(raw);
+  const raw=getAdminApp().firestore(),db=observeFirestore(enableMarketStore(raw));
   if(typeof raw.settings==='function')enableCompanyDirectory(db,db);
   return db;
  });

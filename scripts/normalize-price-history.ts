@@ -1,5 +1,6 @@
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { observeFirestore } from '../src/lib/firebase/firestore-observability';
+import { enableMarketStore } from '../src/lib/market-store/runtime';
 import {Firestore} from '@google-cloud/firestore';
 import {Storage,type StorageOptions} from '@google-cloud/storage';
 import {createRequire} from 'node:module';
@@ -16,9 +17,10 @@ async function main(){
   const {OAuth2Client}=sdkRequire('google-auth-library') as typeof import('google-auth-library');
   const authClient=process.env.GOOGLE_OAUTH_ACCESS_TOKEN?new OAuth2Client():undefined;
   authClient?.setCredentials({access_token:process.env.GOOGLE_OAUTH_ACCESS_TOKEN});
-  const db=observeFirestore(new Firestore({projectId,authClient,preferRest:true}));
+  const bucket=new Storage({projectId,authClient:authClient as unknown as StorageOptions['authClient']}).bucket(bucketName);
+  const db=observeFirestore(enableMarketStore(new Firestore({projectId,authClient,preferRest:true}),bucket));
   const graph=await loadSupportedInstrumentUniverse(db);
-  const result=await normalizeHistoryPrices({db,bucket:new Storage({projectId,authClient:authClient as unknown as StorageOptions['authClient']}).bucket(bucketName),tickers:[...usMapTickers(graph),...cnMapCompanies(graph)],write:process.argv.includes('--write'),onProgress:result=>{if(result.stocks%10===0)console.log(JSON.stringify(result));}});
+  const result=await normalizeHistoryPrices({db,bucket,tickers:[...usMapTickers(graph),...cnMapCompanies(graph)],write:process.argv.includes('--write'),onProgress:result=>{if(result.stocks%10===0)console.log(JSON.stringify(result));}});
   console.log(JSON.stringify({write:process.argv.includes('--write'),...result}));
   if(result.missing)process.exitCode=1;
 }

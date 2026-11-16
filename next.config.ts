@@ -15,7 +15,7 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
-  serverExternalPackages: ['@duckdb/node-api'],
+  serverExternalPackages: ['@duckdb/node-api', '@google-cloud/storage'],
   outputFileTracingIncludes: { '/*': ['node_modules/@duckdb/node-bindings-linux-x64/**/*'] },
   deploymentId: process.env.GIT_SHA,
   // A new document must never ask a draining predecessor for new chunks.

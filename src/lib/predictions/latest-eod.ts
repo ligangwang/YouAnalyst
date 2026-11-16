@@ -83,8 +83,9 @@ export async function saveLatestEodPrices(db:Firestore,prices:LatestEodPrice[]) 
     const refs = matches.length ? matches.map(doc => doc.ref) : [db.collection('tickers').doc(`${price.market}_${price.ticker}`)];
     return refs.map(ref => ({ref, price, symbol, snapshot: listingByPath.get(ref.path)}));
   });
-  for(let i=0;i<writes.length;i+=400){
-    const page=writes.slice(i,i+400);
+  // Leave room for Parquet heads and temporary Firestore mirrors in each commit.
+  for(let i=0;i<writes.length;i+=100){
+    const page=writes.slice(i,i+100);
     // Keep each page atomic. Catalog results can guard the write directly.
     // Unknown fallback documents and conflicting versions need a fresh comparison.
     if (page.every(write => write.snapshot?.updateTime) && new Set(page.map(write => write.ref.path)).size === page.length) {

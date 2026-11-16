@@ -15,6 +15,7 @@ async function main() {
   if(!process.env.GCP_PROJECT_ID)throw Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
   const db=getFirestore(),apply=args.includes('--apply');
+  if((await db.doc('collectors/_market_parquet_control').get()).get('ready')===true)throw Error('Legacy entity timestamp migration is retired after Parquet cutover');
   const limit=Number(args.find(arg=>arg.startsWith('--limit='))?.slice(8)??100);
   if(!Number.isInteger(limit)||limit<1||limit>3000)throw Error('Invalid page limit');
   const revision=args.find(arg=>arg.startsWith('--compatible-revision='))?.slice(22);

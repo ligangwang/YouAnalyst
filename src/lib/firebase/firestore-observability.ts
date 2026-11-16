@@ -1,4 +1,6 @@
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
+import {marketStoreReady,marketReadOnlyProbe} from '../market-store/runtime';
+import {isMarketCollection} from '../market-store/policy';
 import {parquetPrices,parquetReads,priceSnapshot,priceDocuments,priceStore} from '../price-store/runtime';
 import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, registerCompanySource, refreshCompanyDirectoryIds } from '../local-cache/company-directory';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
@@ -46,8 +48,9 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
   const emit = (operation: string, shape: Shape, site: string, fields: Record<string, unknown>) => {
     const queryShape = shape.clauses.join(' ');
     try {
-      sink({ severity: fields.status === 'error' ? 'WARNING' : 'INFO', event: 'firestore_operation',
-        message: `Firestore ${operation}: ${shape.collection}`, schemaVersion: 1,
+      const market=marketStoreReady()&&isMarketCollection(shape.collection);
+      sink({ severity: fields.status === 'error' ? 'WARNING' : 'INFO', event: market?'market_store_operation':'firestore_operation',
+        message: `${market?'Market store':'Firestore'} ${operation}: ${shape.collection}`, schemaVersion: 1,
         queryId: createHash('sha256').update(JSON.stringify([operation, {collection:shape.collection,clauses:shape.clauses}, site])).digest('hex').slice(0, 20),
         operation, collection: shape.collection, queryShape, caller: site,
         job: process.env.CLOUD_RUN_JOB ?? process.env.K_SERVICE ?? process.argv[1]?.replaceAll('\\', '/').split('/').at(-1) ?? 'unknown',
@@ -70,7 +73,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     if (!value || typeof value !== 'object') return value;
     if (!('docs' in value) && !('ref' in value)) return value;
     const proxy = new Proxy(value, { get(target, key) {
-      if (key === 'ref') return wrap(target.ref, 'doc', { collection: documentCollection(target.ref.path), clauses: [] });
+      if (key === 'ref') return typeof observed.doc==='function'?observed.doc(target.ref.path):wrap(target.ref,'doc',{collection:documentCollection(target.ref.path),clauses:[]});
       if (key === 'docs' && Array.isArray(target.docs)) return target.docs.map(snapshot);
       if (key === 'forEach') return (fn: (doc: any) => void, thisArg?: any) => target.forEach((doc: any) => fn.call(thisArg, snapshot(doc)));
       const member = Reflect.get(target, key, target);
@@ -99,6 +102,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         }
         if(method==='recursiveDelete'&&(isEntityPath(args[0]?.path??'')||isEntityPath(`${args[0]?.path}/generated`)))throw Error('Use soft deletion for entity collections');
         const mutating=['set','update','delete','create'].includes(method);
+        if(marketReadOnlyProbe()&&(mutating||['add','recursiveDelete','bulkWriter'].includes(method)))throw Error('Read-only market probe cannot mutate production');
         const entityPath=kind==='doc'?object.path:args[0]?.path;
         if(parquetReads()){
           if(parquetPrices()&&mutating&&entityPath?.startsWith('eod_prices/')){

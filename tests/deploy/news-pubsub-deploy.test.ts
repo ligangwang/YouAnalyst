@@ -59,13 +59,13 @@ test('routine deployment is private, bounded and reuses push identity without AI
   assert.doesNotMatch(result.calls,/add-iam-policy-binding|OPENAI|allUsers|scheduler jobs|run jobs execute|projects add/);
 });
 
-test('snapshot preflight prevents scan fallback and preserves custom bucket configuration',()=>{
-  const missing=run({MISSING_RESOURCE:'gs://demo-eodhd-bulk-eod/entity-snapshots/companies.sqlite'});
+test('storage preflight validates Parquet access and preserves custom bucket configuration',()=>{
+  const missing=run({MISSING_RESOURCE:'gs://demo-eodhd-bulk-eod'});
   assert.notEqual(missing.status,0);assert.doesNotMatch(missing.calls,mutations);
   const overrides:Record<string,string>[]=[{ENTITY_SNAPSHOT_BUCKET:'custom-snapshots'},{EODHD_BULK_EOD_BUCKET:'custom-snapshots'}];
   for(const extra of overrides){
     const result=run(extra);assert.equal(result.status,0,result.stderr);
-    assert.match(result.calls,/storage objects describe gs:\/\/custom-snapshots\/entity-snapshots\/companies.sqlite/);
+    assert.match(result.calls,/storage buckets describe gs:\/\/custom-snapshots/);
     assert.match(result.calls,/ENTITY_SNAPSHOT_BUCKET=custom-snapshots/);
   }
 });

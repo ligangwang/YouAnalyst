@@ -1,7 +1,7 @@
 import {initializeApp,applicationDefault} from 'firebase-admin/app';
 import {configuredSecDocumentCache} from '../src/lib/sec-filings/document-cache';
 import {getAdminStorageBucket} from '../src/lib/firebase/admin';
-import {getFirestore} from 'firebase-admin/firestore';
+import {getFirestore} from '../src/lib/firebase/firestore';
 import {cleanSecBulkFiles,cleanEodBulkFiles} from '../src/lib/fundamentals/bulk-cleanup';
 const args=process.argv.slice(2);
 if(args.some(arg=>arg!=='--apply')||!process.env.GCP_PROJECT_ID||!process.env.SEC_DOCUMENT_CACHE_BUCKET)throw new Error('Usage: cleanup-sec-downloads [--apply], with project and cache bucket configured');
