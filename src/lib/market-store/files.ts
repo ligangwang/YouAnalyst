@@ -342,6 +342,11 @@ export class MarketFiles {
         for(const name of names)this.validate(name);
         try{
             await this.local(names,paths=>withDuck(async db=>{
+                // Exact bundle parity can exceed the small query memory limit.
+                // Cloud Run's writable disk uses memory: bound scratch space and
+                // keep it inside this operation's temporary directory for cleanup.
+                await db.run(`SET temp_directory=${quote(join(directory,'scratch'))}`);
+                await db.run("SET max_temp_directory_size='256MB'");
                 const local=new Map(names.map((name,i)=>[name,paths[i]]));
                 const indexNames=[...new Set(heads.map(head=>head.indexFile!))];
                 const source=indexNames.map(name=>`SELECT * FROM read_parquet(${quote(local.get(name)!)}) WHERE substr(sha256(id),1,2) IN (${heads.filter(head=>head.indexFile===name).map(head=>quote(head.shard)).join(',')})`).join(' UNION ALL BY NAME ');
