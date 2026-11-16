@@ -7,6 +7,7 @@ import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retaine
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {DocumentBatcher} from './document-batcher';
+import {EVENTS_CONTROL,EventsControl,eventsMode,type EventsMode} from './events-control';
 import {FUNDAMENTALS_CONTROL,FundamentalsControl,fundamentalsMode,type FundamentalsMode} from './fundamentals-control';
 import {compactHead,pointerCollection,pointerId,pointerHasRetained} from './head-pointer';
 export const CONTROL = 'collectors/_market_parquet_control';
@@ -24,6 +25,7 @@ export type MarketContext = {
     reader: Reader;
     control?: boolean;
     fundamentals?: FundamentalsMode;
+    events?: EventsMode;
     cleanupAuthorized?: boolean;
     cleanedCollections?: Set<string>;
     heads: Map<string, MarketHead>;
@@ -54,6 +56,7 @@ export class MarketRepository {
     private documentReads=new DocumentBatcher<MarketRow>();
     private marketCapReads=new DocumentBatcher<MarketRow>(8192);
     private fundamentals?:FundamentalsControl;
+    private events?:EventsControl;
     private controls?: {
         until: number;
         value: Promise<boolean>;
@@ -75,7 +78,8 @@ export class MarketRepository {
         change: () => void;
         error: (error: unknown) => void;
     }>>();
-    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false) {
+    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false) {
+        if(eventsGate)this.events=new EventsControl(raw,onMode?ready=>onMode(ready,'events'):undefined);
         if(fundamentalsGate)this.fundamentals=new FundamentalsControl(raw,onMode?ready=>onMode(ready,'company_fundamentals'):undefined);
         if (onMode)
             this.controlStop = raw.doc(CONTROL).onSnapshot(doc => { const data = doc.data(); if (data?.version === 1 && typeof data.ready === 'boolean') {
@@ -85,7 +89,7 @@ export class MarketRepository {
             else
                 this.controls = undefined; }, () => { this.controls = undefined; });
     }
-    close() { this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
+    close() { this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
         watch.stop(); this.watches.clear(); return this.files.close(); }
     context(reader: Reader): MarketContext { return { reader, heads: new Map(), documents: new Map(), writes: [] }; }
     invalidate(collection?: string) { if (!collection) {
@@ -169,7 +173,17 @@ export class MarketRepository {
         if(context)return context.fundamentals??=fundamentalsMode(await context.reader.get(this.raw.doc(FUNDAMENTALS_CONTROL)) as DocumentSnapshot);
         return this.fundamentals.read();
     }
+    private async eventsState(context?:MarketContext){
+        if(!this.events)throw Error('Events control not configured');
+        if(context)return context.events??=eventsMode(await context.reader.get(this.raw.doc(EVENTS_CONTROL)) as DocumentSnapshot);
+        return this.events.read();
+    }
     async ready(context?: MarketContext,collection?:MarketCollection): Promise<boolean> {
+        if(collection==='events'&&this.events){
+            if(this.readOnlyProbe)return true;
+            const mode=await this.eventsState(context);
+            return !context&&this.stagedEvents||mode.ready;
+        }
         if(collection==='company_fundamentals'&&this.fundamentals){
             if(this.readOnlyProbe)return true;
             const mode=await this.fundamentalsState(context);
@@ -480,10 +494,10 @@ export class MarketRepository {
     async prepare(context: MarketContext, tx: Transaction, mutations: Mutation[]) {
         if (this.readOnlyProbe)
             throw Error('Read-only market probe cannot mutate production');
-        // Fundamentals has its own transactional gate; unrelated global control
-        // reads add latency to every lease/checkpoint transaction.
-        const fundamentalsOnly=!!this.fundamentals&&mutations.every(write=>write.path.startsWith('company_fundamentals/'));
-        const ready = fundamentalsOnly ? false : await this.ready(context), groups = new Map<string, {
+        // Independently staged collections use their own transactional gates;
+        // unrelated global reads add latency to lease/checkpoint transactions.
+        const independentlyGated=mutations.every(write=>this.fundamentals&&write.path.startsWith('company_fundamentals/')||this.events&&write.path.startsWith('events/'));
+        const ready = independentlyGated ? false : await this.ready(context), groups = new Map<string, {
             collection: MarketCollection;
             shard: string;
             writes: Mutation[];
@@ -491,7 +505,8 @@ export class MarketRepository {
         // Read cutover and source retirement are separate gates. Keep complete
         // source mirrors until production UI verification authorizes cleanup.
         if(this.fundamentals&&mutations.some(write=>write.path.startsWith('company_fundamentals/')))await this.fundamentalsState(context);
-        const modeFor=(collection:string)=>collection==='company_fundamentals'&&this.fundamentals?context.fundamentals!:{ready,cleanupAuthorized:context.cleanupAuthorized===true,cleanedCollections:context.cleanedCollections};
+        if(this.events&&mutations.some(write=>write.path.startsWith('events/')))await this.eventsState(context);
+        const modeFor=(collection:string)=>collection==='events'&&this.events?context.events!:collection==='company_fundamentals'&&this.fundamentals?context.fundamentals!:{ready,cleanupAuthorized:context.cleanupAuthorized===true,cleanedCollections:context.cleanedCollections};
         const retires=(collection:string)=>{const mode=modeFor(collection);return mode.ready&&mode.cleanupAuthorized;};
         for (const write of mutations) {
             const [collection, id] = write.path.split('/') as [
@@ -556,7 +571,7 @@ export class MarketRepository {
                     } | undefined;
                     if (options?.lastUpdateTime) {
                         let matches=doc.updateTime?.isEqual(options.lastUpdateTime);
-                        if(!matches&&!retained.has(id)&&(ready||(collection==='company_fundamentals'&&this.fundamentals?this.stagedFundamentals:this.stagedReads))&&stored?.version.isEqual(options.lastUpdateTime)){
+                        if(!matches&&!retained.has(id)&&(ready||(collection==='events'&&this.events?this.stagedEvents:collection==='company_fundamentals'&&this.fundamentals?this.stagedFundamentals:this.stagedReads))&&stored?.version.isEqual(options.lastUpdateTime)){
                             // Staged snapshots expose the Parquet version. Before
                             // cutover, accept it only while the native source is
                             // still the same mirrored data, under this transaction.
