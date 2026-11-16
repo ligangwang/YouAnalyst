@@ -347,14 +347,20 @@ export class MarketFiles {
                 // keep it inside this operation's temporary directory for cleanup.
                 await db.run(`SET temp_directory=${quote(join(directory,'scratch'))}`);
                 await db.run("SET max_temp_directory_size='256MB'");
+                await db.run('SET preserve_insertion_order=false');
                 const local=new Map(names.map((name,i)=>[name,paths[i]]));
                 const indexNames=[...new Set(heads.map(head=>head.indexFile!))];
                 const source=indexNames.map(name=>`SELECT * FROM read_parquet(${quote(local.get(name)!)}) WHERE substr(sha256(id),1,2) IN (${heads.filter(head=>head.indexFile===name).map(head=>quote(head.shard)).join(',')})`).join(' UNION ALL BY NAME ');
-                await db.run(`COPY (${source}) TO ${quote(indexPath)} (FORMAT PARQUET,COMPRESSION ZSTD)`);
-                const [[difference]]=(await db.runAndReadAll(`WITH original AS (${source}), differences AS ((SELECT * FROM original EXCEPT ALL SELECT * FROM read_parquet(${quote(indexPath)})) UNION ALL (SELECT * FROM read_parquet(${quote(indexPath)}) EXCEPT ALL SELECT * FROM original)) SELECT count(*) FROM differences`)).getRows();
-                if(Number(difference)!==0)throw Error('Index bundle parity failed');
+                await db.run(`COPY (${source}) TO ${quote(indexPath)} (FORMAT PARQUET,COMPRESSION ZSTD,ROW_GROUP_SIZE 2048)`);
+                // Compare every shard exactly, without building a hash table for
+                // the entire bundle at once. Counts below reject extra shards.
+                for(const head of heads){
+                    const scope=`substr(sha256(id),1,2)=${quote(head.shard)}`;
+                    const [[difference]]=(await db.runAndReadAll(`WITH original AS (SELECT * FROM (${source}) WHERE ${scope}), bundled AS (SELECT * FROM read_parquet(${quote(indexPath)}) WHERE ${scope}), differences AS ((SELECT * FROM original EXCEPT ALL SELECT * FROM bundled) UNION ALL (SELECT * FROM bundled EXCEPT ALL SELECT * FROM original)) SELECT count(*) FROM differences`)).getRows();
+                    if(Number(difference)!==0)throw Error('Index bundle parity failed');
+                }
                 const counts=new Map((await db.runAndReadAll(`SELECT substr(sha256(id),1,2),count(*) FROM read_parquet(${quote(indexPath)}) GROUP BY 1`)).getRows().map(([shard,count])=>[String(shard),Number(count)]));
-                if(heads.some(head=>(counts.get(head.shard)??0)!==head.rows))throw Error('Index bundle shard count mismatch');
+                if([...counts.keys()].some(shard=>!heads.some(head=>head.shard===shard))||heads.some(head=>(counts.get(head.shard)??0)!==head.rows))throw Error('Index bundle shard count mismatch');
                 const prefixes=heads.filter(head=>head.prefixFile).map(head=>`SELECT ${marketIndexBundled(head.format)?'field':`field || ${quote(':'+head.shard)}`} AS field,payload FROM read_parquet(${quote(local.get(head.prefixFile!)!)})${marketIndexBundled(head.format)?` WHERE ends_with(field,${quote(':'+head.shard)})`:''}`).join(' UNION ALL ');
                 if(prefixes){
                     await db.run(`COPY (${prefixes}) TO ${quote(prefixPath)} (FORMAT PARQUET,COMPRESSION ZSTD)`);
