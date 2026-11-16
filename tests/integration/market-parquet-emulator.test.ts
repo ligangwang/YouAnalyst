@@ -10,10 +10,22 @@ import { marketFirestore } from '../../src/lib/market-store/adapter';
 import { observeFirestore } from '../../src/lib/firebase/firestore-observability';
 import { reconcileMarketShard, cleanupMarketShard } from '../../src/lib/market-store/migration';
 import { shardFor } from '../../src/lib/market-store/files';
+import {loadCompanyEventSnapshot} from '../../src/lib/events/company-events-cache';
+import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
 const check = host ? test : test.skip;
+check('native announcement snapshots remain listenable before Parquet cutover',async t=>{
+    const raw=new Firestore({projectId:'demo-announcements-'+randomUUID().slice(0,8)});
+    t.after(async()=>{closeLocalCaches();await raw.terminate();});
+    await raw.doc('events/one').set({companyId:'US:AMD',publication_date:'2026-11-13',title:'Original'});
+    assert.equal((await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title'),'Original');
+    await raw.doc('events/one').update({title:'Updated'});
+    let title:unknown;
+    for(let n=0;n<50;n++){title=(await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title');if(title==='Updated')break;await new Promise(resolve=>setTimeout(resolve,20));}
+    assert.equal(title,'Updated');
+});
 function fixture(stagedReads=false) {
     const objects = new Map<string, Buffer>();
     let fail = false;
