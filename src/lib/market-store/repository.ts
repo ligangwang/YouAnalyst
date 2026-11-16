@@ -323,12 +323,13 @@ export class MarketRepository {
         await this.ready(context);
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
         const retained = this.retainedMembership(heads);
-        // Full reads already require these live records. Resolve whole retained
-        // records first: editorial companies and live workflow heads have no
-        // external payload, so scanning their hash shards cannot contribute data.
-        // Projected reads keep their existing external-only fast path.
-        const native = !fields ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined;
-        const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && retainedWhole(collection, doc.id, doc.data()!)).map(doc => doc.id));
+        // Full company reads already require these live records. A complete
+        // editorial company has no external payload. Require its external status
+        // field as positive evidence of a whole record: a stripped operational
+        // overlay lacks status and must still merge its Parquet row. Never apply
+        // the whole-record predicate to incomplete overlays in other collections.
+        const native = !fields && collection === 'companies' ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined;
+        const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && typeof doc.get('status') === 'string' && retainedWhole(collection, doc.id, doc.data()!)).map(doc => doc.id));
         const externalIds = ids.filter(id => !whole.has(id));
         const result = new Map((externalIds.length ? await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', externalIds] }, ...(fields ? [{method:'select',args:fields}] : [])]) : []).map(row => [row.id, row]));
         // An external-only projection needs no live-state document read. Whole

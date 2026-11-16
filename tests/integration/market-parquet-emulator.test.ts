@@ -174,6 +174,17 @@ for(const compact of [false,true])check(`full document reads skip retained recor
     assert(scanned.some(ids=>ids.includes('external')),'external mirrors cannot replace Parquet');
     await authored.update({name:'Revised editorial'});
     assert.equal((await authored.get()).get('name'),'Revised editorial');
+    // Cleanup strips the external status/name from a mixed native document.
+    // An absent status is not evidence that the overlay is a whole company.
+    await f.raw.doc(CONTROL).update({ready:true,cleanupAuthorized:true});
+    await marketFirestore(f.raw,f.repository).doc(external.path).update({onboarding:{status:'pending'}});
+    const stripped=await f.raw.doc(external.path).get();
+    assert.equal(stripped.get('name'),undefined);assert.equal(stripped.get('status'),undefined);
+    assert.deepEqual(stripped.get('onboarding'),{status:'pending'});
+    assert.equal((await external.get()).get('name'),'External');
+    assert.equal((await external.get()).get('status'),'DIRECTORY');
+    assert.deepEqual((await external.get()).get('onboarding'),{status:'pending'});
+    assert.equal((await authored.get()).get('name'),'Revised editorial');
     await authored.delete();assert.equal((await authored.get()).get('isDeleted'),true,'entity deletion preserves its tombstone');
     const direct=marketFirestore(f.raw,f.repository).doc(authored.path);
     await direct.delete();assert.equal((await authored.get()).exists,false);
