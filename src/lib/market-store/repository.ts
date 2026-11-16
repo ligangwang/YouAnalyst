@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedOnlyQuery, type MarketCollection } from './policy';
+import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {DocumentBatcher} from './document-batcher';
@@ -322,12 +322,19 @@ export class MarketRepository {
     private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         await this.ready(context);
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
-        const result = new Map((await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', ids] }, ...(fields ? [{method:'select',args:fields}] : [])])).map(row => [row.id, row]));
         const retained = this.retainedMembership(heads);
+        // Full reads already require these live records. Resolve whole retained
+        // records first: editorial companies and live workflow heads have no
+        // external payload, so scanning their hash shards cannot contribute data.
+        // Projected reads keep their existing external-only fast path.
+        const native = !fields ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined;
+        const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && retainedWhole(collection, doc.id, doc.data()!)).map(doc => doc.id));
+        const externalIds = ids.filter(id => !whole.has(id));
+        const result = new Map((externalIds.length ? await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', externalIds] }, ...(fields ? [{method:'select',args:fields}] : [])]) : []).map(row => [row.id, row]));
         // An external-only projection needs no live-state document read. Whole
         // authored records still come from Firestore when no external row exists.
         const refs = ids.filter(id => retained.has(id) && (!fields || !result.has(id) || fields.some(field => isOperationalField(collection,field) || isRoutingField(field)))).map(id => this.raw.collection(collection).doc(id));
-        for (const doc of (await this.rawDocuments(refs, context, fields)).values())
+        for (const doc of (native ?? await this.rawDocuments(refs, context, fields)).values())
             if (doc.exists) {
                 const previous = result.get(doc.id), overlay = previous ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
                 if(previous&&!Object.keys(overlay??{}).length)continue;

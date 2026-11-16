@@ -145,6 +145,42 @@ check('staged snapshot preconditions accept unchanged mirrors and reject stale o
     await assert.rejects(ref.update({score:3},{lastUpdateTime:current.updateTime!}),/precondition/);
     assert.equal((await native.get()).get('score'),99);
 });
+for(const compact of [false,true])check(`full document reads skip retained records without hiding external data (compact=${compact})`,async t=>{
+    const f=fixture(true,compact);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    if(compact){
+        const batch=f.raw.batch();
+        for(let i=0;i<256;i++){
+            const shard=i.toString(16).padStart(2,'0');
+            batch.set(f.raw.collection('collectors').doc(pointerId('companies',shard)),{marketCollection:pointerCollection('companies'),marketHead:compactHead({collection:'companies',shard,rows:0,retained:[]})});
+        }
+        await batch.commit();
+    }
+    const authored=f.db.doc('companies/authored'),external=f.db.doc('companies/external');
+    await authored.set({name:'Editorial',status:'PUBLISHED',createdBy:'user',onboarding:{status:'complete'}});
+    await external.set({name:'External',status:'DIRECTORY',onboarding:{status:'complete'}});
+    await f.raw.doc(external.path).update({name:'Stale source mirror'});
+    const query=f.repository.files.query.bind(f.repository.files);
+    const scanned:string[][]=[];
+    f.repository.files.query=async(heads,steps,indexed)=>{
+        const ids=steps.find(step=>step.method==='where'&&step.args[1]==='in')?.args[2] as string[];
+        if(ids)scanned.push(ids);
+        return query(heads,steps,indexed);
+    };
+    const docs=await f.db.getAll(authored,external,f.db.doc('companies/missing'));
+    assert.deepEqual(docs.map(doc=>doc.get('name')),['Editorial','External',undefined]);
+    assert.deepEqual(docs[0].get('onboarding'),{status:'complete'});
+    assert(scanned.length>0);assert(scanned.every(ids=>!ids.includes('authored')));
+    assert(scanned.some(ids=>ids.includes('external')),'external mirrors cannot replace Parquet');
+    await authored.update({name:'Revised editorial'});
+    assert.equal((await authored.get()).get('name'),'Revised editorial');
+    await authored.delete();assert.equal((await authored.get()).get('isDeleted'),true,'entity deletion preserves its tombstone');
+    const direct=marketFirestore(f.raw,f.repository).doc(authored.path);
+    await direct.delete();assert.equal((await authored.get()).exists,false);
+    await direct.set({name:'Now external',status:'DIRECTORY'});
+    assert.equal((await authored.get()).get('name'),'Now external');
+    assert(scanned.some(ids=>ids.includes('authored')),'reclassification must resume external reads');
+});
 check('full directory scans do not reread absent external payloads for retained companies',async t=>{
     const f=fixture(true);t.after(()=>f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:false});
