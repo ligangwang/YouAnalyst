@@ -77,6 +77,26 @@ export class MarketFiles {
         this.validate(head.file);
         return this.cache.local([head.file], paths => withDuck(async (db) => (await db.runAndReadAll(`SELECT id,payload,version FROM read_parquet(${quote(paths[0])}) ORDER BY id`)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }))));
     }
+    private prefixKey(head:MarketHead,field:string){return `${head.prefixFile}|${head.shard}|${field}`;}
+    private async loadPrefixes(heads:MarketHead[],field:string,packIds=false){
+        const names=[...new Set(heads.map(head=>head.prefixFile!))];
+        for(const name of names)this.validate(name);
+        const storedField=(head:MarketHead)=>(head.format??0)>=8?`${field}:${head.shard}`:field;
+        const wanted=new Map(heads.map(head=>[`${head.prefixFile}|${storedField(head)}`,this.prefixKey(head,field)]));
+        return this.local(names,paths=>withDuck(async db=>{
+            const originals=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),names[i]]));
+            const fields=[...new Set(heads.map(storedField))];
+            const rows=(await db.runAndReadAll(`SELECT filename,field,payload FROM read_parquet([${paths.map(quote).join(',')}],filename=true) WHERE field IN (${fields.map(quote).join(',')})`)).getRows();
+            const found=new Map<string,PrefixLookup>();
+            for(const [filename,stored,payload] of rows){
+                const name=originals.get(String(filename).replaceAll('\\','/'));if(!name)throw Error('Unexpected prefix index file');
+                const key=wanted.get(`${name}|${stored}`);if(!key)continue;
+                if(found.has(key))throw Error('Duplicate prefix index');
+                found.set(key,decodePrefixLookup(String(payload),packIds));
+            }
+            return found;
+        }));
+    }
     async query(heads: MarketHead[], steps: Step[], indexed = true, compactRead = false): Promise<MarketRow[]> {
         const limit=steps.find(step=>step.method==='limit'||step.method==='limitToLast')?.args[0];
         const identity=steps.find(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])));
@@ -150,16 +170,12 @@ export class MarketFiles {
             const matches:string[]=[];
             const files=heads.filter(head=>head.file&&head.prefixFile);
             for(let start=0;start<files.length;start+=128){
-                const group=files.slice(start,start+128),key=(head:MarketHead)=>head.prefixFile+'|'+ANNOUNCEMENT_LOOKUP;
+                const group=files.slice(start,start+128),key=(head:MarketHead)=>this.prefixKey(head,ANNOUNCEMENT_LOOKUP);
                 const missing=group.filter(head=>!this.prefixes.has(key(head)));
                 for(const head of missing)this.validate(head.prefixFile!);
                 let pending:Promise<Map<string,PrefixLookup>>|undefined;
-                const load=()=>pending??=this.local(missing.map(head=>head.prefixFile!),paths=>withDuck(async db=>{
-                    const names=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),missing[i].prefixFile!]));
-                    const rows=(await db.runAndReadAll(`SELECT filename,payload FROM read_parquet([${paths.map(quote).join(',')}],filename=true) WHERE field=${quote(ANNOUNCEMENT_LOOKUP)}`)).getRows();
-                    return new Map(rows.map(([filename,payload])=>{const name=names.get(String(filename).replaceAll('\\','/'));if(!name)throw Error('Unexpected announcement index file');return [name,decodePrefixLookup(String(payload),true)];}));
-                }));
-                matches.push(...(await Promise.all(group.map(head=>this.prefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(head.prefixFile!);if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
+                const load=()=>pending??=this.loadPrefixes(missing,ANNOUNCEMENT_LOOKUP,true);
+                matches.push(...(await Promise.all(group.map(head=>this.prefixes.matching(key(head),announcement.company,async()=>{const lookup=(await load()).get(key(head));if(!lookup)throw Error('Missing announcement lookup');return lookup;})))).flat());
             }
             const ids=announcementIds(matches,announcement);if(!ids.length)return [];
             const rows=await this.query(heads,[{method:'where',args:['__name__','in',ids]},...steps.filter(step=>step.method==='select')]);
@@ -168,16 +184,17 @@ export class MarketFiles {
         }
         const prefix=steps.find(step=>step.method==='where'&&step.args[1]==='array-contains'&&searchPayload.has(fieldName(step.args[0]))&&typeof step.args[2]==='string'&&step.args[2].length>0&&!step.args[2].includes('\0'));
         if(prefix&&heads.every(head=>!head.file||(head.format??0)>=2)){
-            const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;
-            for(const head of heads){if(!head.file||((head.format??0)>=5&&!head.prefixFile))continue;this.validate(head.file);if(head.prefixFile)this.validate(head.prefixFile);const size=(head.prefixFile?head.prefixBytes:head.bytes)??8*1024*1024;
+            const matches:string[]=[],field=fieldName(prefix.args[0]),groups:MarketHead[][]=[];let group:MarketHead[]=[],bytes=0;const counted=new Set<string>();
+            for(const head of heads){if(!head.file||((head.format??0)>=5&&!head.prefixFile))continue;this.validate(head.file);if(head.prefixFile)this.validate(head.prefixFile);const name=head.prefixFile??head.file,size=(head.prefixFile?head.prefixBytes:head.bytes)??8*1024*1024;
                 const modern=!!head.prefixFile,limit=modern?32*1024*1024:8*1024*1024;
-                if(group.length&&(!!group[0].prefixFile!==modern||group.length>=(modern?128:16)||bytes+size>limit)){groups.push(group);group=[];bytes=0;}group.push(head);bytes+=size;
+                if(group.length&&(!!group[0].prefixFile!==modern||group.length>=(modern?128:16)||bytes+(counted.has(name)?0:size)>limit)){groups.push(group);group=[];bytes=0;counted.clear();}group.push(head);if(!counted.has(name)){bytes+=size;counted.add(name);}
             }if(group.length)groups.push(group);
             for(const group of groups){
-                const missing=group.filter(head=>!this.prefixes.has(head.file+'|'+field));
+                const key=(head:MarketHead)=>head.prefixFile?this.prefixKey(head,field):head.file+'|'+field;
+                const missing=group.filter(head=>!this.prefixes.has(key(head)));
                 let pending:Promise<Map<string,PrefixRows|PrefixLookup>>|undefined;
                 const modern=!!group[0].prefixFile;
-                const load=()=>pending??=this.local(missing.map(head=>head.prefixFile??head.file!),paths=>withDuck(async db=>{
+                const load=()=>pending??=modern?this.loadPrefixes(missing,field):this.local(missing.map(head=>head.file!),paths=>withDuck(async db=>{
                     const names=new Map(paths.map((path,i)=>[path.replaceAll('\\','/'),missing[i].file!]));
                     const found=new Map<string,PrefixRows|PrefixLookup>();
                     const rows=(await db.runAndReadAll(`SELECT filename,${modern?'field,payload':`id,json_extract(payload,${quote('$.'+JSON.stringify(field))})`} FROM read_parquet([${paths.map(quote).join(',')}],filename=true)${modern?` WHERE field=${quote(field)}`:''}`)).getRows();
@@ -187,7 +204,7 @@ export class MarketFiles {
                     }
                     return found;
                 }));
-                const selected=await Promise.all(group.map(head=>this.prefixes.matching(head.file+'|'+field,prefix.args[2] as string,async()=>(await load()).get(head.file!)??[])));
+                const selected=await Promise.all(group.map(head=>this.prefixes.matching(key(head),prefix.args[2] as string,async()=>(await load()).get(modern?key(head):head.file!)??[])));
                 matches.push(...selected.flat());
             }
             if(!matches.length)return [];
@@ -206,7 +223,7 @@ export class MarketFiles {
         const directIds=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])))&&predicates.every(step=>fieldName(step.args[0])==='__name__');
         const compactProjection=selection&&heads.every(head=>!head.file||selection.args.every(field=>marketIndexProjectionField(fieldName(field),head.format??0)));
         if(indexed && !(directIds&&!compactProjection) && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
-            const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:2,indexFile:undefined}));
+            const compact=heads.map(head=>({...head,file:head.indexFile,bytes:head.indexBytes,format:(head.format??0)>=8?8:2,indexFile:undefined}));
             // Calendar records are sparse among hundreds of thousands of news
             // events. Their complete external values fit in the compact index.
             const calendar=predicates.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
@@ -228,7 +245,10 @@ export class MarketFiles {
             this.validate(head.file!);
         const groups: MarketHead[][] = [];
         let group: MarketHead[] = [], bytes = 0;
-        for (const head of files) {
+        const byFile=new Map<string,MarketHead[]>();
+        for(const head of files){const shared=byFile.get(head.file!)??[];shared.push(head);byFile.set(head.file!,shared);}
+        for (const shared of byFile.values()) {
+            const head=shared[0];
             const size = head.bytes ?? 8 * 1024 * 1024;
             // Compact indexes contain bounded response fields, without article
             // captures or prefix arrays. Larger groups reduce repeated scans
@@ -238,7 +258,7 @@ export class MarketFiles {
                 group = [];
                 bytes = 0;
             }
-            group.push(head);
+            group.push(...shared);
             bytes += size;
         }
         if (group.length)
@@ -246,14 +266,20 @@ export class MarketFiles {
         const candidates: MarketRow[] = [];
         // Bound pinned disk pages: Cloud Run's writable filesystem shares its memory budget.
         for (const group of groups) {
-            const rows = await this.local(group.map(head => head.file!), paths => withDuck(async (db) => {
+            const names=[...new Set(group.map(head => head.file!))];
+            const rows = await this.local(names, localPaths => withDuck(async (db) => {
+                const paths=localPaths.map(path=>path.replaceAll('\\','/'));
                 const compiled = compileMarketQuery(steps, group.every(head => (head.format??0) >= 2));
                 const roots = [...new Set([...(query.selection ?? []), ...steps.filter(step => ['where', 'orderBy'].includes(step.method)).map(step => fieldName(step.args[0]))].map(field => field.split('.')[0]).filter(field => field !== '__name__'))];
                 // A single-group projection can discard large search indexes in DuckDB,
                 // before allocating JavaScript documents. Older bootstrap files still read.
                 const source = group.every(head => (head.format??0) >= 2) && !roots.some(root => searchPayload.has(root)) ? 'view_payload' : 'payload';
                 const payload = query.selection !== undefined ? `CASE WHEN json_type(${source})='OBJECT' THEN json_object(${roots.flatMap(root => [quote(root), `coalesce(json_extract(${source},${quote('$.' + JSON.stringify(root))}),'["undefined"]'::JSON)`]).join(',')}) ELSE ${source} END` : 'payload';
-                const sql = `SELECT id,${payload},version FROM read_parquet([${paths.map(quote).join(',')}],union_by_name=true) WHERE ${compiled.where} ORDER BY ${compiled.order}${query.limit === undefined ? '' : ` LIMIT ${query.limit + query.offset}`}`;
+                // A shared index may also contain shards whose heads now point
+                // at newer files. Read only the shards represented by this group.
+                const bundled=compactRead&&group.some(head=>(head.format??0)>=8);
+                const scope=bundled?` AND (${paths.map((path,i)=>`(filename=${quote(path)} AND substr(sha256(id),1,2) IN (${group.filter(head=>head.file===names[i]).map(head=>quote(head.shard)).join(',')}))`).join(' OR ')})`:'';
+                const sql = `SELECT id,${payload},version FROM read_parquet([${paths.map(quote).join(',')}],union_by_name=true${bundled?',filename=true':''}) WHERE (${compiled.where})${scope} ORDER BY ${compiled.order}${query.limit === undefined ? '' : ` LIMIT ${query.limit + query.offset}`}`;
                 return (await db.runAndReadAll(sql)).getRows().map(([id, payload, version]) => ({ id: String(id), data: decodePayload(String(payload)), version: decode(JSON.parse(String(version))) as Timestamp }));
             }));
             candidates.push(...rows);
@@ -304,6 +330,44 @@ export class MarketFiles {
         if (query.last)
             selected.reverse();
         return query.selection ? selected.map(row => ({ ...row, data: project(row.data, query.selection!) })) : selected;
+    }
+    /** Combine immutable read indexes without changing data shards or ownership.
+     * Callers must publish the returned heads with a compare-and-swap transaction. */
+    async bundleIndexes(heads:MarketHead[]):Promise<MarketHead[]>{
+        if(!heads.length||heads.length>16||new Set(heads.map(head=>head.shard)).size!==heads.length
+            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||(head.format??0)<6))throw Error('Invalid index bundle');
+        const directory=await mkdtemp(join(tmpdir(),'ya-market-bundle-')),indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
+        const destination=()=>`${MARKET_ROOT}/data/${heads[0].collection}/${heads[0].shard}/${randomUUID()}.parquet`;
+        const names=[...new Set(heads.flatMap(head=>[head.indexFile!,...(head.prefixFile?[head.prefixFile]:[])]))];
+        for(const name of names)this.validate(name);
+        try{
+            await this.local(names,paths=>withDuck(async db=>{
+                const local=new Map(names.map((name,i)=>[name,paths[i]]));
+                const indexNames=[...new Set(heads.map(head=>head.indexFile!))];
+                const source=indexNames.map(name=>`SELECT * FROM read_parquet(${quote(local.get(name)!)}) WHERE substr(sha256(id),1,2) IN (${heads.filter(head=>head.indexFile===name).map(head=>quote(head.shard)).join(',')})`).join(' UNION ALL BY NAME ');
+                await db.run(`COPY (${source}) TO ${quote(indexPath)} (FORMAT PARQUET,COMPRESSION ZSTD)`);
+                const [[difference]]=(await db.runAndReadAll(`WITH original AS (${source}), differences AS ((SELECT * FROM original EXCEPT ALL SELECT * FROM read_parquet(${quote(indexPath)})) UNION ALL (SELECT * FROM read_parquet(${quote(indexPath)}) EXCEPT ALL SELECT * FROM original)) SELECT count(*) FROM differences`)).getRows();
+                if(Number(difference)!==0)throw Error('Index bundle parity failed');
+                const counts=new Map((await db.runAndReadAll(`SELECT substr(sha256(id),1,2),count(*) FROM read_parquet(${quote(indexPath)}) GROUP BY 1`)).getRows().map(([shard,count])=>[String(shard),Number(count)]));
+                if(heads.some(head=>(counts.get(head.shard)??0)!==head.rows))throw Error('Index bundle shard count mismatch');
+                const prefixes=heads.filter(head=>head.prefixFile).map(head=>`SELECT ${(head.format??0)>=8?'field':`field || ${quote(':'+head.shard)}`} AS field,payload FROM read_parquet(${quote(local.get(head.prefixFile!)!)})${(head.format??0)>=8?` WHERE ends_with(field,${quote(':'+head.shard)})`:''}`).join(' UNION ALL ');
+                if(prefixes){
+                    await db.run(`COPY (${prefixes}) TO ${quote(prefixPath)} (FORMAT PARQUET,COMPRESSION ZSTD)`);
+                    const [[changed]]=(await db.runAndReadAll(`WITH original AS (${prefixes}), differences AS ((SELECT * FROM original EXCEPT ALL SELECT * FROM read_parquet(${quote(prefixPath)})) UNION ALL (SELECT * FROM read_parquet(${quote(prefixPath)}) EXCEPT ALL SELECT * FROM original)) SELECT count(*) FROM differences`)).getRows();
+                    if(Number(changed)!==0)throw Error('Prefix bundle parity failed');
+                    const [[duplicate]]=(await db.runAndReadAll(`SELECT count(*)-count(DISTINCT field) FROM read_parquet(${quote(prefixPath)})`)).getRows();
+                    if(Number(duplicate)!==0)throw Error('Duplicate bundled prefix');
+                }
+            }));
+            const indexFile=destination(),indexBytes=(await import('node:fs/promises').then(fs=>fs.stat(indexPath))).size;
+            await this.bucket.upload(indexPath,{destination:indexFile,resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});
+            let prefixFile:string|undefined,prefixBytes:number|undefined;
+            if(heads.some(head=>head.prefixFile)){
+                prefixFile=destination();prefixBytes=(await import('node:fs/promises').then(fs=>fs.stat(prefixPath))).size;
+                await this.bucket.upload(prefixPath,{destination:prefixFile,resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});
+            }
+            return heads.map(head=>({...head,format:8,indexFile,indexBytes,...(head.prefixFile?{prefixFile,prefixBytes}:{})}));
+        }finally{await rm(directory,{recursive:true,force:true});}
     }
     async write(collection: MarketCollection, shard: string, rows: MarketRow[], retained: string[]): Promise<MarketHead> {
         if (!/^[a-z_]+$/.test(collection) || !/^[a-f0-9]{2}$/.test(shard))

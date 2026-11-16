@@ -5,7 +5,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Firestore, FieldValue, Timestamp, type Query } from '@google-cloud/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { MarketFiles } from '../../src/lib/market-store/files';
-import { MarketRepository, CONTROL } from '../../src/lib/market-store/repository';
+import { MarketRepository, CONTROL,headId } from '../../src/lib/market-store/repository';
+import {bundleMarketIndexes} from '../../src/lib/market-store/index-bundles';
 import { marketFirestore } from '../../src/lib/market-store/adapter';
 import { observeFirestore } from '../../src/lib/firebase/firestore-observability';
 import { reconcileMarketShard, cleanupMarketShard } from '../../src/lib/market-store/migration';
@@ -44,6 +45,44 @@ function fixture(stagedReads=false,compact=false) {
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
+check('index publication retries concurrent writers, updates both heads, and resumes daily after cutover',async t=>{
+    const f=fixture(true,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:false});
+    for(const pointer of [false,true]){
+        const batch=f.raw.batch();
+        for(let i=0;i<256;i++){
+            const shard=i.toString(16).padStart(2,'0'),head={collection:'events' as const,shard,rows:0,retained:[]};
+            batch.set(f.raw.collection('collectors').doc((pointer?pointerId:headId)('events',shard)),{marketCollection:pointer?pointerCollection('events'):'events',marketHead:pointer?compactHead(head):head});
+        }
+        await batch.commit();
+    }
+    const ids:string[]=[];for(let i=0;ids.length<2;i++){const id='bundle-race-'+i,shard=shardFor(id);if(shard.startsWith('0')&&!ids.some(id=>shardFor(id)===shard))ids.push(id);}
+    for(const id of ids)await f.db.doc('events/'+id).set({companyId:'US:NVDA',title:'Original',publication_date:'2026-11-13'});
+    const bundle=f.repository.files.bundleIndexes.bind(f.repository.files);let calls=0;
+    f.repository.files.bundleIndexes=async heads=>{
+        const result=await bundle(heads);
+        if(calls++===0)await f.db.doc('events/'+ids[0]).update({title:'Concurrent writer'});
+        return result;
+    };
+    const options={ready:false,collections:['events'] as const,before:async()=>{}};
+    const result=await bundleMarketIndexes(f.raw,f.repository.files,options);
+    assert.equal(calls,2,'changed heads must discard the obsolete bundle and rebuild');
+    assert.equal(result[0].changed,2);
+    const heads=await f.raw.getAll(...ids.map(id=>f.raw.collection('collectors').doc(headId('events',shardFor(id)))));
+    assert.equal(heads[0].get('marketHead.indexFile'),heads[1].get('marketHead.indexFile'));
+    for(const doc of heads){const head=doc.get('marketHead');assert.equal(head.format,8);assert.deepEqual((await f.raw.collection('collectors').doc(pointerId('events',head.shard)).get()).get('marketHead'),compactHead(head));}
+    const query=f.db.collection('events').where('companyId','==','US:NVDA').orderBy('publication_date','desc').limit(5).select('title');
+    assert.equal((await query.get()).docs.find(doc=>doc.id===ids[0])?.get('title'),'Concurrent writer');
+    assert.equal((await bundleMarketIndexes(f.raw,f.repository.files,options))[0].changed,0,'unchanged bundles are not rebuilt');
+    await f.raw.doc(CONTROL).update({ready:true,cleanupAuthorized:true});
+    await f.db.doc('events/'+ids[1]).update({title:'After cleanup'});
+    assert.equal((await f.raw.doc('events/'+ids[1]).get()).exists,false);
+    await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,options));
+    const daily=await bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true});
+    assert.equal(daily[0].changed,2);
+    assert.equal((await query.get()).docs.find(doc=>doc.id===ids[1])?.get('title'),'After cleanup');
+    await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true,before:async()=>{throw Error('capacity');}}),/capacity/);
+});
 check('compact live heads preserve external data, operational changes and transactional originals',async t=>{
     const f=fixture(false,true);t.after(()=>f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});

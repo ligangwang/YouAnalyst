@@ -19,6 +19,49 @@ function fixture(downloads:string[] = [],queryBudget?:number) { const objects = 
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('shared index bundles preserve shard boundaries across live rewrites and rebundling',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
+    const ids:string[]=[];for(let n=0;ids.length<8;n++)if(!ids.some(id=>shardFor(id)===shardFor('bundle-'+n)))ids.push('bundle-'+n);
+    let rows=ids.map((id,i)=>({id,version,data:{companyId:'US:NVDA',publication_date:`2026-11-${String(i+1).padStart(2,'0')}`,title:'original-'+i}}));
+    try{
+        const original=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
+        let heads=await files.bundleIndexes(original);
+        assert.equal(new Set(heads.map(head=>head.indexFile)).size,1);assert.equal(new Set(heads.map(head=>head.prefixFile)).size,1);
+        assert.deepEqual(heads.map(head=>head.file),original.map(head=>head.file),'data shards remain unchanged');
+        const steps=[{method:'where',args:['companyId','==','US:NVDA']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[5]},{method:'select',args:['title','companyId']}];
+        const start=downloads.length;
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert.equal(new Set(downloads.slice(start)).size,2,'one shared lookup and one shared covering index');
+        assert.deepEqual(await files.query([heads[0]],steps),await files.filter([rows[0]],steps),'a partial head set cannot expose other bundled shards');
+        // A normal writer replaces one head with a standalone v7 index. The old
+        // shared file still contains its obsolete row, which must not leak in.
+        rows=rows.map((row,i)=>i?row:{...row,data:{...row.data,title:'changed',publication_date:'2026-11-30'}});
+        heads[0]=await files.write('events',heads[0].shard,[rows[0]],[]);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        heads=await files.bundleIndexes(heads);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        await assert.rejects(files.bundleIndexes(heads.map((head,i)=>i?head:{...head,rows:head.rows+1})),/shard count mismatch/);
+        heads[0]=await files.write('events',heads[0].shard,[],[]);rows=rows.slice(1);
+        const scan=[{method:'where',args:['companyId','==','US:NVDA']},{method:'select',args:['title']}];
+        assert.deepEqual(await files.query(heads,scan),await files.filter(rows,scan),'deleted shard data inside an old bundle stays invisible');
+    }finally{await files.close();}
+});
+test('shared search indexes never leak another shard after a prefix changes',async()=>{
+    const files=fixture(),version=Timestamp.now();
+    const ids=['search-one','search-two','search-three'];assert.equal(new Set(ids.map(shardFor)).size,3);
+    const rows=ids.map(id=>({id,version,data:{name:id,searchPrefixes:['nv','nvd']}}));
+    try{
+        let heads=await files.bundleIndexes(await Promise.all(rows.map(row=>files.write('company_directory',shardFor(row.id),[row],[]))));
+        const steps=[{method:'where',args:['searchPrefixes','array-contains','nv']},{method:'select',args:['name']},{method:'limit',args:[10]}];
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert.deepEqual(await files.query([heads[1]],steps),await files.filter([rows[1]],steps));
+        rows[0]={...rows[0],data:{...rows[0].data,searchPrefixes:['amd']}};
+        heads[0]=await files.write('company_directory',heads[0].shard,[rows[0]],[]);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        heads=await files.bundleIndexes(heads);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+    }finally{await files.close();}
+});
 test('ordered company lookup matches SQL pages and downloads only selected payload shards',async()=>{
     const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
     const ids=['a','b','c','d','e','f','é','😀'];
