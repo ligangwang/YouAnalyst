@@ -166,3 +166,24 @@ test('cleanup capacity failures latch closed and queue growth cannot pass a heal
     let samples=0;const gate=new CleanupGate(async()=>{samples++;return {requestErrors:1,backlogs:{cache:0}};});
     await assert.rejects(gate.before(1),/request errors/);await assert.rejects(gate.before(1),/request errors/);assert.equal(samples,1);
 });
+
+test('direct ID reads skip the compact index while projections retain the smaller source',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),row={id:'direct-id',version:Timestamp.now(),data:{name:'Company',body:'External body'}};
+    try{
+        const head=await files.write('companies',shardFor(row.id),[row],[]);
+        assert.deepEqual(await files.query([head],[{method:'where',args:['__name__','==',row.id]}]),[row]);
+        assert.deepEqual(downloads,[head.file]);
+        downloads.length=0;
+        assert.deepEqual((await files.query([head],[{method:'where',args:['__name__','==',row.id]},{method:'select',args:['name']}]))[0].data,{name:'Company'});
+        assert.deepEqual(downloads,[head.indexFile]);
+    }finally{await files.close();}
+});
+
+test('ID ordering without an exact predicate still uses the compact index',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),row={id:'range-id',version:Timestamp.now(),data:{name:'Company',body:'External body'}};
+    try{
+        const head=await files.write('companies',shardFor(row.id),[row],[]);
+        assert.deepEqual(await files.query([head],[{method:'orderBy',args:['__name__']},{method:'startAt',args:['range']},{method:'limit',args:[1]}]),[row]);
+        assert.deepEqual(downloads,[head.indexFile,head.file]);
+    }finally{await files.close();}
+});
