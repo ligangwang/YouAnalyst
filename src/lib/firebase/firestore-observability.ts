@@ -72,10 +72,14 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     if (Array.isArray(value)) return value.map(snapshot);
     if (!value || typeof value !== 'object') return value;
     if (!('docs' in value) && !('ref' in value)) return value;
+    // Query snapshots are immutable. Rewrapping every access to .docs makes
+    // indexed loops quadratic for large projected Parquet result sets.
+    let documents: any[] | undefined;
+    const getDocuments = (): any[] => documents ??= value.docs.map(snapshot);
     const proxy = new Proxy(value, { get(target, key) {
       if (key === 'ref') return typeof observed.doc==='function'?observed.doc(target.ref.path):wrap(target.ref,'doc',{collection:documentCollection(target.ref.path),clauses:[]});
-      if (key === 'docs' && Array.isArray(target.docs)) return target.docs.map(snapshot);
-      if (key === 'forEach') return (fn: (doc: any) => void, thisArg?: any) => target.forEach((doc: any) => fn.call(thisArg, snapshot(doc)));
+      if (key === 'docs' && Array.isArray(target.docs)) return getDocuments();
+      if (key === 'forEach' && Array.isArray(target.docs)) return (fn: (doc: any) => void, thisArg?: any) => getDocuments().forEach(doc => fn.call(thisArg, doc));
       const member = Reflect.get(target, key, target);
       return typeof member === 'function' ? member.bind(target) : member;
     } });
