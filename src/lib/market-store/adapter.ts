@@ -26,7 +26,7 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository): F
     const page = (collection: MarketCollection, rows: MarketRow[]) => { const docs = rows.map(row => document(collection, row.id, row)); return { docs, size: docs.length, empty: !docs.length, readTime: Timestamp.now(), forEach: (fn: (doc: any) => void, thisArg?: unknown) => docs.forEach(doc => fn.call(thisArg, doc)), docChanges: () => docs.map(doc => ({ type: 'added', doc, oldIndex: -1, newIndex: docs.indexOf(doc) })) }; };
     async function read(spec: Spec, context?: MarketContext, fields?: string[]) {
         if (spec.id !== undefined) {
-            const rows = await repository.documents(spec.collection, [spec.id], context);
+            const rows = await repository.documents(spec.collection, [spec.id], context, fields);
             return document(spec.collection, spec.id, rows[0], fields);
         }
         // Counts only need identities and predicate/order fields. Do not hydrate
@@ -52,7 +52,7 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository): F
             if (context && !fields) context.documents.set(doc.ref.path, doc);
         }
         for (const [collection, ids] of groups) {
-            const rows = new Map((await repository.documents(collection, [...new Set(ids)], context)).map(row => [row.id,row]));
+            const rows = new Map((await repository.documents(collection, [...new Set(ids)], context, fields)).map(row => [row.id,row]));
             for (const id of ids) result.set(collection+'/'+id, document(collection,id,rows.get(id),fields));
         }
         return refs.map(ref => result.get(ref.path));

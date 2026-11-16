@@ -16,6 +16,8 @@ export async function collectMarketGarbage(raw: Firestore, bucket: Bucket, now =
             const head = doc.get('marketHead') as MarketHead;
             if (head.file)
                 active.add(head.file);
+            if (head.indexFile)
+                active.add(head.indexFile);
         }
     }
     let deleted = 0;

@@ -195,10 +195,10 @@ export class MarketRepository {
         await watch.ready;
         return new Map(watch.heads);
     }
-    private async rawDocuments(refs: DocumentReference[], context?: MarketContext) {
+    private async rawDocuments(refs: DocumentReference[], context?: MarketContext, fields?: string[]) {
         const found = new Map<string, DocumentSnapshot>();
         for (let i = 0; i < refs.length; i += 100) {
-            const docs = context ? await context.reader.getAll(...refs.slice(i, i + 100)) : await this.raw.getAll(...refs.slice(i, i + 100));
+            const docs = context ? await context.reader.getAll(...refs.slice(i, i + 100)) : await this.raw.getAll(...refs.slice(i, i + 100), ...(fields ? [{fieldMask:fields}] : []));
             for (const doc of docs) {
                 found.set(doc.ref.path, doc);
                 context?.documents.set(doc.ref.path, doc);
@@ -206,20 +206,22 @@ export class MarketRepository {
         }
         return found;
     }
-    async documents(collection: MarketCollection, ids: string[], context?: MarketContext): Promise<MarketRow[]> {
+    async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         if (!context) {
             await this.heads(collection);
-            return this.cached('docs:' + collection + ':' + JSON.stringify(ids), () => this.documentsUncached(collection, ids));
+            return this.cached('docs:' + collection + ':' + JSON.stringify([ids,fields]), () => this.documentsUncached(collection, ids, undefined, fields));
         }
-        return this.documentsUncached(collection, ids, context);
+        return this.documentsUncached(collection, ids, context, fields);
     }
-    private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext): Promise<MarketRow[]> {
+    private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         await this.ready(context);
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
-        const result = new Map((await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', ids] }])).map(row => [row.id, row]));
+        const result = new Map((await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', ids] }, ...(fields ? [{method:'select',args:fields}] : [])])).map(row => [row.id, row]));
         const retained = new Set(heads.flatMap(head => head.retained));
-        const refs = ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id));
-        for (const doc of (await this.rawDocuments(refs, context)).values())
+        // An external-only projection needs no live-state document read. Whole
+        // authored records still come from Firestore when no external row exists.
+        const refs = ids.filter(id => retained.has(id) && (!fields || !result.has(id) || fields.some(field => isOperationalField(collection,field) || isRoutingField(field)))).map(id => this.raw.collection(collection).doc(id));
+        for (const doc of (await this.rawDocuments(refs, context, fields)).values())
             if (doc.exists) {
                 const previous = result.get(doc.id), overlay = previous ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
                 result.set(doc.id, { id: doc.id, data: { ...previous?.data, ...overlay }, version: doc.updateTime ?? previous?.version ?? Timestamp.now() });

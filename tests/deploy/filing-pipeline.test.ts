@@ -12,7 +12,7 @@ function run(script: string, extra: Record<string, string> = {}) {
       gcloud() {
         echo "$*" >> "$CALLS"
         case "$*" in
-          "storage buckets describe"*) [[ "\${MISSING_SNAPSHOT:-0}" != 1 ]] || return 1 ;;
+          "storage buckets describe gs://demo-snapshots"*|"storage buckets describe gs://fallback"*) [[ "\${MISSING_SNAPSHOT:-0}" != 1 ]] || return 1 ;;
           "storage buckets get-iam-policy"*)
             [[ "$*" != *"--filter"* ]] || return 2
             if [[ "\${MISSING_IAM:-0}" == 1 ]]; then echo '{"bindings":[]}';

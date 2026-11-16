@@ -7,9 +7,9 @@ import { MarketFiles, shardFor, type MarketRow } from '../../src/lib/market-stor
 import { MarketBlob } from '../../src/lib/market-store/blobs';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
-function fixture() { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
+function fixture(downloads:string[] = []) { const objects = new Map<string, Buffer>(); const bucket = { file: (name: string) => ({ download: async (options?: {
             destination: string;
-        }) => { const bytes = objects.get(name); if (!bytes)
+        }) => { downloads.push(name); const bytes = objects.get(name); if (!bytes)
             throw Error('Missing object'); if (options)
             await writeFile(options.destination, bytes); return [bytes]; }, save: async (bytes: Buffer) => { if (objects.has(name))
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
@@ -48,6 +48,20 @@ test('transforms preserve merge, replace, field paths, timestamps and preconditi
     const ordered = [-Infinity, -9, -0, 0, 0.01, 100, Infinity];
     assert.deepEqual(ordered.map(sortKey).toSorted(), ordered.map(sortKey));
     assert(sortKey(new Timestamp(1, 1))! < sortKey(new Timestamp(1, 2))!);
+});
+test('compact predicates and projections avoid downloading full payload shards',async()=>{
+    const downloads:string[]=[],files=fixture(downloads);
+    try{
+        const row={id:'event',version:Timestamp.now(),data:{companyIds:['US:NVDA'],name:'Announcement',date:'2026-11-13',body:'large article '.repeat(20000)}};
+        const head=await files.write('events',shardFor(row.id),[row],[]);
+        const projected=await files.query([head],[{method:'where',args:['companyIds','array-contains','US:NVDA']},{method:'select',args:['name','date']}]);
+        assert.deepEqual(projected[0].data,{name:'Announcement',date:'2026-11-13'});
+        assert(downloads.includes(head.indexFile!));assert(!downloads.includes(head.file!));
+        const full=await files.query([head],[{method:'where',args:['companyIds','array-contains','US:NVDA']}]);
+        assert.deepEqual(full[0].data,row.data);assert(downloads.includes(head.file!));
+        const fallback=await files.query([head],[{method:'where',args:['body','==',row.data.body]}]);
+        assert.equal(fallback.length,1);
+    }finally{await files.close();}
 });
 test('UGC, active queues, leases and deduplication stay in Firestore', () => {
     const ugc = { status: 'PUBLISHED', createdBy: 'user', description: 'authored' };

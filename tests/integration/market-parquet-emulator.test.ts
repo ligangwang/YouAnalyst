@@ -181,6 +181,13 @@ check('production query adapter agrees with native Firestore for filters, projec
     assert.equal((await afterSecond.limit(1).get()).docs[0].get('score'),2);
     const masked=await f.db.getAll(f.db.doc('company_directory/item-03'),f.db.doc('company_directory/missing'),{fieldMask:['name']});
     assert.deepEqual(masked.map(doc=>doc.data()),[{name:'Company 3'},undefined]);
+    const query=f.repository.files.query.bind(f.repository.files);let queries=0;
+    f.repository.files.query=async(...args)=>{if(args[2]!==false)queries++;return query(...args);};
+    const grouped=await f.db.getAll(...[1,5,8].map(i=>f.db.doc('company_directory/item-'+String(i).padStart(2,'0'))),{fieldMask:['name']});
+    assert.deepEqual(grouped.map(doc=>doc.get('name')),['Company 1','Company 5','Company 8']);
+    assert.equal(queries,1,'bulk document reads must use one grouped Parquet query');
+    f.repository.files.query=query;
+    assert.equal((await f.db.collection('company_directory').where('score','>=',4).count().get()).data().count,8);
     await f.db.runTransaction(async tx=>{
         const selected=await tx.get(f.db.collection('company_directory').where('score','==',3).select('score'));
         tx.update(selected.docs[0].ref,{score:30});
@@ -206,6 +213,10 @@ check('empty external and operational documents retain their identities through 
     await f.raw.doc(CONTROL).set({version:1,ready:false});
     await f.db.doc('company_directory/empty').set({});
     await f.db.doc('company_directory/_live').set({});
+    const partial=f.db.doc('company_directory/partial');
+    await partial.set({name:'Before',value:7});
+    await f.db.runTransaction(async tx=>{await tx.getAll(partial,{fieldMask:['name']});tx.update(partial,{name:'After'});});
+    assert.equal((await f.raw.doc(partial.path).get()).get('value'),7,'a masked bootstrap read must not discard unselected fields');
     await f.raw.doc(CONTROL).update({ready:true,cleanupAuthorized:true});
     await new Promise(resolve=>setTimeout(resolve,1100));
     assert.equal((await f.db.doc('company_directory/empty').get()).exists,true);

@@ -67,16 +67,21 @@ export async function cleanupMarketShard(raw: Firestore, files: MarketFiles, col
         }
         const docs = await tx.getAll(...ids.map(id => raw.collection(collection).doc(id))), writes: Array<() => void> = [];
         let deleted = 0, stripped = 0, retained = 0;
-        for (const doc of docs) {
-            const plan = cleanupRecord(collection, doc, cache.rows.get(doc.id));
+        // Blob verification is read-only and bounded by the operator's batch.
+        // Verify every value before adding any transaction writes.
+        const plans = await Promise.all(docs.map(async doc => {
+            const plan = cleanupRecord(collection, doc, cache.rows!.get(doc.id));
+            if (plan.kind !== 'absent' && plan.kind !== 'retained' && (!plan.archived || !isDeepStrictEqual(plan.external, (await files.hydrate(plan.archived)).data)))
+                throw Error(`Cleanup parity mismatch: ${collection}/${doc.id}`);
+            return {doc,plan};
+        }));
+        for (const {doc,plan} of plans) {
             if (plan.kind === 'absent')
                 continue;
             if (plan.kind === 'retained') {
                 retained++;
                 continue;
             }
-            if (!plan.archived || !isDeepStrictEqual(plan.external, (await files.hydrate(plan.archived)).data))
-                throw Error(`Cleanup parity mismatch: ${collection}/${doc.id}`);
             if (plan.kind === 'delete') {
                 writes.push(() => tx.delete(doc.ref));
                 deleted++;
