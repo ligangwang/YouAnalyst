@@ -1,6 +1,7 @@
 import type { Firestore, Timestamp, DocumentSnapshot } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
 import { CONTROL, headId } from './repository';
+import {FUNDAMENTALS_CONTROL} from './fundamentals-control';
 import { MarketFiles, type MarketHead, type MarketRow } from './files';
 import { splitRecord, retainsRecord, type MarketCollection } from './policy';
 import { encodeMarket, decodeMarket } from './blobs';
@@ -10,7 +11,7 @@ import {compactHead,pointerCollection,pointerId} from './head-pointer';
  * before this import or causes the complete import transaction to retry. */
 export async function reconcileMarketShard(raw: Firestore, files: MarketFiles, collection: MarketCollection, shard: string, ids: string[]) {
     return raw.runTransaction(async (tx) => {
-        if ((await tx.get(raw.doc(CONTROL))).get('ready') !== false)
+        if ((await tx.get(raw.doc(collection==='company_fundamentals'?FUNDAMENTALS_CONTROL:CONTROL))).get('ready') !== false)
             throw Error('Reconciliation requires bootstrap mode');
         const ref = raw.collection('collectors').doc(headId(collection, shard)), snapshot = await tx.get(ref);
         const head = snapshot.get('marketHead') as MarketHead | undefined;
@@ -60,7 +61,7 @@ export async function cleanupMarketShard(raw: Firestore, files: MarketFiles, col
     rows?: Map<string, MarketRow>;
 } = {}) {
     return raw.runTransaction(async (tx) => {
-        const control=await tx.get(raw.doc(CONTROL));
+        const control=await tx.get(raw.doc(collection==='company_fundamentals'?FUNDAMENTALS_CONTROL:CONTROL));
         if (control.get('ready') !== true || control.get('cleanupAuthorized') !== true)
             throw Error('Cleanup requires verified cutover');
         const head = (await tx.get(raw.collection('collectors').doc(headId(collection, shard)))).get('marketHead') as MarketHead;

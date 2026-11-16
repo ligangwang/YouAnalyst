@@ -40,10 +40,11 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository, co
         return page(spec.collection, rows);
     }
     async function getMany(refs: any[], fields: string[] | undefined, context: MarketContext | undefined, nativeGet: (...args: any[]) => Promise<any[]>) {
-        const routed = refs.some(ref => specification(ref)) && await repository.ready(context);
+        const modes=new Map<MarketCollection,boolean>();
+        for(const ref of refs){const spec=specification(ref);if(spec&&!modes.has(spec.collection))modes.set(spec.collection,await repository.ready(context,spec.collection));}
         const result = new Map<string, any>(), groups = new Map<MarketCollection, string[]>(), nativeRefs: any[] = [];
         for (const ref of refs) {
-            const spec = routed ? specification(ref) : undefined;
+            const known=specification(ref),spec=known&&modes.get(known.collection)?known:undefined;
             if (spec?.id !== undefined) {
                 const ids = groups.get(spec.collection) ?? [];
                 ids.push(spec.id); groups.set(spec.collection, ids);
@@ -69,7 +70,7 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository, co
             }> = [];
             const tx = new Proxy(native, { get(target, key) {
                     if (key === 'get')
-                        return async (ref: any, ...args: any[]) => { const spec = specification(ref); if (spec && await repository.ready(context))
+                        return async (ref: any, ...args: any[]) => { const spec = specification(ref); if (spec && await repository.ready(context,spec.collection))
                             return read(spec, context, args[0]?.fieldMask); const doc = await (target.get as any)(unwrap(ref), ...args); if (doc.ref && !args[0]?.fieldMask)
                             context.documents.set(doc.ref.path, doc); return doc; };
                     if (key === 'getAll')
@@ -122,7 +123,7 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository, co
                     };
                 if (method === 'get')
                     return async (...args: any[]) => {
-                        if (await repository.ready())
+                        if (await repository.ready(undefined,spec.collection))
                             return read(spec, undefined, args[0]?.fieldMask);
                         return member.apply(object, args.map(unwrap));
                     };
@@ -166,7 +167,7 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository, co
                         // A shared subscription to small head pointers drives existing UI caches.
                         // There is no steady polling or listener over external source documents.
                         const check = async () => { try {
-                            if (await repository.ready()) {
+                            if (await repository.ready(undefined,spec.collection)) {
                                 unsubscribe?.();
                                 if (stopped)
                                     return;

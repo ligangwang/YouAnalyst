@@ -48,7 +48,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
   const emit = (operation: string, shape: Shape, site: string, fields: Record<string, unknown>) => {
     const queryShape = shape.clauses.join(' ');
     try {
-      const market=marketStoreReady()&&isMarketCollection(shape.collection);
+      const market=marketStoreReady(shape.collection)&&isMarketCollection(shape.collection);
       sink({ severity: fields.status === 'error' ? 'WARNING' : 'INFO', event: market?'market_store_operation':'firestore_operation',
         message: `${market?'Market store':'Firestore'} ${operation}: ${shape.collection}`, schemaVersion: 1,
         queryId: createHash('sha256').update(JSON.stringify([operation, {collection:shape.collection,clauses:shape.clauses}, site])).digest('hex').slice(0, 20),

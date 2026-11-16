@@ -7,6 +7,7 @@ import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retaine
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {DocumentBatcher} from './document-batcher';
+import {FUNDAMENTALS_CONTROL,FundamentalsControl,fundamentalsMode,type FundamentalsMode} from './fundamentals-control';
 import {compactHead,pointerCollection,pointerId,pointerHasRetained} from './head-pointer';
 export const CONTROL = 'collectors/_market_parquet_control';
 export const headId = (collection: MarketCollection, shard: string) => `_market_parquet_${collection}_${shard}`;
@@ -22,6 +23,7 @@ type Reader = {
 export type MarketContext = {
     reader: Reader;
     control?: boolean;
+    fundamentals?: FundamentalsMode;
     cleanupAuthorized?: boolean;
     cleanedCollections?: Set<string>;
     heads: Map<string, MarketHead>;
@@ -50,6 +52,8 @@ export class MarketRepository {
         }};
     }
     private documentReads=new DocumentBatcher<MarketRow>();
+    private marketCapReads=new DocumentBatcher<MarketRow>(8192);
+    private fundamentals?:FundamentalsControl;
     private controls?: {
         until: number;
         value: Promise<boolean>;
@@ -71,7 +75,8 @@ export class MarketRepository {
         change: () => void;
         error: (error: unknown) => void;
     }>>();
-    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean) => void, private readOnlyProbe = false, private stagedReads = false) {
+    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false) {
+        if(fundamentalsGate)this.fundamentals=new FundamentalsControl(raw,onMode?ready=>onMode(ready,'company_fundamentals'):undefined);
         if (onMode)
             this.controlStop = raw.doc(CONTROL).onSnapshot(doc => { const data = doc.data(); if (data?.version === 1 && typeof data.ready === 'boolean') {
                 this.controls = { until: Date.now() + 10000, value: Promise.resolve(data.ready) };
@@ -80,7 +85,7 @@ export class MarketRepository {
             else
                 this.controls = undefined; }, () => { this.controls = undefined; });
     }
-    close() { this.controlStop?.(); for (const watch of this.watches.values())
+    close() { this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
         watch.stop(); this.watches.clear(); return this.files.close(); }
     context(reader: Reader): MarketContext { return { reader, heads: new Map(), documents: new Map(), writes: [] }; }
     invalidate(collection?: string) { if (!collection) {
@@ -159,7 +164,17 @@ export class MarketRepository {
             this.results.delete(key); });
         return entry.value;
     }
-    async ready(context?: MarketContext): Promise<boolean> {
+    private async fundamentalsState(context?:MarketContext){
+        if(!this.fundamentals)throw Error('Fundamentals control not configured');
+        if(context)return context.fundamentals??=fundamentalsMode(await context.reader.get(this.raw.doc(FUNDAMENTALS_CONTROL)) as DocumentSnapshot);
+        return this.fundamentals.read();
+    }
+    async ready(context?: MarketContext,collection?:MarketCollection): Promise<boolean> {
+        if(collection==='company_fundamentals'&&this.fundamentals){
+            if(this.readOnlyProbe)return true;
+            const mode=await this.fundamentalsState(context);
+            return !context&&this.stagedFundamentals||mode.ready;
+        }
         // A candidate may read the verified copy before the shared cutover.
         // Transactions still consult the shared control, preserving native reads,
         // dual writes and the independent source-retirement authorization.
@@ -317,13 +332,13 @@ export class MarketRepository {
                 if(!remaining.size){const found=new Map((await Promise.all(pending)).flat().map(row=>[row.id,row]));return ids.flatMap(id=>found.has(id)?[found.get(id)!]:[]);}
             }
             return this.cached('docs:' + collection + ':' + JSON.stringify([ids,fields]), () =>
-                this.documentReads.load(JSON.stringify([collection,fields??null]),ids,
+                (collection==='company_fundamentals'&&fields?.length===2&&fields.includes('marketCap')&&fields.includes('isDeleted')?this.marketCapReads:this.documentReads).load(JSON.stringify([collection,fields??null]),ids,
                     batch=>this.documentsUncached(collection,batch,undefined,fields)));
         }
         return this.documentsUncached(collection, ids, context, fields);
     }
     private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
-        await this.ready(context);
+        await this.ready(context,collection);
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
         const retained = this.retainedMembership(heads);
         // Full company reads already require these live records. A complete
@@ -467,7 +482,9 @@ export class MarketRepository {
         }>();
         // Read cutover and source retirement are separate gates. Keep complete
         // source mirrors until production UI verification authorizes cleanup.
-        const retire=ready&&context.cleanupAuthorized===true;
+        if(this.fundamentals&&mutations.some(write=>write.path.startsWith('company_fundamentals/')))await this.fundamentalsState(context);
+        const modeFor=(collection:string)=>collection==='company_fundamentals'&&this.fundamentals?context.fundamentals!:{ready,cleanupAuthorized:context.cleanupAuthorized===true,cleanedCollections:context.cleanedCollections};
+        const retires=(collection:string)=>{const mode=modeFor(collection);return mode.ready&&mode.cleanupAuthorized;};
         for (const write of mutations) {
             const [collection, id] = write.path.split('/') as [
                 MarketCollection,
@@ -486,7 +503,7 @@ export class MarketRepository {
                 context.heads.set(group.collection + '/' + group.shard, this.parseHead(group.collection, group.shard, docs[n]));
             }
         }
-        const sourcePaths = [...new Set(mutations.map(write => write.path))].filter(path => { const [collection, id] = path.split('/'); return !context.documents.has(path) && (!retire || !context.cleanedCollections?.has(collection) || context.heads.get(collection + '/' + shardFor(id))!.retained.includes(id)); });
+        const sourcePaths = [...new Set(mutations.map(write => write.path))].filter(path => { const [collection, id] = path.split('/'); return !context.documents.has(path) && (!retires(collection) || !modeFor(collection).cleanedCollections?.has(collection) || context.heads.get(collection + '/' + shardFor(id))!.retained.includes(id)); });
         await this.rawDocuments(sourcePaths.map(path => this.raw.doc(path)), context);
         const queued = [...groups.values()];
         let nextGroup = 0;
@@ -496,10 +513,11 @@ export class MarketRepository {
                 if (index >= queued.length)
                     return;
                 const { collection, shard, writes: changes } = queued[index];
+                const {ready,cleanedCollections}=modeFor(collection),retire=retires(collection);
                 const head = await this.head(collection, shard, context), previous = await this.files.read(head), rows = new Map(previous.map(row => [row.id, row])), retained = new Set(head.retained);
                 const paths = [...new Set(changes.map(change => change.path))].filter(path => !context.documents.has(path));
                 for (const path of paths)
-                    if (retire && context.cleanedCollections?.has(collection) && !retained.has(path.split('/')[1]))
+                    if (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1]))
                         context.documents.set(path, { exists: false, id: path.split('/')[1], ref: this.raw.doc(path), data: () => undefined } as DocumentSnapshot);
                 const refs = paths.filter(path => !context.documents.has(path)).map(path => this.raw.doc(path));
                 await this.rawDocuments(refs, context);
@@ -515,7 +533,7 @@ export class MarketRepository {
                     } | undefined;
                     if (options?.lastUpdateTime) {
                         let matches=doc.updateTime?.isEqual(options.lastUpdateTime);
-                        if(!matches&&!retained.has(id)&&(ready||this.stagedReads)&&stored?.version.isEqual(options.lastUpdateTime)){
+                        if(!matches&&!retained.has(id)&&(ready||(collection==='company_fundamentals'&&this.fundamentals?this.stagedFundamentals:this.stagedReads))&&stored?.version.isEqual(options.lastUpdateTime)){
                             // Staged snapshots expose the Parquet version. Before
                             // cutover, accept it only while the native source is
                             // still the same mirrored data, under this transaction.
