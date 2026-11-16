@@ -53,6 +53,8 @@ test('prefix candidate lookup preserves other predicates, order, projection and 
         const heads=[];for(const shard of new Set(rows.map(row=>shardFor(row.id))))heads.push(await files.write('companies',shard,rows.filter(row=>shardFor(row.id)===shard),[]));
         const steps=[{method:'where',args:['searchPrefixes','array-contains','nvda']},{method:'where',args:['score','>=',4]},{method:'orderBy',args:['score','desc']},{method:'limit',args:[2]},{method:'select',args:['name']}];
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        const page=[{method:'where',args:['searchPrefixes','array-contains','nvda']},{method:'offset',args:[1]},{method:'limit',args:[2]},{method:'select',args:['name']}];
+        assert.deepEqual(await files.query(heads,page),await files.filter(rows,page));
         const old=heads[0],oldRows=rows.filter(row=>shardFor(row.id)===old.shard);
         const next=await files.write('companies',old.shard,oldRows.map(row=>({...row,data:{...row.data,searchPrefixes:['changed']}})),[]);
         const updated=[next,...heads.slice(1)];

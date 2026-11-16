@@ -91,7 +91,15 @@ export class MarketFiles {
                 matches.push(...selected.flat());
             }
             if(!matches.length)return [];
-            return this.query(heads,[{method:'where',args:['__name__','in',[...new Set(matches)]]},...steps.filter(step=>step!==prefix)],indexed);
+            const rest=steps.filter(step=>step!==prefix);
+            if(rest.every(step=>['select','limit','offset'].includes(step.method))){
+                // Membership establishes the whole predicate. Apply its ID ordering
+                // and page bounds before fetching payloads for a broad prefix.
+                const query=compileMarketQuery(steps),ids=[...new Set(matches)].sort((a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b))).slice(query.offset,query.limit===undefined?undefined:query.offset+query.limit);
+                if(!ids.length)return [];
+                return this.query(heads,[{method:'where',args:['__name__','in',ids]},...rest.filter(step=>step.method==='select')],indexed);
+            }
+            return this.query(heads,[{method:'where',args:['__name__','in',[...new Set(matches)]]},...rest],indexed);
         }
         const predicates = steps.filter(step=>['where','orderBy'].includes(step.method));
         if(indexed && heads.every(head=>!head.file||head.indexFile) && predicates.every(step=>marketIndexField(fieldName(step.args[0])))) {
