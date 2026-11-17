@@ -5,7 +5,7 @@ import type { Bucket } from '@google-cloud/storage';
 import { Timestamp, FieldValue, FieldPath, type Firestore } from 'firebase-admin/firestore';
 import {MarketRepository,headId} from '../../src/lib/market-store/repository';
 import {CleanupGate,capacityRegression} from '../../scripts/market-migration-safety';
-import { MarketFiles, shardFor, type MarketRow } from '../../src/lib/market-store/files';
+import { MarketFiles, shardFor, calendarIndexFile, type MarketRow } from '../../src/lib/market-store/files';
 import { MarketBlob } from '../../src/lib/market-store/blobs';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup} from '../../src/lib/market-store/prefix-cache';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
@@ -116,7 +116,7 @@ test('bundled legacy indexes preserve missing-column fallbacks and mixed-format 
         const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
         const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
         const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
-        assert.deepEqual(heads.map(head=>head.format),[103,105,110]);
+        assert.deepEqual(heads.map(head=>head.format),[103,105,111]);
         const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
         const start=downloads.length;
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
@@ -514,8 +514,9 @@ test('sparse calendar projections avoid news scans and follow live shard replace
   const original=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
   let heads=await files.bundleIndexes(original);const start=downloads.length;
   assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
-  assert(downloads.slice(start).every(name=>heads.some(head=>head.prefixFile===name)),'calendar must load only sparse lookup files');
+  assert(downloads.slice(start).every(name=>heads.some(head=>calendarIndexFile(head.prefixFile!)===name)),'calendar must load only small calendar sidecars');
   assert.deepEqual(await files.query([heads[1]],steps),await files.filter([rows[1]],steps),'old bundled shards cannot leak into a partial read');
+  assert.deepEqual(await files.query(heads.map((head,i)=>i?head:{...head,format:110}),steps),await files.filter(rows,steps),'format 10 lookups remain readable alongside sidecars');
   rows=rows.map((row,i)=>i?row:{...row,data:{...row.data,scheduled_date:'2026-11-25',title:'Rescheduled'}});
   heads[0]=await files.write('events',heads[0].shard,[rows[0]],[]);
   assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
