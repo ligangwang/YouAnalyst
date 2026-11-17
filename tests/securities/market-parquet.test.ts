@@ -340,6 +340,42 @@ test('immutable query cache evicts oversized results and does not cache failures
         await files.query([head],steps);assert(scans>first,'oversized results must not remain cached');
     }finally{await files.close();}
 });
+
+test('relationship endpoint equality and singleton in share immutable scans and follow new files',async()=>{
+    const files=fixture([],1024*1024),id='endpoint-edge',version=Timestamp.now();
+    const internal=files as unknown as {queryUncached:MarketFiles['query']};
+    const original=internal.queryUncached.bind(files);let scans=0;
+    internal.queryUncached=async(...args)=>{scans++;return original(...args);};
+    const eq=[{method:'where',args:['source','==','US:NVDA']}];
+    const one=[{method:'where',args:['source','in',['US:NVDA']]}];
+    try{
+        const head=await files.write('company_relationships',shardFor(id),[{id,version,data:{source:'US:NVDA',target:'US:AMD'}}],[]);
+        const [a,b]=await Promise.all([files.query([head],eq),files.query([head],one)]);
+        assert.deepEqual(a,b);assert.equal(a[0].id,id);const first=scans;
+        await files.query([{...head,revision:'overlay-only',retained:[id]}],one);
+        assert.equal(scans,first,'equivalent requests and operational revisions reuse external membership');
+        assert.deepEqual(await files.query([head],[{method:'where',args:['source','==','US:AMD']}]),[]);
+        assert.equal((await files.query([head],[{method:'where',args:['target','in',['US:AMD']]}]))[0].id,id);
+        const next=await files.write('company_relationships',shardFor(id),[{id,version,data:{source:'US:AMD',target:'US:NVDA'}}],[]);
+        assert.deepEqual(await files.query([next],one),[],'new immutable generation invalidates membership');
+        assert.equal((await files.query([head],eq))[0].id,id);
+        assert.deepEqual(one,[{method:'where',args:['source','in',['US:NVDA']]}],'caller steps remain unchanged');
+    }finally{await files.close();}
+});
+
+test('relationship endpoint cache keeps its byte cap and retries failed reads',async()=>{
+    const files=fixture([],1),id='endpoint-cap',version=Timestamp.now();
+    const internal=files as unknown as {queryUncached:MarketFiles['query']};
+    const original=internal.queryUncached.bind(files);let scans=0,fail=true;
+    internal.queryUncached=async(...args)=>{scans++;if(fail){fail=false;throw Error('endpoint read failed');}return original(...args);};
+    const steps=[{method:'where',args:['source','==','US:NVDA']}];
+    try{
+        const head=await files.write('company_relationships',shardFor(id),[{id,version,data:{source:'US:NVDA'}}],[]);
+        await assert.rejects(files.query([head],steps),/endpoint read failed/);
+        assert.equal((await files.query([head],steps))[0].id,id);const first=scans;
+        await files.query([head],steps);assert(scans>first,'oversized endpoint results are evicted');
+    }finally{await files.close();}
+});
 test('broad and oversized queries cannot evict a cached bounded lookup',async()=>{
     const files=fixture([],2048),id='small-result',version=Timestamp.now();
     const internal=files as unknown as {queryUncached:MarketFiles['query']};

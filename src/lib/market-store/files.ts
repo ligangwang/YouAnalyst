@@ -260,6 +260,16 @@ export class MarketFiles {
         const entry={value:work(),bytes:0};if(this.queryBudget)this.remember(key,entry);return entry.value;
     }
     async query(heads: MarketHead[], steps: Step[], indexed = true, compactRead = false): Promise<MarketRow[]> {
+        // Company page gets and graph listeners request the same endpoint using
+        // == and singleton in. Reuse only immutable relationship membership;
+        // repository overlays still refresh and the existing byte cap applies.
+        const endpoint=steps.find(step=>step.method==='where'&&['source','target'].includes(fieldName(step.args[0])));
+        const endpointValue=endpoint?.args[1]==='=='?endpoint.args[2]
+            :endpoint?.args[1]==='in'&&Array.isArray(endpoint.args[2])&&endpoint.args[2].length===1?endpoint.args[2][0]:undefined;
+        const relationshipEndpoint=heads.length>0&&heads.every(head=>head.collection==='company_relationships')
+            &&typeof endpointValue==='string'&&steps.filter(step=>step.method==='where').length===1
+            &&steps.every(step=>step.method==='where'||step.method==='select');
+        if(relationshipEndpoint&&endpoint?.args[1]==='in')steps=steps.map(step=>step===endpoint?{...step,args:[step.args[0],'==',endpointValue]}:step);
         const limit=steps.find(step=>step.method==='limit'||step.method==='limitToLast')?.args[0];
         const identity=steps.find(step=>step.method==='where'&&fieldName(step.args[0])==='__name__'&&['==','in'].includes(String(step.args[1])));
         const selection=steps.find(step=>step.method==='select');
@@ -268,7 +278,7 @@ export class MarketFiles {
             &&steps.filter(step=>step.method==='where').length===1&&steps.filter(step=>step.method==='select').length===1&&steps.every(step=>step.method==='where'||step.method==='select')
             &&heads.every(head=>head.collection===heads[0]?.collection)&&new Set(heads.map(head=>head.shard)).size===heads.length)
             return this.projectedDocuments(heads,ids as string[],selection);
-        const bounded=typeof limit==='number'&&limit<=512||identity&&(identity.args[1]==='=='||Array.isArray(identity.args[2])&&identity.args[2].length<=512);
+        const bounded=relationshipEndpoint||typeof limit==='number'&&limit<=512||identity&&(identity.args[1]==='=='||Array.isArray(identity.args[2])&&identity.args[2].length<=512);
         if(!this.queryBudget||!bounded)return this.queryUncached(heads,steps,indexed,compactRead);
         // Only external values are cached here. Operational overlays are read and
         // merged by the repository on every invalidated query. Immutable file
