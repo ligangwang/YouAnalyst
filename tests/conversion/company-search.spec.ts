@@ -226,3 +226,15 @@ test('failed onboarding request stays eligible and can be retried',async({page})
  await expect(page.getByRole('alert')).toHaveText('Unable to request full support. Try again.');
  await expect(page.getByRole('button',{name:'Request Full Support',exact:true})).toBeEnabled();await expect(page.getByText('Onboarding Queued',{exact:true})).toHaveCount(0);
 });
+
+test('repeat supported searches reuse suggestions without a directory request',async({page})=>{
+  const searches=await open(page);
+  await launch(page);
+  await input(page).fill('nvidia');
+  await expect(page.getByRole('option')).toHaveCount(2);
+  await input(page).fill('openai');
+  await expect(page.getByRole('option',{name:/OpenAI/})).toBeVisible();
+  await input(page).fill('NVIDIA');
+  await expect(page.getByRole('option')).toHaveCount(2);
+  expect(searches).toHaveLength(2);
+});
