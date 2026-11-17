@@ -24,7 +24,7 @@ export async function taggedReleaseRequest(url, options, {
 }={}) {
   assert(Number.isInteger(attempts)&&attempts>0);
   for(let attempt=1;attempt<=attempts;attempt++) {
-    const response=await request(url,{...options,signal:AbortSignal.timeout(30000),cache:'no-store'});
+    const response=await request(url,{...options,signal:options?.signal??AbortSignal.timeout(30000),cache:'no-store'});
     if(response.status!==404||!['GET','HEAD'].includes((options?.method??'GET').toUpperCase()))return response;
     log(JSON.stringify({event:'release_probe',target:'tagged',path:new URL(url).pathname,status:404,attempt,attempts}));
     if(attempt===attempts)return response;

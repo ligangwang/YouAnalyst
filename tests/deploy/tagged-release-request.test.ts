@@ -2,6 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {taggedReleaseRequest} from '../../scripts/tagged-release-request.mjs';
 
+test('caller cancellation survives routing retries instead of receiving a fresh deadline',async()=>{
+ const controller=new AbortController();let calls=0;
+ await assert.rejects(taggedReleaseRequest('https://tag.invalid/',{signal:controller.signal},{
+  request:async(_url,options)=>{
+   calls++;assert.equal(options?.signal,controller.signal);options.signal.throwIfAborted();
+   return new Response('',{status:404});
+  },sleep:async()=>{controller.abort(Error('caller deadline'));},log:()=>{},
+ }),/caller deadline/);
+ assert.equal(calls,2);
+});
+
+test('caller deadlines are preserved and a missing signal receives the bounded default',async()=>{
+ for(const timeout of [15000,60000]){
+  const signal=AbortSignal.timeout(timeout);
+  await taggedReleaseRequest('https://tag.invalid/',{signal},{request:async(_url,options)=>{
+   assert.equal(options?.signal,signal);return new Response('',{status:200});
+  }});
+ }
+ await taggedReleaseRequest('https://tag.invalid/',undefined,{request:async(_url,options)=>{
+  assert(options?.signal instanceof AbortSignal);assert.equal(options.signal.aborted,false);
+  return new Response('',{status:200});
+ }});
+});
+
 test('tagged 404 retries are bounded, logged without bodies, and check public health before waiting',async()=>{
   let calls=0,guards=0,waits=0;const logs:string[]=[];
   const r=await taggedReleaseRequest('https://tag.invalid/api/health',{}, {
