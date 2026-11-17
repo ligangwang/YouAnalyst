@@ -472,6 +472,13 @@ export class MarketFiles {
         const query = compileMarketQuery(steps);
         const identityOrdered=filterIdentityOrdered(rows,steps);if(identityOrdered)return identityOrdered;
         const predicates=steps.filter(step=>step.method==='where'),prefix=predicates[0];
+        // A company's already-loaded revisions need only equality and ID ordering.
+        // Do not enqueue this small merge behind unrelated Parquet scans.
+        if(predicates.length===1&&fieldName(prefix.args[0])==='companyId'&&prefix.args[1]==='=='&&typeof prefix.args[2]==='string'
+            &&/^[A-Za-z0-9:._-]+$/.test(prefix.args[2])&&steps.every(step=>['where','select','limit','offset'].includes(step.method))){
+            const selected=rows.filter(row=>row.data.companyId===prefix.args[2]).sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id))).slice(query.offset,query.limit===undefined?undefined:query.offset+query.limit);
+            return query.selection?selected.map(row=>({...row,data:project(row.data,query.selection!)})):selected;
+        }
         if(predicates.length===1&&prefix.args[1]==='array-contains'&&searchPayload.has(fieldName(prefix.args[0]))&&typeof prefix.args[2]==='string'&&steps.every(step=>['where','select','limit','offset'].includes(step.method))){
             const field=fieldName(prefix.args[0]),selected=rows.filter(row=>Array.isArray(row.data[field])&&(row.data[field] as unknown[]).includes(prefix.args[2])).sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id))).slice(query.offset,query.limit===undefined?undefined:query.offset+query.limit);
             return query.selection?selected.map(row=>({...row,data:project(row.data,query.selection!)})):selected;
