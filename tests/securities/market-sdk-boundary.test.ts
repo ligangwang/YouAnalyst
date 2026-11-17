@@ -45,3 +45,7 @@ test('maintenance and usage inspection have no legacy payload source path',()=>{
         assert.doesNotMatch(retired,/from |\.collection\(|new Firestore|initializeApp/);
     }
 });
+test('ESM usage report can load the TypeScript CommonJS adapter without credentials',()=>{
+    execFileSync(process.execPath,['--import','tsx','--input-type=module','-e',
+        "import market from './src/lib/firebase/firestore.ts'; if(typeof market.getFirestore!=='function'||!market.FieldPath)throw Error('Missing adapter exports');"],{stdio:'pipe'});
+});

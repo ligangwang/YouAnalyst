@@ -1,5 +1,6 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore, FieldPath } from '../src/lib/firebase/firestore.ts';
+import marketFirestore from '../src/lib/firebase/firestore.ts';
+const {getFirestore,FieldPath}=marketFirestore;
 
 // Read stored counters only. Never call OpenAI, execute jobs, or serialize source data.
 if (process.env.GCP_PROJECT_ID !== 'ifindata-80905') throw new Error('Production project required');
