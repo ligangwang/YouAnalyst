@@ -67,9 +67,20 @@ export class MarketFiles {
         let release!: () => void;
         const done = new Promise<void>(resolve => { release = resolve; });
         try {
-            for (let start = 0; start < names.length; start += 32) {
-                await Promise.all(names.slice(start, start + 32).map((name, offset) => new Promise<void>((resolve, reject) => { const hold = this.cache.local([name], async ([path]) => { paths[start + offset] = path; resolve(); await done; }); hold.catch(reject); holds.push(hold); })));
-            }
+            // Refill each download slot as it finishes. Fixed batches make every
+            // later file wait for the slowest object in each preceding batch.
+            let cursor=0,failedDownload=false;
+            const outcomes=await Promise.allSettled(Array.from({length:Math.min(32,names.length)},async()=>{
+                try{while(!failedDownload){
+                    const index=cursor++;if(index>=names.length)return;
+                    await new Promise<void>((resolve,reject)=>{
+                        const hold=this.cache.local([names[index]],async([path])=>{paths[index]=path;resolve();await done;});
+                        hold.catch(reject);holds.push(hold);
+                    });
+                }}catch(error){failedDownload=true;throw error;}
+            }));
+            const failed=outcomes.find(outcome=>outcome.status==='rejected');
+            if(failed?.status==='rejected')throw failed.reason;
             return await work(paths);
         }
         finally {
@@ -137,6 +148,24 @@ export class MarketFiles {
     }
     /** Cover projected announcement cards without reopening broad shared indexes. */
     private async announcementRows(heads:MarketHead[],company:string):Promise<MarketRow[]> {
+        if(!this.queryBudget)return this.announcementRowsUncached(heads,company);
+        // Live writes replace only a few immutable shard lookups. Reuse each
+        // unchanged company's rows within the existing shared result budget.
+        const active=heads.filter(head=>head.file);
+        const keys=active.map(head=>'d:announcement:'+createHash('sha256').update(JSON.stringify([
+            head.collection,head.shard,head.prefixFile,head.format,company,
+        ])).digest('hex'));
+        const found=keys.map(key=>{const entry=this.queryResults.get(key);if(entry){this.queryResults.delete(key);this.queryResults.set(key,entry);}return entry;});
+        const missing=active.filter((_,i)=>!found[i]);
+        if(missing.length){
+            const loaded=this.announcementRowsUncached(missing,company).then(rows=>{
+                const shards=new Map<string,MarketRow[]>();for(const row of rows){const shard=shardFor(row.id),values=shards.get(shard)??[];values.push(row);shards.set(shard,values);}return shards;
+            });
+            active.forEach((head,i)=>{if(found[i])return;const entry={value:loaded.then(shards=>shards.get(head.shard)??[]),bytes:0};found[i]=entry;this.remember(keys[i],entry);});
+        }
+        return (await Promise.all(found.map(entry=>entry!.value))).flat();
+    }
+    private async announcementRowsUncached(heads:MarketHead[],company:string):Promise<MarketRow[]> {
         const active=heads.filter(head=>head.file),names=[...new Set(active.map(head=>head.prefixFile!))];
         for(const name of names)this.validate(name);
         const field=ANNOUNCEMENT_RECORDS+company;
