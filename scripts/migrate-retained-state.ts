@@ -13,6 +13,7 @@ import {CleanupGate,migrationCapacity,capacityRegression,type CapacitySample} fr
 import type {MarketCollection} from '../src/lib/market-store/policy';
 import {flushBulkWrites} from './lib/flush-bulk-writes';
 import {boundedOperatorWork} from './lib/bounded-operator-work';
+import {auditRetainedPage} from './lib/audit-retained-page';
 
 // Explicit operator only. No bootstrap or read-gate switch is performed here.
 async function main(){
@@ -63,9 +64,11 @@ async function main(){
                 await check();
                 const limit=1000;
                 let query:Query=raw.collection(path).orderBy(FieldPath.documentId()).limit(limit);
+                if(operation==='reconcile'||operation==='verify')query=query.select();
                 if(cursor)query=query.startAfter(cursor);
                 const page=await query.get();if(!page.size)break;
-                await guard(page.size);yield page.docs;
+                // Audits only read; throttle actual repairs separately below.
+                await guard(operation==='reconcile'||operation==='verify'?1:page.size);yield page.docs;
                 cursor=page.docs.at(-1)!.id;if(page.size<limit)break;
             }};
             // Copy into unused destinations with one shared rate/capacity guard.
@@ -73,9 +76,12 @@ async function main(){
             await boundedOperatorWork(pages(),operation==='copy'?4:1,visit);
         };
         const reconcile=async(docs:FirebaseFirestore.QueryDocumentSnapshot[])=>{
-            const batches=Array.from({length:Math.ceil(docs.length/100)},(_,n)=>docs.slice(n*100,n*100+100).map(doc=>doc.id));
+            const mismatches=await auditRetainedPage(raw,collection,docs.map(doc=>doc.id));
+            if(operation==='verify'&&mismatches.length)throw Error('Retained-state parity failed');
+            const batches=Array.from({length:Math.ceil(mismatches.length/100)},(_,n)=>mismatches.slice(n*100,n*100+100));
             await boundedOperatorWork(batches,4,async ids=>{
-                const result=await reconcileRetainedRecords(raw,collection,ids,operation==='verify');written+=result.changed;
+                await guard(ids.length);
+                const result=await reconcileRetainedRecords(raw,collection,ids);written+=result.changed;
             });
         };
         await scan(collection,async docs=>{
