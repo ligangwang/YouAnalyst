@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import {planEnrollment,type EnrollmentBatch} from '../src/lib/company-themes/enrollment';
 export {planEnrollment,type EnrollmentBatch} from '../src/lib/company-themes/enrollment';
 import assert from 'node:assert/strict';
@@ -28,6 +29,7 @@ export async function enrollCompanies({project,batch,request,write=false,backupD
 }
 
 async function main(){
+  rejectLegacyMarketCommand();
   const project=process.env.GOOGLE_CLOUD_PROJECT,file=process.argv.find(arg=>arg.startsWith('--batch='))?.slice(8);
   assert(project&&file,'Set GOOGLE_CLOUD_PROJECT and --batch=<reviewed JSON file>');
   const batch=JSON.parse(await readFile(file,'utf8')) as EnrollmentBatch;

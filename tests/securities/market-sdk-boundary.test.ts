@@ -15,6 +15,18 @@ const rawClients=new Set([
     'scripts/sync-entity-snapshots.ts',
     'scripts/migrate-retained-state.ts',
 ]);
+test('direct REST market access requires an explicitly reviewed boundary',()=>{
+    const reviewed=new Set([
+        'scripts/lib/retained-firestore-paths.mjs','scripts/wait-feed-producers.mjs','scripts/firestore/verify-exchange-region.mjs',
+        'scripts/publish-investment-themes.ts', // UGC catalog, not a migrated collection.
+        'scripts/backfill-news-headlines.ts','scripts/backfill-relationship-sources.ts','scripts/backfill-relationship-summaries.ts',
+        'scripts/enroll-theme-companies.ts','scripts/migrate-company-onboarding.ts','scripts/monitor-onboarding-capacity.ts',
+        'scripts/publish-news-sources.ts','scripts/publish-company-summaries.ts', // Retired CLI paths; offline helper tests remain.
+    ]);
+    const files=execFileSync('git',['ls-files','src','scripts'],{encoding:'utf8'}).trim().split('\n');
+    const violations=files.filter(file=>/\.(?:[cm]?[jt]sx?)$/.test(file)&&readFileSync(file,'utf8').includes('https://firestore.googleapis.com')&&!reviewed.has(file));
+    assert.deepEqual(violations,[],'Direct REST bypasses the shared market adapter');
+});
 test('application and scheduled readers cannot import a raw Firestore client',()=>{
     const violations:string[]=[];
     const files=execFileSync('git',['ls-files','src','scripts'],{encoding:'utf8'}).trim().split('\n');
@@ -23,6 +35,8 @@ test('application and scheduled readers cannot import a raw Firestore client',()
         const source=ts.createSourceFile(file,readFileSync(file,'utf8'),ts.ScriptTarget.Latest,true);
         for(const node of source.statements){
             if(!ts.isImportDeclaration(node)||!ts.isStringLiteral(node.moduleSpecifier))continue;
+            const retired=['backfill-news-headlines','backfill-relationship-sources','backfill-relationship-summaries','enroll-theme-companies','migrate-company-onboarding','monitor-onboarding-capacity','publish-news-sources'];
+            if(retired.includes(node.moduleSpecifier.text.split('/').at(-1)!.replace(/\.[cm]?[jt]s$/,'')))violations.push(file);
             if(!['firebase-admin','firebase-admin/firestore','@google-cloud/firestore','firebase/firestore'].includes(node.moduleSpecifier.text))continue;
             const clause=node.importClause;
             if(!clause||clause.isTypeOnly)continue;

@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {FieldValue,type Firestore,type DocumentSnapshot} from 'firebase-admin/firestore';
@@ -6,6 +7,7 @@ import {company,encode,type Document} from './lib/firestore-rest';
 import {readThemeCatalog} from './lib/theme-catalog';
 import {catalogThemeIds} from '../src/lib/company-themes/catalog-model';
 async function main(){
+  rejectLegacyMarketCommand();
 const project=process.env.GCP_PROJECT_ID;
 assert(project&&/^[a-z][a-z0-9-]+$/.test(project)&&process.env.GOOGLE_OAUTH_ACCESS_TOKEN,'Explicit project and existing Google access token required');
 assert(process.argv.includes('--apply'),'Use --apply');

@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 
@@ -53,6 +54,7 @@ export async function observeOnboardingCapacity(credential:string){
  return {at:end.toISOString(),windowStart:start.toISOString(),webHealthy,websiteErrors,backlog:metrics[subscription].num_undelivered_messages,oldestAgeSeconds:metrics[subscription].oldest_unacked_message_age,cacheSubscriptions:[...cacheSubscriptions],cacheBacklogHigh,classificationEvents:events,estimatedUsd,unknownCosts,allEvents,allEstimatedUsd,allUnknownCosts,usageLoggingErrors:(usageWarnings.entries??[]).length,pauseNewBatches:!webHealthy||websiteErrors>0||cacheBacklogHigh||Object.values(metrics[subscription]).some(value=>value===null)};
 }
 async function main(){
+  rejectLegacyMarketCommand();
  const credential=await token();let observed:Awaited<ReturnType<typeof observeOnboardingCapacity>>|undefined;let failure='';
  try{observed=await observeOnboardingCapacity(credential);}catch(error){failure=error instanceof Error?error.message:'Monitor unavailable';}
  const paused=!observed||observed.pauseNewBatches;

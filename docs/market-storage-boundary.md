@@ -64,6 +64,13 @@ requires production verification evidence and uses update-time preconditions,
 recoverable backups and capacity checks. Do not reverse the read gate after
 source deletion. The compatibility deployment alone does not remove records.
 
+Deployment company-scope and EOD-drain checks resolve the retained read gate and
+use the approved destinations after cutover. Historical direct-REST backfill,
+enrollment, news-source publication and onboarding-monitor CLI entry points are
+retired before credential access; their exported legacy transformation helpers
+remain for offline tests. Normal application editors and shared-client publishers
+remain available. The summary publisher's legacy REST option is disabled.
+
 ## Removed bypasses and obsolete paths
 
 - Background-usage inspection and the old central-cache measurement now use

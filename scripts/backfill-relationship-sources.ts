@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
@@ -93,6 +94,7 @@ export async function backfillRelationshipSources(project:string,token:string,ke
  return {...audit,storedDocuments:stored,stored:pending};
 }
 async function main(){
+  rejectLegacyMarketCommand();
  const project=process.env.GCP_PROJECT_ID,token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN,write=process.argv.includes('--write');
  assert(project&&token&&(write||process.argv.includes('--preview')),'Use --preview or --write with project and access token');let key='';
  if(write){assert(/^[a-z][a-z0-9-]+$/.test(project));const config=process.platform==='win32'?spawnSync('powershell.exe',['-NoProfile','-Command',`gcloud run jobs describe collect-intelligence-news-production --project ${project} --region us-central1 --format=json`],{encoding:'utf8'}):spawnSync('gcloud',['run','jobs','describe','collect-intelligence-news-production','--project',project,'--region','us-central1','--format=json'],{encoding:'utf8'});assert(config.status===0,'Cannot read collector configuration');const env=JSON.parse(config.stdout).spec.template.spec.template.spec.containers[0].env as {name:string;value?:string}[];key=env.find(item=>item.name==='OPENAI_API_KEY')?.value??'';}

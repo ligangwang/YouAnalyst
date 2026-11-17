@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import assert from 'node:assert/strict';
 import {isDeepStrictEqual} from 'node:util';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
@@ -54,6 +55,7 @@ export async function publishNewsSources({project,sources,request,write=false,ba
   return {mode:write?'written':'preview',companies:ids.length,sources:sources.length,changed:patches.length,backup};
 }
 async function main(){
+  rejectLegacyMarketCommand();
   const project=process.env.GOOGLE_CLOUD_PROJECT;assert(project,'Set GOOGLE_CLOUD_PROJECT');
   const file=process.argv.find(arg=>arg.startsWith('--batch='))?.slice(8);
   assert(file&&!process.argv.includes('--migrate-existing'),'Use --batch=<reviewed JSON>');
