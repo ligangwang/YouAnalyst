@@ -57,7 +57,9 @@ export class RetainedStore {
             for(let offset=0;offset<physical.length;offset+=100){
                 const batch=physical.slice(offset,offset+100);
                 const rows=context?await context.reader.getAll(...batch):await this.raw.getAll(...batch,...(fields?[{fieldMask:fields}]:[]));
-                reportNativeBatchRead(rows,!!context,context?undefined:fields);docs.push(...rows);
+                reportNativeBatchRead(rows,!!context,context?undefined:fields);
+                const byPath=new Map(rows.map(doc=>[doc.ref.path,doc]));
+                for(const ref of batch){const doc=byPath.get(ref.path);if(!doc)throw Error('Retained read returned an incomplete batch');docs.push(doc);}
             }
             return docs;
         };
@@ -81,10 +83,15 @@ export class RetainedStore {
         const mode=relocatesCollection(collection)?await this.mode(context):undefined;
         const relocated=this.readsNew(mode,context);
         const paths=relocated?['market_state','market_ugc'].map(root=>`${root}/${collection}/records`):[collection];
-        const pages=await Promise.all(paths.map(async path=>{
+        const read=(reader?:RetainedContext['reader'])=>Promise.all(paths.map(async path=>{
             const query=build(path);
-            return context?await context.reader.get(query) as FirebaseFirestore.QuerySnapshot:await query.get();
+            return reader?await reader.get(query) as FirebaseFirestore.QuerySnapshot:await query.get();
         }));
+        // A curated edit can move a record between the two roots. Both queries
+        // must observe the same snapshot, or a valid move could omit/duplicate it.
+        const pages=context?await read(context.reader):relocated
+            ?await this.raw.runTransaction(tx=>read({get:ref=>tx.get(ref as Query),getAll:(...refs)=>tx.getAll(...refs)}),{readOnly:true})
+            :await read();
         const ids=new Set<string>();
         return pages.flatMap(page=>page.docs.map(doc=>{
             if(ids.has(doc.id))throw Error('Retained record exists in both destinations');ids.add(doc.id);

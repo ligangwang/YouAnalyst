@@ -9,11 +9,12 @@ function fixture(){
  const doc=(id:string)=>({id,path:`earnings_records/${id}`});
  const snapshots=(refs:ReturnType<typeof doc>[])=>refs.map(ref=>({id:ref.id,ref,exists:rows.has(ref.id),updateTime:Timestamp.fromMillis(100),data:()=>rows.get(ref.id),get:(key:string)=>rows.get(ref.id)?.[key]})).reverse();
  const source={doc,where:()=>source,onSnapshot:(next:(value:unknown)=>void)=>{watches++;queueMicrotask(()=>next({docs:[],readTime:Timestamp.now(),docChanges:()=>[]}));return()=>{};}};
- const raw={collection:()=>source,getAll:async(...refs:ReturnType<typeof doc>[])=>{native++;return snapshots(refs);}} as unknown as Firestore;
+ const control={exists:false,data:()=>undefined};
+ const raw={doc:()=>({get:async()=>control}),collection:()=>source,getAll:async(...refs:ReturnType<typeof doc>[])=>{native++;return snapshots(refs);}} as unknown as Firestore;
  let external:MarketRow[]=[];
  const files={query:async()=>{queries++;return external;},hydrate:async(row:MarketRow)=>row,close:async()=>{}} as unknown as MarketFiles;
  const repo=new MarketRepository(raw,files,undefined,true);
- const context=()=>repo.context({get:async()=>{throw Error('Unexpected transactional query');},getAll:async(...refs)=>{transactionReads++;return snapshots(refs as unknown as ReturnType<typeof doc>[]) as unknown as FirebaseFirestore.DocumentSnapshot[];}});
+ const context=()=>repo.context({get:async()=>control as FirebaseFirestore.DocumentSnapshot,getAll:async(...refs)=>{transactionReads++;return snapshots(refs as unknown as ReturnType<typeof doc>[]) as unknown as FirebaseFirestore.DocumentSnapshot[];}});
  return {rows,repo,context,external:(value:MarketRow[])=>{external=value;},counts:()=>({native,queries,watches,transactionReads})};
 }
 

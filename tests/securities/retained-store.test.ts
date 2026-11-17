@@ -1,9 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import type {DocumentSnapshot} from 'firebase-admin/firestore';
-import {retainedMode,retainedRoot,retainedPath,relocatesCollection} from '../../src/lib/market-store/retained-store';
+import type {DocumentSnapshot,Firestore,Query} from 'firebase-admin/firestore';
+import {RetainedStore,retainedMode,retainedRoot,retainedPath,relocatesCollection} from '../../src/lib/market-store/retained-store';
 const snapshot=(data?:Record<string,unknown>)=>({exists:!!data,data:()=>data}) as unknown as DocumentSnapshot;
+test('queries retain one snapshot when a curated edit moves a record between roots',async()=>{
+    let location='market_state',transactions=0;
+    const page=(path:string,at:string)=>({docs:path.startsWith(at)?[{id:'US:A',ref:{path:path+'/US:A'},data:()=>({name:'A'})}]:[]});
+    const raw={
+        doc:()=>({get:async()=>snapshot({version:1,ready:true,cleanupAuthorized:false})}),
+        collection:(path:string)=>({doc:(id:string)=>({id,path:path+'/'+id})}),
+        runTransaction:async(work:(tx:unknown)=>Promise<unknown>,options:unknown)=>{
+            assert.deepEqual(options,{readOnly:true});transactions++;
+            const at=location;
+            return work({get:async(query:{path:string})=>{const result=page(query.path,at);location='market_ugc';return result;}});
+        },
+    } as unknown as Firestore;
+    const store=new RetainedStore(raw);
+    const build=(path:string)=>({path,get:async()=>{throw Error('Independent snapshots are unsafe');}}) as unknown as Query;
+    const before=await store.query('companies',build),after=await store.query('companies',build);
+    assert.equal(transactions,2);
+    for(const docs of [before,after]){assert.deepEqual(docs.map(doc=>doc.id),['US:A']);assert.equal(docs[0].ref.path,'companies/US:A');}
+});
 test('retained routing preserves authored records and keeps events out of relocation',()=>{
     assert.equal(retainedRoot('company_fundamentals','_worker',{leaseOwner:'worker'}),'market_state');
     assert.equal(retainedRoot('companies','US:A',{onboarding:{status:'SUPPORTED'}}),'market_state');

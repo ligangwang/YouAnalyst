@@ -22,13 +22,13 @@ async function main(){
     const raw=getFirestore(),bucket=new Storage({projectId:project}).bucket(bucketName);
     const startedAt=new Date().toISOString(),root=`market-parquet/v1/operator/retained-${startedAt.replaceAll(':','-')}/${collection}`;
     const gate=new CleanupGate(migrationCapacity(project),1000);
-    const inspect=migrationCapacity(project);let initial:CapacitySample|undefined,lastCapacity=0;
+    const inspect=migrationCapacity(project);let initial:CapacitySample|undefined;
     const guard=async(count:number)=>{
         if(operation!=='delete'){for(let n=0;n<count;n+=100)await gate.before(Math.min(100,count-n));return;}
-        // No deletion-rate cap. Stop on capacity errors rather than imposing a
-        // document/second ceiling on BulkWriter.
-        if(Date.now()-lastCapacity>=15000){const sample=await inspect();initial??=sample;
-            const failure=capacityRegression(initial,sample);if(failure)throw Error(failure);lastCapacity=Date.now();}
+        // The user explicitly requested no fixed deletion-rate cap. Only one
+        // bounded page is in flight; inspect capacity before EVERY next page.
+        const sample=await inspect();initial??=sample;
+        const failure=capacityRegression(initial,sample);if(failure)throw Error(failure);
     };
     const writer=raw.bulkWriter({throttling:false});
     writer.onWriteError(error=>[4,10,14].includes(Number(error.code))&&error.failedAttempts<4);
