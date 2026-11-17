@@ -729,3 +729,25 @@ check('events cutover preserves authored records and live processing state while
  assert.equal((await f.raw.doc(event.path).get()).get('title'),'Reviewed correction');
  assert.equal((await db.collection('events').where('companyId','==','US:NVDA').get()).size,2);
 });
+check('document caches survive unrelated shard commits but refresh affected shards and queries',async t=>{
+ const f=fixture();t.after(()=>f.db.terminate());
+ await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+ const a='cached-company';let b='other-company';while(shardFor(b)===shardFor(a))b+='x';
+ let collision='same-shard';while(shardFor(collision)!==shardFor(a))collision+='x';
+ const ref=f.db.doc('company_directory/'+a),other=f.db.doc('company_directory/'+b);
+ await ref.set({name:'Before'});await other.set({name:'Other'});
+ let reads=0;const query=f.repository.files.query.bind(f.repository.files);
+ f.repository.files.query=async(...args)=>{reads++;return query(...args);};
+ assert.equal((await ref.get()).get('name'),'Before');
+ await other.update({name:'Other changed'});
+ const afterUnrelated=reads;
+ assert.equal((await ref.get()).get('name'),'Before');
+ assert.equal(reads,afterUnrelated,'an unrelated shard must not reread a cached document');
+ const all=f.db.collection('company_directory').select('name');
+ await all.get();await other.update({name:'Newest'});
+ assert.equal((await all.get()).docs.find(doc=>doc.id===b)?.get('name'),'Newest','broad query invalidation must remain collection-wide');
+ await f.db.doc('company_directory/'+collision).set({name:'Collision'});
+ const afterSameShard=reads;await ref.get();assert(reads>afterSameShard,'same-shard updates conservatively invalidate document batches');
+ await ref.update({name:'After'});assert.equal((await ref.get()).get('name'),'After');
+ await ref.delete();assert.equal((await ref.get()).exists,false);
+});

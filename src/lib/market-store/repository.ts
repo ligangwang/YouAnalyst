@@ -76,6 +76,7 @@ export class MarketRepository {
     private results = new Map<string, {
         until: number;
         bytes: number;
+        shards?: ReadonlySet<string>;
         value: Promise<MarketRow[]>;
     }>();
     private listeners = new Map<string, Set<{
@@ -98,12 +99,17 @@ export class MarketRepository {
     close() { this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
         watch.stop(); this.watches.clear(); return this.files.close(); }
     context(reader: Reader): MarketContext { return { reader, heads: new Map(), documents: new Map(), writes: [] }; }
-    invalidate(collection?: string) { if (!collection) {
-        this.results.clear();
-        return;
-    } for (const key of this.results.keys())
-        if (key.startsWith('docs:' + collection + ':') || key.startsWith('query:' + collection + ':'))
-            this.results.delete(key); }
+    invalidate(collection?: string, shards?: ReadonlySet<string>) {
+        if (!collection) { this.results.clear(); return; }
+        const docsPrefix='docs:'+collection+':';
+        for (const [key,entry] of this.results) {
+            if (key.startsWith('query:'+collection+':')) this.results.delete(key);
+            else if (key.startsWith(docsPrefix)) {
+                // Cache dependencies are computed once, not hashed again on every write.
+                if (!shards || !entry.shards || [...shards].some(shard=>entry.shards!.has(shard))) this.results.delete(key);
+            }
+        }
+    }
     private changed(collection: string, shards: Set<string>) { for (const listener of this.listeners.get(collection) ?? [])
         if (!listener.shards || [...shards].some(shard => listener.shards!.has(shard)))
             listener.change(); }
@@ -118,7 +124,7 @@ export class MarketRepository {
     }
     async committed(paths: string[]) {
         for (const collection of new Set(paths.map(path => path.split('/')[0])))
-            this.invalidate(collection);
+            this.invalidate(collection,new Set(paths.filter(path=>path.split('/')[0]===collection).map(path=>shardFor(path.split('/')[1]))));
         const pairs = new Map(paths.map(path => { const [collection, id] = path.split('/') as [
             MarketCollection,
             string
@@ -145,7 +151,7 @@ export class MarketRepository {
             for (const [collection, shards] of changed) {
                 // Reads started while getAll was in flight may have cached the
                 // preceding head. Discard those entries after installing heads.
-                this.invalidate(collection);this.changed(collection, shards);
+                this.invalidate(collection,shards);this.changed(collection, shards);
             }
         }
         catch {
@@ -156,14 +162,14 @@ export class MarketRepository {
             console.warn('Market head refresh deferred after committed write');
         }
     }
-    private cached(key: string, work: () => Promise<MarketRow[]>): Promise<MarketRow[]> {
+    private cached(key: string, work: () => Promise<MarketRow[]>, shards?: ReadonlySet<string>): Promise<MarketRow[]> {
         const old = this.results.get(key);
         if (old && old.until > Date.now()) {
             this.results.delete(key);
             this.results.set(key, old);
             return old.value;
         }
-        const entry = { until: Infinity, bytes: 0, value: work() };
+        const entry = { until: Infinity, bytes: 0, shards, value: work() };
         this.results.set(key, entry);
         entry.value.then(rows => { entry.until = Date.now() + 60000; entry.bytes = Buffer.byteLength(JSON.stringify(encode(rows))) * 2; let bytes = [...this.results.values()].reduce((n, e) => n + e.bytes, 0); for (const [id, value] of this.results) {
             if (bytes <= 64 * 1024 * 1024 && this.results.size <= 512)
@@ -295,7 +301,7 @@ export class MarketRepository {
                     for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
                     initial=false;
                 }
-                if(changed.size){this.invalidate(collection);this.changed(collection,changed);}
+                if(changed.size){this.invalidate(collection,changed);this.changed(collection,changed);}
                 resolve(heads);
             }catch(error){fail(error);}},fail);
             watch = { ready, heads, stop, through };
@@ -317,7 +323,7 @@ export class MarketRepository {
                         this.unknownRetained.add(head);heads.set(shard,head);through.set(shard,snapshot.readTime);
                     }
                     for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
-                    if(changed.size){this.invalidate(collection);this.changed(collection,changed);}
+                    if(changed.size){this.invalidate(collection,changed);this.changed(collection,changed);}
                     resolve(heads);
                 }).catch(()=>{/* The normal listener still supplies readiness or its error. */});
             }
@@ -359,7 +365,7 @@ export class MarketRepository {
             }
             return this.cached('docs:' + collection + ':' + JSON.stringify([ids,fields]), () =>
                 (collection==='company_fundamentals'&&fields?.length===2&&fields.includes('marketCap')&&fields.includes('isDeleted')?this.marketCapReads:this.documentReads).load(JSON.stringify([collection,fields??null]),ids,
-                    batch=>this.documentsUncached(collection,batch,undefined,fields)));
+                    batch=>this.documentsUncached(collection,batch,undefined,fields)),new Set(ids.map(shardFor)));
         }
         return this.documentsUncached(collection, ids, context, fields);
     }
