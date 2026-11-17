@@ -20,7 +20,7 @@ function run(target:string,extra:Record<string,string>={}) {
             previous="$argument"
           done
         fi
-        if [[ "$1 $2 $3 $4" == "run jobs deploy collect-intelligence-news-production" ]]; then
+        if [[ "$1 $2 $3 \${4:-}" == "run jobs deploy collect-intelligence-news-production" ]]; then
           local previous=""
           for argument in "$@"; do
             if [[ "$previous" == "--env-vars-file" ]]; then
@@ -30,6 +30,14 @@ function run(target:string,extra:Record<string,string>={}) {
           done
         fi
         case "$*" in
+          "run revisions describe cn-company-discovery-subscriber-"*)
+            node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/serve-cn-discovery.cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
+          "run services describe cn-company-discovery-subscriber"*)
+            if [[ "$*" == *"--format=json"* ]]; then
+              node -e 'console.log(JSON.stringify({status:{traffic:[{tag:"candidate",revisionName:process.env.DISCOVERY_RELEASE_REVISION,url:"https://candidate.example.run.app",percent:100}]}}))'
+            else echo https://subscriber.example.run.app; fi ;;
+          "auth print-identity-token"*) echo test-token ;;
+          "run services update-traffic cn-company-discovery-subscriber"*) ;;
           "firestore databases describe"*) echo nam5 ;;
           "eventarc triggers describe"*) if [[ "\${ONBOARDING_TRIGGER_NOT_READY:-0}" == 1 && "$*" == *"--format=json"* ]]; then echo '{"conditions":{"transport":{"code":"NOT_READY"}}}'; else echo '{"transport":{"pubsub":{"subscription":"projects/demo/subscriptions/onboarding-events"}},"destination":{"cloudRun":{"service":"instrument-onboarding-subscriber","region":"us-central1","path":"/events"}}}'; fi ;;
           "run services describe instrument-onboarding-subscriber"*"value(status.url)"*) echo https://onboarding.example.run.app ;;
@@ -62,13 +70,14 @@ function run(target:string,extra:Record<string,string>={}) {
           "artifacts docker images describe"*) echo example/image@sha256:abcdef ;;
         esac
       }
-      export -f gcloud
+      curl() { echo ok; }
+      export -f gcloud curl
       if [[ "\${PUBLISHER_ONLY:-0}" == 1 ]]; then
         bash scripts/deploy-eod-maintenance.sh --publisher-only
       else
         bash scripts/deploy-background-jobs.sh "$TARGET"
       fi
-    `],{encoding:'utf8',timeout:10000,env:{...process.env,CALLS:path.join(dir,'calls').replaceAll('\\','/'),TARGET:target,ENTITY_SNAPSHOT_BUCKET:'demo-snapshots',GCP_PROJECT_ID:'demo',GIT_SHA:'commit',SEC_USER_AGENT:'test contact',WEB_RUNTIME_SERVICE_ACCOUNT:'',WEB_SA:'web@demo.iam.gserviceaccount.com',ENABLE_SEC_FILING_PIPELINE:'0',CLOUD_RUN_SERVICE_PRODUCTION:'web',...extra}});
+    `],{encoding:'utf8',timeout:10000,env:{...process.env,CALLS:path.join(dir,'calls').replaceAll('\\','/'),TARGET:target,ENTITY_SNAPSHOT_BUCKET:'demo-snapshots',GCP_PROJECT_ID:'demo',GIT_SHA:'a'.repeat(40),SEC_USER_AGENT:'test contact',WEB_RUNTIME_SERVICE_ACCOUNT:'',WEB_SA:'web@demo.iam.gserviceaccount.com',ENABLE_SEC_FILING_PIPELINE:'0',CLOUD_RUN_SERVICE_PRODUCTION:'web',...extra}});
     assert.ifError(result.error);
     let calls='';try{calls=readFileSync(path.join(dir,'calls'),'utf8');}catch{}
     return {...result,calls};

@@ -20,6 +20,14 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
         echo "$*" >> "$CALLS"
         if [[ -n "\${MISSING_RESOURCE:-}" && "$*" == *"describe $MISSING_RESOURCE "* ]]; then return 1; fi
         case "$*" in
+          "run revisions describe cn-company-discovery-subscriber-"*)
+            node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/serve-cn-discovery.cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
+          "run services describe cn-company-discovery-subscriber"*)
+            if [[ "$*" == *"--format=json"* ]]; then
+              node -e 'console.log(JSON.stringify({status:{traffic:[{tag:"candidate",revisionName:process.env.DISCOVERY_RELEASE_REVISION,url:"https://candidate.example.run.app",percent:100}]}}))'
+            else echo https://subscriber.example.run.app; fi ;;
+          "auth print-identity-token"*) echo test-token ;;
+          "run services update-traffic cn-company-discovery-subscriber"*) ;;
           *"get-iam-policy"*)
             if [[ "\${MISSING_IAM:-0}" == 1 ]]; then return 0; fi
             local arg
@@ -70,7 +78,8 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
           *) echo "Unexpected mock gcloud command: $*" >&2; return 2 ;;
         esac
       }
-      export -f gcloud
+      curl() { echo ok; }
+      export -f gcloud curl
       if [[ -n "$ARG" ]]; then bash "$SCRIPT" "$ARG"; else bash "$SCRIPT"; fi
     `], { encoding: "utf8", timeout: 10000, env: {
       ...process.env, CALLS: path.join(dir, "calls"), ENV_CAPTURE: path.join(dir, "env"), ENV_PATHS: path.join(dir, "env-paths"),
