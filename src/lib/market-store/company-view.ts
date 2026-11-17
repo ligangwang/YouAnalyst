@@ -30,7 +30,9 @@ export class CompanyView {
     constructor(private raw:Firestore,private changed:(ids:string[])=>void,private budget=COMPANY_VIEW_BYTES){}
     close(){this.disabled=true;this.stop?.();this.stop=undefined;this.docs.clear();this.current=undefined;this.sizes.clear();this.bytes=0;this.finish?.();}
     async read(start=false):Promise<Map<string,DocumentSnapshot>|undefined>{
-        if(this.disabled||!start&&!this.pending)return undefined;
+        // A point read arriving during bootstrap keeps its fast native path.
+        // Only the broad query that needs the view waits for initialization.
+        if(this.disabled||!start&&!this.current)return undefined;
         if(!this.pending){
             this.pending=new Promise(resolve=>{this.finish=resolve;});
             const fail=(error:unknown)=>{

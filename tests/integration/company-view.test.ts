@@ -18,7 +18,9 @@ check('company view shares reads, follows atomic root moves and deletions, and e
     await raw.doc('market_state/companies-other/records/US:A').set({wrong:true});
     await raw.doc('market_ugc/companies/records/中文').set({name:'中文'});
     assert.equal(await view.read(),undefined,'point lookups alone must not bootstrap the full view');
-    assert.deepEqual([...(await view.read(true))!.keys()].sort(),['US:A','中文']);
+    const warming=view.read(true);
+    assert.equal(await view.read(),undefined,'point reads must not wait for an in-flight collection bootstrap');
+    assert.deepEqual([...(await warming)!.keys()].sort(),['US:A','中文']);
     const initial=changes;
     for(let n=0;n<10;n++)assert.equal((await view.read())!.get('US:A')!.get('pending'),true);
     assert.equal(changes,initial,'repeated reads reuse the same subscription');
