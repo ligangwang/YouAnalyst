@@ -1,5 +1,12 @@
 {
   "indexes": [
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"updatedAt","order":"ASCENDING"}]},
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"exchange_region","order":"ASCENDING"},{"fieldPath":"themeIds","arrayConfig":"CONTAINS"}]},
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"published_at","order":"ASCENDING"},{"fieldPath":"filingDate","order":"DESCENDING"}]},
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"purpose","order":"ASCENDING"},{"fieldPath":"createdAt","order":"ASCENDING"}]},
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"active","order":"ASCENDING"},{"fieldPath":"predictionSupported","order":"ASCENDING"},{"fieldPath":"symbolPrefixes","arrayConfig":"CONTAINS"}]},
+    {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"active","order":"ASCENDING"},{"fieldPath":"predictionSupported","order":"ASCENDING"},{"fieldPath":"searchPrefixes","arrayConfig":"CONTAINS"}]},
     {"collectionGroup":"companies","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"collectors","queryScope":"COLLECTION","fields":[{"fieldPath":"cacheDeletedCollection","order":"ASCENDING"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {
@@ -407,6 +414,15 @@
     }
   ],
   "fieldOverrides": [
+    {"collectionGroup":"records","fieldPath":"companyIds","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"aiGraph","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"aiGraph.status","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"symbolPrefixes","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"pinyinSearchPrefixes","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"pinyinSearchTerms","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"pinyinSearchVersion","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"searchTerms","indexes":[]},
+    {"collectionGroup":"records","fieldPath":"searchIndexVersion","indexes":[]},
     {"collectionGroup":"company_fundamentals","fieldPath":"companyIds","indexes":[]},
     {"collectionGroup":"eod_prices","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
 {"collectionGroup":"instruments","fieldPath":"updatedAt","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION"},{"order":"DESCENDING","queryScope":"COLLECTION"}]},
