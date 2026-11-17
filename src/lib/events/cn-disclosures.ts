@@ -1,4 +1,5 @@
 import type {Firestore} from 'firebase-admin/firestore';
+import {marketStoreEnabled} from '../market-store/runtime';
 import type {KnowledgeGraph} from '../knowledge-graph/model';
 import type {CnEarningsJsonRequest} from '../earnings/live-cn';
 import {discoverCnEarnings} from '../earnings/discovery';
@@ -70,7 +71,7 @@ export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,
             &&typeof entry.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(entry.date)
             &&entry.date>=from&&entry.date<=to)confirmed.set(entry.id,entry.date);
         }
-        result.created+=await saveDisclosures(db,rows.filter(row=>!confirmed.has(row.id)),at,!state?.lastCompleteAt);
+        result.created+=await saveDisclosures(db,rows.filter(row=>!confirmed.has(row.id)),at,!state?.lastCompleteAt,{storageShardBatches:marketStoreEnabled(),beforeBatch:()=>{if(now()+15_000>=options.deadline)throw new Error('Exchange persistence deadline reached');}});
         // Only record receipts after every event batch has committed. A failed
         // checkpoint save safely falls back to rereading the event documents.
         for(const row of rows)if(row.publication_date&&row.publication_date>=DISCLOSURE_HISTORY_START

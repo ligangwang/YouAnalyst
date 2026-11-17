@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {shardFor} from '../../src/lib/market-store/files';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
 import { earningsFirestore } from '../helpers/earnings-firestore';
@@ -61,4 +62,28 @@ test('empty inputs do not read and repeated create conflicts are bounded',async(
   const db={runTransaction:async()=>{calls++;throw conflict;}} as unknown as Firestore;
   await assert.rejects(runInsertTransaction(db,async()=>0),error=>error===conflict);
   assert.equal(calls,3);
+});
+
+test('storage-shard disclosure batches preserve dedup and bound each transaction to one shard',async()=>{
+  const f=earningsFirestore(),rows=disclosures(101),groups:string[][]=[];
+  const run=f.db.runTransaction.bind(f.db);
+  f.db.runTransaction=((work:Parameters<Firestore['runTransaction']>[0])=>run(async tx=>{
+    const ids:string[]=[];groups.push(ids);
+    const create=tx.create.bind(tx);tx.create=((ref,data)=>{ids.push(ref.id);return create(ref,data);}) as typeof tx.create;
+    return work(tx);
+  })) as typeof f.db.runTransaction;
+  const original={...rows[0],collected_at:'original'};f.rows.set(`events/${rows[0].id}`,original);
+  assert.equal(await saveDisclosures(f.db,[...rows,rows[1]],at,false,{storageShardBatches:true}),100);
+  assert(groups.length>1);assert(groups.every(ids=>new Set(ids.map(shardFor)).size<=1&&ids.length<=100));
+  assert.deepEqual(f.rows.get(`events/${rows[0].id}`),original);
+  assert.equal(await saveDisclosures(f.db,rows,at,true,{storageShardBatches:true}),0);
+});
+
+test('a deadline stops new shard transactions and retry preserves already committed arrivals',async()=>{
+  const f=earningsFirestore(),rows=disclosures(101);let batches=0;
+  await assert.rejects(saveDisclosures(f.db,rows,at,true,{storageShardBatches:true,beforeBatch:()=>{if(++batches===2)throw Error('deadline');}}),/deadline/);
+  const committed=new Map([...f.rows].filter(([path])=>path.startsWith('events/')));
+  assert(committed.size>0&&committed.size<rows.length);
+  assert.equal(await saveDisclosures(f.db,rows,'2026-10-29T12:00:00Z',false,{storageShardBatches:true}),rows.length-committed.size);
+  for(const [path,row] of committed)assert.deepEqual(f.rows.get(path),row);
 });
