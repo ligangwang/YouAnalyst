@@ -1,17 +1,13 @@
-import { Firestore } from '@google-cloud/firestore';
-import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import {initializeApp,applicationDefault} from 'firebase-admin/app';
+import {getFirestore} from '../src/lib/firebase/firestore';
 import { writeFile } from 'node:fs/promises';
 import { CentralCache } from '../src/lib/central-cache/store';
 import { firestoreSource } from '../src/lib/central-cache/source';
 import { encode } from '../src/lib/central-cache/codec';
 async function main(){
   const projectId=process.env.GCP_PROJECT_ID;if(!projectId)throw Error('GCP_PROJECT_ID required');
-  const firestoreRequire=createRequire(createRequire(resolve('package.json')).resolve('@google-cloud/firestore'));
-  const sdkRequire=createRequire(firestoreRequire.resolve('google-gax'));
-  const {OAuth2Client}=sdkRequire('google-auth-library') as typeof import('google-auth-library');
-  const authClient=process.env.GOOGLE_OAUTH_ACCESS_TOKEN?new OAuth2Client():undefined;authClient?.setCredentials({access_token:process.env.GOOGLE_OAUTH_ACCESS_TOKEN});
-  const db=new Firestore({projectId,auth:authClient,preferRest:true}), cache=new CentralCache(firestoreSource(db));
+  initializeApp({projectId,credential:applicationDefault()});
+  const db=getFirestore(), cache=new CentralCache(firestoreSource(db));
   const baseline=process.memoryUsage();await cache.warm();cache.relationships({status:'PUBLISHED'});const warm=cache.stats();
   // Retain 20 full fundamentals responses concurrently to measure serialization
   // headroom. This is a local stress sample, not a container load test.

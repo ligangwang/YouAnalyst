@@ -1,4 +1,5 @@
 import {reportNativeRead,reportNativeBatchRead} from './native-read-observability';
+import {assertReadControl} from './read-control';
 import { FieldPath, FieldValue, Timestamp, type Firestore, type Transaction, type DocumentReference, type DocumentSnapshot, type Query } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
@@ -83,12 +84,12 @@ export class MarketRepository {
         if(eventsGate)this.events=new EventsControl(raw,onMode?ready=>onMode(ready,'events'):undefined);
         if(fundamentalsGate)this.fundamentals=new FundamentalsControl(raw,onMode?ready=>onMode(ready,'company_fundamentals'):undefined);
         if (onMode)
-            this.controlStop = raw.doc(CONTROL).onSnapshot(doc => { const data = doc.data(); if (data?.version === 1 && typeof data.ready === 'boolean') {
+            this.controlStop = raw.doc(CONTROL).onSnapshot(doc => { const data = doc.data(); try { assertReadControl(data);
                 this.controls = { until: Date.now() + 10000, value: Promise.resolve(data.ready) };
                 onMode(data.ready);
             }
-            else
-                this.controls = undefined; }, () => { this.controls = undefined; });
+            catch {
+                this.controls = undefined; } }, () => { this.controls = undefined; });
     }
     close() { this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
         watch.stop(); this.watches.clear(); return this.files.close(); }
@@ -195,8 +196,8 @@ export class MarketRepository {
         // dual writes and the independent source-retirement authorization.
         if (this.readOnlyProbe)
             return true;
-        const read = async () => { const doc = await (context ? context.reader.get(this.raw.doc(CONTROL)) : this.raw.doc(CONTROL).get()) as DocumentSnapshot; const data = doc.data(); if (data?.version !== 1 || typeof data.ready !== 'boolean')
-            throw Error('Market migration control is missing or invalid');
+        const read = async () => { const doc = await (context ? context.reader.get(this.raw.doc(CONTROL)) : this.raw.doc(CONTROL).get()) as DocumentSnapshot; const data = doc.data();
+            assertReadControl(data);
             if(context){context.cleanupAuthorized=data.cleanupAuthorized===true;context.cleanedCollections=new Set(Array.isArray(data.cleanedCollections)?data.cleanedCollections:[]);}
             return data.ready as boolean; };
         if (context)

@@ -1,9 +1,10 @@
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
+import {assertReadControl} from './read-control';
 export const FUNDAMENTALS_CONTROL='collectors/_market_parquet_company_fundamentals_control';
 export type FundamentalsMode={ready:boolean;cleanupAuthorized:boolean;cleanedCollections:Set<string>};
 export function fundamentalsMode(doc:DocumentSnapshot):FundamentalsMode {
  const data=doc.data();
- if(data?.version!==1||typeof data.ready!=='boolean')throw Error('Fundamentals migration control is missing or invalid');
+ assertReadControl(data);
  return {ready:data.ready,cleanupAuthorized:data.cleanupAuthorized===true,cleanedCollections:new Set(Array.isArray(data.cleanedCollections)?data.cleanedCollections:[])};
 }
 /** Independent source-retirement gate: the completed market migration cannot
