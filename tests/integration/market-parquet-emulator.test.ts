@@ -45,6 +45,12 @@ check('web company queries and overlays reuse the incremental view after cache i
         assert.equal((await f.db.collection('companies').where('status','==','PUBLISHED').select('name').get()).docs[0].get('name'),'Curated C');
         assert.equal((await f.db.collection('companies').where('onboarding.status','==','SUPPORTED').get()).docs[0].get('name'),'External A');
         assert.equal((await f.db.doc('companies/US:A').get()).get('onboarding.status'),'SUPPORTED');
+        for(const operator of ['==','in'] as const){
+            const page=await f.db.collection('companies').where('__name__',operator,operator==='in'?['ORG:C']:'ORG:C').select('name').get();
+            assert.deepEqual(page.docs[0].data(),{name:'Curated C'},'identity queries must preserve field masks');
+        }
+        assert.deepEqual((await f.db.getAll(f.db.doc('companies/ORG:C'),{fieldMask:['name']}))[0].data(),{name:'Curated C'});
+        assert.deepEqual((await f.db.collection('companies').where('__name__','==','ORG:C').select().get()).docs[0].data(),{});
         assert.deepEqual((await f.db.collection('companies').orderBy('name').startAt('External A').limit(1).get()).docs.map(doc=>doc.id),['US:A']);
     }
     assert.equal(reads,0,'head invalidation must not restart full scans or per-document overlay reads');

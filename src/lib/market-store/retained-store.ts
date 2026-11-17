@@ -1,6 +1,7 @@
 import type {Firestore,DocumentReference,DocumentSnapshot,Query,Transaction,Timestamp} from 'firebase-admin/firestore';
 import {isMarketCollection,type MarketCollection,hasAuthoredContent} from './policy';
-import type {Data} from './value';
+import {getField,type Data} from './value';
+import {project} from './query';
 import {reportNativeBatchRead} from './native-read-observability';
 import {CompanyView,companyViewEnabled} from './company-view';
 
@@ -61,16 +62,26 @@ export class RetainedStore {
     private logical(doc:DocumentSnapshot,ref:DocumentReference):DocumentSnapshot{
         return new Proxy(doc,{get(target,key){if(key==='ref')return ref;const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
     }
+    private projected(doc:DocumentSnapshot,fields?:string[]):DocumentSnapshot{
+        if(!fields)return doc;
+        const roots=[...new Set(fields.filter(field=>field!=='__name__').map(field=>field.split('.')[0]))];
+        const data=()=>project(Object.fromEntries(roots.map(field=>[field,doc.get(field)])),fields);
+        return new Proxy(doc,{get(target,key){
+            if(key==='data')return data;
+            if(key==='get')return (field:string)=>getField(data(),field);
+            const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
+        }});
+    }
     async documents(refs:DocumentReference[],context?:RetainedContext,fields?:string[]):Promise<DocumentSnapshot[]>{
         // A warmed website view serves whole documents; callers still apply
         // their projection. Transactions and workers always use native reads.
         if(!context&&this.companyView&&refs.length&&refs.every(ref=>ref.path.split('/')[0]==='companies')){
             const companies=await this.companies();
-            if(companies&&refs.every(ref=>companies.has(ref.id)))return refs.map(ref=>companies.get(ref.id)!);
+            if(companies&&refs.every(ref=>companies.has(ref.id)))return refs.map(ref=>this.projected(companies.get(ref.id)!,fields));
             if(companies&&refs.some(ref=>companies.has(ref.id))){
                 const missing=await this.documents(refs.filter(ref=>!companies.has(ref.id)),context,fields);
                 const found=new Map(missing.map(doc=>[doc.id,doc]));
-                return refs.map(ref=>companies.get(ref.id)??found.get(ref.id)!);
+                return refs.map(ref=>companies.has(ref.id)?this.projected(companies.get(ref.id)!,fields):found.get(ref.id)!);
             }
         }
         const relocate=refs.some(ref=>relocatesCollection(ref.path.split('/')[0]));
