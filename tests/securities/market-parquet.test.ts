@@ -19,6 +19,35 @@ function fixture(downloads:string[] = [],queryBudget?:number) { const objects = 
             throw Object.assign(Error('exists'), { code: 412 }); objects.set(name, bytes); } }), upload: async (path: string, options: {
         destination: string;
     }) => { assert(!objects.has(options.destination)); objects.set(options.destination, await readFile(path)); } } as unknown as Bucket; return new MarketFiles(bucket,queryBudget); }
+test('market downloads refill bounded slots while retaining ordered pinned files',async()=>{
+    let releaseSlow!:()=>void,reachedLast!:()=>void,active=0,peak=0;
+    const slow=new Promise<void>(resolve=>releaseSlow=resolve),last=new Promise<void>(resolve=>reachedLast=resolve);
+    const names=Array.from({length:65},(_,i)=>String(i));
+    const bucket={file:(name:string)=>({download:async({destination}:{destination:string})=>{
+        active++;peak=Math.max(peak,active);
+        try{if(name==='0')await slow;await writeFile(destination,name);if(name==='64')reachedLast();}
+        finally{active--;}
+    }})} as unknown as Bucket;
+    const files=new MarketFiles(bucket),local=files as unknown as {local<T>(names:string[],work:(paths:string[])=>Promise<T>):Promise<T>};
+    const work=local.local(names,async paths=>Promise.all(paths.map(path=>readFile(path,'utf8'))));
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    try{
+        await Promise.race([last,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('A slow first download blocked later slots')),5000);})]);
+        assert(peak<=32);releaseSlow();assert.deepEqual(await work,names);
+    }finally{clearTimeout(timer);releaseSlow();await work.catch(()=>{});await files.close();}
+});
+test('market download failures stop new work and release pins before closing',async()=>{
+    const started:string[]=[];let release!:()=>void;
+    const blocked=new Promise<void>(resolve=>release=resolve);
+    const bucket={file:(name:string)=>({download:async()=>{
+        started.push(name);await blocked;throw Error('download failed');
+    }})} as unknown as Bucket;
+    const files=new MarketFiles(bucket),local=files as unknown as {local<T>(names:string[],work:(paths:string[])=>Promise<T>):Promise<T>};
+    let called=false;const work=local.local(Array.from({length:65},(_,i)=>String(i)),async()=>{called=true;});
+    const rejected=assert.rejects(work,/download failed/);
+    try{await new Promise(resolve=>setImmediate(resolve));release();await rejected;assert.equal(called,false);assert(started.length<=32);}
+    finally{release();await work.catch(()=>{});await files.close();}
+});
 test('shared index bundles preserve shard boundaries across live rewrites and rebundling',async()=>{
     const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
     const ids:string[]=[];for(let n=0;ids.length<8;n++)if(!ids.some(id=>shardFor(id)===shardFor('bundle-'+n)))ids.push('bundle-'+n);

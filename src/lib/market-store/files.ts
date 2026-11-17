@@ -67,9 +67,20 @@ export class MarketFiles {
         let release!: () => void;
         const done = new Promise<void>(resolve => { release = resolve; });
         try {
-            for (let start = 0; start < names.length; start += 32) {
-                await Promise.all(names.slice(start, start + 32).map((name, offset) => new Promise<void>((resolve, reject) => { const hold = this.cache.local([name], async ([path]) => { paths[start + offset] = path; resolve(); await done; }); hold.catch(reject); holds.push(hold); })));
-            }
+            // Refill each download slot as it finishes. Fixed batches make every
+            // later file wait for the slowest object in each preceding batch.
+            let cursor=0,failedDownload=false;
+            const outcomes=await Promise.allSettled(Array.from({length:Math.min(32,names.length)},async()=>{
+                try{while(!failedDownload){
+                    const index=cursor++;if(index>=names.length)return;
+                    await new Promise<void>((resolve,reject)=>{
+                        const hold=this.cache.local([names[index]],async([path])=>{paths[index]=path;resolve();await done;});
+                        hold.catch(reject);holds.push(hold);
+                    });
+                }}catch(error){failedDownload=true;throw error;}
+            }));
+            const failed=outcomes.find(outcome=>outcome.status==='rejected');
+            if(failed?.status==='rejected')throw failed.reason;
             return await work(paths);
         }
         finally {
