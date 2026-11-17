@@ -2,8 +2,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
 import {EVENTS_COLLECTION} from '../../events/model';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../../maintenance-lease';
-import {loadCollectionCompanyScope} from '../../company-themes/service';
-import {loadNewsSources} from './source-service';
+import {loadNewsEnrichmentContext} from './source-service';
 import {approvedNewsUrl} from './news';
 import {analyzeCollectedNews} from './news-analysis-worker';
 import {translateCollectedHeadlines,needsHeadlineTranslation} from './headline-translations';
@@ -91,7 +90,7 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
   try{
     let doc=await ref.get();
     if(!doc.exists||articleFingerprint(doc.data()??{})!==task.fingerprint)return {status:'stale',articleId:task.articleId};
-    const {graph,sources}=await (options.context?options.context():Promise.all([loadCollectionCompanyScope(db),loadNewsSources(db)]).then(([graph,sources])=>({graph,sources})));
+    const {graph,sources}=await (options.context?options.context():loadNewsEnrichmentContext(db));
     const mapped=new Set(graph.nodes.map(n=>n.id));
     const companyIds=doc.get('companyIds');
     const primary=doc.get('companyId')??companyIds?.[0];
