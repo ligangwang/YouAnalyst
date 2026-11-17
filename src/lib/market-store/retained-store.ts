@@ -1,7 +1,9 @@
-import type {Firestore,DocumentReference,DocumentSnapshot,Query,Transaction} from 'firebase-admin/firestore';
+import type {Firestore,DocumentReference,DocumentSnapshot,Query,Transaction,Timestamp} from 'firebase-admin/firestore';
 import {isMarketCollection,type MarketCollection,hasAuthoredContent} from './policy';
-import type {Data} from './value';
+import {getField,type Data} from './value';
+import {project} from './query';
 import {reportNativeBatchRead} from './native-read-observability';
+import {CompanyView,companyViewEnabled} from './company-view';
 
 export const RETAINED_CONTROL='collectors/_market_parquet_retained_control';
 export type RetainedMode={enabled:boolean;ready:boolean;cleanupAuthorized:boolean};
@@ -25,6 +27,8 @@ export function retainedMode(doc:DocumentSnapshot):RetainedMode{
 }
 /** Physical retained-record locations stay behind stable logical document IDs. */
 export class RetainedStore {
+    private companyView?:CompanyView;
+    private logicalCompanies?:{source:Map<string,DocumentSnapshot>;docs:Map<string,DocumentSnapshot>};
     private cached?:{until:number;value:Promise<RetainedMode>};
     private locations=new Map<string,'market_state'|'market_ugc'>();
     private remember(path:string,root:'market_state'|'market_ugc'){
@@ -34,7 +38,18 @@ export class RetainedStore {
         this.locations.delete(path);this.locations.set(path,root);
         while(this.locations.size>1024)this.locations.delete(this.locations.keys().next().value!);
     }
-    constructor(private raw:Firestore,private stagedReads=false){}
+    constructor(private raw:Firestore,private stagedReads=false,onCompaniesChanged?:(ids:string[])=>void){
+        if(onCompaniesChanged&&companyViewEnabled())this.companyView=new CompanyView(raw,onCompaniesChanged);
+    }
+    close(){this.companyView?.close();this.logicalCompanies=undefined;}
+    companiesCommitted(at:Timestamp){this.companyView?.afterCommit(at);}
+    async companies(context?:RetainedContext,start=false){
+        if(context||!this.companyView||!this.readsNew(await this.mode()))return undefined;
+        const docs=await this.companyView.read(start);
+        if(!docs){this.logicalCompanies=undefined;return undefined;}
+        if(this.logicalCompanies?.source!==docs)this.logicalCompanies={source:docs,docs:new Map([...docs].map(([id,doc])=>[id,this.logical(doc,this.raw.collection('companies').doc(id))]))};
+        return this.logicalCompanies.docs;
+    }
     private readsNew(mode:RetainedMode|undefined,context?:RetainedContext){return mode?.ready||!!mode?.enabled&&!context&&this.stagedReads;}
     async mode(context?:RetainedContext):Promise<RetainedMode>{
         if(context)return context.retainedMode??=retainedMode(await context.reader.get(this.raw.doc(RETAINED_CONTROL)) as DocumentSnapshot);
@@ -47,7 +62,28 @@ export class RetainedStore {
     private logical(doc:DocumentSnapshot,ref:DocumentReference):DocumentSnapshot{
         return new Proxy(doc,{get(target,key){if(key==='ref')return ref;const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
     }
+    private projected(doc:DocumentSnapshot,fields?:string[]):DocumentSnapshot{
+        if(!fields)return doc;
+        const roots=[...new Set(fields.filter(field=>field!=='__name__').map(field=>field.split('.')[0]))];
+        const data=()=>project(Object.fromEntries(roots.map(field=>[field,doc.get(field)])),fields);
+        return new Proxy(doc,{get(target,key){
+            if(key==='data')return data;
+            if(key==='get')return (field:string)=>getField(data(),field);
+            const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
+        }});
+    }
     async documents(refs:DocumentReference[],context?:RetainedContext,fields?:string[]):Promise<DocumentSnapshot[]>{
+        // A warmed website view serves whole documents; callers still apply
+        // their projection. Transactions and workers always use native reads.
+        if(!context&&this.companyView&&refs.length&&refs.every(ref=>ref.path.split('/')[0]==='companies')){
+            const companies=await this.companies();
+            if(companies&&refs.every(ref=>companies.has(ref.id)))return refs.map(ref=>this.projected(companies.get(ref.id)!,fields));
+            if(companies&&refs.some(ref=>companies.has(ref.id))){
+                const missing=await this.documents(refs.filter(ref=>!companies.has(ref.id)),context,fields);
+                const found=new Map(missing.map(doc=>[doc.id,doc]));
+                return refs.map(ref=>companies.has(ref.id)?this.projected(companies.get(ref.id)!,fields):found.get(ref.id)!);
+            }
+        }
         const relocate=refs.some(ref=>relocatesCollection(ref.path.split('/')[0]));
         const mode=relocate?await this.mode(context):undefined;
         const roots=refs.map(ref=>this.readsNew(mode,context)&&relocatesCollection(ref.path.split('/')[0])

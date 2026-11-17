@@ -9,6 +9,7 @@ import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files'
 import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
+import {project} from './query';
 import {DocumentBatcher} from './document-batcher';
 import {EVENTS_CONTROL,EventsControl,eventsMode,type EventsMode} from './events-control';
 import {FUNDAMENTALS_CONTROL,FundamentalsControl,fundamentalsMode,type FundamentalsMode} from './fundamentals-control';
@@ -85,7 +86,11 @@ export class MarketRepository {
         error: (error: unknown) => void;
     }>>();
     constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
-        this.retainedStore=new RetainedStore(raw,stagedRetained);
+        this.retainedStore=new RetainedStore(raw,stagedRetained,ids=>{
+            const shards=new Set(ids.map(shardFor));
+            this.invalidate('companies',ids.length?shards:undefined);
+            this.changed('companies',ids.length?shards:new Set(Array.from({length:256},(_,n)=>n.toString(16).padStart(2,'0'))));
+        });
         if(eventsGate)this.events=new EventsControl(raw,onMode?ready=>onMode(ready,'events'):undefined);
         if(fundamentalsGate)this.fundamentals=new FundamentalsControl(raw,onMode?ready=>onMode(ready,'company_fundamentals'):undefined);
         if (onMode)
@@ -96,7 +101,7 @@ export class MarketRepository {
             catch {
                 this.controls = undefined; } }, () => { this.controls = undefined; });
     }
-    close() { this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
+    close() { this.retainedStore.close(); this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
         watch.stop(); this.watches.clear(); return this.files.close(); }
     context(reader: Reader): MarketContext { return { reader, heads: new Map(), documents: new Map(), writes: [] }; }
     invalidate(collection?: string, shards?: ReadonlySet<string>) {
@@ -136,6 +141,7 @@ export class MarketRepository {
             const changed = new Map<string, Set<string>>();
             for (const doc of docs) {
                 const pair = pairs.get(doc.id)!, watch = this.watches.get(pair.collection);
+                if(pair.collection==='companies'&&doc.updateTime)this.retainedStore.companiesCommitted(doc.updateTime);
                 if (!watch)
                     continue;
                 const head=this.parseHead(pair.collection, pair.shard, doc);
@@ -400,17 +406,17 @@ export class MarketRepository {
                 selected.push(await this.files.hydrate(result.get(id)!));
         return selected;
     }
-    private nativeQuery(collection: MarketCollection, steps: Step[], operational: boolean, path:string=collection) {
-        let query: Query = this.raw.collection(path);
+    private nativeQuerySteps(collection: MarketCollection, steps: Step[], operational: boolean):Step[] {
+        const native:Step[]=[];
         const bounds = steps.filter(s => ['startAt', 'startAfter', 'endAt', 'endBefore'].includes(s.method));
         const order = steps.filter(s => s.method === 'orderBy');
         const bounded = !operational || steps.filter(s => ['where', 'orderBy'].includes(s.method)).every(s => fieldName(s.args[0]) === '__name__' || isOperationalField(collection, fieldName(s.args[0])) || isRoutingField(fieldName(s.args[0])));
         for (const step of steps) {
             const [field, op, value] = step.args;
             if (step.method === 'where' && (!operational || fieldName(field) === '__name__' || isOperationalField(collection, fieldName(field)) || isRoutingField(fieldName(field))))
-                query = query.where(field as string, op as FirebaseFirestore.WhereFilterOp, value);
+                native.push({method:'where',args:[field,op,value]});
             if (bounded && step.method === 'orderBy')
-                query = query.orderBy(field as string, op as FirebaseFirestore.OrderByDirection);
+                native.push({method:'orderBy',args:step.args});
         }
         if (bounded) {
             for (const step of bounds) {
@@ -421,22 +427,28 @@ export class MarketRepository {
                 let values = step.args;
                 if (first?.get) {
                     if (!order.some(o => fieldName(o.args[0]) === '__name__'))
-                        query = query.orderBy(FieldPath.documentId(), order.at(-1)?.args[1] as FirebaseFirestore.OrderByDirection);
+                        native.push({method:'orderBy',args:[FieldPath.documentId(),order.at(-1)?.args[1]]});
                     const ordering = [...order, ...(order.some(o => fieldName(o.args[0]) === '__name__') ? [] : [{ method: 'orderBy', args: [FieldPath.documentId()] }])];
                     values = ordering.map(o => fieldName(o.args[0]) === '__name__' ? first.id : first.get!(o.args[0]));
                 }
-                query = (query[step.method as 'startAt'] as (...values: unknown[]) => Query)(...values);
+                native.push({method:step.method,args:values});
             }
             const limit = steps.find(s => s.method === 'limit' || s.method === 'limitToLast');
             const offset = Number(steps.find(s => s.method === 'offset')?.args[0] ?? 0);
             if (limit)
-                query = limit.method === 'limit' ? query.limit(Number(limit.args[0]) + offset) : query.limitToLast(Number(limit.args[0]) + offset);
+                native.push({method:limit.method,args:[Number(limit.args[0])+offset]});
         }
         const selection = steps.find(step => step.method === 'select');
         if (selection) {
             const fields = [...new Set([...selection.args.map(fieldName), ...steps.filter(step => ['where', 'orderBy'].includes(step.method)).map(step => fieldName(step.args[0]))])].filter(field => field !== '__name__');
-            query = query.select(...fields);
+            native.push({method:'select',args:fields});
         }
+        return native;
+    }
+    private nativeQuery(collection: MarketCollection, steps: Step[], operational: boolean, path:string=collection) {
+        let query:Query=this.raw.collection(path);
+        for(const step of this.nativeQuerySteps(collection,steps,operational))
+            query=(query[step.method as 'where'] as (...args:unknown[])=>Query).apply(query,step.args);
         return query;
     }
     async query(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
@@ -458,9 +470,16 @@ export class MarketRepository {
         const heads = [...(await this.heads(collection, context)).values()];
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
         const retainedIds = this.retainedMembership(heads);
-        const rawPage = {docs:heads.some(head=>head.retained.length||this.unknownRetained.has(head))
+        const companyView=collection==='companies'?await this.retainedStore.companies(context,true):undefined;
+        // Selecting candidates only needs predicate/order fields. Decoding all
+        // company profiles here would replace read amplification with CPU work.
+        const viewSteps=companyView?this.nativeQuerySteps(collection,steps,operational).filter(step=>step.method!=='select'):[];
+        const viewFields=[...new Set(viewSteps.filter(step=>['where','orderBy'].includes(step.method)).map(step=>fieldName(step.args[0]).split('.')[0]))].filter(field=>field!=='__name__');
+        const viewRows=companyView?await this.files.filter([...companyView.values()].map(doc=>({id:doc.id,
+            data:Object.fromEntries(viewFields.map(field=>[field,doc.get(field)]).filter(([,value])=>value!==undefined)),version:doc.updateTime!})),viewSteps):undefined;
+        const rawPage = {docs:viewRows?viewRows.map(row=>companyView!.get(row.id)!):heads.some(head=>head.retained.length||this.unknownRetained.has(head))
             ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context):[]};
-        reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
+        if(!companyView)reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
         if (!steps.some(s => s.method === 'select'))
             for (const doc of rawPage.docs)
                 context?.documents.set(doc.ref.path, doc);
@@ -498,7 +517,9 @@ export class MarketRepository {
             raw.set(doc.id, doc);
         for (const doc of raw.values())
             if (doc.exists) {
-                const prior = result.get(doc.id), overlay = prior ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
+                const fields=companyView&&projection?this.nativeQuerySteps(collection,steps,operational).find(step=>step.method==='select')?.args.map(fieldName):undefined;
+                const data=fields?project(Object.fromEntries([...new Set(fields.map(field=>field.split('.')[0]))].map(field=>[field,doc.get(field)])),fields):doc.data()!;
+                const prior = result.get(doc.id), overlay = prior ? splitRecord(collection, doc.id, data, true).retained : data;
                 if(prior&&!Object.keys(overlay??{}).length)continue;
                 result.set(doc.id, { id: doc.id, data: { ...prior?.data, ...overlay }, version: doc.updateTime ?? prior?.version ?? Timestamp.now() });
             }

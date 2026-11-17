@@ -24,6 +24,38 @@ const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
 const check = host ? test : test.skip;
+check('web company queries and overlays reuse the incremental view after cache invalidation',async t=>{
+    const prior=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
+    const f=fixture();
+    if(prior===undefined)delete process.env.K_SERVICE;else process.env.K_SERVICE=prior;
+    t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:['companies']});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    await f.db.doc('companies/US:A').set({name:'External A',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}});
+    await f.db.doc('companies/US:B').set({name:'External B',status:'DIRECTORY',onboarding:{status:'PENDING'}});
+    await f.db.doc('companies/ORG:C').set({name:'Curated C',status:'PUBLISHED',reviewedBy:'user'});
+    const all=await f.db.collection('companies').get();assert.equal(all.size,3);
+    let reads=0;
+    const getAll=f.raw.getAll.bind(f.raw),run=f.raw.runTransaction.bind(f.raw);
+    f.raw.getAll=((...args:Parameters<typeof getAll>)=>{if(args.some(arg=>'path' in arg&&/^(companies\/|market_(state|ugc)\/companies\/)/.test(arg.path)))reads++;return getAll(...args);}) as typeof f.raw.getAll;
+    f.raw.runTransaction=((...args:Parameters<typeof run>)=>{reads++;return run(...args);}) as typeof f.raw.runTransaction;
+    for(let n=0;n<3;n++){
+        f.repository.invalidate('companies');
+        assert.equal((await f.db.collection('companies').where('status','==','DIRECTORY').get()).size,2);
+        assert.equal((await f.db.collection('companies').where('status','==','PUBLISHED').select('name').get()).docs[0].get('name'),'Curated C');
+        assert.equal((await f.db.collection('companies').where('onboarding.status','==','SUPPORTED').get()).docs[0].get('name'),'External A');
+        assert.equal((await f.db.doc('companies/US:A').get()).get('onboarding.status'),'SUPPORTED');
+        for(const operator of ['==','in'] as const){
+            const page=await f.db.collection('companies').where('__name__',operator,operator==='in'?['ORG:C']:'ORG:C').select('name').get();
+            assert.deepEqual(page.docs[0].data(),{name:'Curated C'},'identity queries must preserve field masks');
+        }
+        assert.deepEqual((await f.db.getAll(f.db.doc('companies/ORG:C'),{fieldMask:['name']}))[0].data(),{name:'Curated C'});
+        assert.deepEqual((await f.db.collection('companies').where('__name__','==','ORG:C').select().get()).docs[0].data(),{});
+        assert.deepEqual((await f.db.collection('companies').orderBy('name').startAt('External A').limit(1).get()).docs.map(doc=>doc.id),['US:A']);
+    }
+    assert.equal(reads,0,'head invalidation must not restart full scans or per-document overlay reads');
+    assert.equal((await f.raw.collection('companies').get()).size,0);
+});
 check('staged retained reads do not switch transaction authority or events',async t=>{
     const f=fixture();t.after(()=>f.db.terminate());
     await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:false,cleanupAuthorized:false});
