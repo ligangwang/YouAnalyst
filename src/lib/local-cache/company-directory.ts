@@ -5,7 +5,7 @@ import {syncEntityChanges,type EntitySync,type EntityChange} from './entity-sync
 import {collections,type Collection} from '../entity-snapshots/sync';
 export const isSnapshotCollection=(name:string):name is Collection=>(collections as readonly string[]).includes(name);
 import {AsyncLocalStorage} from 'node:async_hooks';
-import {FieldPath, Timestamp, type Firestore, type DocumentData} from 'firebase-admin/firestore';
+import {FieldPath, Timestamp, type Firestore, type DocumentData,type DocumentReference} from 'firebase-admin/firestore';
 import {isDeepStrictEqual} from 'node:util';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {snapshotFiles} from '../entity-snapshots/storage';
@@ -15,7 +15,7 @@ type Step={method:string;args:unknown[]};
 type Source={id?:string;steps:Step[];collection:Collection};
 type Rows=EntityRows;
 type Entry={view?:boolean;rows?:Rows;expires:number;pending?:Promise<Rows>;version:number;overrides:Rows;sync?:EntitySync};
-type Options={onlyCollections?:readonly Collection[];sync?:typeof syncEntityChanges|false;file?:(collection:Collection,view?:boolean)=>Promise<Rows|undefined>;now?:()=>number};
+type Options={onlyCollections?:readonly Collection[];marketReady?:(collection:Collection)=>Promise<boolean>;sync?:typeof syncEntityChanges|false;file?:(collection:Collection,view?:boolean)=>Promise<Rows|undefined>;now?:()=>number};
 declare global {
  var __companyViewReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companySearchReadsV1:AsyncLocalStorage<boolean>|undefined;
@@ -188,6 +188,15 @@ function project(data:DocumentData,fields:readonly string[]):DocumentData {
 export function companySourceSnapshot(db:Firestore,source:object,fieldMask?:readonly string[]):Promise<unknown>|undefined {
  const spec=state.sources.get(source);if(!spec||!companyDirectoryEnabled(db,spec.collection))return undefined;
  if(spec.collection==='eod_prices')return undefined;
+ const ready=state.clients.get(db)?.options.marketReady;
+ if(ready)return ready(spec.collection).then(active=>active
+  ?withLiveCompanyReads(()=>fieldMask&&spec.id!==undefined
+    ?db.getAll(source as DocumentReference,{fieldMask:[...fieldMask]}).then(docs=>docs[0])
+    :(source as {get:()=>Promise<unknown>}).get())
+  :directorySourceSnapshot(db,spec,fieldMask));
+ return directorySourceSnapshot(db,spec,fieldMask);
+}
+function directorySourceSnapshot(db:Firestore,spec:Source,fieldMask?:readonly string[]):Promise<unknown> {
  // Only explicitly projected, search-independent queries may use the smaller file.
  const projection=spec.steps.find(step=>step.method==='select');
  const view=spec.collection==='companies'&&viewReads.getStore()===true&&spec.id===undefined&&!!projection
