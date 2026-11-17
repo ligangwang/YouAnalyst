@@ -30,6 +30,7 @@ const operational = new Set([
 const histories = new Set(['company_research_runs', 'directory_syncs', 'eod_runs', 'industry_research_runs', 'security_id_mapping_sync_runs']);
 const authored = (data: Data, depth = 0): boolean => ['createdBy', 'updatedBy', 'reviewedBy', 'approvedBy', 'proposedBy', 'userId', 'authorId', 'manualRequestedBy', 'nameEdits', 'editorialReviewedAt', 'communityReviewedAt', 'communityOpenCount', 'aliasReviews'].some(k => data[k] !== undefined && data[k] !== null && data[k] !== '')
     || depth < 8 && Object.values(data).some(value => value && Object.getPrototypeOf(value) === Object.prototype ? authored(value as Data, depth + 1) : Array.isArray(value) && value.some(item => item && Object.getPrototypeOf(item) === Object.prototype && authored(item as Data, depth + 1)));
+export const hasAuthoredContent=(data:Data)=>authored(data);
 /** Retain entire authored records unless ownership of individual fields is clear.
  * A migration must never reinterpret an editor's content as disposable market data. */
 export function retainedWhole(collection: MarketCollection, id: string, data: Data): boolean {

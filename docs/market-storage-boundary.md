@@ -37,6 +37,31 @@ This cleanup does **not** claim to eliminate that operational scan or all
 Firestore usage. The measured directory-read amplification needs its own
 shared-cache/freshness design; deleting the status predicate is incorrect.
 
+## Retained-record relocation
+
+The approved physical destinations are
+`market_state/{originalCollection}/records/{originalId}` for operational state
+and `market_ugc/{originalCollection}/records/{originalId}` for user/curated
+records. Logical collection names and record fields remain unchanged. Events
+are excluded, and ordinary UGC collections retain their existing locations.
+
+`collectors/_market_parquet_retained_control` coordinates the rollout. An absent
+document leaves existing behavior unchanged. Version 1 with `ready: false` and
+`cleanupAuthorized: false` mirrors transactional writes to the destinations
+while reading the originals. Deploy every writer before copying and reconciling.
+The operator `scripts/migrate-retained-state.ts` backs up sources to GCS, copies
+without overwriting newer records, and reconciles both sources and destinations
+transactionally. Verification must find no differences.
+
+A candidate website can use `MARKET_RETAINED_READ_READY=1` to verify reads from
+the destinations; this does not change transaction authority. After UI, API,
+UGC and performance verification, `ready: true` switches reads while retaining
+the old mirror. Only after workers are verified and old writers drain may
+`cleanupAuthorized: true` stop writes to the originals. The delete operator
+requires production verification evidence and uses update-time preconditions,
+recoverable backups and capacity checks. Do not reverse the read gate after
+source deletion. The compatibility deployment alone does not remove records.
+
 ## Removed bypasses and obsolete paths
 
 - Background-usage inspection and the old central-cache measurement now use

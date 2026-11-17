@@ -1,4 +1,5 @@
-import {reportNativeRead,reportNativeBatchRead} from './native-read-observability';
+import {reportNativeRead} from './native-read-observability';
+import {RetainedStore,relocatesCollection,type RetainedMode} from './retained-store';
 import {assertReadControl} from './read-control';
 import { FieldPath, FieldValue, Timestamp, type Firestore, type Transaction, type DocumentReference, type DocumentSnapshot, type Query } from 'firebase-admin/firestore';
 import { isDeepStrictEqual } from 'node:util';
@@ -25,6 +26,7 @@ type Reader = {
 };
 export type MarketContext = {
     reader: Reader;
+    retainedMode?:RetainedMode;
     control?: boolean;
     fundamentals?: FundamentalsMode;
     events?: EventsMode;
@@ -35,6 +37,7 @@ export type MarketContext = {
     writes: Mutation[];
 };
 export class MarketRepository {
+    private retainedStore:RetainedStore;
     private readonly bootstrapHeads=['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'');
     // Website deployments keep the compact pointer path without relying on an
     // operator-only environment override. Explicit 0 remains a rollback switch.
@@ -80,7 +83,8 @@ export class MarketRepository {
         change: () => void;
         error: (error: unknown) => void;
     }>>();
-    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false) {
+    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
+        this.retainedStore=new RetainedStore(raw,stagedRetained);
         if(eventsGate)this.events=new EventsControl(raw,onMode?ready=>onMode(ready,'events'):undefined);
         if(fundamentalsGate)this.fundamentals=new FundamentalsControl(raw,onMode?ready=>onMode(ready,'company_fundamentals'):undefined);
         if (onMode)
@@ -324,8 +328,7 @@ export class MarketRepository {
     private async rawDocuments(refs: DocumentReference[], context?: MarketContext, fields?: string[]) {
         const found = new Map<string, DocumentSnapshot>();
         for (let i = 0; i < refs.length; i += 100) {
-            const docs = context ? await context.reader.getAll(...refs.slice(i, i + 100)) : await this.raw.getAll(...refs.slice(i, i + 100), ...(fields ? [{fieldMask:fields}] : []));
-            reportNativeBatchRead(docs,!!context,context?undefined:fields);
+            const docs = await this.retainedStore.documents(refs.slice(i,i+100),context,fields);
             for (const doc of docs) {
                 found.set(doc.ref.path, doc);
                 context?.documents.set(doc.ref.path, doc);
@@ -391,8 +394,8 @@ export class MarketRepository {
                 selected.push(await this.files.hydrate(result.get(id)!));
         return selected;
     }
-    private nativeQuery(collection: MarketCollection, steps: Step[], operational: boolean) {
-        let query: Query = this.raw.collection(collection);
+    private nativeQuery(collection: MarketCollection, steps: Step[], operational: boolean, path:string=collection) {
+        let query: Query = this.raw.collection(path);
         const bounds = steps.filter(s => ['startAt', 'startAfter', 'endAt', 'endBefore'].includes(s.method));
         const order = steps.filter(s => s.method === 'orderBy');
         const bounded = !operational || steps.filter(s => ['where', 'orderBy'].includes(s.method)).every(s => fieldName(s.args[0]) === '__name__' || isOperationalField(collection, fieldName(s.args[0])) || isRoutingField(fieldName(s.args[0])));
@@ -448,8 +451,9 @@ export class MarketRepository {
     private async queryUncached(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
         const heads = [...(await this.heads(collection, context)).values()];
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
-        const native = this.nativeQuery(collection, steps, operational), retainedIds = this.retainedMembership(heads);
-        const rawPage = heads.some(head=>head.retained.length||this.unknownRetained.has(head)) ? (context ? await context.reader.get(native) : await native.get()) as FirebaseFirestore.QuerySnapshot : { docs: [] };
+        const retainedIds = this.retainedMembership(heads);
+        const rawPage = {docs:heads.some(head=>head.retained.length||this.unknownRetained.has(head))
+            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context):[]};
         reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
         if (!steps.some(s => s.method === 'select'))
             for (const doc of rawPage.docs)
@@ -516,6 +520,10 @@ export class MarketRepository {
         if(this.events&&mutations.some(write=>write.path.startsWith('events/')))await this.eventsState(context);
         const modeFor=(collection:string)=>collection==='events'&&this.events?context.events!:collection==='company_fundamentals'&&this.fundamentals?context.fundamentals!:{ready,cleanupAuthorized:context.cleanupAuthorized===true,cleanedCollections:context.cleanedCollections};
         const retires=(collection:string)=>{const mode=modeFor(collection);return mode.ready&&mode.cleanupAuthorized;};
+        const relocated=mutations.some(write=>relocatesCollection(write.path.split('/')[0]))
+            ?await this.retainedStore.mode(context):{enabled:false,ready:false,cleanupAuthorized:false};
+        if(relocated.enabled&&mutations.some(write=>{const collection=write.path.split('/')[0];return relocatesCollection(collection)&&!retires(collection);}))
+            throw Error('Retained-state relocation requires completed external-payload retirement');
         for (const write of mutations) {
             const [collection, id] = write.path.split('/') as [
                 MarketCollection,
@@ -595,7 +603,7 @@ export class MarketRepository {
                         rows.delete(id);
                         const hadRetained = retained.delete(id);
                         if (!retire || hadRetained || context.documents.get(ref.path)?.exists)
-                            writes.push(() => tx.delete(ref));
+                            writes.push(() => this.retainedStore.write(tx,relocated,collection,id,undefined));
                         continue;
                     }
                     const split = splitRecord(collection, id, data);
@@ -628,11 +636,11 @@ export class MarketRepository {
                     }
                     const serverStamps = (value: Data, path: string[] = []): Data => Object.fromEntries(Object.entries(value).map(([key, item]) => { const next = [...path, key]; return [key, item instanceof Timestamp && item.isEqual(at) && stampPaths.has(next.join('.')) ? FieldValue.serverTimestamp() : item && Object.getPrototypeOf(item) === Object.prototype ? serverStamps(item as Data, next) : item]; }));
                     if (!retire)
-                        writes.push(() => tx.set(ref, { ...split.external, ...serverStamps(split.retained) }));
+                        writes.push(() => this.retainedStore.write(tx,relocated,collection,id,{ ...split.external, ...serverStamps(split.retained) }));
                     else if (keep)
-                        writes.push(() => tx.set(ref, serverStamps(split.retained)));
+                        writes.push(() => this.retainedStore.write(tx,relocated,collection,id,serverStamps(split.retained)));
                     else if (context.documents.get(ref.path)?.exists)
-                        writes.push(() => tx.delete(ref));
+                        writes.push(() => this.retainedStore.write(tx,relocated,collection,id,undefined));
                 }
                 const nextRows = [...rows.values()];
                 const changed = !isDeepStrictEqual(previous, nextRows);

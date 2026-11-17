@@ -6,6 +6,8 @@ import { Firestore, FieldValue, Timestamp, type Query } from '@google-cloud/fire
 import type { Bucket } from '@google-cloud/storage';
 import { MarketFiles } from '../../src/lib/market-store/files';
 import {EVENTS_CONTROL} from '../../src/lib/market-store/events-control';
+import {RETAINED_CONTROL,retainedPath,RetainedStore} from '../../src/lib/market-store/retained-store';
+import {reconcileRetainedRecords} from '../../src/lib/market-store/retained-migration';
 import {FUNDAMENTALS_CONTROL} from '../../src/lib/market-store/fundamentals-control';
 import { MarketRepository, CONTROL,headId } from '../../src/lib/market-store/repository';
 import {bundleMarketIndexes} from '../../src/lib/market-store/index-bundles';
@@ -22,6 +24,81 @@ const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
 const check = host ? test : test.skip;
+check('staged retained reads do not switch transaction authority or events',async t=>{
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:false,cleanupAuthorized:false});
+    const ref=f.raw.doc('company_fundamentals/_worker');
+    await ref.set({leaseOwner:'source'});
+    await f.raw.doc(retainedPath('market_state','company_fundamentals','_worker')).set({leaseOwner:'candidate'});
+    const store=new RetainedStore(f.raw,true);
+    assert.equal((await store.documents([ref]))[0].get('leaseOwner'),'candidate');
+    await f.raw.runTransaction(async tx=>{
+        const reader={get:(ref:FirebaseFirestore.Query|FirebaseFirestore.DocumentReference)=>tx.get(ref as FirebaseFirestore.DocumentReference),getAll:(...refs:FirebaseFirestore.DocumentReference[])=>tx.getAll(...refs)};
+        assert.equal((await store.documents([ref],{reader}))[0].get('leaseOwner'),'source');
+    });
+    const event=f.raw.doc('events/deferred');await event.set({title:'Native'});
+    assert.equal((await store.documents([event]))[0].get('title'),'Native');
+});
+check('retained reconciliation repairs copy races and removes ghosts without changing sources',async t=>{
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:false,cleanupAuthorized:false});
+    const source=f.raw.doc('companies/US:RACE'),state=f.raw.doc(retainedPath('market_state','companies','US:RACE')),
+        ugc=f.raw.doc(retainedPath('market_ugc','companies','US:RACE'));
+    await source.set({onboarding:{status:'SUPPORTED'},updatedAt:Timestamp.now()});
+    await state.set((await source.get()).data()!);
+    // The initial copy can race with an editorial move to the UGC destination.
+    await source.set({name:'Reviewed',status:'PUBLISHED',reviewedBy:'user-1',updatedAt:Timestamp.now()});
+    const before=await source.get();
+    await assert.rejects(reconcileRetainedRecords(f.raw,'companies',['US:RACE'],true),/parity failed/);
+    assert.equal((await reconcileRetainedRecords(f.raw,'companies',['US:RACE'])).changed,2);
+    assert.equal((await state.get()).exists,false);assert.deepEqual((await ugc.get()).data(),before.data());
+    assert((await source.get()).updateTime!.isEqual(before.updateTime!),'reconciliation never writes the source');
+    assert.equal((await reconcileRetainedRecords(f.raw,'companies',['US:RACE'],true)).changed,0);
+    await source.delete();await reconcileRetainedRecords(f.raw,'companies',['US:RACE']);
+    assert.equal((await ugc.get()).exists,false,'a destination created after source deletion must not survive');
+    await f.raw.doc(RETAINED_CONTROL).update({ready:true});
+    await assert.rejects(reconcileRetainedRecords(f.raw,'companies',['US:RACE']),/mirror phase/);
+    await assert.rejects(reconcileRetainedRecords(f.raw,'events',['excluded']),/Invalid retained migration batch/);
+});
+check('retained records move atomically, preserve queries and never recreate retired collections',async t=>{
+    const f=fixture(false,false,false,false,true);t.after(()=>f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:['companies','company_fundamentals']});
+    await f.raw.doc(EVENTS_CONTROL).set({version:1,ready:false});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:false,cleanupAuthorized:false});
+    const a=f.db.doc('companies/US:A'),b=f.db.doc('companies/US:B'),curated=f.db.doc('companies/ORG:CURATED');
+    await a.set({name:'External A',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}});
+    await b.set({name:'External B',status:'DIRECTORY',onboarding:{status:'SUPPORTED'}});
+    await curated.set({name:'User company',status:'PUBLISHED',createdBy:'user-1',onboarding:{status:'SUPPORTED'}});
+    const stateA=f.raw.doc(retainedPath('market_state','companies',a.id)),ugcA=f.raw.doc(retainedPath('market_ugc','companies',a.id));
+    assert.deepEqual((await stateA.get()).data(),(await f.raw.doc(a.path).get()).data());
+    assert.equal((await stateA.get()).get('name'),undefined);
+    assert.equal((await f.raw.doc(retainedPath('market_ugc','companies',curated.id)).get()).get('name'),'User company');
+    await f.raw.doc(RETAINED_CONTROL).update({ready:true});
+    await new Promise(resolve=>setTimeout(resolve,1100));f.repository.invalidate();
+    const page=await f.db.collection('companies').where('onboarding.status','==','SUPPORTED').orderBy('__name__').limit(2).get();
+    assert.deepEqual(page.docs.map(doc=>doc.id),['ORG:CURATED','US:A']);
+    assert.equal(page.docs[1].get('name'),'External A');
+    assert.equal(page.docs[1].ref.path,a.path);
+    const after=await f.db.collection('companies').where('onboarding.status','==','SUPPORTED').orderBy('__name__').startAfter(page.docs[1]).get();
+    assert.deepEqual(after.docs.map(doc=>doc.id),['US:B']);
+    await f.raw.doc(RETAINED_CONTROL).update({cleanupAuthorized:true});
+    await Promise.all([a,b,curated].map(ref=>f.raw.doc(ref.path).delete()));
+    await f.db.runTransaction(async tx=>{const current=await tx.get(a);assert.equal(current.get('name'),'External A');tx.update(a,{name:'Reviewed A',reviewedBy:'user-2'});});
+    assert.equal((await stateA.get()).exists,false);
+    assert.equal((await ugcA.get()).get('name'),'Reviewed A');
+    assert.equal((await f.raw.doc(a.path).get()).exists,false);
+    const relocatedPage=await f.db.collection('companies').where('onboarding.status','==','SUPPORTED').orderBy('__name__').get();
+    assert.deepEqual(relocatedPage.docs.map(doc=>doc.id),['ORG:CURATED','US:A','US:B']);
+    assert.equal(relocatedPage.docs.find(doc=>doc.id==='US:A')!.get('name'),'Reviewed A');
+    await f.db.doc('company_fundamentals/_worker').set({leaseOwner:'test-owner',leaseUntil:123});
+    assert.equal((await f.raw.doc('company_fundamentals/_worker').get()).exists,false);
+    assert.equal((await f.raw.doc(retainedPath('market_state','company_fundamentals','_worker')).get()).get('leaseOwner'),'test-owner');
+    await a.delete();assert.equal((await ugcA.get()).get('isDeleted'),true,'normal authored deletions retain the existing soft-delete behavior');
+    await marketFirestore(f.raw,f.repository).doc(a.path).delete();assert.equal((await ugcA.get()).exists,false);
+    await f.db.doc('events/native-feed').set({title:'Keep the feed in Firestore'});
+    assert.equal((await f.raw.doc('events/native-feed').get()).get('title'),'Keep the feed in Firestore');
+    assert.equal((await f.raw.doc(retainedPath('market_state','events','native-feed')).get()).exists,false);
+});
 check('native announcement snapshots remain listenable before Parquet cutover',async t=>{
     const raw=new Firestore({projectId:'demo-announcements-'+randomUUID().slice(0,8)});
     t.after(async()=>{closeLocalCaches();await raw.terminate();});

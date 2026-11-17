@@ -282,9 +282,9 @@ test('small queries inspect only matching retained shards and refresh membership
     const head=(shard:string,ids:string[])=>({collection:'events',shard,rows:1,retained:counted(ids),revision:'fixture'});
     const doc=(value:ReturnType<typeof head>)=>({exists:true,get:(field:string)=>field==='marketHead'?value:value.shard});
     const docs=Array.from({length:256},(_,i)=>{const shard=i.toString(16).padStart(2,'0');return doc(head(shard,shard===target?[id]:['unrelated-'+shard]));});
-    const query={where:()=>query,limit:()=>query,get:async()=>({docs:[]}),doc:(id:string)=>({id}),onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}};
+    const query={where:()=>query,limit:()=>query,get:async()=>({docs:[]}),doc:(id:string)=>({id,path:'events/'+id}),onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}};
     let overlays=0;
-    const raw={collection:()=>query,getAll:async(...refs:unknown[])=>{overlays+=refs.length;return [];}} as unknown as Firestore;
+    const raw={collection:()=>query,getAll:async(...refs:Array<{path:string}>)=>{overlays+=refs.length;return refs.map(ref=>({exists:false,ref,data:()=>undefined}));}} as unknown as Firestore;
     const row={id,data:{type:'news'},version:Timestamp.now()};
     const files={query:async()=>[row],filter:async(rows:MarketRow[])=>rows,hydrate:async(row:MarketRow)=>row,close:async()=>{}} as unknown as MarketFiles;
     const repo=new MarketRepository(raw,files,undefined,true);

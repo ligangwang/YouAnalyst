@@ -13,6 +13,7 @@ const rawClients=new Set([
     'scripts/finalize-market-parquet.ts','scripts/migrate-market-parquet.ts',
     'scripts/migrate-read-optimization.ts',
     'scripts/sync-entity-snapshots.ts',
+    'scripts/migrate-retained-state.ts',
 ]);
 test('application and scheduled readers cannot import a raw Firestore client',()=>{
     const violations:string[]=[];
