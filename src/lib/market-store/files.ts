@@ -15,6 +15,7 @@ import { MARKET_INDEX_FIELDS, MARKET_INDEX_PAYLOAD_FIELDS, marketIndexField, mar
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup,type PrefixRows,type PrefixLookup} from './prefix-cache';
 import {ANNOUNCEMENT_LOOKUP,announcementLookup,announcementPlan,announcementIds} from './announcement-index';
 import {announcementBucket,announcementIndexFile,announcementIndexRows} from './announcement-sidecar';
+import {startMarketReadTiming} from '../market-read-timing';
 export const MARKET_ROOT = 'market-parquet/v1';
 export const shardFor = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 2);
 export type MarketRow = {
@@ -66,6 +67,7 @@ export class MarketFiles {
     }
     close() { this.queryResults.clear();this.prefixes.clear();this.announcementPrefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
+        const timing=startMarketReadTiming('files',names.length);let status:'success'|'error'='error';
         const paths: string[] = [], holds: Promise<unknown>[] = [];
         let release!: () => void;
         const done = new Promise<void>(resolve => { release = resolve; });
@@ -84,11 +86,13 @@ export class MarketFiles {
             }));
             const failed=outcomes.find(outcome=>outcome.status==='rejected');
             if(failed?.status==='rejected')throw failed.reason;
-            return await work(paths);
+            timing?.workStarted();
+            const value=await work(paths);status='success';return value;
         }
         finally {
             release();
             await Promise.allSettled(holds);
+            timing?.finish(status);
         }
     }
     private validate(file: string) { if (!/^market-parquet\/v1\/data\/[a-z_]+\/[a-f0-9]{2}\/[a-f0-9-]+\.parquet$/.test(file))

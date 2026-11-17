@@ -3,6 +3,7 @@ import {Timestamp} from 'firebase-admin/firestore';
 import {encode,decode} from '../central-cache/codec';
 import {pricePartition} from '../entity-snapshots/price-partition';
 import type {Row} from '../entity-snapshots/sync';
+import {startMarketReadTiming} from '../market-read-timing';
 
 export const quote=(value:string)=>"'"+value.replaceAll("'","''")+"'";
 export const priceColumns={id:'VARCHAR',market:'VARCHAR',ticker:'VARCHAR',tradingDate:'VARCHAR',
@@ -12,7 +13,11 @@ export const timestampNanos=(value:Timestamp)=>BigInt(value.seconds)*BigInt(1_00
 declare global {var __youAnalystDuckQueue:{tail:Promise<unknown>}|undefined;}
 const queue=globalThis.__youAnalystDuckQueue??={tail:Promise.resolve()};
 export function withDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
- const result=queue.tail.then(()=>runDuck(work));queue.tail=result.catch(()=>{});return result;
+ const timing=startMarketReadTiming('duckdb');
+ const result=queue.tail.then(async()=>{
+  timing?.workStarted();let status:'success'|'error'='error';
+  try{const value=await runDuck(work);status='success';return value;}finally{timing?.finish(status);}
+ });queue.tail=result.catch(()=>{});return result;
 }
 async function runDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
  const {DuckDBInstance}=await import('@duckdb/node-api');
