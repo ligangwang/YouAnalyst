@@ -470,19 +470,6 @@ export class MarketRepository {
         const heads = [...(await this.heads(collection, context)).values()];
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
         const retainedIds = this.retainedMembership(heads);
-        const companyView=collection==='companies'?await this.retainedStore.companies(context,true):undefined;
-        // Selecting candidates only needs predicate/order fields. Decoding all
-        // company profiles here would replace read amplification with CPU work.
-        const viewSteps=companyView?this.nativeQuerySteps(collection,steps,operational).filter(step=>step.method!=='select'):[];
-        const viewFields=[...new Set(viewSteps.filter(step=>['where','orderBy'].includes(step.method)).map(step=>fieldName(step.args[0]).split('.')[0]))].filter(field=>field!=='__name__');
-        const viewRows=companyView?await this.files.filter([...companyView.values()].map(doc=>({id:doc.id,
-            data:Object.fromEntries(viewFields.map(field=>[field,doc.get(field)]).filter(([,value])=>value!==undefined)),version:doc.updateTime!})),viewSteps):undefined;
-        const rawPage = {docs:viewRows?viewRows.map(row=>companyView!.get(row.id)!):heads.some(head=>head.retained.length||this.unknownRetained.has(head))
-            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context):[]};
-        if(!companyView)reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
-        if (!steps.some(s => s.method === 'select'))
-            for (const doc of rawPage.docs)
-                context?.documents.set(doc.ref.path, doc);
         const candidateSteps = steps.filter(s => !['offset', 'select', 'count'].includes(s.method)).map(s => s.method === 'limit' || s.method === 'limitToLast' ? { ...s, args: [Number(s.args[0]) + Number(steps.find(s => s.method === 'offset')?.args[0] ?? 0)] } : s);
         const projection = steps.find(step => step.method === 'select');
         if (projection)
@@ -495,7 +482,31 @@ export class MarketRepository {
         const requiresOverlay = steps.some(step => ['where', 'orderBy'].includes(step.method)
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
             && isOperationalField(collection, fieldName(step.args[0])));
-        const external = onlyRetained || requiresOverlay ? [] : await this.files.query(heads, candidateSteps), result = new Map(external.map(row => [row.id, row]));
+        const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay
+            ? Promise.resolve([]) : this.files.query(heads, candidateSteps);
+        const searchFields = ['searchPrefixes', 'symbolLower'];
+        const directoryLookup = collection === 'companies' && !context && projection
+            && steps.some(step => step.method === 'limit' && Number(step.args[0]) <= 50)
+            && steps.some(step => step.method === 'where' && searchFields.includes(fieldName(step.args[0])));
+        // Search reads the same immutable Parquet heads whichever retained snapshot arrives.
+        // Start both loads together on a miss so a new instance pays the longer wait only once.
+        const [companyView, earlyCandidates] = await Promise.all([
+            collection === 'companies' ? this.retainedStore.companies(context, true) : undefined,
+            directoryLookup ? externalCandidates() : undefined,
+        ]);
+        // Selecting candidates only needs predicate/order fields. Decoding all
+        // company profiles here would replace read amplification with CPU work.
+        const viewSteps=companyView?this.nativeQuerySteps(collection,steps,operational).filter(step=>step.method!=='select'):[];
+        const viewFields=[...new Set(viewSteps.filter(step=>['where','orderBy'].includes(step.method)).map(step=>fieldName(step.args[0]).split('.')[0]))].filter(field=>field!=='__name__');
+        const viewRows=companyView?await this.files.filter([...companyView.values()].map(doc=>({id:doc.id,
+            data:Object.fromEntries(viewFields.map(field=>[field,doc.get(field)]).filter(([,value])=>value!==undefined)),version:doc.updateTime!})),viewSteps):undefined;
+        const rawPage = {docs:viewRows?viewRows.map(row=>companyView!.get(row.id)!):heads.some(head=>head.retained.length||this.unknownRetained.has(head))
+            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context):[]};
+        if(!companyView)reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
+        if (!steps.some(s => s.method === 'select'))
+            for (const doc of rawPage.docs)
+                context?.documents.set(doc.ref.path, doc);
+        const external = earlyCandidates ?? await externalCandidates(), result = new Map(external.map(row => [row.id, row]));
         const raw = new Map<string, DocumentSnapshot>(rawPage.docs.filter(doc => retainedIds.has(doc.id)).map(doc => [doc.id, doc]));
         // An unbounded identity-ordered scan already returned every external
         // row. Missing IDs are retained-only records, so a second Parquet scan
