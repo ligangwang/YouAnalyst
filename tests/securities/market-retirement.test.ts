@@ -19,4 +19,3 @@ test('unmigrated events and retained operational state still have a native read 
     assert.doesNotThrow(()=>assertReadControl({version:1,ready:true,cleanedCollections:['companies']}));
     assert.throws(()=>assertReadControl(undefined),/missing or invalid/);
 });
-
