@@ -36,3 +36,10 @@ export async function loadNewsSources(db:Firestore):Promise<NewsSource[]>{
     return sources;
   });
 }
+
+/** Derive article scope and publisher eligibility from one live company view. */
+export async function loadNewsEnrichmentContext(db:Firestore){
+  const docs=await loadCollectionCompanies(db,undefined,'news');
+  const records=docs.map(doc=>({...doc.data(),id:doc.id}));
+  return {graph:supportedCompanyUniverse(records),sources:approvedCompanyNewsSources(records)};
+}
