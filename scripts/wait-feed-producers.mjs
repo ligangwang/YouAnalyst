@@ -1,5 +1,6 @@
 import {execFileSync} from 'node:child_process';
 import {needsFeedProducerDrain} from './feed-producer-drain.mjs';
+import {retainedReadReady,eodLeasePath} from './lib/retained-firestore-paths.mjs';
 const jobs=[];
 if(process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED==='1')jobs.push('collect-intelligence-news-production');
 if(process.env.ENABLE_SEC_FILING_PIPELINE==='1')jobs.push('collect-sec-filings-production');
@@ -14,8 +15,9 @@ for(let attempt=0;attempt<60;attempt++){
       if(needsFeedProducerDrain(execution,process.env.GIT_SHA))active.push(execution.metadata.name);
     }
   }
+  const retained=waitEod?await retainedReadReady(process.env.GCP_PROJECT_ID,token):false;
   if(waitEod)for(const market of ['US','CN_A']){
-    const url=`https://firestore.googleapis.com/v1/projects/${process.env.GCP_PROJECT_ID}/databases/(default)/documents/eod_runs/_queue_${market}`;
+    const url=`https://firestore.googleapis.com/v1/projects/${process.env.GCP_PROJECT_ID}/databases/(default)/documents/${eodLeasePath(market,retained)}`;
     const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(30_000)});
     if(response.status===404)continue;
     if(!response.ok)throw Error(`Could not check EOD lease (${response.status}); web rollout withheld`);
