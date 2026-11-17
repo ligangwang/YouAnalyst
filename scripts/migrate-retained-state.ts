@@ -11,6 +11,8 @@ import {EVENTS_CONTROL} from '../src/lib/market-store/events-control';
 import {encode} from '../src/lib/central-cache/codec';
 import {CleanupGate,migrationCapacity,capacityRegression,type CapacitySample} from './market-migration-safety';
 import type {MarketCollection} from '../src/lib/market-store/policy';
+import {flushBulkWrites} from './lib/flush-bulk-writes';
+import {boundedOperatorWork} from './lib/bounded-operator-work';
 
 // Explicit operator only. No bootstrap or read-gate switch is performed here.
 async function main(){
@@ -56,16 +58,25 @@ async function main(){
         };
         await check();
         const scan=async(path:string,visit:(docs:FirebaseFirestore.QueryDocumentSnapshot[])=>Promise<void>)=>{
-            let cursor:string|undefined;
+            const pages=async function*(){let cursor:string|undefined;
             for(;;){
                 await check();
-                const limit=operation==='copy'||operation==='delete'?1000:100;
+                const limit=1000;
                 let query:Query=raw.collection(path).orderBy(FieldPath.documentId()).limit(limit);
                 if(cursor)query=query.startAfter(cursor);
                 const page=await query.get();if(!page.size)break;
-                await guard(page.size);await visit(page.docs);
+                await guard(page.size);yield page.docs;
                 cursor=page.docs.at(-1)!.id;if(page.size<limit)break;
-            }
+            }};
+            // Copy into unused destinations with one shared rate/capacity guard.
+            // Deletion remains one page at a time, checked before every page.
+            await boundedOperatorWork(pages(),operation==='copy'?4:1,visit);
+        };
+        const reconcile=async(docs:FirebaseFirestore.QueryDocumentSnapshot[])=>{
+            const batches=Array.from({length:Math.ceil(docs.length/100)},(_,n)=>docs.slice(n*100,n*100+100).map(doc=>doc.id));
+            await boundedOperatorWork(batches,4,async ids=>{
+                const result=await reconcileRetainedRecords(raw,collection,ids,operation==='verify');written+=result.changed;
+            });
         };
         await scan(collection,async docs=>{
             read+=docs.length;for(const doc of docs)ids.update(doc.id+'\n');
@@ -74,7 +85,7 @@ async function main(){
                 const backup=encode(docs.map(doc=>({id:doc.id,data:doc.data(),updateTime:doc.updateTime})));
                 await bucket.file(`${root}/source-${String(pageNumber++).padStart(7,'0')}.json.gz`).save(gzipSync(JSON.stringify(backup)),
                     {resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/gzip'}});
-                const results=await Promise.allSettled(docs.map(doc=>operation==='delete'
+                const results=await flushBulkWrites(writer,docs.map(doc=>operation==='delete'
                     ?writer.delete(doc.ref,{lastUpdateTime:doc.updateTime})
                     :writer.create(raw.doc(retainedPath(retainedRoot(collection,doc.id,doc.data()),collection,doc.id)),doc.data())));
                 for(const result of results){
@@ -83,14 +94,14 @@ async function main(){
                     else throw result.reason;
                 }
             }else{
-                const result=await reconcileRetainedRecords(raw,collection,docs.map(doc=>doc.id),operation==='verify');written+=result.changed;
+                await reconcile(docs);
             }
             if(read%5000===0)console.info(JSON.stringify({operation,collection,read,written,skipped}));
         });
         if(operation==='reconcile'||operation==='verify'){
             // Source scans alone cannot find a stale destination for a deleted ID.
             for(const destination of ['market_state','market_ugc'])await scan(`${destination}/${collection}/records`,async docs=>{
-                const result=await reconcileRetainedRecords(raw,collection,docs.map(doc=>doc.id),operation==='verify');written+=result.changed;
+                await reconcile(docs);
             });
         }
         if(operation==='delete'&&(await raw.collection(collection).limit(1).get()).size)throw Error('Source collection is not empty');

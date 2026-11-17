@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {mkdir,writeFile} from 'node:fs/promises';
@@ -56,6 +57,7 @@ export async function migrateCompanyOnboarding({project,request,write=false,back
 }
 
 async function main(){
+  rejectLegacyMarketCommand();
   const project=process.env.GOOGLE_CLOUD_PROJECT;
   assert(project,'Set GOOGLE_CLOUD_PROJECT explicitly');
   const token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN;

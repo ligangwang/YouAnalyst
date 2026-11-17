@@ -69,6 +69,7 @@ export async function publishSummariesRest(project:string,batch:SummaryBatch,req
   return publishSummaries(adapter,batch,write);
 }
 async function main(){
+  if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN)throw Error('Legacy direct-Firestore summary publication is retired; use application-default credentials with the shared client.');
   const batch=JSON.parse((await readFile(new URL('../data/ai-supply-chain/company-summaries-zh.json',import.meta.url),'utf8')).replace(/^\uFEFF/,''));
   assert(process.env.GCP_PROJECT_ID&&(process.argv.includes('--preview')||process.argv.includes('--write')),'Use --preview or --write with GCP_PROJECT_ID');
   if(process.env.GOOGLE_OAUTH_ACCESS_TOKEN){

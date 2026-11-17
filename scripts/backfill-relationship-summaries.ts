@@ -1,3 +1,4 @@
+import {rejectLegacyMarketCommand} from './lib/retire-market-command';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
@@ -45,6 +46,7 @@ export async function backfillRelationshipSummaries(project:string,token:string,
  return {pending:candidates.length,stored};
 }
 async function main(){
+  rejectLegacyMarketCommand();
  const project=process.env.GCP_PROJECT_ID,token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
  assert(project&&token&&(process.argv.includes('--preview')||process.argv.includes('--write')),'Use --preview or --write with project and existing access token');
  let key='';
