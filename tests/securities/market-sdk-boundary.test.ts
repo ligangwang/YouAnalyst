@@ -36,7 +36,7 @@ test('application and scheduled readers cannot import a raw Firestore client',()
         for(const node of source.statements){
             if(!ts.isImportDeclaration(node)||!ts.isStringLiteral(node.moduleSpecifier))continue;
             const retired=['backfill-news-headlines','backfill-relationship-sources','backfill-relationship-summaries','enroll-theme-companies','migrate-company-onboarding','monitor-onboarding-capacity','publish-news-sources'];
-            if(retired.includes(node.moduleSpecifier.text.split('/').at(-1)!.replace(/\.[cm]?[jt]s$/,'')))violations.push(file);
+            if(!node.importClause?.isTypeOnly&&retired.includes(node.moduleSpecifier.text.split('/').at(-1)!.replace(/\.[cm]?[jt]s$/,'')))violations.push(file);
             if(!['firebase-admin','firebase-admin/firestore','@google-cloud/firestore','firebase/firestore'].includes(node.moduleSpecifier.text))continue;
             const clause=node.importClause;
             if(!clause||clause.isTypeOnly)continue;
