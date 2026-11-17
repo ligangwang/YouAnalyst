@@ -112,7 +112,7 @@ check('index publication retries concurrent writers, updates both heads, and res
     assert.equal(result[0].changed,2);
     const heads=await f.raw.getAll(...ids.map(id=>f.raw.collection('collectors').doc(headId('events',shardFor(id)))));
     assert.equal(heads[0].get('marketHead.indexFile'),heads[1].get('marketHead.indexFile'));
-    for(const doc of heads){const head=doc.get('marketHead');assert.equal(head.format,109);assert.deepEqual((await f.raw.collection('collectors').doc(pointerId('events',head.shard)).get()).get('marketHead'),compactHead(head));}
+    for(const doc of heads){const head=doc.get('marketHead');assert.equal(head.format,110);assert.deepEqual((await f.raw.collection('collectors').doc(pointerId('events',head.shard)).get()).get('marketHead'),compactHead(head));}
     const query=f.db.collection('events').where('companyId','==','US:NVDA').orderBy('publication_date','desc').limit(5).select('title');
     assert.equal((await query.get()).docs.find(doc=>doc.id===ids[0])?.get('title'),'Concurrent writer');
     assert.equal((await bundleMarketIndexes(f.raw,f.repository.files,options))[0].changed,0,'unchanged bundles are not rebuilt');
@@ -122,7 +122,7 @@ check('index publication retries concurrent writers, updates both heads, and res
     assert.equal((await f.raw.doc('events/'+ids[1]).get()).exists,false);
     await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,options));
     await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true,prepared:async()=>{throw Error('audit unavailable');}}),/audit unavailable/);
-    assert.equal((await f.raw.collection('collectors').doc(headId('events',shardFor(ids[1]))).get()).get('marketHead.format'),9,'failed audit must not publish new heads');
+    assert.equal((await f.raw.collection('collectors').doc(headId('events',shardFor(ids[1]))).get()).get('marketHead.format'),10,'failed audit must not publish new heads');
     const daily=await bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true});
     assert.equal(daily[0].changed,2);
     assert.equal((await query.get()).docs.find(doc=>doc.id===ids[1])?.get('title'),'After cleanup');

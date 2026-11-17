@@ -31,13 +31,16 @@ test('shared index bundles preserve shard boundaries across live rewrites and re
         const steps=[{method:'where',args:['companyId','==','US:NVDA']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[5]},{method:'select',args:['title','companyId']}];
         const start=downloads.length;
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
-        assert.equal(new Set(downloads.slice(start)).size,2,'one shared lookup and one shared covering index');
+        assert.equal(new Set(downloads.slice(start)).size,1,'one shared covering company lookup');
         assert.deepEqual(await files.query([heads[0]],steps),await files.filter([rows[0]],steps),'a partial head set cannot expose other bundled shards');
         // A normal writer replaces one head with a standalone v7 index. The old
         // shared file still contains its obsolete row, which must not leak in.
         rows=rows.map((row,i)=>i?row:{...row,data:{...row.data,title:'changed',publication_date:'2026-11-30'}});
         heads[0]=await files.write('events',heads[0].shard,[rows[0]],[]);
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        const points=[{method:'where',args:['__name__','in',rows.map(row=>row.id)]},{method:'select',args:['title','companyId']}];
+        assert.deepEqual(await files.query(heads,points),await files.filter(rows,points),'point reads choose the replacement shard rather than its obsolete bundled row');
+        assert.deepEqual(await files.query([heads[1]],points),await files.filter([rows[1]],points),'explicit IDs cannot expose unowned shards in a shared file');
         heads=await files.bundleIndexes(heads);
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
         await assert.rejects(files.bundleIndexes(heads.map((head,i)=>i?head:{...head,rows:head.rows+1})),/shard count mismatch/);
@@ -66,7 +69,7 @@ test('bundled legacy indexes preserve missing-column fallbacks and mixed-format 
         const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
         const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
         const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
-        assert.deepEqual(heads.map(head=>head.format),[103,105,109]);
+        assert.deepEqual(heads.map(head=>head.format),[103,105,110]);
         const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
         const start=downloads.length;
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
@@ -120,7 +123,9 @@ test('announcement projections use covering indexes with safe fallback for older
     try{
         const head=await files.write('events',shardFor(id),[{id,version,data}],[]);
         const rows=await files.query([head],steps);assert.equal(rows.length,1);assert.deepEqual(rows[0].data,Object.fromEntries(fields.map(field=>[field,data[field as keyof typeof data]])));
-        assert(downloads.includes(head.indexFile!));assert(!downloads.includes(head.file!),'covered projection must not download full shards');
+        assert(downloads.includes(head.prefixFile!));assert(!downloads.includes(head.indexFile!),'company projection must not reopen broad indexes');assert(!downloads.includes(head.file!),'covered projection must not download full shards');
+        assert.deepEqual(await files.query([{...head,format:9}],steps),rows,'rolling v9 shards retain the existing lookup path');
+        assert.deepEqual(await files.query([head],steps.map(step=>step.method==='select'?{method:'select',args:['body']}:step)),[{id,version,data:{body:data.body}}],'uncovered fields still load full payloads');
         const older={...head,format:5};assert.deepEqual(await files.query([older],steps),rows);assert(downloads.includes(head.file!),'older index formats must use full payload fallback');
     }finally{await files.close();}
 });
