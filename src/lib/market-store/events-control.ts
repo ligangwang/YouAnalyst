@@ -1,9 +1,10 @@
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
+import {assertReadControl} from './read-control';
 export const EVENTS_CONTROL='collectors/_market_parquet_events_control';
 export type EventsMode={ready:boolean;cleanupAuthorized:boolean;cleanedCollections:Set<string>};
 export function eventsMode(doc:DocumentSnapshot):EventsMode {
  const data=doc.data();
- if(data?.version!==1||typeof data.ready!=='boolean')throw Error('Events migration control is missing or invalid');
+ assertReadControl(data);
  return {ready:data.ready,cleanupAuthorized:data.cleanupAuthorized===true,cleanedCollections:new Set(Array.isArray(data.cleanedCollections)?data.cleanedCollections:[])};
 }
 /** Independent source-retirement gate: the completed market migration cannot

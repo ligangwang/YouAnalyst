@@ -42,7 +42,9 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - name: Read stored usage aggregates without provider calls or writes
-        run: node scripts/inspect-background-usage.mjs
+        env:
+          ENTITY_SNAPSHOT_BUCKET: ${{ vars.GCP_PROJECT_ID }}-eodhd-bulk-eod
+        run: node --import tsx scripts/inspect-background-usage.mjs
   inspect-only:
     if: github.ref == 'refs/heads/main' && !inputs.usage_report
     runs-on: ubuntu-latest

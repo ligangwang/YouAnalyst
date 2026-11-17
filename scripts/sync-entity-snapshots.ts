@@ -2,9 +2,6 @@ import {queueFundamentalsSeeding} from '../src/lib/fundamentals/seed-queue';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getStorage} from 'firebase-admin/storage';
 import {getFirestore} from '../src/lib/firebase/firestore';
-import {collections,syncCollection} from '../src/lib/entity-snapshots/sync';
-import {snapshotSource} from '../src/lib/entity-snapshots/firestore-source';
-import {companyViewSnapshotFiles} from '../src/lib/entity-snapshots/company-view-storage';
 import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 import {getFirestore as rawFirestore,FieldPath} from 'firebase-admin/firestore';
 import {CONTROL} from '../src/lib/market-store/repository';
@@ -20,7 +17,10 @@ async function main(){
   if(process.env.ENTITY_TIMESTAMP_MIGRATION_COMPLETE!=='1')throw Error('Verify entity timestamp migration before enabling snapshot sync');
   initializeApp({credential:applicationDefault(),projectId});
   const raw=rawFirestore();
-  if((await raw.doc(CONTROL).get()).get('ready')===true){
+  if((await raw.doc(CONTROL).get()).get('ready')!==true){
+    await raw.terminate();
+    throw Error('Parquet must be ready; legacy Firestore snapshot publication is retired');
+  }
     const db=getFirestore();
     try{
       if(dispatchInstruments){
@@ -39,26 +39,5 @@ async function main(){
       const garbage=await collectMarketGarbage(raw,bucket);
       console.info(JSON.stringify({severity:'INFO',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_completed',storage:'parquet',indexShards,...garbage}));
     }finally{await db.terminate();}
-    return;
-  }
-  const db=getFirestore(),source=snapshotSource(db),files=companyViewSnapshotFiles(getStorage().bucket(bucketName));
-  let changed=0,records=0,deleted=0;
-  try{
-  for(const collection of collections){
-    if(collection==='instruments'&&dispatchInstruments){
-      const companies=(await files.load('companies')).snapshot;
-      if(!companies)throw Error('Company snapshot required before instrument sync');
-      const synchronized=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`snapshot-${companies.watermark.toMillis()}`,companies.rows.map(row=>row.id),'sec-fundamentals-requests','instruments');
-      console.info(JSON.stringify({job:'sync-entity-snapshots',event:'instrument_directory_sync',...synchronized}));
-    }
-    const result=await syncCollection(collection,source,files);
-    changed+=result.changed;records+=result.records;deleted+=result.deleted;
-    console.info(JSON.stringify({job:'sync-entity-snapshots',event:'entity_snapshot_sync',status:'success',...result}));
-    // Release decoded rows before the next collection and price catch-up.
-    await files.close();
-
-  }
-  }finally{await files.close();}
-  console.info(JSON.stringify({severity:'INFO',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_completed',updated:changed,count:records,deleted}));
 }
 main().catch(error=>{console.error(JSON.stringify({severity:'ERROR',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_failed',error:error instanceof Error?error.message:String(error)}));process.exitCode=1;});

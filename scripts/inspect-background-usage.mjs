@@ -1,10 +1,11 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore, FieldPath } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath } from '../src/lib/firebase/firestore.ts';
 
 // Read stored counters only. Never call OpenAI, execute jobs, or serialize source data.
 if (process.env.GCP_PROJECT_ID !== 'ifindata-80905') throw new Error('Production project required');
 initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
 const db = getFirestore();
+try {
 const groups = new Map();
 const purposes = new Set(['ai_analyst_generation','company_graph_extraction','industry_research','earnings_calendar_extraction','news_headline_translation','relationship_summary_translation','news_article_analysis']);
 const models = new Set(['gpt-6-luna','gpt-5.6-sol','gpt-5.5','gpt-5.4','gpt-5.4-mini','gpt-5.2']);
@@ -52,3 +53,4 @@ const ledger = await scan(db.collection('company_research_runs').orderBy(FieldPa
 console.log(JSON.stringify({ measuredAt:new Date().toISOString(), timezone:'America/New_York', events, ledger,
   note:'Stored events are not invoice totals; graph-ledger costs are authoritative for graph tier pricing. Holds are potential liability, not confirmed spend. Other purposes may include foreground work.',
   groups:[...groups.values()].sort((a,b)=>a.group.localeCompare(b.group)).map(row=>({...row,costUsd:Math.round(row.costUsd*1_000_000)/1_000_000})) }));
+} finally { await db.terminate(); }
