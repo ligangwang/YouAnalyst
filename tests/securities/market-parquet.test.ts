@@ -48,6 +48,24 @@ test('market download failures stop new work and release pins before closing',as
     try{await new Promise(resolve=>setImmediate(resolve));release();await rejected;assert.equal(called,false);assert(started.length<=32);}
     finally{release();await work.catch(()=>{});await files.close();}
 });
+test('company projections reuse unchanged shards while live replacements invalidate their rows',async()=>{
+    const files=fixture([],32*1024*1024),version=Timestamp.now();let second='other';while(shardFor(second)===shardFor('first'))second+='x';
+    const rows=[{id:'first',version,data:{companyId:'US:NVDA',publication_date:'2026-11-16',title:'first'}},{id:second,version,data:{companyId:'US:NVDA',publication_date:'2026-11-15',title:'second'}}];
+    const probe=files as unknown as {announcementRowsUncached(heads:Array<{shard:string}>,company:string):Promise<MarketRow[]>};
+    const original=probe.announcementRowsUncached.bind(files),reads:string[][]=[];
+    probe.announcementRowsUncached=(heads,company)=>{reads.push(heads.map(h=>h.shard));return original(heads,company);};
+    const steps=[{method:'where',args:['companyId','==','US:NVDA']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[30]},{method:'select',args:['title','companyId']}];
+    try{
+        const heads=await files.bundleIndexes(await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[]))));
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        rows[0]={...rows[0],data:{...rows[0].data,title:'updated'}};heads[0]=await files.write('events',heads[0].shard,[rows[0]],[]);
+        assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
+        assert.deepEqual(reads,[heads.map(h=>h.shard),[heads[0].shard]]);
+        heads[0]=await files.write('events',heads[0].shard,[],[]);
+        assert.deepEqual(await files.query(heads,steps),await files.filter([rows[1]],steps));
+        assert.equal(reads.length,2,'empty shards must not retain obsolete projected records');
+    }finally{await files.close();}
+});
 test('shared index bundles preserve shard boundaries across live rewrites and rebundling',async()=>{
     const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now();
     const ids:string[]=[];for(let n=0;ids.length<8;n++)if(!ids.some(id=>shardFor(id)===shardFor('bundle-'+n)))ids.push('bundle-'+n);

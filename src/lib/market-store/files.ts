@@ -148,6 +148,24 @@ export class MarketFiles {
     }
     /** Cover projected announcement cards without reopening broad shared indexes. */
     private async announcementRows(heads:MarketHead[],company:string):Promise<MarketRow[]> {
+        if(!this.queryBudget)return this.announcementRowsUncached(heads,company);
+        // Live writes replace only a few immutable shard lookups. Reuse each
+        // unchanged company's rows within the existing shared result budget.
+        const active=heads.filter(head=>head.file);
+        const keys=active.map(head=>'d:announcement:'+createHash('sha256').update(JSON.stringify([
+            head.collection,head.shard,head.prefixFile,head.format,company,
+        ])).digest('hex'));
+        const found=keys.map(key=>{const entry=this.queryResults.get(key);if(entry){this.queryResults.delete(key);this.queryResults.set(key,entry);}return entry;});
+        const missing=active.filter((_,i)=>!found[i]);
+        if(missing.length){
+            const loaded=this.announcementRowsUncached(missing,company).then(rows=>{
+                const shards=new Map<string,MarketRow[]>();for(const row of rows){const shard=shardFor(row.id),values=shards.get(shard)??[];values.push(row);shards.set(shard,values);}return shards;
+            });
+            active.forEach((head,i)=>{if(found[i])return;const entry={value:loaded.then(shards=>shards.get(head.shard)??[]),bytes:0};found[i]=entry;this.remember(keys[i],entry);});
+        }
+        return (await Promise.all(found.map(entry=>entry!.value))).flat();
+    }
+    private async announcementRowsUncached(heads:MarketHead[],company:string):Promise<MarketRow[]> {
         const active=heads.filter(head=>head.file),names=[...new Set(active.map(head=>head.prefixFile!))];
         for(const name of names)this.validate(name);
         const field=ANNOUNCEMENT_RECORDS+company;
