@@ -11,6 +11,7 @@ declare global {
         fundamentalsCutover?:boolean;
         eventsCutover?:boolean;
         repositories?: Set<MarketRepository>;
+        readers?: WeakMap<Firestore, MarketRepository>;
     } | undefined;
 }
 const state = globalThis.__youAnalystMarketStore ??= { clients: new WeakMap<Firestore, Firestore>(), cutover: undefined };
@@ -20,6 +21,7 @@ export async function closeMarketStores() {
     const active = [...repositories];
     repositories.clear();
     state.clients = new WeakMap<Firestore, Firestore>();
+    state.readers = new WeakMap<Firestore, MarketRepository>();
     state.cutover = undefined;
     state.fundamentalsCutover = undefined;
     state.eventsCutover = undefined;
@@ -42,6 +44,11 @@ export const marketStagedReads = () => process.env.MARKET_PARQUET_READ_READY ===
 export const fundamentalsStagedReads=()=>process.env.MARKET_FUNDAMENTALS_READ_READY==='1'&&process.env.K_SERVICE==='ifindata-web'&&!process.env.CLOUD_RUN_JOB;
 export const eventsStagedReads=()=>process.env.MARKET_EVENTS_READ_READY==='1'&&process.env.K_SERVICE==='ifindata-web'&&!process.env.CLOUD_RUN_JOB;
 export const marketStoreReady = (collection?:string) => (collection===undefined||isParquetMarketCollection(collection))&&marketStoreEnabled() && (marketReadOnlyProbe() || (collection==='events'?eventsStagedReads()||state.eventsCutover===true:collection==='company_fundamentals'?fundamentalsStagedReads()||state.fundamentalsCutover===true:marketStagedReads()||state.cutover===true));
+/** Resolve this client's authoritative read gate before choosing a legacy snapshot. */
+export async function marketStoreClientReady(client:Firestore,collection:string):Promise<boolean> {
+    if(!isParquetMarketCollection(collection))return false;
+    return await state.readers?.get(client)?.ready(undefined,collection)??false;
+}
 export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     if (!marketStoreEnabled())
         return raw;
@@ -55,6 +62,7 @@ export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
         void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe(), marketStagedReads(),true,fundamentalsStagedReads(),true,eventsStagedReads());
     repositories.add(repository);
     client = marketFirestore(raw, repository);
+    (state.readers??=new WeakMap()).set(client,repository);
     state.clients.set(raw, client);
     return client;
 }

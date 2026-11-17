@@ -30,9 +30,9 @@ function run(target:string,extra:Record<string,string>={}) {
           done
         fi
         case "$*" in
-          "run revisions describe cn-company-discovery-subscriber-"*)
-            node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/serve-cn-discovery.cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
-          "run services describe cn-company-discovery-subscriber"*)
+          "run revisions describe cn-company-discovery-subscriber-"*|"run revisions describe news-source-subscriber-"*)
+            node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/"+process.env.DISCOVERY_RELEASE_BUNDLE+".cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
+          "run services describe cn-company-discovery-subscriber"*|"run services describe news-source-subscriber"*)
             if [[ "$*" == *"--format=json"* ]]; then
               node -e 'console.log(JSON.stringify({status:{traffic:[{tag:"candidate",revisionName:process.env.DISCOVERY_RELEASE_REVISION,url:"https://candidate.example.run.app",percent:100}]}}))'
             else echo https://subscriber.example.run.app; fi ;;
