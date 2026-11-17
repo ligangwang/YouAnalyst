@@ -50,13 +50,13 @@ function fixture(stagedReads=false,compact:boolean|'default'=false,fundamentalsG
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
     return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
-check('calendar sidecar upload failure cannot publish a new event or shard pointer',async t=>{
+for(const suffix of ['-ca.parquet','-af.parquet'])check(`${suffix} upload failure cannot publish a new event or shard pointer`,async t=>{
     const f=fixture(true,false,false,false,true,true);t.after(()=>f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:false});await f.raw.doc(EVENTS_CONTROL).set({version:1,ready:false});
     const event=f.db.doc('events/calendar-atomic');await event.set({type:'scheduled_event',scheduled_date:'2026-11-17',title:'Original'});
     const ref=f.raw.doc('collectors/'+headId('events',shardFor(event.id))),before=(await ref.get()).data(),source=(await f.raw.doc(event.path).get()).data();
     const bucket=f.repository.files.bucket as unknown as {upload(path:string,options:{destination:string}):Promise<unknown>},upload=bucket.upload.bind(bucket);
-    bucket.upload=async(path,options)=>{if(options.destination.endsWith('-ca.parquet'))throw Error('Calendar sidecar unavailable');return upload(path,options);};
+    bucket.upload=async(path,options)=>{if(options.destination.endsWith(suffix))throw Error('Calendar sidecar unavailable');return upload(path,options);};
     await assert.rejects(event.update({title:'Unpublished',scheduled_date:'2026-12-01'}),/Calendar sidecar unavailable/);
     assert.deepEqual((await ref.get()).data(),before);assert.deepEqual((await f.raw.doc(event.path).get()).data(),source);
     assert.equal((await event.get()).get('title'),'Original');
@@ -123,7 +123,7 @@ check('index publication retries concurrent writers, updates both heads, and res
     assert.equal(result[0].changed,2);
     const heads=await f.raw.getAll(...ids.map(id=>f.raw.collection('collectors').doc(headId('events',shardFor(id)))));
     assert.equal(heads[0].get('marketHead.indexFile'),heads[1].get('marketHead.indexFile'));
-    for(const doc of heads){const head=doc.get('marketHead');assert.equal(head.format,111);assert.deepEqual((await f.raw.collection('collectors').doc(pointerId('events',head.shard)).get()).get('marketHead'),compactHead(head));}
+    for(const doc of heads){const head=doc.get('marketHead');assert.equal(head.format,112);assert.deepEqual((await f.raw.collection('collectors').doc(pointerId('events',head.shard)).get()).get('marketHead'),compactHead(head));}
     const query=f.db.collection('events').where('companyId','==','US:NVDA').orderBy('publication_date','desc').limit(5).select('title');
     assert.equal((await query.get()).docs.find(doc=>doc.id===ids[0])?.get('title'),'Concurrent writer');
     assert.equal((await bundleMarketIndexes(f.raw,f.repository.files,options))[0].changed,0,'unchanged bundles are not rebuilt');
@@ -133,7 +133,7 @@ check('index publication retries concurrent writers, updates both heads, and res
     assert.equal((await f.raw.doc('events/'+ids[1]).get()).exists,false);
     await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,options));
     await assert.rejects(bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true,prepared:async()=>{throw Error('audit unavailable');}}),/audit unavailable/);
-    assert.equal((await f.raw.collection('collectors').doc(headId('events',shardFor(ids[1]))).get()).get('marketHead.format'),11,'failed audit must not publish new heads');
+    assert.equal((await f.raw.collection('collectors').doc(headId('events',shardFor(ids[1]))).get()).get('marketHead.format'),12,'failed audit must not publish new heads');
     const daily=await bundleMarketIndexes(f.raw,f.repository.files,{...options,ready:true});
     assert.equal(daily[0].changed,2);
     assert.equal((await query.get()).docs.find(doc=>doc.id===ids[1])?.get('title'),'After cleanup');
