@@ -5,6 +5,7 @@ import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {isSupportedCompany,supportedCompanyUniverse} from '../../src/lib/company-support/model';
+import {companySector} from '../../src/lib/knowledge-graph/sectors';
 import {planSupportedMigration} from '../../src/lib/company-support/migration';
 import {migrateCompanyOnboarding} from '../../scripts/migrate-company-onboarding';
 import {company,encode,type Document,type Request} from '../../scripts/lib/firestore-rest';
@@ -12,6 +13,16 @@ import seed from '../../data/investment-themes/catalog-v1.json';
 
 const member={status:'PUBLISHED' as const,primarySector:'compute',reviewedAt:'2026-10-25'};
 const row={id:'US:A',name:'A',status:'DIRECTORY',themeMemberships:{ai:member}};
+
+test('company stages and calendar sector do not depend on Firestore map enumeration order',()=>{
+  const ai={...member,secondaryRoles:['memory']},space={...member,primarySector:'components'},robotics={...member,primarySector:'compute-control'};
+  const maps=[{ai,robotics,space},{space,ai,robotics},{robotics,space,ai}];
+  const nodes=maps.map(themeMemberships=>supportedCompanyUniverse([{...row,onboarding:onboarding(),themeMemberships}]).nodes[0]);
+  for(const node of nodes){
+    assert.deepEqual(node.stageIds,['compute','memory','robotics:compute-control','space:components']);
+    assert.equal(companySector(node).id,'compute');
+  }
+});
 
 test('supported membership is explicit and excludes queued, deleted and hidden companies',()=>{
   assert.equal(isSupportedCompany(row),false);
