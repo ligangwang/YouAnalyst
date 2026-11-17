@@ -500,6 +500,24 @@ export class MarketFiles {
             const field=fieldName(prefix.args[0]),selected=rows.filter(row=>Array.isArray(row.data[field])&&(row.data[field] as unknown[]).includes(prefix.args[2])).sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id))).slice(query.offset,query.limit===undefined?undefined:query.offset+query.limit);
             return query.selection?selected.map(row=>({...row,data:project(row.data,query.selection!)})):selected;
         }
+        // Autocomplete uses either symbol equality or an inclusive symbol range.
+        // The rows are already in memory. Preserve the implicit symbol/ID order.
+        const symbol = predicates.length > 0 && predicates.every(step =>
+            fieldName(step.args[0]) === 'symbolLower' && typeof step.args[2] === 'string');
+        const exact = predicates.length === 1 && prefix.args[1] === '==';
+        const range = predicates.length === 2 && prefix.args[1] === '>=' && predicates[1].args[1] === '<=';
+        if (symbol && (exact || range) && steps.every(step => ['where', 'select', 'limit', 'offset'].includes(step.method))) {
+            const low = Buffer.from(prefix.args[2] as string);
+            const high = range ? Buffer.from(predicates[1].args[2] as string) : low;
+            const matches = rows.flatMap(row => {
+                if (typeof row.data.symbolLower !== 'string') return [];
+                const key = Buffer.from(row.data.symbolLower);
+                return key.compare(low) >= 0 && key.compare(high) <= 0 ? [{row, key}] : [];
+            });
+            matches.sort((a, b) => a.key.compare(b.key) || Buffer.from(a.row.id).compare(Buffer.from(b.row.id)));
+            return matches.slice(query.offset, query.limit === undefined ? undefined : query.offset + query.limit)
+                .map(({row}) => query.selection ? {...row, data: project(row.data, query.selection)} : row);
+        }
         // The merged rows retain full response payloads, but DuckDB only needs
         // predicate/order keys to choose them. Indexing unrelated prefix arrays,
         // article bodies and evidence blocks can monopolize the request thread.
