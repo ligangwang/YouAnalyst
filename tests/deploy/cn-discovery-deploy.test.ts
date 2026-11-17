@@ -26,10 +26,19 @@ function run(extra:Record<string,string>={},arg=''){
               echo "projects/demo/topics/\${WRONG_TOPIC:-$topic}"
             fi ;;
           "projects describe"*) echo 123456789 ;;
-          "run services describe"*) echo https://subscriber.example.run.app ;;
+          "run revisions describe"*)
+            node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/serve-cn-discovery.cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
+          "run services describe"*)
+            if [[ "$*" == *"--format=json"* ]]; then
+              node -e 'console.log(JSON.stringify({status:{traffic:[{tag:"candidate",revisionName:process.env.DISCOVERY_RELEASE_REVISION,url:"https://candidate.example.run.app",percent:100}]}}))'
+            else echo https://subscriber.example.run.app; fi ;;
+          "auth print-identity-token"*) echo test-token ;;
+          "run services update-traffic"*) [[ "\${HEALTH_FAIL:-0}" != 1 ]] ;;
+
         esac
       }
-      export -f gcloud
+      curl() { echo "candidate-health" >> "$CALLS"; [[ "\${HEALTH_FAIL:-0}" != 1 ]] && echo ok; }
+      export -f gcloud curl
       if [[ -n "$ARG" ]]; then bash scripts/deploy-cn-discovery.sh "$ARG"; else bash scripts/deploy-cn-discovery.sh; fi
     `],{encoding:'utf8',timeout:10000,env:{...process.env,GCP_PROJECT_ID:'demo',ENTITY_SNAPSHOT_BUCKET:'demo-snapshots',FUNDAMENTALS_IMAGE:'image@sha256:abc',GIT_SHA:'a'.repeat(40),CN_DISCOVERY_BOOTSTRAP_IAM:'0',CN_DISCOVERY_QUEUE_ENABLED:'1',CALLS:path.join(dir,'calls').replaceAll('\\','/'),ARG:arg,...extra}});
     let calls='';try{calls=readFileSync(path.join(dir,'calls'),'utf8');}catch{}
@@ -79,4 +88,12 @@ test('company storage buckets are required and passed to the CN discovery worker
   for(const extra of failures){
     const rejected=run(extra);assert.notEqual(rejected.status,0);assert.doesNotMatch(rejected.calls,mutations);
   }
+});
+
+test('candidate health is validated before traffic and failure preserves serving revision',()=>{
+  const result=run();assert.equal(result.status,0,result.stderr);
+  assert.match(result.calls,/--no-traffic --tag candidate/);
+  assert(result.calls.indexOf('candidate-health')<result.calls.indexOf('run services update-traffic'));
+  const failed=run({HEALTH_FAIL:'1'});assert.notEqual(failed.status,0);
+  assert.doesNotMatch(failed.calls,/run services update-traffic|subscriptions update/);
 });
