@@ -48,7 +48,9 @@ are excluded, and ordinary UGC collections retain their existing locations.
 `collectors/_market_parquet_retained_control` coordinates the rollout. An absent
 document leaves existing behavior unchanged. Version 1 with `ready: false` and
 `cleanupAuthorized: false` mirrors transactional writes to the destinations
-while reading the originals. Deploy every writer before copying and reconciling.
+while reading the originals. The initial create-only copy can run against the
+still-authoritative originals while compatible writers deploy. Deploy every
+writer before final reconciliation and the read switch.
 The operator `scripts/migrate-retained-state.ts` backs up sources to GCS, copies
 without overwriting newer records, and reconciles both sources and destinations
 transactionally. Verification must find no differences.

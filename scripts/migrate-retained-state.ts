@@ -11,6 +11,7 @@ import {EVENTS_CONTROL} from '../src/lib/market-store/events-control';
 import {encode} from '../src/lib/central-cache/codec';
 import {CleanupGate,migrationCapacity,capacityRegression,type CapacitySample} from './market-migration-safety';
 import type {MarketCollection} from '../src/lib/market-store/policy';
+import {flushBulkWrites} from './lib/flush-bulk-writes';
 
 // Explicit operator only. No bootstrap or read-gate switch is performed here.
 async function main(){
@@ -74,7 +75,7 @@ async function main(){
                 const backup=encode(docs.map(doc=>({id:doc.id,data:doc.data(),updateTime:doc.updateTime})));
                 await bucket.file(`${root}/source-${String(pageNumber++).padStart(7,'0')}.json.gz`).save(gzipSync(JSON.stringify(backup)),
                     {resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/gzip'}});
-                const results=await Promise.allSettled(docs.map(doc=>operation==='delete'
+                const results=await flushBulkWrites(writer,docs.map(doc=>operation==='delete'
                     ?writer.delete(doc.ref,{lastUpdateTime:doc.updateTime})
                     :writer.create(raw.doc(retainedPath(retainedRoot(collection,doc.id,doc.data()),collection,doc.id)),doc.data())));
                 for(const result of results){
