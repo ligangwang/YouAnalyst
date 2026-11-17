@@ -1,6 +1,6 @@
 import {FieldPath,Filter,type Firestore,type DocumentSnapshot,type Timestamp} from 'firebase-admin/firestore';
 
-// Reserved from MarketFiles' existing web cache allowance, not added to it.
+// Bounded separately from the Parquet working set, within the 6 GiB web allocation.
 export const COMPANY_VIEW_BYTES=256*1024*1024;
 export const companyViewEnabled=()=>['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'')
     &&process.env.MARKET_COMPANY_VIEW!=='0';

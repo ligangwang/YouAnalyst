@@ -16,7 +16,6 @@ import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup,type
 import {ANNOUNCEMENT_LOOKUP,announcementLookup,announcementPlan,announcementIds} from './announcement-index';
 import {announcementBucket,announcementIndexFile,announcementIndexRows} from './announcement-sidecar';
 import {startMarketReadTiming} from '../market-read-timing';
-import {COMPANY_VIEW_BYTES,companyViewEnabled} from './company-view';
 export const MARKET_ROOT = 'market-parquet/v1';
 export const shardFor = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 2);
 export type MarketRow = {
@@ -64,7 +63,10 @@ export class MarketFiles {
         // cache on the website so search prefixes cannot evict every timeline.
         // Borrow the same bytes from file caching; total cache budget is unchanged.
         this.announcementPrefixes=this.web?new PrefixCache(96*1024*1024):this.prefixes;
-        this.cache = new PriceStore(bucket, (this.web ? 416 : 64) * 1024 * 1024-queryBudget-(companyViewEnabled()?COMPANY_VIEW_BYTES:0));
+        // Preserve the Parquet working set: borrowing the company snapshot's
+        // allowance here made search/calendar repeatedly download their indexes.
+        // Both caches are bounded within the existing 6 GiB web allocation.
+        this.cache = new PriceStore(bucket, (this.web ? 416 : 64) * 1024 * 1024-queryBudget);
     }
     close() { this.queryResults.clear();this.prefixes.clear();this.announcementPrefixes.clear();return this.cache.close(); }
     private async local<T>(names: string[], work: (paths: string[]) => Promise<T>): Promise<T> {
