@@ -2,7 +2,9 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { CONTROL } from './repository';
 import { MARKET_COLLECTIONS } from './policy';
-import { MARKET_ROOT, type MarketHead } from './files';
+import { MARKET_ROOT, calendarIndexFile, type MarketHead } from './files';
+import {marketIndexFormat} from './index-fields';
+import {announcementIndexFile} from './announcement-sidecar';
 /** Retire only old immutable generations. Current heads, source backups and
  * content-addressed captures remain protected. The grace period exceeds any
  * serving query or transaction lifetime, including the local file cache. */
@@ -18,8 +20,12 @@ export async function collectMarketGarbage(raw: Firestore, bucket: Bucket, now =
                 active.add(head.file);
             if (head.indexFile)
                 active.add(head.indexFile);
-            if (head.prefixFile)
+            if (head.prefixFile){
                 active.add(head.prefixFile);
+                if(collection==='events'&&marketIndexFormat(head.format)>=11)active.add(calendarIndexFile(head.prefixFile));
+                if(collection==='events'&&marketIndexFormat(head.format)>=12)
+                    for(let bucket=0;bucket<16;bucket++)active.add(announcementIndexFile(head.prefixFile,bucket));
+            }
         }
     }
     let deleted = 0;

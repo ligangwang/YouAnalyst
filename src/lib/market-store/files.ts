@@ -14,6 +14,7 @@ import { encodeMarket, decodeMarket, hydrateMarket } from './blobs';
 import { MARKET_INDEX_FIELDS, MARKET_INDEX_PAYLOAD_FIELDS, marketIndexField, marketIndexProjectionField,marketIndexBundled,marketIndexFormat } from './index-fields';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup,type PrefixRows,type PrefixLookup} from './prefix-cache';
 import {ANNOUNCEMENT_LOOKUP,announcementLookup,announcementPlan,announcementIds} from './announcement-index';
+import {announcementBucket,announcementIndexFile,announcementIndexRows} from './announcement-sidecar';
 export const MARKET_ROOT = 'market-parquet/v1';
 export const shardFor = (id: string) => createHash('sha256').update(id).digest('hex').slice(0, 2);
 export type MarketRow = {
@@ -168,13 +169,15 @@ export class MarketFiles {
         return (await Promise.all(found.map(entry=>entry!.value))).flat();
     }
     private async announcementRowsUncached(heads:MarketHead[],company:string):Promise<MarketRow[]> {
-        const active=heads.filter(head=>head.file),names=[...new Set(active.map(head=>head.prefixFile!))];
+        const active=heads.filter(head=>head.file),bucket=announcementBucket(company);
+        const source=(head:MarketHead)=>marketIndexFormat(head.format)>=12?announcementIndexFile(head.prefixFile!,bucket):head.prefixFile!;
+        const names=[...new Set(active.map(source))];
         for(const name of names)this.validate(name);
         const field=ANNOUNCEMENT_RECORDS+company;
         const stored=(head:MarketHead,key:string)=>marketIndexBundled(head.format)?key+':'+head.shard:key;
-        const wanted=new Map(active.map(head=>[head.prefixFile+'|'+stored(head,field),head.shard]));
-        const markers=new Set(active.map(head=>head.prefixFile+'|'+stored(head,ANNOUNCEMENT_LOOKUP)));
-        const present=new Map(active.map(head=>[head.prefixFile+'|'+stored(head,ANNOUNCEMENT_COMPANY+company),head.prefixFile+'|'+stored(head,field)]));
+        const wanted=new Map(active.map(head=>[source(head)+'|'+stored(head,field),head.shard]));
+        const markers=new Set(active.map(head=>source(head)+'|'+stored(head,ANNOUNCEMENT_LOOKUP)));
+        const present=new Map(active.map(head=>[source(head)+'|'+stored(head,ANNOUNCEMENT_COMPANY+company),source(head)+'|'+stored(head,field)]));
         const selected=[...new Set(active.map(head=>stored(head,field)))];
         const fields=[...new Set(active.flatMap(head=>[stored(head,field),stored(head,ANNOUNCEMENT_LOOKUP),stored(head,ANNOUNCEMENT_COMPANY+company)]))];
         if(!active.length)return [];
@@ -206,6 +209,20 @@ export class MarketFiles {
             if(required.some(field=>!fields.has(field)))throw Error('Missing published calendar projection');
         });
         await this.bucket.upload(path,{destination:calendarIndexFile(prefixFile),resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});
+    }
+    private async publishAnnouncements(prefixPath:string,prefixFile:string,bundled:boolean,required:string[]){
+        const paths=Array.from({length:16},(_,bucket)=>prefixPath+`.announcement-${bucket}.parquet`);
+        await withDuck(async db=>{
+            await db.run(`CREATE TEMP TABLE company_projections AS (${announcementIndexRows(prefixPath,bundled)})`);
+            const markers=new Set((await db.runAndReadAll('SELECT field FROM company_projections WHERE bucket IS NULL')).getRows().map(([field])=>String(field)));
+            if(required.some(field=>!markers.has(field)))throw Error('Missing published announcement projection');
+            for(let bucket=0;bucket<16;bucket++)await db.run(`COPY (SELECT field,payload FROM company_projections WHERE bucket IS NULL OR bucket=${bucket}) TO ${quote(paths[bucket])} (FORMAT PARQUET,COMPRESSION ZSTD)`);
+        });
+        // Bound writer fan-out and settle uploads before deleting local files.
+        for(let offset=0;offset<16;offset+=4){
+            const outcomes=await Promise.allSettled(paths.slice(offset,offset+4).map((path,i)=>this.bucket.upload(path,{destination:announcementIndexFile(prefixFile,offset+i),resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}})));
+            const failed=outcomes.find(outcome=>outcome.status==='rejected');if(failed?.status==='rejected')throw failed.reason;
+        }
     }
     private calendarRows(heads:MarketHead[]):Promise<MarketRow[]> {
         const active=heads.filter(head=>head.file);
@@ -489,7 +506,7 @@ export class MarketFiles {
      * Callers must publish the returned heads with a compare-and-swap transaction. */
     async bundleIndexes(heads:MarketHead[]):Promise<MarketHead[]>{
         if(!heads.length||heads.length>16||new Set(heads.map(head=>head.shard)).size!==heads.length
-            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>11))throw Error('Invalid index bundle');
+            ||heads.some(head=>head.collection!==heads[0].collection||!head.file||!head.indexFile||marketIndexFormat(head.format)<3||marketIndexFormat(head.format)>12))throw Error('Invalid index bundle');
         const directory=await mkdtemp(join(tmpdir(),'ya-market-bundle-')),indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
         const destination=()=>`${MARKET_ROOT}/data/${heads[0].collection}/${heads[0].shard}/${randomUUID()}.parquet`;
         const names=[...new Set(heads.flatMap(head=>[head.indexFile!,...(head.prefixFile?[head.prefixFile]:[])]))];
@@ -531,6 +548,7 @@ export class MarketFiles {
                 prefixFile=destination();prefixBytes=(await import('node:fs/promises').then(fs=>fs.stat(prefixPath))).size;
                 await this.bucket.upload(prefixPath,{destination:prefixFile,resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});
                 if(heads[0].collection==='events'&&heads.some(head=>marketIndexFormat(head.format)>=11))await this.publishCalendar(prefixPath,prefixFile,heads.filter(head=>marketIndexFormat(head.format)>=11).map(head=>CALENDAR_LOOKUP+':'+head.shard));
+                if(heads[0].collection==='events'&&heads.some(head=>marketIndexFormat(head.format)>=12))await this.publishAnnouncements(prefixPath,prefixFile,true,heads.filter(head=>marketIndexFormat(head.format)>=12).map(head=>ANNOUNCEMENT_LOOKUP+':'+head.shard));
             }
             return heads.map(head=>({...head,format:100+marketIndexFormat(head.format),indexFile,indexBytes,...(head.prefixFile?{prefixFile,prefixBytes}:{})}));
         }finally{await rm(directory,{recursive:true,force:true});}
@@ -540,7 +558,7 @@ export class MarketFiles {
             throw Error('Invalid market partition');
         if (new Set(rows.map(row => row.id)).size !== rows.length || rows.some(row => shardFor(row.id) !== shard))
             throw Error('Invalid market partition rows');
-        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: collection==='events'?11:7 };
+        const head: MarketHead = { collection, shard, rows: rows.length, retained: [...new Set(retained)].sort(), format: collection==='events'?12:7 };
         if (!rows.length)
             return head;
         const directory = await mkdtemp(join(tmpdir(), 'ya-market-')), path = join(directory, 'rows.parquet'), indexPath=join(directory,'index.parquet'),prefixPath=join(directory,'prefix.parquet');
@@ -616,7 +634,7 @@ export class MarketFiles {
             head.indexBytes = (await import('node:fs/promises').then(fs => fs.stat(indexPath))).size;
             await this.bucket.upload(path, { destination: head.file, resumable: false, preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'application/vnd.apache.parquet' } });
             await this.bucket.upload(indexPath, { destination: head.indexFile, resumable: false, preconditionOpts: { ifGenerationMatch: 0 }, metadata: { contentType: 'application/vnd.apache.parquet' } });
-            if(prefixRows.length){head.prefixFile=`${MARKET_ROOT}/data/${collection}/${shard}/${randomUUID()}.parquet`;head.prefixBytes=(await import('node:fs/promises').then(fs=>fs.stat(prefixPath))).size;await this.bucket.upload(prefixPath,{destination:head.prefixFile,resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});if(collection==='events')await this.publishCalendar(prefixPath,head.prefixFile,[CALENDAR_LOOKUP]);}
+            if(prefixRows.length){head.prefixFile=`${MARKET_ROOT}/data/${collection}/${shard}/${randomUUID()}.parquet`;head.prefixBytes=(await import('node:fs/promises').then(fs=>fs.stat(prefixPath))).size;await this.bucket.upload(prefixPath,{destination:head.prefixFile,resumable:false,preconditionOpts:{ifGenerationMatch:0},metadata:{contentType:'application/vnd.apache.parquet'}});if(collection==='events'){await this.publishCalendar(prefixPath,head.prefixFile,[CALENDAR_LOOKUP]);await this.publishAnnouncements(prefixPath,head.prefixFile,false,[ANNOUNCEMENT_LOOKUP]);}}
             return head;
         }
         finally {

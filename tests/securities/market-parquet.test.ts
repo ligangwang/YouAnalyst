@@ -7,6 +7,8 @@ import {MarketRepository,headId} from '../../src/lib/market-store/repository';
 import {CleanupGate,capacityRegression} from '../../scripts/market-migration-safety';
 import { MarketFiles, shardFor, calendarIndexFile, type MarketRow } from '../../src/lib/market-store/files';
 import { MarketBlob } from '../../src/lib/market-store/blobs';
+import {announcementBucket,announcementIndexFile} from '../../src/lib/market-store/announcement-sidecar';
+import {collectMarketGarbage} from '../../src/lib/market-store/maintenance';
 import {PrefixCache,buildPrefixLookup,encodePrefixLookup,decodePrefixLookup} from '../../src/lib/market-store/prefix-cache';
 import { applyMutation, sortKey } from '../../src/lib/market-store/value';
 import { splitRecord } from '../../src/lib/market-store/policy';
@@ -47,6 +49,37 @@ test('market download failures stop new work and release pins before closing',as
     const rejected=assert.rejects(work,/download failed/);
     try{await new Promise(resolve=>setImmediate(resolve));release();await rejected;assert.equal(called,false);assert(started.length<=32);}
     finally{release();await work.catch(()=>{});await files.close();}
+});
+test('garbage collection preserves current event sidecars and retires only old orphan generations',async()=>{
+    const prefix='market-parquet/v1/data/events/00/abcdef.parquet',calendarOnly='market-parquet/v1/data/events/01/abcdef.parquet';
+    const active=[prefix,calendarOnly,calendarIndexFile(prefix),calendarIndexFile(calendarOnly),...Array.from({length:16},(_,bucket)=>announcementIndexFile(prefix,bucket))];
+    const orphan='market-parquet/v1/data/events/00/0123-a0.parquet',recent='market-parquet/v1/data/events/00/0124-ca.parquet',now=Date.now(),deleted:string[]=[];
+    const heads=[{prefixFile:prefix,format:112},{prefixFile:calendarOnly,format:111}];
+    const raw={doc:()=>({get:async()=>({get:()=>true})}),collection:()=>({where:(_field:string,_op:string,collection:string)=>({get:async()=>({docs:collection==='events'?heads.map(head=>({get:()=>head})):[]})})})} as unknown as Firestore;
+    const bucket={getFilesStream:async function*(){for(const name of [...active,orphan,recent])yield {name,metadata:{timeCreated:new Date(now-(name===recent?1:8)*86400000).toISOString(),generation:'3'},delete:async(options:unknown)=>{assert.deepEqual(options,{ifGenerationMatch:'3'});deleted.push(name);}};}} as unknown as Bucket;
+    assert.deepEqual(await collectMarketGarbage(raw,bucket,now),{deleted:1});assert.deepEqual(deleted,[orphan]);
+});
+test('announcement partitions cover every company bucket and preserve mixed bundled ownership',async()=>{
+    const downloads:string[]=[],files=fixture(downloads),version=Timestamp.now(),companies=new Map<number,string>();
+    for(let n=0;companies.size<16;n++){const company='US:COMPANY'+n;companies.set(announcementBucket(company),company);}
+    const names=[...companies.values(),"US:quote'company:aa",'CN:中文:ab'];let id=0;
+    const rows=names.map(company=>{while(shardFor('bucket-'+id)!=='00')id++;return {id:'bucket-'+id++,version,data:{companyId:company,publication_date:'2026-11-17',title:company}};});
+    while(shardFor('bucket-'+id)!=='01')id++;const other={id:'bucket-'+id,version,data:{...rows[0].data,title:'Another shard'}};
+    const steps=(company:string)=>[{method:'where',args:['companyId','==',company]},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[30]},{method:'select',args:['title','companyId']}];
+    try{
+        const standalone=[await files.write('events','00',rows,[]),await files.write('events','01',[other],[])];
+        assert.deepEqual(await files.query(standalone,steps(names.at(-1)!)),await files.filter([...rows,other],steps(names.at(-1)!)),'unbundled company suffixes are not shard suffixes');
+        const heads=await files.bundleIndexes(standalone);
+        for(const company of names){
+            const start=downloads.length;
+            assert.deepEqual(await files.query(heads,steps(company)),await files.filter([...rows,other],steps(company)));
+            assert(downloads.slice(start).every(file=>file===announcementIndexFile(heads[0].prefixFile!,announcementBucket(company))),'read only the requested company bucket');
+        }
+        assert.deepEqual(await files.query(heads,steps('US:ABSENT')),[],'empty companies still require complete shard markers');
+        assert.deepEqual(await files.query([{...heads[0],format:111},heads[1]],steps(names[0])),await files.filter([...rows,other],steps(names[0])),'old and new lookup formats coexist');
+        assert.deepEqual(await files.query([heads[1]],steps(names[0])),await files.filter([other],steps(names[0])),'unowned bundled records stay hidden');
+        assert.throws(()=>announcementIndexFile(heads[0].prefixFile!,16),/Invalid announcement bucket/);
+    }finally{await files.close();}
 });
 test('company projections reuse unchanged shards while live replacements invalidate their rows',async()=>{
     const files=fixture([],32*1024*1024),version=Timestamp.now();let second='other';while(shardFor(second)===shardFor('first'))second+='x';
@@ -116,7 +149,7 @@ test('bundled legacy indexes preserve missing-column fallbacks and mixed-format 
         const full=await Promise.all(rows.map(row=>files.write('events',shardFor(row.id),[row],[])));
         const legacy=await Promise.all(rows.slice(0,2).map(row=>files.write('events',shardFor(row.id),[{...row,data:{companyId:row.data.companyId,publication_date:row.data.publication_date}}],[])));
         const heads=await files.bundleIndexes(full.map((head,i)=>i<2?{...head,format:i?5:3,indexFile:legacy[i].indexFile,indexBytes:legacy[i].indexBytes,prefixFile:undefined,prefixBytes:undefined}:head));
-        assert.deepEqual(heads.map(head=>head.format),[103,105,111]);
+        assert.deepEqual(heads.map(head=>head.format),[103,105,112]);
         const steps=[{method:'where',args:['companyId','==','US:AMD']},{method:'orderBy',args:['publication_date','desc']},{method:'limit',args:[3]},{method:'select',args:['title']}];
         const start=downloads.length;
         assert.deepEqual(await files.query(heads,steps),await files.filter(rows,steps));
@@ -170,7 +203,7 @@ test('announcement projections use covering indexes with safe fallback for older
     try{
         const head=await files.write('events',shardFor(id),[{id,version,data}],[]);
         const rows=await files.query([head],steps);assert.equal(rows.length,1);assert.deepEqual(rows[0].data,Object.fromEntries(fields.map(field=>[field,data[field as keyof typeof data]])));
-        assert(downloads.includes(head.prefixFile!));assert(!downloads.includes(head.indexFile!),'company projection must not reopen broad indexes');assert(!downloads.includes(head.file!),'covered projection must not download full shards');
+        assert(downloads.includes(announcementIndexFile(head.prefixFile!,announcementBucket(data.companyId))));assert(!downloads.includes(head.indexFile!),'company projection must not reopen broad indexes');assert(!downloads.includes(head.file!),'covered projection must not download full shards');
         assert.deepEqual(await files.query([{...head,format:9}],steps),rows,'rolling v9 shards retain the existing lookup path');
         assert.deepEqual(await files.query([head],steps.map(step=>step.method==='select'?{method:'select',args:['body']}:step)),[{id,version,data:{body:data.body}}],'uncovered fields still load full payloads');
         const older={...head,format:5};assert.deepEqual(await files.query([older],steps),rows);assert(downloads.includes(head.file!),'older index formats must use full payload fallback');
