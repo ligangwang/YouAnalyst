@@ -333,6 +333,9 @@ export class MarketRepository {
         return found;
     }
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
+        // Current earnings revision pointers are retained whole. Read them live
+        // without waiting for the immutable revision-file inventory.
+        if(collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_')))return this.documentsUncached(collection,ids,context,fields);
         // Live reserved records must not wait for a collection-wide file watch
         // or serve cached leases/checkpoints. Completed history still joins Parquet.
         if(collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_')))return this.documentsUncached(collection,ids,context,fields);
@@ -358,8 +361,9 @@ export class MarketRepository {
     }
     private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         await this.ready(context,collection);
-        const reserved=collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
-        if(reserved&&[...reserved.values()].every(doc=>doc.exists&&doc.get('completed')!==true))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
+        const earningsHeads=collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_'));
+        const reserved=earningsHeads||collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
+        if(reserved&&[...reserved.values()].every(doc=>doc.exists&&(earningsHeads?doc.get('recordType')==='head':doc.get('completed')!==true)))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
         const retained = this.retainedMembership(heads);
         // Full company reads already require these live records. A complete
