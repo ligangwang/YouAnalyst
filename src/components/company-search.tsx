@@ -9,6 +9,9 @@ import { localizedPath } from '@/lib/ui/i18n/urls';
 import { createPortal } from 'react-dom';
 import {useOptionalAuth} from '@/components/providers/auth-provider';
 
+// Only cache public, supported-company suggestions. Onboarding eligibility stays live.
+const supportedSearches = new Map<string, {expires: number; items: SearchSuggestion[]}>();
+
 export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
@@ -71,10 +74,37 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   useEffect(() => {
     if (!open || !searched) return;
     const controller = new AbortController();
+    const key = searched.toLowerCase();
+    const display = (items: SearchSuggestion[]) => {
+      if (controller.signal.aborted) return;
+      setBusy(false);
+      setResults({query: searched, items});
+      setActive(0);
+      if (queuedQuery.current === searched) {
+        queuedQuery.current = null;
+        if (items[0]) choose(items[0]);
+      }
+    };
+    const cached = supportedSearches.get(key);
+    if (cached && cached.expires > Date.now()) {
+      queueMicrotask(() => display(cached.items));
+      return () => controller.abort();
+    }
     const timer = setTimeout(() => {
       setBusy(true); setError(false);
       void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'directory' }), { signal: controller.signal })
-        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { const matches: SearchSuggestion[] = data.items ?? []; setResults({ query: searched, items: matches }); setActive(0); if (queuedQuery.current === searched) { queuedQuery.current = null; if (matches[0]) choose(matches[0]); } } })
+        .then(async response => {
+          if (!response.ok) throw new Error();
+          const data = await response.json();
+          if (controller.signal.aborted) return;
+          const items: SearchSuggestion[] = data.items ?? [];
+          if (items.length && items.every(item => item.supportState === 'SUPPORTED')) {
+            supportedSearches.delete(key);
+            if (supportedSearches.size >= 64) supportedSearches.delete(supportedSearches.keys().next().value!);
+            supportedSearches.set(key, {items, expires: Date.now() + 60_000});
+          }
+          display(items);
+        })
         .catch(() => { if (!controller.signal.aborted) { setError(true); setResults(null); } })
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 180);
