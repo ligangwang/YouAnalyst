@@ -2,6 +2,7 @@ import type {DocumentData,Firestore} from 'firebase-admin/firestore';
 import type {SecRawSubmissionsObserver} from '../sec-filings/source';
 import {secDisclosureRows,type Disclosure} from './disclosures';
 import {saveDisclosures,DISCLOSURE_HISTORY_START} from './disclosure-store';
+import {marketStoreEnabled} from '../market-store/runtime';
 
 export const SEC_LINK_COVERAGE_VERSION=2;
 type LinkScan={version:number;from:string;through:string;startedAt:string;baseline:boolean;recentComplete:boolean;recentAfter:string;completedArchives:string[];archiveAfter:{name:string;after:string}|null;documents:number;created:number};
@@ -78,7 +79,9 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
             if(processed>=maxRows)throw new Error('SEC disclosure row budget reached; scan will resume');
             const batch=candidates.slice(start,start+Math.min(100,maxRows-processed));
             const unseen=batch.filter(row=>!confirmed.has(row.id));
-            const created=await saveDisclosures(db,unseen,at,scan.baseline);
+            const created=await saveDisclosures(db,unseen,at,scan.baseline,{storageShardBatches:marketStoreEnabled(),beforeBatch:()=>{
+              if(!canWork())throw new Error('SEC disclosure persistence deadline reached');
+            }});
             // Only acknowledge after the event transaction commits. A checkpoint
             // failure can cause a harmless reread, never a skipped unsaved event.
             for(const row of unseen)confirmed.set(row.id,row.publication_date!);
