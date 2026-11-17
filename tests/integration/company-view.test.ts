@@ -1,12 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {Firestore} from 'firebase-admin/firestore';
+import {Firestore,type Filter,type Query} from 'firebase-admin/firestore';
 import {CompanyView} from '../../src/lib/market-store/company-view';
 import {RetainedStore,RETAINED_CONTROL} from '../../src/lib/market-store/retained-store';
 const host=process.env.FIRESTORE_EMULATOR_HOST;
 if(host&&!/^(127\.0\.0\.1|localhost):\d+$/.test(host))throw Error('Local emulator required');
 const check=host?test:test.skip;
+check('a timed-out company listener recovers once after cooldown without blocking point reads',async t=>{
+    const raw=new Firestore({projectId:'company-recovery-'+randomUUID()});
+    await raw.doc('market_state/companies/records/US:A').set({pending:true});
+    let attempts=0,stops=0,now=1000,late:Parameters<Query['onSnapshot']>[0]|undefined;
+    const client={doc:raw.doc.bind(raw),collectionGroup:(name:string)=>({where:(filter:Filter)=>{
+        const query=raw.collectionGroup(name).where(filter);
+        return {onSnapshot:(...args:Parameters<Query['onSnapshot']>)=>{
+            attempts++;
+            if(attempts===1){late=args[0];return ()=>{stops++;};}
+            return query.onSnapshot(...args);
+        }};
+    }})} as unknown as Firestore;
+    const recovery={now:()=>now,retryDelayMs:60000,initializationTimeoutMs:25};
+    const view=new CompanyView(client,()=>{},undefined,recovery);
+    t.after(async()=>{view.close();await raw.terminate();});
+    assert.equal(await view.read(true),undefined);
+    assert.equal(stops,1);
+    assert.equal(await view.read(true),undefined,'no retry within cooldown');
+    assert.equal(attempts,1);
+    now+=60001;recovery.initializationTimeoutMs=5000;
+    assert.equal(await view.read(),undefined,'point reads never trigger a full reload');
+    const warming=view.read(true);
+    assert.equal(await view.read(),undefined,'point reads remain responsive while retry warms');
+    const [first,second]=await Promise.all([warming,view.read(true)]);
+    assert.equal(attempts,2,'concurrent broad reads share one retry');
+    assert.equal(first,second);assert.equal(first!.get('US:A')!.get('pending'),true);
+    late!(await raw.collection('unused').get());
+    assert.equal((await view.read())!.size,1,'late callbacks from a retired attempt cannot erase the new view');
+    view.close();now+=60001;assert.equal(await view.read(true),undefined,'explicit close never retries');
+});
 check('company view shares reads, follows atomic root moves and deletions, and excludes other data',async t=>{
     const raw=new Firestore({projectId:'company-view-'+randomUUID()});
     let changes=0;

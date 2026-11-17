@@ -23,25 +23,40 @@ export class CompanyView {
     private stop?:()=>void;
     private pending?:Promise<void>;
     private disabled=false;
+    private retryAt?:number;
+    private generation=0;
     private finish?:()=>void;
     private through?:Timestamp;
     private required?:Timestamp;
     afterCommit(at:Timestamp){if(!this.required||at.valueOf()>this.required.valueOf())this.required=at;}
-    constructor(private raw:Firestore,private changed:(ids:string[])=>void,private budget=COMPANY_VIEW_BYTES){}
-    close(){this.disabled=true;this.stop?.();this.stop=undefined;this.docs.clear();this.current=undefined;this.sizes.clear();this.bytes=0;this.finish?.();}
+    constructor(private raw:Firestore,private changed:(ids:string[])=>void,private budget=COMPANY_VIEW_BYTES,
+        private recovery:{now?:()=>number;retryDelayMs?:number;initializationTimeoutMs?:number}={}){}
+    close(){this.disabled=true;this.retryAt=undefined;this.generation++;this.stop?.();this.stop=undefined;this.docs.clear();this.current=undefined;this.sizes.clear();this.bytes=0;this.finish?.();}
     async read(start=false):Promise<Map<string,DocumentSnapshot>|undefined>{
         // A point read arriving during bootstrap keeps its fast native path.
         // Only the broad query that needs the view waits for initialization.
+        // A transient cold-start timeout must not disable caching for the whole
+        // instance lifetime. Only a later broad query retries, after a cooldown;
+        // point reads retain their immediate native fallback during recovery.
+        if(this.disabled&&start&&this.retryAt!==undefined&&(this.recovery.now?.()??Date.now())>=this.retryAt){
+            this.disabled=false;this.retryAt=undefined;this.pending=undefined;this.finish=undefined;
+            console.info(JSON.stringify({event:'company_view_retry'}));
+        }
         if(this.disabled||!start&&!this.current)return undefined;
         if(!this.pending){
+            const generation=this.generation;
             this.pending=new Promise(resolve=>{this.finish=resolve;});
-            const fail=(error:unknown)=>{
-                console.warn(JSON.stringify({event:'company_view_fallback',reason:error instanceof Error?error.message:String(error)}));
-                this.close();this.changed([]);
+            const fail=(error:unknown,retryable=false)=>{
+                if(generation!==this.generation)return;
+                console.warn(JSON.stringify({event:'company_view_fallback',reason:error instanceof Error?error.message:String(error),retryable}));
+                this.close();
+                if(retryable)this.retryAt=(this.recovery.now?.()??Date.now())+(this.recovery.retryDelayMs??60000);
+                this.changed([]);
             };
-            const timer=setTimeout(()=>fail(Error('Company view initialization timed out')),45000);
+            const timer=setTimeout(()=>fail(Error('Company view initialization timed out'),true),this.recovery.initializationTimeoutMs??45000);
             this.pending.then(()=>clearTimeout(timer));
             this.stop=companyViewQuery(this.raw).onSnapshot(snapshot=>{
+                if(generation!==this.generation)return;
                 try{
                     const changes=snapshot.docChanges(),ids=new Set<string>();
                     // Remove old locations first: root moves arrive atomically,
@@ -68,7 +83,7 @@ export class CompanyView {
                     this.changed([...ids]);this.finish?.();
                     console.info(JSON.stringify({event:'company_view_update',documents:this.docs.size,changes:changes.length,estimatedBytes:this.bytes}));
                 }catch(error){fail(error);}
-            },fail);
+            },error=>fail(error,true));
         }
         await this.pending;
         // Read-your-writes: use native reads until this listener has observed a
