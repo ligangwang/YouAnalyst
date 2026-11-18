@@ -1,3 +1,6 @@
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import type {DuckDBConnection} from '@duckdb/node-api';
 import {Timestamp} from 'firebase-admin/firestore';
 import {encode,decode} from '../central-cache/codec';
@@ -23,9 +26,16 @@ async function runDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promis
  const {DuckDBInstance}=await import('@duckdb/node-api');
  const memory=Number(process.env.PRICE_DUCKDB_MEMORY_MB??192);
  if(!Number.isInteger(memory)||memory<64||memory>1024)throw Error('Invalid DuckDB memory budget');
- const instance=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:`${memory}MB`,max_temp_directory_size:'0B',enable_external_access:'true'});
- const connection=await instance.connect();
- try{return await work(connection);}finally{connection.closeSync();instance.closeSync();}
+ // Cloud Run's application directory is read-only. Bound scratch space in its
+ // writable temporary filesystem and remove it after each serialized operation.
+ const scratch=await mkdtemp(join(tmpdir(),'youanalyst-duck-'));
+ try{
+  const instance=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:`${memory}MB`,temp_directory:scratch,max_temp_directory_size:'256MB',enable_external_access:'true'});
+  try{
+   const connection=await instance.connect();
+   try{return await work(connection);}finally{connection.closeSync();}
+  }finally{instance.closeSync();}
+ }finally{await rm(scratch,{recursive:true,force:true});}
 }
 export async function writePriceParquet(path:string,rows:Row[]){
  if(!rows.length)throw Error('Empty price file');
