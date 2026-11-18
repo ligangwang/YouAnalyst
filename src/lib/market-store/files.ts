@@ -1,3 +1,4 @@
+import {directoryGeneration,directoryTerm,DIRECTORY_INDEX_ROOT} from './directory-index';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -96,6 +97,46 @@ export class MarketFiles {
             release();
             await Promise.allSettled(holds);
             timing?.finish(status);
+        }
+    }
+    private readonly directoryLoads = new Map<string, Promise<Map<string,string[]>>>();
+    private lastDirectoryGeneration?:string;
+    private missingDirectory?: {generation:string; until:number};
+    async directoryCandidates(heads: MarketHead[], steps: Step[]): Promise<string[] | undefined> {
+        if (!this.web) return;
+        const term = directoryTerm(steps);
+        if (!term) return;
+        const generation = directoryGeneration(heads);
+        if (!generation || (this.missingDirectory?.generation === generation && this.missingDirectory.until > Date.now())) return;
+        const name = `${DIRECTORY_INDEX_ROOT}/${generation}/${term.part}.parquet`;
+        try {
+            const cacheKey = name + '|' + term.value;
+            let pending = this.directoryLoads.get(cacheKey);
+            if (!pending) {
+                pending = this.local([name], ([path]) => withDuck(async db => {
+                    const keys = ['n:', 's:', 'e:'].map(prefix => prefix + term.value);
+                    const result = await db.runAndReadAll(`SELECT field,payload FROM read_parquet(${quote(path)}) WHERE field IN (?,?,?)`, keys);
+                    const matches = new Map<string,string[]>();
+                    for (const [field,payload] of result.getRows()) {
+                        const ids: unknown = JSON.parse(String(payload));
+                        if (matches.has(String(field)) || !Array.isArray(ids) || ids.length > 50 ||
+                            !ids.every(id => typeof id === 'string') || new Set(ids).size !== ids.length) throw Error('Invalid directory index');
+                        matches.set(String(field),ids);
+                    }
+                    return matches;
+                })).finally(() => this.directoryLoads.delete(cacheKey));
+                this.directoryLoads.set(cacheKey,pending);
+            }
+            const matches = await pending;
+            if (this.lastDirectoryGeneration !== generation) {
+                this.lastDirectoryGeneration = generation;
+                console.info(JSON.stringify({event:'directory_index_ready',generation}));
+            }
+            return matches.get(term.key)?.slice(0,term.limit) ?? [];
+        } catch (error) {
+            this.missingDirectory = {generation, until:Date.now()+60_000};
+            console.warn(JSON.stringify({event:'directory_index_fallback', generation, message:error instanceof Error ? error.message : String(error)}));
+            return undefined;
         }
     }
     private validate(file: string) { if (!/^market-parquet\/v1\/data\/[a-z_]+\/[a-f0-9]{2}\/[a-f0-9-]+\.parquet$/.test(file))

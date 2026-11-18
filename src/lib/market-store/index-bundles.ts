@@ -13,7 +13,7 @@ import {marketIndexBundled} from './index-fields';
 type Result={collection:MarketCollection;changed:number;skipped:number;rows:number};
 /** Immutable indexes are published only if all source heads still match. The
  * same operation supports staged rollout and the existing daily maintenance job. */
-export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,options:{ready:boolean;before:(writes:number)=>Promise<void>;collections?:readonly MarketCollection[];prepared?:(before:MarketHead[],after:MarketHead[])=>Promise<void>;completed?:(result:Result)=>void}){
+export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,options:{ready:boolean;before:(writes:number)=>Promise<void>;collections?:readonly MarketCollection[];companyHeads?:(heads:MarketHead[])=>void;prepared?:(before:MarketHead[],after:MarketHead[])=>Promise<void>;completed?:(result:Result)=>void}){
     const results:Result[]=[];
     const controlCheck=(data:FirebaseFirestore.DocumentSnapshot)=>{
         assert.equal(data.get('ready'),options.ready);
@@ -33,7 +33,7 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
                 const docs=await raw.getAll(...shards.map(shard=>raw.collection('collectors').doc(headId(collection,shard))));
                 const heads=docs.map((doc,i)=>{const head=doc.get('marketHead') as MarketHead;assert(head&&head.collection===collection&&head.shard===shards[i]);return head;});
                 const indexed=heads.filter(head=>head.file&&head.indexFile);
-                if(indexed.length<2||indexed.every(head=>marketIndexBundled(head.format))&&new Set(indexed.map(head=>head.indexFile)).size===1){skipped+=indexed.length;published=true;break;}
+                if(indexed.length<2||indexed.every(head=>marketIndexBundled(head.format))&&new Set(indexed.map(head=>head.indexFile)).size===1){if(collection==='companies')options.companyHeads?.(heads);skipped+=indexed.length;published=true;break;}
                 const bundled=await files.bundleIndexes(indexed);
                 await options.prepared?.(indexed,bundled);
                 await options.before(bundled.length*2);
@@ -41,14 +41,16 @@ export async function bundleMarketIndexes(raw:Firestore,files:MarketFiles,option
                     controlCheck(await tx.get(raw.doc(control)));
                     const latest=await tx.getAll(...docs.map(doc=>doc.ref));
                     if(latest.some((doc,i)=>!isDeepStrictEqual(doc.get('marketHead'),heads[i])))return false;
-                    for(const head of bundled){
-                        const next={...head,revision:randomUUID()};
-                        tx.set(raw.collection('collectors').doc(headId(collection,head.shard)),{marketCollection:collection,marketHead:next});
-                        tx.set(raw.collection('collectors').doc(pointerId(collection,head.shard)),{marketCollection:pointerCollection(collection),marketHead:compactHead(next)});
+                    const published=bundled.map(head=>({...head,revision:randomUUID()}));
+                    for(const next of published){
+                        tx.set(raw.collection('collectors').doc(headId(collection,next.shard)),{marketCollection:collection,marketHead:next});
+                        tx.set(raw.collection('collectors').doc(pointerId(collection,next.shard)),{marketCollection:pointerCollection(collection),marketHead:compactHead(next)});
                     }
-                    return true;
+                    return published;
                 });
-                if(committed){published=true;changed+=bundled.length;rows+=bundled.reduce((n,head)=>n+head.rows,0);}
+                if(committed){
+                    if(collection==='companies')options.companyHeads?.(heads.map(head=>committed.find(next=>next.shard===head.shard)??head));
+                    published=true;changed+=bundled.length;rows+=bundled.reduce((n,head)=>n+head.rows,0);}
             }
             assert(published,`Concurrent writes prevented safe bundle publication: ${collection}/${shards[0]}`);
         }
