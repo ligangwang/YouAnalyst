@@ -19,3 +19,12 @@ test('unmigrated events and retained operational state still have a native read 
     assert.doesNotThrow(()=>assertReadControl({version:1,ready:true,cleanedCollections:['companies']}));
     assert.throws(()=>assertReadControl(undefined),/missing or invalid/);
 });
+import {splitRecord} from '../../src/lib/market-store/policy';
+test('CNI source pages use Parquet while leases and authored records retain their data',()=>{
+    const id='_cni_batch_page_0',companies=[{id:'XSHE:000001'}];
+    assert.deepEqual(splitRecord('directory_syncs',id,{companies}),{external:{companies},retained:{}});
+    for(const doc of [{companies,leaseOwner:'worker'},{companies:[{createdBy:'editor'}]}]){
+        assert.deepEqual(splitRecord('directory_syncs',id,doc),{external:{},retained:doc});
+    }
+    assert.deepEqual(splitRecord('directory_syncs','_cni_batch',{offset:7}).retained,{offset:7});
+});
