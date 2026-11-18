@@ -72,6 +72,7 @@ test('the migrated public annual reader requests only its two Parquet fields', a
     process.env[key] = value;
     t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
   }
+  let deleted = false;
   const ref = {id};
   const annual = parse([row]);
   const db = {
@@ -81,10 +82,12 @@ test('the migrated public annual reader requests only its two Parquet fields', a
     },
     async getAll(selected: unknown, options: {fieldMask: string[]}) {
       assert.equal(selected, ref);
-      assert.deepEqual(options.fieldMask, ['cnAnnual', 'marketCap']);
-      return [{exists: true, get: (field: string) => field === 'cnAnnual' ? annual : undefined}];
+      assert.deepEqual(options.fieldMask, ['cnAnnual', 'marketCap', 'isDeleted']);
+      return [{exists: true, get: (field: string) => field === 'cnAnnual' ? annual : field === 'isDeleted' ? deleted : undefined}];
     },
   };
   const result = await readCnFundamentals(id, db as unknown as Parameters<typeof readCnFundamentals>[1], now.getTime());
   assert.deepEqual(result?.metrics, annual.metrics);
+  deleted = true;
+  assert.equal(await readCnFundamentals(id, db as unknown as Parameters<typeof readCnFundamentals>[1], now.getTime()), null);
 });
