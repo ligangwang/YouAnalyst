@@ -6,6 +6,9 @@ import { localizeMetadata } from "../../src/lib/ui/i18n/server";
 
 test("old company links permanently redirect with locale and query values preserved", () => {
   for (const [path, destination] of [
+    ["/en/company/NVDA", "/en/company/nvidia"],
+    ["/zh-cn/company/AMD", "/zh-cn/company/amd"],
+    ["/en/company/TEAM", "/en/company/atlassian-corporation-class-a"],
     ["/ticker/MSFT", "/en/company/microsoft"],
     ["/en/ticker/msft", "/en/company/microsoft"],
     ["/zh-cn/ticker/MSFT", "/zh-cn/company/microsoft"],
@@ -18,6 +21,12 @@ test("old company links permanently redirect with locale and query values preser
     assert.equal(url.pathname, destination);
     assert.equal(url.searchParams.get("source"), "watchlist");
     assert.deepEqual(url.searchParams.getAll("tag"), ["a", "b"]);
+  }
+});
+test('canonical company slugs and unknown symbols continue to the company route', () => {
+  for (const id of ['amd','team','UNKNOWNXYZ','XSHE:301308']) {
+    const response = proxy(new NextRequest(`https://youanalyst.com/en/company/${id}`));
+    assert.equal(response.headers.get('location'),null);
   }
 });
 test('unknown ticker links never redirect to themselves or a ticker-prefixed company path',()=>{
