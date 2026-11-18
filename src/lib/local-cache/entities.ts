@@ -139,7 +139,17 @@ async function documents(db:Firestore,collection:Collection,ids:string[],marketC
    group.bytes=retainedBytes+docs.reduce((sum,doc)=>sum+dataBytes(doc.data(),maxBytes),0);
    queueMicrotask(evict);
   };
-  group.watch=marketCaps?watchMarketCaps(db,batch,changed):watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),changed,peerFinancials);
+  if(marketCaps){
+   group.watch=watchMarketCaps(db,batch,changed);
+  }else{
+   const source=db.collection(collection).where(FieldPath.documentId(),'in',batch);
+   // The market adapter can serve these fields from Parquet for migrated rows.
+   // Native Firestore listeners before cutover must use an unmasked query.
+   const query=peerFinancials&&marketStoreReady('company_fundamentals')
+    ?source.select('value','cnAnnual','marketCap','isDeleted')
+    :source;
+   group.watch=watchQuery(query,changed,peerFinancials);
+  }
   const close=group.watch.close.bind(group.watch);
   group.watch.close=()=>{
    if(cache.groups.has(group))entityStore.versions.set(collection,(entityStore.versions.get(collection)??0)+1);
