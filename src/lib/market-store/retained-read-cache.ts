@@ -37,7 +37,7 @@ export class RetainedReadCache {
                 }
                 let bytes=[...this.entries.values()].reduce((sum,e)=>sum+e.bytes,0);
                 for(const [key,entry] of this.entries){
-                    if(bytes<=this.budget&&this.entries.size<=8192)break;
+                    if(bytes<=this.budget&&this.entries.size<=32768)break;
                     this.entries.delete(key);bytes-=entry.bytes;
                 }
             }catch(error){

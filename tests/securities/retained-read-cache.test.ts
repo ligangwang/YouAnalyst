@@ -8,13 +8,13 @@ const ref=(id:string)=>({id,path:'company_fundamentals/'+id,parent:{id:'company_
 const doc=(ref:DocumentReference,generation=1)=>({id:ref.id,ref,exists:true,data:()=>({generation})}) as unknown as DocumentSnapshot;
 
 test('overlapping broad queries reuse unchanged documents and refresh only changed shards',async()=>{
-    const cache=new RetainedReadCache(),refs=Array.from({length:1000},(_,i)=>ref('US:'+i));
+    const cache=new RetainedReadCache(),refs=Array.from({length:11730},(_,i)=>ref('US:'+i));
     let count=0,generation=1;
     const load=async(refs:DocumentReference[])=>{count+=refs.length;return refs.map(ref=>doc(ref,generation));};
-    await cache.read(refs,undefined,load);assert.equal(count,1000);
+    await cache.read(refs,undefined,load);assert.equal(count,11730);
     generation=2;const shard=shardFor(refs[0].id);cache.invalidate('company_fundamentals',new Set([shard]));
     const next=await cache.read([...refs].reverse(),undefined,load);
-    assert.equal(count,1000+refs.filter(ref=>shardFor(ref.id)===shard).length);
+    assert.equal(count,11730+refs.filter(ref=>shardFor(ref.id)===shard).length);
     next.forEach(row=>assert.equal(row.data()!.generation,shardFor(row.id)===shard?2:1));
 });
 
