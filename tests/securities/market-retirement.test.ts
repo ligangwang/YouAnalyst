@@ -28,3 +28,10 @@ test('CNI source pages use Parquet while leases and authored records retain thei
     }
     assert.deepEqual(splitRecord('directory_syncs','_cni_batch',{offset:7}).retained,{offset:7});
 });
+test('graph source identities use Parquet and graph processing state stays transactional',()=>{
+    const id='_graph_source_sec_123',source={company:{ticker:'A'},filing:{accessionNumber:'123'},createdAt:'2026-11-18'};
+    assert.deepEqual(splitRecord('company_research_runs',id,source),{external:source,retained:{}});
+    for(const doc of [{...source,leaseOwner:'worker'},{...source,company:{reviewedBy:'editor'}}]){
+        assert.deepEqual(splitRecord('company_research_runs',id,doc),{external:{},retained:doc});
+    }
+});
