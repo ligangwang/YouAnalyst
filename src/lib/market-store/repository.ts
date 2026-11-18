@@ -468,6 +468,16 @@ export class MarketRepository {
     }
     private async queryUncached(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
         const heads = [...(await this.heads(collection, context)).values()];
+        if (!context && collection === 'companies' && this.files.directoryCandidates) {
+            const ids = await this.files.directoryCandidates(heads, steps);
+            if (ids) {
+                if (!ids.length) return [];
+                const fields = steps.find(step => step.method === 'select')!.args.map(fieldName);
+                const rows = await this.documents(collection, ids, undefined, fields);
+                const byId = new Map(rows.map(row => [row.id, row]));
+                return ids.flatMap(id => byId.get(id) ?? []);
+            }
+        }
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
         const retainedIds = this.retainedMembership(heads);
         const candidateSteps = steps.filter(s => !['offset', 'select', 'count'].includes(s.method)).map(s => s.method === 'limit' || s.method === 'limitToLast' ? { ...s, args: [Number(s.args[0]) + Number(steps.find(s => s.method === 'offset')?.args[0] ?? 0)] } : s);

@@ -6,7 +6,8 @@ import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
 import {getFirestore as rawFirestore,FieldPath} from 'firebase-admin/firestore';
 import {CONTROL} from '../src/lib/market-store/repository';
 import {collectMarketGarbage} from '../src/lib/market-store/maintenance';
-import {MarketFiles} from '../src/lib/market-store/files';
+import {publishDirectoryIndex} from '../src/lib/market-store/publish-directory-index';
+import {MarketFiles,type MarketHead} from '../src/lib/market-store/files';
 import {bundleMarketIndexes} from '../src/lib/market-store/index-bundles';
 import {CleanupGate,migrationCapacity} from './market-migration-safety';
 
@@ -33,11 +34,13 @@ async function main(){
       const gate=new CleanupGate(migrationCapacity(projectId),50);
       let indexShards=0;
       try{
-        const results=await bundleMarketIndexes(raw,files,{ready:true,before:count=>gate.before(count)});
+        const companies:MarketHead[]=[];
+        const results=await bundleMarketIndexes(raw,files,{ready:true,before:count=>gate.before(count),companyHeads:heads=>companies.push(...heads)});
         indexShards=results.reduce((sum,result)=>sum+result.changed,0);
-      }finally{await files.close();}
-      const garbage=await collectMarketGarbage(raw,bucket);
+        const garbage=await collectMarketGarbage(raw,bucket);
+        await publishDirectoryIndex(raw,files,companies);
       console.info(JSON.stringify({severity:'INFO',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_completed',storage:'parquet',indexShards,...garbage}));
+      }finally{await files.close();}
     }finally{await db.terminate();}
 }
 main().catch(error=>{console.error(JSON.stringify({severity:'ERROR',job:'sync-entity-snapshots',message:'sync-entity-snapshots: run_failed',error:error instanceof Error?error.message:String(error)}));process.exitCode=1;});
