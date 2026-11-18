@@ -124,10 +124,18 @@ export class MarketRepository {
     subscribe(collection: MarketCollection, ids: string[] | undefined, change: () => void, error: (error: unknown) => void) {
         const listeners = this.listeners.get(collection) ?? new Set();
         this.listeners.set(collection, listeners);
-        const listener = { shards: ids ? new Set(ids.map(shardFor)) : undefined, change, error };
+        // The first head snapshot also broadcasts shard changes. Start the
+        // query once the initial inventory is ready, then forward live changes.
+        let ready = false;
+        const listener = { shards: ids ? new Set(ids.map(shardFor)) : undefined, change: () => {
+            if (ready) change();
+        }, error };
         listeners.add(listener);
-        void this.heads(collection).then(() => { if (listeners.has(listener))
-            change(); }, error);
+        void this.heads(collection).then(() => {
+            if (!listeners.has(listener)) return;
+            ready = true;
+            change();
+        }, error);
         return () => { listeners.delete(listener); };
     }
     async committed(paths: string[]) {

@@ -634,3 +634,26 @@ test('small search point reads agree with DuckDB for selected and complete instr
         }
     }finally{await files.close();}
 });
+test('a cold subscription refreshes once for its initial head and once per later change',async()=>{
+    const files=fixture();
+    let emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
+    const source={where:()=>source,onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}};
+    const repo=new MarketRepository({collection:()=>source} as unknown as Firestore,files);
+    const shard=shardFor('watched'),calls:number[]=[];
+    function publish(version:number){
+        const head={collection:'companies',shard,rows:0,retained:[],revision:String(version)};
+        const doc={id:headId('companies',shard),exists:true,get:(field:string)=>field==='marketHead'?head:shard};
+        emit({docs:[doc],docChanges:()=>[{type:version===1?'added':'modified',doc}],readTime:Timestamp.fromMillis(version)} as unknown as FirebaseFirestore.QuerySnapshot);
+    }
+    try{
+        const stop=repo.subscribe('companies',undefined,()=>calls.push(1),err=>{throw err;});
+        publish(1);
+        await new Promise<void>(resolve=>setImmediate(resolve));
+        assert.equal(calls.length,1);
+        publish(2);
+        assert.equal(calls.length,2);
+        stop();
+        publish(3);
+        assert.equal(calls.length,2);
+    }finally{await repo.close();}
+});
