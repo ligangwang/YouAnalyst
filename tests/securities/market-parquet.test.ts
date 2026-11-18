@@ -613,3 +613,20 @@ test('company postings avoid decoding unrelated IDs and coexist with legacy shar
         assert.deepEqual(await files.query(mixed,steps),await files.filter(rows,steps));assert(legacyCalls>0,'old shards retain their original lookup');
     }finally{await files.close();}
 });
+
+test('small search point reads agree with DuckDB for selected and complete instrument payloads',async()=>{
+    const files=fixture([],0);
+    try{
+        const id='US:NVDA',version=Timestamp.fromMillis(1700000000123);
+        const head=await files.write('instruments',shardFor(id),[{id,version,data:{
+            name:'NVIDIA',symbol:'NVDA',searchTerms:['nvidia'],nested:{at:version},active:true,
+        }}],[]);
+        const ids={method:'where',args:['__name__','in',[id,'US:missing']]};
+        const direct=files as unknown as {directoryPointRows(heads:typeof head[],steps:{method:string;args:unknown[]}[]):Promise<MarketRow[]>};
+        for(const steps of [[ids],[ids,{method:'select',args:['name','nested.at']}],[ids,{method:'select',args:['searchTerms']}]]){
+            const expected=await files.query([head],steps);
+            assert.equal(expected[0].id,id);
+            assert.deepEqual(await direct.directoryPointRows([head],steps),expected);
+        }
+    }finally{await files.close();}
+});
