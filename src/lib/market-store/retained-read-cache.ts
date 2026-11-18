@@ -20,7 +20,7 @@ export class RetainedReadCache {
             if(old&&old.until>this.now()){this.entries.delete(key);this.entries.set(key,old);return old.value;}
             let resolve!:(doc:DocumentSnapshot)=>void,reject!:(error:unknown)=>void;
             const value=new Promise<DocumentSnapshot>((yes,no)=>{resolve=yes;reject=no;});
-            const entry={collection:ref.path.split('/')[0],shard:shardFor(ref.id),until:Infinity,bytes:512,value};
+            const entry={collection:ref.path.split('/')[0],shard:shardFor(ref.path.split('/')[1]),until:Infinity,bytes:512,value};
             this.entries.set(key,entry);waiting.set(key,{entry,resolve,reject});missing.push(ref);return value;
         });
         // Attach handlers before loading, including synchronous loader failures.

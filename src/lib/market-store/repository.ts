@@ -350,7 +350,7 @@ export class MarketRepository {
         const found = new Map<string, DocumentSnapshot>();
         // Only collections with an established head watch can safely reuse
         // overlays. Transaction reads and reserved live control records bypass.
-        const eligible=!context&&refs.every(ref=>!ref.id.startsWith('_')&&!ref.id.startsWith('head_')&&this.watches.has(ref.path.split('/')[0] as MarketCollection));
+        const eligible=!context&&refs.every(ref=>{const [collection,id]=ref.path.split('/');return !id.startsWith('_')&&!id.startsWith('head_')&&this.watches.has(collection as MarketCollection);});
         {
             const docs = eligible?await this.retainedReads.read(refs,fields,load):await load(refs);
             for (const doc of docs) {
