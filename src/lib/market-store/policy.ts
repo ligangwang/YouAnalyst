@@ -34,6 +34,10 @@ export const hasAuthoredContent=(data:Data)=>authored(data);
 /** Retain entire authored records unless ownership of individual fields is clear.
  * A migration must never reinterpret an editor's content as disposable market data. */
 export function retainedWhole(collection: MarketCollection, id: string, data: Data): boolean {
+    // Directory batch pages contain only source rows. The parent owns the checkpoint.
+    if (collection === 'directory_syncs' && /^_cni_.+_page_\d+$/.test(id)
+        && Object.keys(data).length === 1 && Array.isArray(data.companies) && !authored(data))
+        return false;
     if (id.startsWith('_') && data.completed !== true)
         return true;
     if (authored(data))
