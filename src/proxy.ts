@@ -4,7 +4,7 @@ import { parseLocale } from "./lib/locale";
 import { parseMarket } from "./lib/preferences";
 import { isLocalizedPage, localizedPath, pathLocale, unlocalizedPath } from "./lib/ui/i18n/urls";
 import { publicCompanyPath } from "./lib/market-companies/slugs";
-import { inventoryCompanyPath } from './lib/market-companies/slug-inventory';
+import { COMPANY_SLUG_INVENTORY, inventoryCompanyId, inventoryCompanyPath } from './lib/market-companies/slug-inventory';
 
 const REDIRECT_HOSTS = new Set([
   "www.youanalyst.com",
@@ -39,11 +39,19 @@ export function proxy(request: NextRequest) {
     const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const plain = unlocalizedPath(request.nextUrl.pathname);
     const oldTicker = /^\/ticker\/([A-Za-z0-9][A-Za-z0-9.-]{0,15})$/.exec(plain);
-    const oldTickerPath=oldTicker ? inventoryCompanyPath(`US:${oldTicker[1].toUpperCase()}`) ?? publicCompanyPath(oldTicker[1]) : null;
-    // A-shares retain their exchange-qualified routes; migrate US company pages.
-    if (oldTicker && oldTickerPath?.startsWith('/company/') && !/^[036]\d{5}$/.test(oldTicker[1])) {
+    const companyTicker = /^\/company\/([A-Z0-9][A-Z0-9.-]{0,15})$/.exec(plain)?.[1];
+    const tickerId = companyTicker && `US:${companyTicker}`;
+    const inventorySlug = tickerId && COMPANY_SLUG_INVENTORY[tickerId];
+    // Known uppercase ticker aliases resolve before the company page opens its data store.
+    // The lowercase destination still resolves the current company record and custom slug.
+    const companyAlias = tickerId && inventorySlug && inventoryCompanyId(inventorySlug) === tickerId
+      ? inventoryCompanyPath(tickerId, inventorySlug) : null;
+    const oldTickerPath = oldTicker && !/^[036]\d{5}$/.test(oldTicker[1])
+      ? inventoryCompanyPath(`US:${oldTicker[1].toUpperCase()}`) ?? publicCompanyPath(oldTicker[1]) : null;
+    const redirectPath = companyAlias ?? oldTickerPath;
+    if (redirectPath?.startsWith('/company/') && redirectPath !== plain) {
       const destination = new URL(request.url);
-      destination.pathname = localizedPath(oldTickerPath, locale);
+      destination.pathname = localizedPath(redirectPath, locale);
       destination.searchParams.delete("lang");
       return NextResponse.redirect(destination, 308);
     }
