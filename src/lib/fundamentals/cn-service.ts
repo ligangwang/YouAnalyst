@@ -4,6 +4,7 @@ import { maintenanceError } from "../maintenance-log";
 import { CN_COMPANY_ID } from "../knowledge-graph/cn-companies";
 import { isoDate, type CnMarketCap } from "./cn-market-cap";
 import type { CnAnnual } from './cn-annual';
+import {marketStoreReady} from '../market-store/runtime';
 import {loadFundamentalsSnapshot} from './document-cache';
 
 // What an A-share company page shows. Page reads never contact providers.
@@ -30,12 +31,19 @@ export function publicCnMarketCap(value: unknown): PublicCnMarketCap | null {
     close: positive(cap.close) ? cap.close : null, lastClose: cap.lastClose === true, shares };
 }
 
+async function publicFinancialFields(db: ReturnType<typeof getAdminFirestore>, id: string, fields: string[]) {
+  if (!marketStoreReady('company_fundamentals')) return loadFundamentalsSnapshot(db, id);
+  const ref = db.collection('company_fundamentals').doc(id);
+  const [doc] = await db.getAll(ref, {fieldMask: [...fields, 'isDeleted']});
+  return doc.get('isDeleted') === true ? null : doc;
+}
+
 export async function loadCnMarketCap(id: string): Promise<PublicCnMarketCap | null> {
   if (!CN_COMPANY_ID.test(id)) return null;
   try {
     const db=getAdminFirestore();
-    const doc = await loadFundamentalsSnapshot(db,id);
-    return publicCnMarketCap(doc.get("marketCap"));
+    const doc = await publicFinancialFields(db, id, ['marketCap']);
+    return publicCnMarketCap(doc?.get("marketCap"));
   } catch (error) {
     console.error(JSON.stringify({ severity: "ERROR", message: "fundamentals: cn_market_cap_read_failed", company: id, error: maintenanceError(error) }));
     return null;
@@ -44,8 +52,8 @@ export async function loadCnMarketCap(id: string): Promise<PublicCnMarketCap | n
 
 export async function readCnFundamentals(id:string,db:ReturnType<typeof getAdminFirestore>,now=Date.now()){
   if(!CN_COMPANY_ID.test(id))return null;
-  const doc=await loadFundamentalsSnapshot(db,id);
-  if(!doc.exists)return null;
+  const doc=await publicFinancialFields(db, id, ['cnAnnual', 'marketCap']);
+  if(!doc?.exists)return null;
   const stored=doc.get('cnAnnual') as CnAnnual|undefined;
   const annual=stored?.version===1&&stored.companyId===id&&Array.isArray(stored.metrics)?stored:null;
   return {marketCap:publicCnMarketCap(doc.get('marketCap')),annual,metrics:annual?.metrics??[],

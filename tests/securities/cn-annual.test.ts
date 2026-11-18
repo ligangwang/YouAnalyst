@@ -64,3 +64,30 @@ test('provider failures preserve last report, retry later, and dry runs never wr
   const deferred=await refreshCnAnnual({db:dry.db,companies:[id],deadline:now.getTime()+1000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('must not start');}});
   assert.equal(deferred.deferred,1);assert.equal(dry.writes.length,0);
 });
+
+test('the migrated public annual reader requests only its two Parquet fields', async t => {
+  const flags = {MARKET_PARQUET_ENABLED: '1', MARKET_FUNDAMENTALS_READ_READY: '1', K_SERVICE: 'ifindata-web', CLOUD_RUN_JOB: ''};
+  for (const [key, value] of Object.entries(flags)) {
+    const previous = process.env[key];
+    process.env[key] = value;
+    t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
+  }
+  let deleted = false;
+  const ref = {id};
+  const annual = parse([row]);
+  const db = {
+    collection(name: string) {
+      assert.equal(name, 'company_fundamentals');
+      return {doc(key: string) { assert.equal(key, id); return ref; }};
+    },
+    async getAll(selected: unknown, options: {fieldMask: string[]}) {
+      assert.equal(selected, ref);
+      assert.deepEqual(options.fieldMask, ['cnAnnual', 'marketCap', 'isDeleted']);
+      return [{exists: true, get: (field: string) => field === 'cnAnnual' ? annual : field === 'isDeleted' ? deleted : undefined}];
+    },
+  };
+  const result = await readCnFundamentals(id, db as unknown as Parameters<typeof readCnFundamentals>[1], now.getTime());
+  assert.deepEqual(result?.metrics, annual.metrics);
+  deleted = true;
+  assert.equal(await readCnFundamentals(id, db as unknown as Parameters<typeof readCnFundamentals>[1], now.getTime()), null);
+});
