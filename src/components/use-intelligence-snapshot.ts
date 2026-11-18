@@ -77,7 +77,11 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       if (disposed || inFlight || document.visibilityState === 'hidden') return;
       inFlight = true;
       controller = new AbortController();
-      const timeout = setTimeout(() => controller?.abort(), 15_000);
+      // A cold initial feed can finish after the normal background polling budget.
+      // Keep that request alive while the graph is visible and the feed is pending.
+      const cachedFeed = themeSnapshots.current.get(theme);
+      const timeoutMs = cachedFeed && !cachedFeed.eventsPending ? 15_000 : 40_000;
+      const timeout = setTimeout(() => controller?.abort(), timeoutMs);
       try {
         const url=`/api/intelligence?theme=${theme}&graph=omit${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
