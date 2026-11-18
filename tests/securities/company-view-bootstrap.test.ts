@@ -11,7 +11,7 @@ function fixture(){
     }})})} as unknown as Firestore;
     const view=new CompanyView(client,()=>{},undefined,{initializationTimeoutMs:10,retryDelayMs:100,now:()=>now});
     const deliver=()=>{
-        const doc={id:'US:A',ref:{path:'market_state/companies/records/US:A'},data:()=>({pending:true})} as DocumentSnapshot;
+        const doc={id:'US:A',ref:{path:'market_state/companies/records/US:A'},data:()=>({pending:true})} as unknown as DocumentSnapshot;
         next({docChanges:()=>[{type:'added',doc}],readTime:Timestamp.now()} as QuerySnapshot);
     };
     return {raw,view,deliver,fail:()=>error(Error('unavailable')),advance:()=>{now+=101;},counts:()=>({attempts,stops})};
