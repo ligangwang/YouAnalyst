@@ -470,7 +470,7 @@ export class MarketRepository {
         const heads = [...(await this.heads(collection, context)).values()];
         if (!context && collection === 'companies' && this.files.directoryCandidates) {
             const ids = await this.files.directoryCandidates(heads, steps);
-            if (ids) {
+            if (ids && (await this.retainedStore.mode()).ready) {
                 if (!ids.length) return [];
                 const fields = steps.find(step => step.method === 'select')!.args.map(fieldName);
                 const rows = await this.documents(collection, ids, undefined, fields);

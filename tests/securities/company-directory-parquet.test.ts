@@ -1,3 +1,5 @@
+import type {Firestore} from 'firebase-admin/firestore';
+import type {MarketFiles,MarketHead} from '../../src/lib/market-store/files';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,writeFile,rm} from 'node:fs/promises';
@@ -5,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DuckDBInstance} from '@duckdb/node-api';
 import {directoryGeneration,directoryTerm} from '../../src/lib/market-store/directory-index';
-import {buildDirectoryParts} from '../../src/lib/market-store/publish-directory-index';
+import {buildDirectoryParts,publishDirectoryIndex} from '../../src/lib/market-store/publish-directory-index';
 import {quote} from '../../src/lib/price-store/parquet';
 
 const select={method:'select',args:['name']};
@@ -45,4 +47,17 @@ test('published search partitions preserve bounds, UTF-8 order and unique IDs',a
         assert.equal(directoryTerm([select,where('symbolLower','==','nvda'),where('active','==',true),limit]),undefined);
         assert.equal(directoryTerm([select,where('symbolLower','==','nvda'),{method:'offset',args:[1]},limit]),undefined);
     }finally{db.closeSync();instance.closeSync();await rm(dir,{recursive:true,force:true});}
+});
+
+test('directory publication skips legacy roots and stops if relocation changes during a shard read',async()=>{
+    const mode=(ready:boolean)=>({exists:true,data:()=>({version:1,ready,cleanupAuthorized:false})});
+    const heads=Array.from({length:256},(_,i)=>({collection:'companies',shard:i.toString(16).padStart(2,'0'),revision:'test',retained:[],rows:0})) as MarketHead[];
+    const notReady={doc:()=>({get:async()=>mode(false)})};
+    await publishDirectoryIndex(notReady as unknown as Firestore,{} as MarketFiles,heads);
+    let checked=false;
+    const raw={doc:()=>({get:async()=>mode(true)}),collection:()=>({doc:()=>({})}),
+        runTransaction:async(read:(tx:object)=>Promise<unknown>)=>read({getAll:async()=>{checked=true;return [{get:()=>'test'},mode(false)];}})};
+    const files={bucket:{file:()=>({exists:async()=>[false],download:async()=>{throw Object.assign(Error('missing'),{code:404});}})}};
+    await publishDirectoryIndex(raw as unknown as Firestore,files as unknown as MarketFiles,heads);
+    assert.equal(checked,true);
 });
