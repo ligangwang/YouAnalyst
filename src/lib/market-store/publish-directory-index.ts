@@ -9,7 +9,7 @@ import {directoryGeneration,DIRECTORY_INDEX_ROOT} from './directory-index';
 import {type MarketFiles,type MarketHead} from './files';
 import {headId} from './repository';
 import {splitRecord} from './policy';
-import {retainedPath} from './retained-store';
+import {RETAINED_CONTROL,retainedMode,retainedPath} from './retained-store';
 import {quote} from '../price-store/parquet';
 
 const fields=['symbolLower','searchPrefixes'];
@@ -21,12 +21,12 @@ async function saveOnce(file:File,data:Buffer|string){
 // Read the retained fields at the same snapshot as the shard revision.
 // External Parquet objects are immutable and can be read outside the transaction.
 async function shardTerms(raw:Firestore, files:MarketFiles, head:MarketHead){
-    const file=files.bucket.file(`${DIRECTORY_INDEX_ROOT}/sources/${head.shard}/${head.revision}.gz`);
+    const file=files.bucket.file(`${DIRECTORY_INDEX_ROOT}/sources/${head.shard}/ready-${head.revision}.gz`);
     try{return gunzipSync((await file.download())[0]);}
     catch(error){if(Number((error as {code?:number}).code)!==404)throw error;}
     const retained=await raw.runTransaction(async tx=>{
-        const control=await tx.get(raw.collection('collectors').doc(headId('companies',head.shard)));
-        if(control.get('marketHead.revision')!==head.revision)return;
+        const [control,relocation]=await tx.getAll(raw.collection('collectors').doc(headId('companies',head.shard)),raw.doc(RETAINED_CONTROL));
+        if(!retainedMode(relocation).ready || control.get('marketHead.revision')!==head.revision)return;
         const records=new Map<string,FirebaseFirestore.DocumentData>();
         const refs=head.retained.flatMap(id=>(['market_state','market_ugc'] as const).map(root=>raw.doc(retainedPath(root,'companies',id))));
         for(let i=0;i<refs.length;i+=100){
@@ -36,6 +36,7 @@ async function shardTerms(raw:Firestore, files:MarketFiles, head:MarketHead){
                 records.set(doc.id,doc.data()!);
             }
         }
+        if(records.size!==head.retained.length)throw Error('Incomplete retained company shard');
         return records;
     },{readOnly:true});
     if(!retained)return;
@@ -82,7 +83,7 @@ export async function buildDirectoryParts(source:string,directory:string){
 // These objects are derived caches. Keep the active generation and its inputs,
  // plus a week for rolling releases, before removing older immutable copies.
 async function pruneDirectoryIndex(files:MarketFiles, heads:MarketHead[], generation:string){
-    const sources=new Set(heads.map(h=>`${DIRECTORY_INDEX_ROOT}/sources/${h.shard}/${h.revision}.gz`));
+    const sources=new Set(heads.map(h=>`${DIRECTORY_INDEX_ROOT}/sources/${h.shard}/ready-${h.revision}.gz`));
     const active=`${DIRECTORY_INDEX_ROOT}/${generation}/`;
     const cutoff=Date.now()-7*24*60*60*1000;
     for await(const file of files.bucket.getFilesStream({prefix:DIRECTORY_INDEX_ROOT+'/'})){
@@ -94,6 +95,8 @@ async function pruneDirectoryIndex(files:MarketFiles, heads:MarketHead[], genera
 }
 
 export async function publishDirectoryIndex(raw:Firestore,files:MarketFiles,heads:MarketHead[]){
+    // The source includes both relocated roots only after their verified cutover.
+    if(!retainedMode(await raw.doc(RETAINED_CONTROL).get()).ready)return;
     const generation=directoryGeneration(heads);
     if(!generation)throw Error('Incomplete company index inventory');
     const prefix=`${DIRECTORY_INDEX_ROOT}/${generation}`;

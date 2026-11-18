@@ -9,7 +9,7 @@ export function directoryGeneration(heads: readonly Pick<MarketHead,'shard'|'rev
     if (heads.length !== 256) return;
     const ordered = [...heads].sort((a,b) => a.shard.localeCompare(b.shard));
     if (!ordered.every((h,i) => h.shard === i.toString(16).padStart(2,'0') && h.revision)) return;
-    return createHash('sha256').update('co-located-terms-v1').update(JSON.stringify(ordered.map(h => [h.shard,h.revision]))).digest('hex');
+    return createHash('sha256').update('relocated-terms-v2').update(JSON.stringify(ordered.map(h => [h.shard,h.revision]))).digest('hex');
 }
 
 export function directoryTerm(steps: readonly Step[]) {
