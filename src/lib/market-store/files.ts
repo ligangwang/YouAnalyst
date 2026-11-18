@@ -1,3 +1,4 @@
+import {searchEntityReads} from '../local-cache/search-scope';
 import {directoryGeneration,directoryTerm,DIRECTORY_INDEX_ROOT} from './directory-index';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -113,18 +114,21 @@ export class MarketFiles {
             const cacheKey = name + '|' + term.value;
             let pending = this.directoryLoads.get(cacheKey);
             if (!pending) {
-                pending = this.local([name], ([path]) => withDuck(async db => {
+                pending = this.local([name], async ([path]) => {
+                    const {parquetReadObjects,asyncBufferFromFile} = await import('hyparquet');
+                    const {decompress} = await import('fzstd');
                     const keys = ['n:', 's:', 'e:'].map(prefix => prefix + term.value);
-                    const result = await db.runAndReadAll(`SELECT field,payload FROM read_parquet(${quote(path)}) WHERE field IN (?,?,?)`, keys);
+                    const rows = await parquetReadObjects({file:await asyncBufferFromFile(path),columns:['field','payload'],
+                        filter:{field:{$in:keys}},compressors:{ZSTD:bytes=>decompress(bytes)}});
                     const matches = new Map<string,string[]>();
-                    for (const [field,payload] of result.getRows()) {
+                    for (const {field,payload} of rows) {
                         const ids: unknown = JSON.parse(String(payload));
-                        if (matches.has(String(field)) || !Array.isArray(ids) || ids.length > 50 ||
+                        if (!keys.includes(field) || matches.has(field) || !Array.isArray(ids) || ids.length > 50 ||
                             !ids.every(id => typeof id === 'string') || new Set(ids).size !== ids.length) throw Error('Invalid directory index');
-                        matches.set(String(field),ids);
+                        matches.set(field,ids);
                     }
                     return matches;
-                })).finally(() => this.directoryLoads.delete(cacheKey));
+                }).finally(() => this.directoryLoads.delete(cacheKey));
                 this.directoryLoads.set(cacheKey,pending);
             }
             const matches = await pending;
@@ -370,7 +374,50 @@ export class MarketFiles {
             }
         }).catch(()=>{if(this.queryResults.get(key)===entry)this.queryResults.delete(key);});
     }
+    // A directory lookup already has the candidate IDs. Read only those rows from
+    // small company/instrument shards without starting or queuing a DuckDB engine.
+    private async directoryPointRows(heads:MarketHead[],steps:Step[]):Promise<MarketRow[]|undefined>{
+        const filters=steps.filter(step=>step.method==='where');
+        if(filters.length!==1||!steps.every(step=>step.method==='where'||step.method==='select'))return;
+        const [field,op,value]=filters[0].args;
+        if(fieldName(field)!=='__name__')return;
+        const ids=op==='=='?[value]:op==='in'&&Array.isArray(value)?value:[];
+        if(!ids.length||ids.length>8||!ids.every(id=>typeof id==='string'))return;
+        const shards=new Set(ids.map(id=>shardFor(id as string)));
+        const selected=heads.filter(head=>head.file&&shards.has(head.shard));
+        if(selected.some(head=>!['companies','instruments'].includes(head.collection)) ||
+            selected.reduce((total,head)=>total+(head.bytes??Infinity),0)>8*1024*1024)return;
+        if(!selected.length)return [];
+        const projection=steps.find(step=>step.method==='select')?.args.map(fieldName);
+        const rows:MarketRow[]=[];
+        const {parquetReadObjects,asyncBufferFromFile} = await import('hyparquet');
+        const {decompress} = await import('fzstd');
+        for(const head of selected){
+            this.validate(head.file!);
+            const source=projection && marketIndexFormat(head.format)>=2 && projection.every(f=>!searchPayload.has(f.split('.')[0]))?'view_payload':'payload';
+            const inShard=ids.filter(id=>shardFor(id as string)===head.shard);
+            const page=await this.local([head.file!],async ([path])=>parquetReadObjects({
+                file:await asyncBufferFromFile(path),columns:['id',source,'version'],
+                filter:{id:{$in:inShard}},parsers:{jsonFromBytes:bytes=>bytes},compressors:{ZSTD:bytes=>decompress(bytes)}
+            }));
+            for(const record of page){
+                const payload=record[source];
+                const data=decodePayload(payload instanceof Uint8Array?Buffer.from(payload).toString('utf8'):String(payload));
+                const version=decode(JSON.parse(record.version instanceof Uint8Array?Buffer.from(record.version).toString('utf8'):String(record.version))) as Timestamp;
+                rows.push({id:record.id,data:projection?project(data,projection):data,version});
+            }
+        }
+        return rows.sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id)));
+    }
     private async queryUncached(heads: MarketHead[], steps: Step[], indexed: boolean, compactRead = false): Promise<MarketRow[]> {
+        if (this.web && !compactRead && searchEntityReads.getStore()) {
+            try {
+                const pointRows = await this.directoryPointRows(heads,steps);
+                if (pointRows) return pointRows;
+            } catch {
+                console.warn(JSON.stringify({event:'directory_point_reader_fallback'}));
+            }
+        }
         const calendar=steps.some(step=>step.method==='where'&&fieldName(step.args[0])==='type'&&
             (step.args[1]==='=='&&step.args[2]==='scheduled_event'||step.args[1]==='in'&&Array.isArray(step.args[2])&&step.args[2].length>0&&step.args[2].every(value=>value==='scheduled_event')));
         if(indexed&&calendar&&heads.every(head=>head.collection==='events'&&(!head.file||marketIndexFormat(head.format)>=8)))

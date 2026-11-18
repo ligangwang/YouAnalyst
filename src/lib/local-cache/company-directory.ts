@@ -1,3 +1,4 @@
+import {searchEntityReads as searchReads} from './search-scope';
 import {setImmediate as yieldToRequests} from 'node:timers/promises';
 import {marketStoreReady} from '../market-store/runtime';
 import {COMPANY_VIEW_OBJECT,companyViewData,isCompanyViewField} from '../entity-snapshots/company-view';
@@ -18,13 +19,12 @@ type Entry={view?:boolean;rows?:Rows;expires:number;pending?:Promise<Rows>;versi
 type Options={onlyCollections?:readonly Collection[];marketReady?:(collection:Collection)=>Promise<boolean>;sync?:typeof syncEntityChanges|false;file?:(collection:Collection,view?:boolean)=>Promise<Rows|undefined>;now?:()=>number};
 declare global {
  var __companyViewReadsV1:AsyncLocalStorage<boolean>|undefined;
- var __companySearchReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companyPageReadsV1:AsyncLocalStorage<boolean>|undefined;
  var __companyDirectoryV2:{entries:WeakMap<Firestore,Map<string,Entry>>;sources:WeakMap<object,Source>;clients:WeakMap<Firestore,{raw:Firestore;options:Options}>;live:AsyncLocalStorage<boolean>}|undefined;
 }
 const state=globalThis.__companyDirectoryV2??={entries:new WeakMap(),sources:new WeakMap(),clients:new WeakMap(),live:new AsyncLocalStorage()};
 const pageReads=globalThis.__companyPageReadsV1??=new AsyncLocalStorage<boolean>();
-const searchReads=globalThis.__companySearchReadsV1??=new AsyncLocalStorage<boolean>();
+
 /** Autocomplete must not hydrate whole company or instrument snapshots. */
 export const withSearchEntityReads=<T>(work:()=>Promise<T>):Promise<T>=>searchReads.run(true,work);
 /** A company request uses the existing targeted push caches, not whole files. */
