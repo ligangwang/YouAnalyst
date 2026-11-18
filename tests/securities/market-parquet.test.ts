@@ -292,6 +292,10 @@ test('small queries inspect only matching retained shards and refresh membership
         const ready=repo.heads('events');emit({docs,readTime:Timestamp.fromMillis(100),docChanges:()=>docs.map(doc=>({type:'added',doc}))} as unknown as FirebaseFirestore.QuerySnapshot);await ready;reads=0;
         const steps=[{method:'where',args:['type','==','news']},{method:'limit',args:[1]}];
         assert.deepEqual(await repo.query('events',steps),[row]);assert.equal(reads,1,'unrelated retained shards must not be expanded');assert.equal(overlays,1);
+        const other=target==='00'?'01':'00';
+        repo.invalidate('events',new Set([other]));
+        await repo.query('events',steps);
+        assert.equal(overlays,1,'an unrelated head change must not reread the unchanged retained overlay');
         repo.invalidate('events');await repo.query('events',steps);assert.equal(reads,1,'immutable membership must be reused');assert.equal(overlays,2);
         const changed=doc(head(target,[]));emit({docs,readTime:Timestamp.fromMillis(200),docChanges:()=>[{type:'modified',doc:changed}]} as unknown as FirebaseFirestore.QuerySnapshot);
         await repo.query('events',steps);assert.equal(overlays,2,'new head membership must replace the preceding set');

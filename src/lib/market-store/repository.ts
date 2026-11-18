@@ -1,4 +1,5 @@
 import {reportNativeRead} from './native-read-observability';
+import {RetainedReadCache} from './retained-read-cache';
 import {RetainedStore,relocatesCollection,type RetainedMode} from './retained-store';
 import {assertReadControl} from './read-control';
 import { FieldPath, FieldValue, Timestamp, type Firestore, type Transaction, type DocumentReference, type DocumentSnapshot, type Query } from 'firebase-admin/firestore';
@@ -80,6 +81,7 @@ export class MarketRepository {
         shards?: ReadonlySet<string>;
         value: Promise<MarketRow[]>;
     }>();
+    private retainedReads=new RetainedReadCache();
     private listeners = new Map<string, Set<{
         shards?: Set<string>;
         change: () => void;
@@ -101,10 +103,11 @@ export class MarketRepository {
             catch {
                 this.controls = undefined; } }, () => { this.controls = undefined; });
     }
-    close() { this.retainedStore.close(); this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
+    close() { this.retainedReads.invalidate(); this.retainedStore.close(); this.events?.close(); this.fundamentals?.close(); this.controlStop?.(); for (const watch of this.watches.values())
         watch.stop(); this.watches.clear(); return this.files.close(); }
     context(reader: Reader): MarketContext { return { reader, heads: new Map(), documents: new Map(), writes: [] }; }
     invalidate(collection?: string, shards?: ReadonlySet<string>) {
+        this.retainedReads.invalidate(collection,shards);
         if (!collection) { this.results.clear(); return; }
         const docsPrefix='docs:'+collection+':';
         for (const [key,entry] of this.results) {
@@ -178,7 +181,8 @@ export class MarketRepository {
         const entry = { until: Infinity, bytes: 0, shards, value: work() };
         this.results.set(key, entry);
         entry.value.then(rows => { entry.until = Date.now() + 60000; entry.bytes = Buffer.byteLength(JSON.stringify(encode(rows))) * 2; let bytes = [...this.results.values()].reduce((n, e) => n + e.bytes, 0); for (const [id, value] of this.results) {
-            if (bytes <= 64 * 1024 * 1024 && this.results.size <= 512)
+            // Keep the combined result/retained-overlay allowance at 64 MiB.
+            if (bytes <= 48 * 1024 * 1024 && this.results.size <= 512)
                 break;
             this.results.delete(id);
             bytes -= value.bytes;
@@ -338,9 +342,17 @@ export class MarketRepository {
         return new Map(watch.heads);
     }
     private async rawDocuments(refs: DocumentReference[], context?: MarketContext, fields?: string[]) {
+        const load=async (batch:DocumentReference[])=>{
+            const docs:DocumentSnapshot[]=[];
+            for(let i=0;i<batch.length;i+=100)docs.push(...await this.retainedStore.documents(batch.slice(i,i+100),context,fields));
+            return docs;
+        };
         const found = new Map<string, DocumentSnapshot>();
-        for (let i = 0; i < refs.length; i += 100) {
-            const docs = await this.retainedStore.documents(refs.slice(i,i+100),context,fields);
+        // Only collections with an established head watch can safely reuse
+        // overlays. Transaction reads and reserved live control records bypass.
+        const eligible=!context&&refs.every(ref=>{const [collection,id]=ref.path.split('/');return !id.startsWith('_')&&!id.startsWith('head_')&&this.watches.has(collection as MarketCollection);});
+        {
+            const docs = eligible?await this.retainedReads.read(refs,fields,load):await load(refs);
             for (const doc of docs) {
                 found.set(doc.ref.path, doc);
                 context?.documents.set(doc.ref.path, doc);

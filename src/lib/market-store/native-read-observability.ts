@@ -37,11 +37,16 @@ export function reportNativeRead(collection:string,steps:Step[],documents:number
 export function reportNativeBatchRead(docs:readonly DocumentSnapshot[],transaction:boolean,fields?:string[]):void {
     if(docs.length<25)return;
     try {
-        const documentsByCollection:Record<string,number>={};
-        for(const doc of docs){const collection=doc.ref.path.split('/')[0];documentsByCollection[collection]=(documentsByCollection[collection]??0)+1;}
+        const documentsByCollection:Record<string,number>={},documentsByLogicalCollection:Record<string,number>={};
+        for(const doc of docs){
+            const [collection,logical,records]=doc.ref.path.split('/');
+            documentsByCollection[collection]=(documentsByCollection[collection]??0)+1;
+            const name=['market_state','market_ugc'].includes(collection)&&records==='records'?logical:collection;
+            documentsByLogicalCollection[name]=(documentsByLogicalCollection[name]??0)+1;
+        }
         console.info(JSON.stringify({severity:'INFO',event:'market_native_batch_read',operation:'getAll',
             documentsRequested:docs.length,documentsReturned:docs.filter(doc=>doc.exists).length,
-            documentsMissing:docs.filter(doc=>!doc.exists).length,documentsByCollection,
+            documentsMissing:docs.filter(doc=>!doc.exists).length,documentsByCollection,documentsByLogicalCollection,
             ...nativeDocumentEvidence(docs),projectionFingerprint:hash(fields?[...fields].sort():null),
             transaction,processRunId,revision:process.env.K_REVISION??null,
             job:process.env.K_SERVICE??process.env.CLOUD_RUN_JOB??null,timestamp:new Date().toISOString()}));
