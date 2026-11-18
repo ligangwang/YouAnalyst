@@ -7,7 +7,7 @@ import {RetainedStore,RETAINED_CONTROL} from '../../src/lib/market-store/retaine
 const host=process.env.FIRESTORE_EMULATOR_HOST;
 if(host&&!/^(127\.0\.0\.1|localhost):\d+$/.test(host))throw Error('Local emulator required');
 const check=host?test:test.skip;
-check('a timed-out company listener recovers once after cooldown without blocking point reads',async t=>{
+check('a failed company listener recovers once after cooldown without blocking point reads',async t=>{
     const raw=new Firestore({projectId:'company-recovery-'+randomUUID()});
     await raw.doc('market_state/companies/records/US:A').set({pending:true});
     let attempts=0,stops=0,now=1000,late:Parameters<Query['onSnapshot']>[0]|undefined;
@@ -15,7 +15,7 @@ check('a timed-out company listener recovers once after cooldown without blockin
         const query=raw.collectionGroup(name).where(filter);
         return {onSnapshot:(...args:Parameters<Query['onSnapshot']>)=>{
             attempts++;
-            if(attempts===1){late=args[0];return ()=>{stops++;};}
+            if(attempts===1){late=args[0];queueMicrotask(()=>args[1]!(Error('listener unavailable')));return ()=>{stops++;};}
             return query.onSnapshot(...args);
         }};
     }})} as unknown as Firestore;

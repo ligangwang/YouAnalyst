@@ -35,7 +35,7 @@ export class CompanyView {
     async read(start=false):Promise<Map<string,DocumentSnapshot>|undefined>{
         // A point read arriving during bootstrap keeps its fast native path.
         // Only the broad query that needs the view waits for initialization.
-        // A transient cold-start timeout must not disable caching for the whole
+        // A transient listener failure must not disable caching for the whole
         // instance lifetime. Only a later broad query retries, after a cooldown;
         // point reads retain their immediate native fallback during recovery.
         if(this.disabled&&start&&this.retryAt!==undefined&&(this.recovery.now?.()??Date.now())>=this.retryAt){
@@ -53,7 +53,15 @@ export class CompanyView {
                 if(retryable)this.retryAt=(this.recovery.now?.()??Date.now())+(this.recovery.retryDelayMs??60000);
                 this.changed([]);
             };
-            const timer=setTimeout(()=>fail(Error('Company view initialization timed out'),true),this.recovery.initializationTimeoutMs??45000);
+            // Bound the request wait, not the lifetime of the initial snapshot.
+            // Cancelling a slow bootstrap discards its progress and forces the
+            // next broad request to read the same collection again. Keep this
+            // single, memory-bounded subscription alive for late completion.
+            const timer=setTimeout(()=>{
+                if(generation!==this.generation)return;
+                console.warn(JSON.stringify({event:'company_view_wait_expired',listenerContinues:true}));
+                this.finish?.();
+            },this.recovery.initializationTimeoutMs??45000);
             this.pending.then(()=>clearTimeout(timer));
             this.stop=companyViewQuery(this.raw).onSnapshot(snapshot=>{
                 if(generation!==this.generation)return;
