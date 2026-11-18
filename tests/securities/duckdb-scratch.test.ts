@@ -12,7 +12,7 @@ test('DuckDB spills outside the application directory within a fixed scratch bud
    scratch=String(rows[0][0]);assert.match(scratch,/youanalyst-duck-/);assert.equal(rows[0][1],'244.1 MiB');
    await db.run("CREATE TABLE spill AS SELECT range AS id,repeat(md5(range::VARCHAR),4) AS payload FROM range(1000000)");
    assert.ok((await readdir(scratch)).length>0,'query must exercise spilling');
-   assert.equal((await db.runAndReadAll('SELECT count(*) FROM spill')).getRows()[0][0],1000000n);
+   assert.equal((await db.runAndReadAll('SELECT count(*) FROM spill')).getRows()[0][0],BigInt(1000000));
   });
   await assert.rejects(access(scratch));
   await assert.rejects(withDuck(async db=>{
@@ -22,3 +22,4 @@ test('DuckDB spills outside the application directory within a fixed scratch bud
   await assert.rejects(access(scratch));
  }finally{if(prior===undefined)delete process.env.PRICE_DUCKDB_MEMORY_MB;else process.env.PRICE_DUCKDB_MEMORY_MB=prior;}
 });
+
