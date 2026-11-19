@@ -867,3 +867,26 @@ check('receipt backfill preserves split payloads and leaves active work and UGC 
         assert.deepEqual((await ref.get()).data(),fields);
     }
 });
+
+check('retired bare tickers keep their full data in Parquet and require a canonical worker record',async t=>{
+    const {archiveReceiptBatch}=await import('../../src/lib/market-store/archive-fundamentals-receipts');
+    const f=fixture(false,false,true);
+    t.after(()=>f.db.terminate());
+    const collection='company_fundamentals';
+    await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    for(const [id,expected,extra] of [['ABC',1,{}],['XYZ',0,{pending:true}],['EDIT',0,{reviewedBy:'editor'}],['ORPHAN',0,{}]] as const){
+        const data={value:{ticker:id},pending:false,outcome:'ready',...extra};
+        await f.db.collection(collection).doc(id).set(data);
+        if(id!=='ORPHAN')await f.db.collection(collection).doc('US:'+id).set({pending:false,outcome:'ready'});
+        const before=(await f.db.collection(collection).doc(id).get()).data();
+        const shard=shardFor(id);
+        assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shard,[id],'retired-ticker'),expected);
+        assert.deepEqual((await f.db.collection(collection).doc(id).get()).data(),before);
+        if(expected){
+            assert.equal((await f.raw.doc(retainedPath('market_state',collection,id)).get()).exists,false);
+            assert.equal((await f.raw.doc(retainedPath('market_state',collection,'US:'+id)).get()).exists,true);
+            assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shard,[id],'retired-ticker'),0);
+        }
+    }
+});
