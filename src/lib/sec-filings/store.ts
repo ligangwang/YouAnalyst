@@ -1,5 +1,5 @@
 import { usFundamentalsId } from "../fundamentals/identity";
-import { SEC_COLLECTOR_STATE_COLLECTION, secCollectorBridge } from "../sec-collector-state";
+import { SEC_COLLECTOR_STATE_COLLECTION } from "../sec-collector-state";
 import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import type { SecFiling } from "./source";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
@@ -47,9 +47,7 @@ export function secCollectorFreshness(db: Firestore) {
 export async function readSecCollectorCursor(db: Firestore, companyId: string): Promise<SecCollectorCursor | null> {
   const id = usFundamentalsId(companyId);
   const state = await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(id).get();
-  // Read legacy progress only until the first state write. Diagnostics stay read-only.
-  const value = state.exists && !await secCollectorBridge(db) ? state.get("secFilingsCollector")
-    : (await db.collection("company_fundamentals").doc(id).get()).get("secFilingsCollector");
+  const value = state.get("secFilingsCollector");
   if (!value) return null;
   if (value.version !== 1 || !/^\d{10}$/.test(value.cik) || !Number.isFinite(Date.parse(value.baselineAt))
     || (value.lastCompleteAt !== null && !Number.isFinite(Date.parse(value.lastCompleteAt)))
@@ -63,17 +61,7 @@ export async function readSecCollectorCursor(db: Firestore, companyId: string): 
 }
 export async function writeSecCollectorCursor(db: Firestore, companyId: string, value: SecCollectorCursor) {
   const ref=db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId));
-  // Once retirement is confirmed, only the operational document is written.
-  // Cursor writes remain protected by the caller's collector lease.
-  if (!await secCollectorBridge(db)) {
-    await ref.set({secFilingsCollector:value},{merge:true});
-    return;
-  }
-  await db.runTransaction(async tx=>{
-    const bridge=(await tx.get(secCollectorMetadata(db))).get("bridgeRetired")!==true;
-    tx.set(ref,{secFilingsCollector:value},{merge:true});
-    if(bridge)tx.set(db.collection("company_fundamentals").doc(usFundamentalsId(companyId)),{secFilingsCollector:value},{merge:true});
-  });
+  await ref.set({secFilingsCollector:value},{merge:true});
 }
 
 /** Existing accession documents also contain graph extraction results; always merge. */

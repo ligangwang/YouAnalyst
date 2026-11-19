@@ -39,34 +39,13 @@ test('bridge acquisition preserves newer rotation progress',async()=>{
  assert.equal(await acquireSecCollectorLease(f.db,'test',Date.parse(iso),undefined),true);
  assert.equal(f.documents.get(META)?.afterCompanyId,'NVDA');
 });
-test("bridge mirrors cursor progress until retired, then leaves fundamentals untouched",async()=>{
- const f=fixture({[META]:{},'company_fundamentals/US:AMD':{secFilingsCollector:cursor()}});
- await f.run();
- assert.deepEqual(f.documents.get(COMPANY)?.secFilingsCollector,f.documents.get('company_fundamentals/US:AMD')?.secFilingsCollector);
- const old=structuredClone(f.documents.get('company_fundamentals/US:AMD'));
- f.documents.set(META,{...f.documents.get(META),bridgeRetired:true});
- await f.run();
- assert.deepEqual(f.documents.get('company_fundamentals/US:AMD'),old);
-});
-test("legacy scan progress resumes in operational state without modifying fundamentals", async () => {
-  const financial = { revenue: 123, secFilingsCollector: cursor() };
-  const f = fixture({ "company_fundamentals/US:AMD": financial });
-  const before = f.writes;
-  assert.deepEqual(await readSecCollectorCursor(f.db, "AMD"), cursor());
-  assert.equal(f.writes, before, "diagnostic fallback must remain read-only");
+test("missing SEC cursor never falls back to archived fundamentals", async () => {
+  const financial = {secFilingsCollector: cursor()};
+  const f = fixture({"company_fundamentals/US:AMD": financial});
+  assert.equal(await readSecCollectorCursor(f.db, "AMD"), null);
   await f.run();
-  assert.deepEqual(f.documents.get("company_fundamentals/US:AMD"), financial);
   assert.ok(f.documents.get(COMPANY)?.secFilingsCollector);
-  f.documents.set("company_fundamentals/US:AMD", { secFilingsCollector: { invalid: true } });
-  assert.ok(await readSecCollectorCursor(f.db, "AMD"), "new state wins over legacy state");
-});
-
-test("migration preserves the legacy collector lock", async () => {
-  const f = fixture({ [META]: {}, "company_fundamentals/_sec_filings_collector": {
-    leaseOwner: "old-worker", leaseExpiresAtMs: Date.parse(iso) + 60_000,
-  } });
-  await assert.rejects(f.run(), /busy/);
-  assert.equal(f.requests.length, 0);
+  assert.deepEqual(f.documents.get("company_fundamentals/US:AMD"), financial);
 });
 function filing(id = 1, date = "2026-09-27", form: SecFiling["form"] = "10-K"): SecFiling {
   return { accessionNumber: `0000002488-26-${String(id).padStart(6, "0")}`, filingDate: date, form,
