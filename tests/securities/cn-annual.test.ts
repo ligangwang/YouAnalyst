@@ -45,7 +45,7 @@ test('annual worker merges into the existing cache and public reads do not enque
   const result=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>annual});
   assert.equal(result.updated,1);assert.deepEqual(state.docs.get(id)?.cnShares,{totalShares:100});
   const writes=state.writes.length;
-  const snapshot=await readCnFundamentals(id,state.db,now.getTime()+4*86400000);
+  const snapshot=await readCnFundamentals(id,state.db,now.getTime()+4*86400000,async()=>state.docs.get(id));
   assert.equal(snapshot?.annual?.end,'2025-12-31');assert.equal(snapshot?.stale,true);
   assert.equal(state.writes.length,writes);
   const again=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('should skip');}});
@@ -65,29 +65,15 @@ test('provider failures preserve last report, retry later, and dry runs never wr
   assert.equal(deferred.deferred,1);assert.equal(dry.writes.length,0);
 });
 
-test('the migrated public annual reader requests only its two Parquet fields', async t => {
-  const flags = {MARKET_PARQUET_ENABLED: '1', MARKET_FUNDAMENTALS_READ_READY: '1', K_SERVICE: 'ifindata-web', CLOUD_RUN_JOB: ''};
-  for (const [key, value] of Object.entries(flags)) {
-    const previous = process.env[key];
-    process.env[key] = value;
-    t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
-  }
-  let deleted = false;
-  const ref = {id};
+test('the public annual reader handles published and deleted Parquet rows', async () => {
   const annual = parse([row]);
-  const db = {
-    collection(name: string) {
-      assert.equal(name, 'company_fundamentals');
-      return {doc(key: string) { assert.equal(key, id); return ref; }};
-    },
-    async getAll(selected: unknown, options: {fieldMask: string[]}) {
-      assert.equal(selected, ref);
-      assert.deepEqual(options.fieldMask, ['cnAnnual', 'marketCap', 'isDeleted']);
-      return [{exists: true, get: (field: string) => field === 'cnAnnual' ? annual : field === 'isDeleted' ? deleted : undefined}];
-    },
-  };
-  const result = await readCnFundamentals(id, db as unknown as Parameters<typeof readCnFundamentals>[1], now.getTime());
-  assert.deepEqual(result?.metrics, annual.metrics);
-  deleted = true;
-  assert.equal(await readCnFundamentals(id, db as unknown as Parameters<typeof readCnFundamentals>[1], now.getTime()), null);
+  const db = {} as Firestore;
+  const result = await readCnFundamentals(id,db,now.getTime(),async (_db,key,fields)=>{
+    assert.equal(key,id);
+    assert.deepEqual(fields,['cnAnnual','marketCap']);
+    return {cnAnnual:annual};
+  });
+  assert.deepEqual(result?.metrics,annual.metrics);
+  assert.equal(await readCnFundamentals(id,db,now.getTime(),async()=>({cnAnnual:annual,isDeleted:true})),null);
+  assert.equal(await readCnFundamentals(id,db,now.getTime(),async()=>undefined),null);
 });

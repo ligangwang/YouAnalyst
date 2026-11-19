@@ -1,5 +1,5 @@
 import { collectionSourceSnapshot } from '../local-cache/read-scope';
-import {marketStoreReady,marketReadOnlyProbe} from '../market-store/runtime';
+import {marketStoreReady,marketReadOnlyProbe,registerObservedMarketClient} from '../market-store/runtime';
 import {isParquetMarketCollection as isMarketCollection} from '../market-store/policy';
 import {parquetPrices,parquetReads,priceSnapshot,priceDocuments,priceStore} from '../price-store/runtime';
 import { isSnapshotCollection, companySourceSnapshot, companyDirectoryEnabled, registerCompanySource, refreshCompanyDirectoryIds } from '../local-cache/company-directory';
@@ -324,6 +324,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     return proxy;
   };
   const observed = wrap(db, 'db', { collection: '(multiple)', clauses: [] }) as Firestore;
+  registerObservedMarketClient(db,observed);
   instrumented.set(db, observed);
   return observed;
 }

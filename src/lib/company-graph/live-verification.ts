@@ -123,8 +123,7 @@ async function prepareActivation(db: Firestore, tree: string, now: number): Prom
     const discovery = filing?.discoveryEvents?.[secFilingEventId(TICKER, CIK, accession)];
     const event = parseSecFilingDiscovered(discovery?.event);
     const state = await tx.get(db.collection(SEC_COLLECTOR_STATE_COLLECTION).doc(usFundamentalsId(TICKER)));
-    const fundamentals = state.exists ? state.data()
-      : (await tx.get(db.collection("company_fundamentals").doc(usFundamentalsId(TICKER)))).data();
+    const fundamentals = state.data();
     if (discovery.state !== "baseline" || event.companyId !== TICKER || event.cik !== CIK || event.form !== "10-K"
       || event.accessionNumber !== accession || event.filingDate !== result.filing.filingDate
       || event.primaryDocument !== result.filing.primaryDocument

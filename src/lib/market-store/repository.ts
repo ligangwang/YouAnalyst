@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
+import { publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {project} from './query';
@@ -397,6 +397,15 @@ export class MarketRepository {
     }
     private async documentsUncached(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         await this.ready(context,collection);
+        if(collection==='company_fundamentals' && fields?.length && fields.every(publishedFinancialField) && ids.every(id=>!id.startsWith('_'))){
+            const shards=[...new Set(ids.map(shardFor))];
+            const heads=await Promise.all(shards.map(shard=>this.head(collection,shard,context)));
+            const rows=await this.files.query(heads,[
+                {method:'where',args:[FieldPath.documentId(),'in',ids]},
+                {method:'select',args:fields},
+            ]);
+            return Promise.all(rows.map(row=>this.files.hydrate(row)));
+        }
         const earningsHeads=collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_'));
         const reserved=earningsHeads||collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
         if(reserved&&[...reserved.values()].every(doc=>doc.exists&&(earningsHeads?doc.get('recordType')==='head':doc.get('completed')!==true)))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});

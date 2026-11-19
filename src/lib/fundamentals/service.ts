@@ -5,6 +5,7 @@ import { maintenanceError } from "../maintenance-log";
 import type { CompanyFundamentals } from "./model";
 import type { DocumentData } from "firebase-admin/firestore";
 import { reviewedDomesticIssuers } from "./domestic-share-counts";
+import {readPublishedFinancials} from '../market-store/runtime';
 import {loadFundamentalsSnapshot} from './document-cache';
 
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
@@ -40,8 +41,20 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
 }
 
 /** Queue missing snapshots once; only the scheduled publisher dispatches visitor work. */
-export async function requestMissingCompanyFundamentals(ticker: string, db: Database, now = Date.now()) {
-  return requestCompanyFundamentals(ticker, db, now, true);
+export async function requestMissingCompanyFundamentals(ticker: string, db: Database, now = Date.now(), read=readPublishedFinancials) {
+  if(!validFundamentalsTicker(ticker))return null;
+  const id=usFundamentalsId(ticker);
+  const load=()=>read(db,id,['version','value','marketCap']);
+  let row=await load();
+  if(row?.isDeleted===true)return null;
+  if(row?.version!==1 || !row.value){
+    // A publisher can finish between the Parquet miss and queue admission.
+    // Return only the published financial payload, including in that race.
+    if(!await requestCompanyFundamentals(ticker,db,now,true))return null;
+    row=await load();
+  }
+  if(row?.isDeleted===true || row?.version!==1 || !row.value)return null;
+  return {...row.value,...(row.marketCap?{marketCap:row.marketCap}:{}),stale:now-Date.parse(row.value.fetchedAt)>2*86_400_000} as CompanyFundamentals;
 }
 
 export async function loadCompanyFundamentals(ticker: string): Promise<CompanyFundamentals | null> {

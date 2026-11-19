@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { Storage, type Bucket } from '@google-cloud/storage';
 import { MarketFiles } from './files';
 import { MarketRepository } from './repository';
@@ -49,6 +49,20 @@ export const marketStoreReady = (collection?:string) => (collection===undefined|
 export async function marketStoreClientReady(client:Firestore,collection:string):Promise<boolean> {
     if(!isParquetMarketCollection(collection))return false;
     return await state.readers?.get(client)?.ready(undefined,collection)??false;
+}
+export function registerObservedMarketClient(client:Firestore,observed:Firestore) {
+    const repo=state.readers?.get(client);
+    if(repo)state.readers!.set(observed,repo);
+}
+type FinancialField='value'|'version'|'marketCap'|'isDeleted'|'cnAnnual';
+/** Read the published financial payload directly from its immutable Parquet shard. */
+export async function readPublishedFinancials(db:Firestore,id:string,fields:FinancialField[]):Promise<DocumentData|undefined> {
+    const repo=state.readers?.get(db);
+    if(!repo)throw Error('No published financial store configured for this client');
+    if(id.startsWith('_'))throw Error('Expected a company financial record ID');
+    if(!await repo.ready(undefined,'company_fundamentals'))throw Error('Published financial dataset is not ready');
+    const rows=await repo.documents('company_fundamentals',[id],undefined,[...new Set([...fields,'isDeleted'])]);
+    return rows[0]?.data;
 }
 export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     if (!marketStoreEnabled())

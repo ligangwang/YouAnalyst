@@ -161,7 +161,7 @@ test('company page push cache retains transactional checks for a cached absence'
 
 test("visitor miss queues once without calling SEC", async () => {
   const f = fixture();
-  for (let i = 0; i < 10; i++) assert.equal(await requestMissingCompanyFundamentals("AMD", f.dependencies.db), null);
+  for (let i = 0; i < 10; i++) assert.equal(await requestMissingCompanyFundamentals("AMD", f.dependencies.db, Date.now(),async()=>f.stored()), null);
   assert.equal(f.writes(), 1);
   assert.equal(f.stored().pending, true);
   assert.equal(f.requests(), 0);
@@ -175,7 +175,7 @@ test("visitor reads do not refresh existing data or retry failed/unavailable wor
     {outcome: "unavailable", requestedAt: "2020-01-01T00:00:00Z", refreshAfter: 0},
   ]) {
     const f = fixture(initial);
-    const result = await requestMissingCompanyFundamentals("AMD", f.dependencies.db);
+    const result = await requestMissingCompanyFundamentals("AMD", f.dependencies.db, Date.now(),async()=>f.stored());
     assert.equal(f.writes(), 0);
     assert.equal(f.transactions(), 0);
     assert.equal(f.requests(), 0);

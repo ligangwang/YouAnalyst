@@ -2,7 +2,7 @@ import type {Firestore,DocumentData} from 'firebase-admin/firestore';
 import type {CompanyFundamentals} from '../fundamentals/model';
 import {resolveInstrumentContext} from './service';
 import {requestMissingCompanyFundamentals} from '../fundamentals/service';
-import {loadFundamentalsSnapshot} from '../fundamentals/document-cache';
+import {readPublishedFinancials} from '../market-store/runtime';
 import {readCnFundamentals} from '../fundamentals/cn-service';
 
 export function financialsForInstrument(companyValue:CompanyFundamentals,stored?:DocumentData) {
@@ -23,8 +23,7 @@ export async function instrumentFundamentals(db:Firestore,instrumentId:string) {
     const companyValue=await requestMissingCompanyFundamentals(companyId.slice(3),db);
     if(!companyValue)return {instrumentId:context.instrument.id,companyId,data:null};
     if(legacy===companyId)return {instrumentId:context.instrument.id,companyId,data:companyValue};
-    const instrumentSnapshot=await loadFundamentalsSnapshot(db,legacy);
-    const stored=instrumentSnapshot.data();
+    const stored=await readPublishedFinancials(db,legacy,['marketCap','value']);
     // Never apply the canonical stock's share assessment or market cap to another class.
     return {instrumentId:context.instrument.id,companyId,data:financialsForInstrument(companyValue,stored)};
   }
