@@ -43,6 +43,7 @@ test('directory bootstrap reads the graph structure without loading Parquet valu
   const service=await isolated(async()=>feed(),{valuations:async graph=>{valuationCalls++;return graph;}});
   const directory=await service.loadIntelligenceUniverse(now,'ai',true);
   assert.deepEqual(directory.graph.nodes,graph.nodes);
+  assert.equal(directory.graphStructureOnly,true);
   assert.equal(valuationCalls,0);
   await service.loadIntelligenceUniverse(now,'ai');
   assert.equal(valuationCalls,1);

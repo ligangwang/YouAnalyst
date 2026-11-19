@@ -33,7 +33,7 @@ export type IntelligenceSnapshot = { eventReturns?: Record<string,import("./pric
   enrichmentDeferred?:boolean;
   feedWindow?:{loadedFrom:string;through:string;maxDays:7;hasMore:boolean;version:string};
   theme?: import('../company-themes/model').CompanyThemeId;
-  graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;
+  graph:KnowledgeGraph; graphVersion:string; graphStructureOnly?:boolean; events:IntelligenceEvent[]; generatedAt:string;
   session:{date:string;timeZone:'America/New_York';startAt:string;endAt:string};
   coverage:{channel:IntelligenceSource;status:'connected'|'stored_evidence'|'unavailable'}[];
   newsCoverage?:{configured:number;healthy:number;total:number;companyIds?:string[];configuredCompanyIds?:string[];healthyCompanyIds?:string[]};
