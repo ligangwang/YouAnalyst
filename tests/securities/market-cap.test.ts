@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type {Firestore} from "firebase-admin/firestore";
-import {assessShares,calculateMarketCap,refreshCachedMarketCaps} from "../../src/lib/fundamentals/market-cap";
+import {assessShares,calculateMarketCap,refreshCompanyMarketCaps} from "../../src/lib/fundamentals/market-cap";
 import type {CompanyFacts} from "../../src/lib/fundamentals/model";
 import {createMaintenanceLog} from "../../src/lib/maintenance-log";
 import {verifiedForeignListings,reviewedForeignShareCounts,foreignOutstandingTags} from "../../src/lib/fundamentals/foreign-listings";
@@ -124,15 +124,14 @@ test("batch recalculates fresh SEC caches using newest stored EOD date without f
  t.mock.method(globalThis,"fetch",async()=>{throw Error("No provider calls allowed");});
  const writes:Record<string,unknown>={};const queries:unknown[][]=[];
  const share={...assessment(),basis:{...assessment().basis!,date:new Date().toISOString().slice(0,10)}};
- const docs=["ABC","FAIL","MISSING"].map(id=>({id:`US:${id}`,data:()=>({value:{shareAssessment:share},refreshAfter:Date.now()+86400000}),ref:{set:async(v:unknown)=>{if(id==="FAIL")throw Error("synthetic write failure");writes[id]=v;}}}));
  const db={collection:(name:string)=>{
- if(name==="company_fundamentals") {
-  const query={orderBy:()=>query,startAt:(id:string)=>{assert.equal(id,"US:");return query;},endBefore:(id:string)=>{assert.equal(id,"US;");return query;},limit:()=>query,get:async()=>({docs,size:3})};return query;
- }
  assert.equal(name,"tickers");const query={where:(...args:unknown[])=>{queries.push(args);return query;},select:()=>query,get:async()=>({docs:["ABC","FAIL"].map(ticker=>({data:()=>({latestEodPrice:{...price,ticker,tradingDate:share.basis.date}})}))})};return query;
  }} as unknown as Firestore;
- const result=await refreshCachedMarketCaps(db,createMaintenanceLog("test"),Date.now()+60000);
- assert.deepEqual(result,{processed:2,estimated:1,unavailable:1,failed:1,incomplete:false});
+ const result=await refreshCompanyMarketCaps(db,createMaintenanceLog("test"),["ABC","FAIL","MISSING"],async (_db,id,calculate)=>{
+   if(id==="US:FAIL")throw Error("synthetic write failure");
+   writes[id.slice(3)]={marketCap:calculate({value:{shareAssessment:share}})};
+ });
+ assert.deepEqual(result,{processed:2,failed:1});
  assert.equal((writes.ABC as {marketCap:{value:number}}).marketCap.value,25000);
  assert.equal((writes.MISSING as {marketCap:{value:null}}).marketCap.value,null);
  assert(queries.some(q=>q[0]==="symbol"&&q[1]==="in"));

@@ -783,3 +783,29 @@ check('document caches survive unrelated shard commits but refresh affected shar
  await ref.update({name:'After'});assert.equal((await ref.get()).get('name'),'After');
  await ref.delete();assert.equal((await ref.get()).exists,false);
 });
+check('market-cap refresh updates only the published Parquet row',async t=>{
+    const f=fixture(false,false,true);
+    t.after(()=>f.db.terminate());
+    const control=f.raw.doc(FUNDAMENTALS_CONTROL);
+    const id='US:NVDA', collection='company_fundamentals';
+    await control.set({version:1,ready:true,cleanupAuthorized:false});
+    await assert.rejects(f.repository.updatePublishedMarketCap(id,()=>({value:1})),/retirement/);
+    await control.set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    await f.db.doc(collection+'/'+id).set({version:1,value:{issuer:'NVDA'},pending:true});
+    const overlay=f.raw.doc(retainedPath('market_state',collection,id));
+    const before=await overlay.get();
+    assert.equal(before.get('pending'),true);
+    await f.repository.updatePublishedMarketCap(id,data=>{
+        assert.deepEqual(data.value,{issuer:'NVDA'});
+        assert.equal(data.pending,undefined);
+        return {value:123};
+    });
+    const [row]=await f.repository.documents(collection,[id],undefined,['value','version','marketCap']);
+    assert.deepEqual(row.data,{value:{issuer:'NVDA'},version:1,marketCap:{value:123}});
+    assert.ok(before.updateTime!.isEqual((await overlay.get()).updateTime!));
+    assert.equal((await f.raw.doc(collection+'/'+id).get()).exists,false);
+    f.fail();
+    await assert.rejects(f.repository.updatePublishedMarketCap(id,()=>({value:456})),/upload failure/);
+    assert.deepEqual((await f.repository.documents(collection,[id],undefined,['marketCap']))[0].data.marketCap,{value:123});
+});

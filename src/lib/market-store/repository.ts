@@ -578,6 +578,35 @@ export class MarketRepository {
             hydrated.push(await this.files.hydrate(row));
         return hydrated;
     }
+    /** Recalculate against the latest published row on every transaction retry. */
+    async updatePublishedMarketCap(id: string, calculate: (published: Data) => Data) {
+        if (this.readOnlyProbe || !id || id.startsWith('_') || id.includes('/'))
+            throw Error('Expected a writable company financial record');
+        const collection = 'company_fundamentals';
+        const shard = shardFor(id);
+        await this.raw.runTransaction(async tx => {
+            const mode = fundamentalsMode(await tx.get(this.raw.doc(FUNDAMENTALS_CONTROL)));
+            if (!mode.ready || !mode.cleanupAuthorized || !mode.cleanedCollections.has(collection))
+                throw Error('Financial source retirement is incomplete');
+            const context = this.context({get: ref => tx.get(ref as DocumentReference), getAll: (...refs) => tx.getAll(...refs)});
+            const head = await this.head(collection, shard, context);
+            const rows = await this.files.read(head);
+            const index = rows.findIndex(row => row.id === id);
+            const data = index < 0 ? {} : (await this.files.hydrate(rows[index])).data;
+            const version = Timestamp.now();
+            const marketCap = calculate(data);
+            const updated = applyMutation(data, 'set', [{marketCap}, {merge: true}], version)!;
+            const row = {id, data: updated, version};
+            if (index < 0) rows.push(row);
+            else rows[index] = row;
+            const next = await this.files.write(collection, shard, rows, head.retained);
+            next.revision = randomUUID();
+            const catalog = this.raw.collection('collectors');
+            tx.set(catalog.doc(headId(collection, shard)), {marketCollection: collection, marketHead: next});
+            tx.set(catalog.doc(pointerId(collection, shard)), {marketCollection: pointerCollection(collection), marketHead: compactHead(next)});
+        });
+        await this.committed([`${collection}/${id}`]);
+    }
     /** Prepare immutable objects first; their heads and all operational/UGC writes
      * are published by the caller's single Firestore transaction commit. */
     async prepare(context: MarketContext, tx: Transaction, mutations: Mutation[]) {
