@@ -12,10 +12,22 @@ export function fundamentalsMode(doc:DocumentSnapshot):FundamentalsMode {
 export class FundamentalsControl {
  private cached?:{until:number;value:Promise<FundamentalsMode>};
  private stop?:()=>void;
+ private retired?:FundamentalsMode;
  constructor(private raw:Firestore,onMode?:(ready:boolean)=>void){
-  if(onMode)this.stop=raw.doc(FUNDAMENTALS_CONTROL).onSnapshot(doc=>{try{const mode=fundamentalsMode(doc);this.cached={until:Date.now()+10000,value:Promise.resolve(mode)};onMode(mode.ready);}catch{this.cached=undefined;}},()=>{this.cached=undefined;});
+  if(onMode){
+   const invalidate=()=>{this.retired=undefined;this.cached=undefined;};
+   this.stop=raw.doc(FUNDAMENTALS_CONTROL).onSnapshot(doc=>{
+    try{
+     const mode=fundamentalsMode(doc);
+     this.retired=mode.ready&&mode.cleanedCollections.has('company_fundamentals')?mode:undefined;
+     this.cached={until:Date.now()+10000,value:Promise.resolve(mode)};
+     onMode(mode.ready);
+    }catch{invalidate();}
+   },invalidate);
+  }
  }
  async read(){
+  if(this.retired)return this.retired;
   if(!this.cached||this.cached.until<Date.now()){
    const value=this.raw.doc(FUNDAMENTALS_CONTROL).get().then(fundamentalsMode);
    this.cached={until:Date.now()+1000,value};
@@ -23,5 +35,5 @@ export class FundamentalsControl {
   }
   return this.cached.value;
  }
- close(){this.stop?.();this.cached=undefined;}
+ close(){this.stop?.();this.retired=undefined;this.cached=undefined;}
 }
