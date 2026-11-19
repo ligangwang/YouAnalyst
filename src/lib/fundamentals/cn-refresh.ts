@@ -1,5 +1,6 @@
 import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
+import { readPublishedFinancialRows, updatePublishedMarketCap } from "../market-store/runtime";
 import { FUNDAMENTALS_COLLECTION } from "./service";
 import { calculateCnMarketCap, combineShareCount, shanghaiDate, shareRefreshDue, sourceFailed, daysBetween, CN_ACTION_CHECK_MAX_AGE_DAYS, CN_UNAVAILABLE_REASONS,
   type CnActionCheck, type CnMarketCap, type CnShareCount } from "./cn-market-cap";
@@ -19,6 +20,7 @@ export const CN_FAILURE_THRESHOLD = 2;
 type Stored = DocumentData & { cnShares?: CnShareCount | null; cnActions?: CnActionCheck | null; cnOrgId?: string | null };
 export type CnRunOptions = { db: Firestore; log: MaintenanceLog; sources: CnSources; companies: string[]; deadline: number; dryRun?: boolean;
   leasedProviderCooldowns?: Record<string, number>;
+  readFinancials?: typeof readPublishedFinancialRows; publishMarketCap?: typeof updatePublishedMarketCap;
   now?: () => Date; print?: (line: string) => void; blockedHosts?: () => Record<string, string>; manualRetry?: boolean };
 
 // A validated unavailable outcome; anything else thrown while refreshing is retryable.
@@ -54,8 +56,14 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   // Companies whose provider refresh failed this run keep their published valuation.
   const providerFailed = new Set<string>();
   for (let i = 0; i < companies.length; i += 100) {
-    const page = await db.getAll(...companies.slice(i, i + 100).map(id => collection.doc(id)));
-    page.forEach(doc => docs.set(doc.id, doc.data() ?? {}));
+    const ids = companies.slice(i, i + 100);
+    const [state, published] = await Promise.all([
+      db.getAll(...ids.map(id => collection.doc(id)), { fieldMask: ["cnShares", "cnActions", "cnOrgId", "cnShareStatus"] }),
+      (options.readFinancials ?? readPublishedFinancialRows)(db, ids, ["marketCap"]),
+    ]);
+    state.forEach((doc, index) => docs.set(doc.id, {
+      ...doc.data(), marketCap: published[index]?.isDeleted ? undefined : published[index]?.marketCap,
+    }));
   }
   const cooling = (host: string) => Number(cooldowns[host.replaceAll(".", "_")] ?? 0) > clock().getTime();
   const coolDown = async (host: string) => {
@@ -178,7 +186,7 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
       if (marketCap.lastClose) result.marketCaps.lastClose++;
       if (marketCap.status === "estimated" && !marketCap.usd) result.marketCaps.missingUsd++;
       if (dryRun) print(dryRunLine(id, marketCap, stored, price, fx));
-      else await db.collection(FUNDAMENTALS_COLLECTION).doc(id).set({ market: "CN_A", marketCap }, { merge: true });
+      else await (options.publishMarketCap ?? updatePublishedMarketCap)(db, id, () => marketCap);
       log.emit("INFO", "market_cap_calculated", { company: id, dryRun, ...marketCap, shares: marketCap.shares ? { totalShares: marketCap.shares.totalShares, date: marketCap.shares.date } : null });
     } catch (error) {
       result.marketCaps.failed++;

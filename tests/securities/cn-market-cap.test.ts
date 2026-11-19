@@ -10,7 +10,7 @@ import { calculateCnMarketCap, classifyAnnouncement, combineShareCount, parseCni
   parseCninfoStructure, parseSseShareStructure, parseSzseAShareList, pendingActions, resolveDistributions, selectFx, shareRefreshDue,
   sourceFailed, type CnActionCheck, type CnListing, type CnShareCount, type CninfoStructure } from "../../src/lib/fundamentals/cn-market-cap";
 import { publicCnMarketCap } from "../../src/lib/fundamentals/cn-service";
-import { cnRunFailed, refreshCnFundamentals } from "../../src/lib/fundamentals/cn-refresh";
+import { cnRunFailed, refreshCnFundamentals as runWorker, type CnRunOptions } from "../../src/lib/fundamentals/cn-refresh";
 import { CnSourceError, createCnRequester, createCnSources, type CnSources } from "../../src/lib/fundamentals/cn-sources";
 import { createMaintenanceLog } from "../../src/lib/maintenance-log";
 
@@ -212,6 +212,17 @@ test("suspended stocks use their last close, labelled with its own date", () => 
   assert.equal(publicCnMarketCap({ ...cap, shares: { ...cap.shares, sourceUrl: "javascript:alert(1)" } })?.status, "unavailable");
 });
 
+const financialStores = new WeakMap<Firestore, Record<string, Record<string, unknown>>>();
+function refreshCnFundamentals(options: CnRunOptions) {
+  const financials = financialStores.get(options.db)!;
+  return runWorker({...options,
+    readFinancials: async (_db, ids) => ids.map(id => financials[id]),
+    publishMarketCap: async (_db, id, calculate) => {
+      financials[id] = {...financials[id], marketCap: calculate(financials[id] ?? {})};
+    },
+  });
+}
+
 function memoryDb(docs: Record<string, Record<string, unknown>>, prices: Record<string, unknown>[] = [], fxDocs: Record<string, Record<string, unknown>> = {}) {
   const writes: [string, Record<string, unknown>][] = [];
   const ref = (collection: string, id: string) => ({ id, path: `${collection}/${id}`,
@@ -221,12 +232,13 @@ function memoryDb(docs: Record<string, Record<string, unknown>>, prices: Record<
     collection: (name: string) => name === "tickers"
       ? { where: () => ({ select: () => ({ get: async () => ({ docs: prices.map(p => ({ data: () => ({ latestEodPrice: p }) })) }) }) }) }
       : { doc: (id: string) => name === "eod_prices" ? { id, get: async () => ({ id, data: () => fxDocs[id] }) } : ref(name, id) },
-    getAll: async (...refs: { id: string; get: () => Promise<unknown> }[]) => Promise.all(refs.map(r => r.get())),
+    getAll: async (...refs: { id: string; get: () => Promise<unknown> }[]) => Promise.all(refs.filter(r => typeof r.get === "function").map(r => r.get())),
     runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({
       get: (r: { get: () => Promise<unknown> }) => r.get(),
       set: (r: { id: string }, value: Record<string, unknown>) => { writes.push([r.id, value]); docs[r.id] = { ...docs[r.id], ...value }; },
     }),
   } as unknown as Firestore;
+  financialStores.set(db, docs);
   return { db, writes };
 }
 function fakeSources(overrides: Partial<CnSources> = {}): CnSources {
@@ -261,7 +273,7 @@ test("job refreshes counts, writes CNY and USD market caps, and dry runs print w
   assert.equal(stored.marketCap.value, 50 * 8_562_264_585);
   assert.equal(stored.marketCap.usd?.value, 50 * 8_562_264_585 / 7.1);
   assert.ok(real.writes.every(([id]) => id === "XSHG:688981"), "only the A-share document is written");
-  assert.ok(real.writes.every(([, value]) => !("pending" in value) && !("value" in value) && !("version" in value)), "never touches SEC queue fields");
+  assert.ok(real.writes.every(([, value]) => !("marketCap" in value) && !("pending" in value) && !("value" in value) && !("version" in value)), "never touches SEC queue fields");
 });
 
 test("job keeps old data on provider failure, applies cooldowns, and honours per-company leases", async (t) => {
