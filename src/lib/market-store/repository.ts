@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
+import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {project} from './query';
@@ -406,6 +406,33 @@ export class MarketRepository {
             ]);
             return Promise.all(rows.map(row=>this.files.hydrate(row)));
         }
+        if (collection === 'company_fundamentals' && ids.length && ids.every(fundamentalsReceiptId)) {
+            const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
+            const byShard = new Map(heads.map(head => [head.shard, head]));
+            const candidates = ids.filter(id => {
+                const head = byShard.get(shardFor(id))!;
+                return head.file && !head.retained.includes(id);
+            });
+            if (candidates.length) {
+                const stored = await this.files.query(heads, [{method: 'where', args: [FieldPath.documentId(), 'in', candidates]}]);
+                const archived = new Map<string, MarketRow>();
+                for (const row of stored) {
+                    if (row.data.completed !== true) continue;
+                    const full = await this.files.hydrate(row);
+                    if (archivedFundamentalsReceipt(full.id, full.data))
+                        archived.set(full.id, fields ? {...full, data: project(full.data, fields)} : full);
+                }
+                if (archived.size) {
+                    const remaining = ids.filter(id => !archived.has(id));
+                    if (remaining.length) for (const row of await this.documentsWithRetained(collection, remaining, context, fields))
+                        archived.set(row.id, row);
+                    return ids.flatMap(id => archived.has(id) ? [archived.get(id)!] : []);
+                }
+            }
+        }
+        return this.documentsWithRetained(collection, ids, context, fields);
+    }
+    private async documentsWithRetained(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         const earningsHeads=collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_'));
         const reserved=earningsHeads||collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
         if(reserved&&[...reserved.values()].every(doc=>doc.exists&&(earningsHeads?doc.get('recordType')==='head':doc.get('completed')!==true)))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
@@ -518,7 +545,11 @@ export class MarketRepository {
         // identify every candidate; scanning Parquet for an absent field adds
         // a full collection read without finding any additional records.
         // updatedAt is special: external-only records keep it in Parquet.
-        const requiresOverlay = steps.some(step => ['where', 'orderBy'].includes(step.method)
+        const receiptCandidates = collection === 'company_fundamentals'
+            && steps.filter(step => ['where', 'orderBy'].includes(step.method)).every(step =>
+                receiptHasField(fieldName(step.args[0]))
+                && !(step.method === 'where' && fieldName(step.args[0]) === 'manualRequired' && step.args[1] === '==' && step.args[2] === true));
+        const requiresOverlay = !receiptCandidates && steps.some(step => ['where', 'orderBy'].includes(step.method)
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
             && isOperationalField(collection, fieldName(step.args[0])));
         const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay

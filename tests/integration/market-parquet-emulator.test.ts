@@ -809,3 +809,61 @@ check('market-cap refresh updates only the published Parquet row',async t=>{
     await assert.rejects(f.repository.updatePublishedMarketCap(id,()=>({value:456})),/upload failure/);
     assert.deepEqual((await f.repository.documents(collection,[id],undefined,['marketCap']))[0].data.marketCap,{value:123});
 });
+check('completed batch receipts survive native retirement and remain queryable for retries',async t=>{
+    const f=fixture(false,false,true);
+    t.after(()=>f.db.terminate());
+    const collection='company_fundamentals',id='_batch_test';
+    await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const ref=f.db.collection(collection).doc(id);
+    const physical=f.raw.doc(retainedPath('market_state',collection,id));
+    const request={batchId:'test',companyIds:['NVDA']};
+    await ref.set({request,progress:{}});
+    assert.equal((await physical.get()).exists,true);
+    await ref.set({completed:true,result:{requested:1},completedAt:'2026-11-19'},{merge:true});
+    assert.equal((await physical.get()).exists,false);
+    assert.equal((await f.raw.doc(ref.path).get()).exists,false);
+    assert.equal((await f.raw.doc(retainedPath('market_ugc',collection,id)).get()).exists,false);
+    const stored=(await ref.get()).data()!;
+    assert.deepEqual(stored.request,request);
+    assert.equal(stored.completed,true);
+    const complete=await f.db.collection(collection).where('completed','==',true).get();
+    assert.deepEqual(complete.docs.map(doc=>doc.id),[id]);
+    const child=f.db.collection(collection).doc('_company_child'),active=f.db.collection(collection).doc('_company_active');
+    await child.set({request,cursor:null,completed:true,result:{}});
+    await active.set({request,completed:false});
+    const mixed=await f.db.getAll(child,active,ref);
+    assert.deepEqual(mixed.map(doc=>doc.get('completed')),[true,false,true]);
+    assert.equal((await f.raw.doc(retainedPath('market_state',collection,child.id)).get()).exists,false);
+    await ref.set({verificationDuplicateRunId:'repeat'},{merge:true});
+    assert.equal((await ref.get()).get('verificationDuplicateRunId'),'repeat');
+    assert.equal((await physical.get()).exists,false);
+    await ref.set({manualRequired:true},{merge:true});
+    assert.equal((await physical.get()).get('manualRequired'),true);
+});
+check('receipt backfill preserves split payloads and leaves active work and UGC in place',async t=>{
+    const {archiveReceiptBatch}=await import('../../src/lib/market-store/archive-fundamentals-receipts');
+    const f=fixture(false,false,true);
+    t.after(()=>f.db.terminate());
+    const collection='company_fundamentals',id='_cn_request_archive',shard=shardFor(id);
+    await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const physical=f.raw.doc(retainedPath('market_state',collection,id));
+    const doc=f.db.collection(collection).doc(id);
+    const data={request:{batchId:'archive'},completed:true,completedAt:'2026-11-19',result:{shares:10}};
+    // Seed the pre-retirement format. The extra operator field prevents archiving.
+    await doc.set({...data,lastError:null});
+    await physical.update({lastError:FieldValue.delete()});
+    assert.equal((await physical.get()).get('result'),undefined);
+    assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shard,[id]),1);
+    assert.equal((await physical.get()).exists,false);
+    assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shard,[id]),0);
+    const current=await f.repository.files.read((await f.raw.collection('collectors').doc(headId(collection,shard)).get()).get('marketHead'));
+    assert.deepEqual(current.find(row=>row.id===id)?.data,data);
+    for(const [key,fields] of [['_batch_pending',{request:{},completed:false}],['_batch_curated',{...data,authorId:'editor'}]] as const){
+        const ref=f.db.collection(collection).doc(key);
+        await ref.set(fields);
+        assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shardFor(key),[key]),0);
+        assert.deepEqual((await ref.get()).data(),fields);
+    }
+});
