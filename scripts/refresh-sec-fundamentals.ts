@@ -1,3 +1,4 @@
+import {financialControl, acquireWorker, releaseWorker} from "../src/lib/fundamentals/worker-control";
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
@@ -25,7 +26,7 @@ async function main() {
     log.emit("INFO", "run_completed", { verification: true, ...result });
     return;
   }
-  const lease = db.collection(FUNDAMENTALS_COLLECTION).doc("_worker");
+  const lease = financialControl('sec');
   if(process.env.SEC_BULK_FINANCIALS_ENABLED==='1'&&!process.argv.includes('--seed-only')&&!process.argv.includes('--backfill-latest-only')){
     const companyIds=await loadFundamentalsCompanyIds(db,'US'),bulkLease=db.collection(FUNDAMENTALS_COLLECTION).doc('_seed_pipeline');
     if(!await acquireMaintenanceLease(bulkLease,log.runId))throw Error('SEC bulk preparation is active');
@@ -36,7 +37,7 @@ async function main() {
       log.emit('INFO','sec_bulk_ready',{snapshot:result.snapshot.id,companies:result.snapshot.companyIds.length,issuers:result.snapshot.ciks.length,reused:result.reused,coverage:result.coverage});
     }finally{await releaseMaintenanceLease(bulkLease,log.runId);}
   }
-  if (!await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) throw new Error("Another fundamentals worker holds the lease");
+  if (!await acquireWorker(lease, log.runId, Date.now(), cloudRunTaskAttempt())) throw new Error("Another fundamentals worker holds the lease");
   try {
     if (process.argv.includes("--backfill-latest-only")) {
       log.stage("backfill_latest_prices");
@@ -55,7 +56,7 @@ async function main() {
     const result=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??log.runId,companyIds,topic,process.argv.includes('--seed-only'));
     log.emit('INFO','seeding_queued',result);
   } finally {
-    await releaseMaintenanceLease(lease, log.runId);
+    await releaseWorker(lease, log.runId);
   }
 }
 main().finally(closeLocalCaches).catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

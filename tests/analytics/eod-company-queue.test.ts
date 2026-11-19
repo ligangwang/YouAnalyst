@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
@@ -83,13 +84,13 @@ test('US market caps queue individual companies, reuse publication identities an
   assert.equal(one.batchId,two.batchId);
   const root=published[0];
   const refresh=async(_db:unknown,_log:unknown,tickers:string[])=>{symbols.push(tickers);return {processed:1,failed:0};};
-  const deliver=(message:MarketCapMessage)=>processMarketCapMessage(message,f.db,f.log,publish,refresh);
+  const deliver=(message:MarketCapMessage)=>processMarketCapMessage(message,f.db,f.log,publish,refresh,memoryControl(f.rows,"sec-control"));
   await deliver(root);
   const tasks=published.filter((message):message is CompanyWorkRequest=>message.type==='company.work.requested');
-  f.rows.set('company_fundamentals/_worker',{leaseOwner:'sec',leaseExpiresAtMs:Date.now()+60_000});
+  f.rows.set('sec-control',{leaseOwner:'sec',leaseExpiresAtMs:Date.now()+60_000});
   await assert.rejects(deliver(tasks[0]),/Fundamentals refresh is active/);
   assert.deepEqual(symbols,[]);
-  f.rows.delete('company_fundamentals/_worker');
+  f.rows.delete('sec-control');
   await deliver(tasks[0]);await deliver(tasks[0]);await deliver(tasks[1]);await deliver(root);
   assert.deepEqual(symbols,[['AMD'],['MSFT']]);
   assert.equal(f.rows.get(`company_fundamentals/_marketcap_${one.batchId}`)?.completed,true);

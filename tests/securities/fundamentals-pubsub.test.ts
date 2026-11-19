@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import { rerunFundamentalsBatch } from '../../src/lib/fundamentals/admin-rerun';
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -30,7 +31,7 @@ function fixture(initial: Record<string, Data> = {}, staleLedger = false) {
   const refresh = async (ticker: string) => { calls.push(ticker); rows.set(`US:${ticker}`, { pending: false, outcome: "ready", value: { metrics: { revenue: 10 }, fetchedAt: new Date().toISOString() } }); return null; };
   const marketCaps = async () => ({ processed: 0, failed: 0 });
   const publish = async (e: FundamentalsUpdate) => { events.push(e); };
-  return { rows, db, log, events, calls, logs, refresh, marketCaps, publish };
+  return { control:memoryControl(rows,"_worker"), rows, db, log, events, calls, logs, refresh, marketCaps, publish };
 }
 const request = (companyIds = ["AMD", "NVDA"]): FundamentalsRequest => ({ version: 1, type: "fundamentals.refresh.requested",
   batchId: "batch-1", companyIds, reason: "scheduled_or_manual", requestedAt: "2026-09-27T00:00:00Z" });
