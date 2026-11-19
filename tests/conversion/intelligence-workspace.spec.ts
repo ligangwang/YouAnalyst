@@ -1996,6 +1996,25 @@ test('a transient graph failure recovers on focus without manual retry',async({p
  expect(graphReads).toBeGreaterThan(failedReads);
 });
 
+test('server-rendered structure loads valuations with the first feed',async({page})=>{
+ const initial={...snapshot,events:[],eventsPending:true,graphStructureOnly:true,graphVersion:'structure'};
+ const body=await workspaceFixture(false,initial);
+ const modes:string[]=[];
+ await page.route('**/*',route=>{
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body});
+  const url=new URL(route.request().url());
+  if(url.pathname!=='/api/intelligence')return route.fulfill({status:404,body:''});
+  expect(url.searchParams.has('section')).toBe(false);
+  const mode=url.searchParams.get('graph')!;
+  modes.push(mode);
+  return route.fulfill({json:mode==='compact'?snapshot:{...snapshot,graph:undefined}});
+ });
+ await page.goto('http://workspace.test/?view=list');
+ await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
+ await page.evaluate(()=>dispatchEvent(new Event('focus')));
+ await expect.poll(()=>modes).toEqual(['compact','omit']);
+});
+
 test('server graph renders while the independent feed is stalled without fetching the graph twice',async({page,isMobile})=>{
  const initial=encodeIntelligenceSnapshot({...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false},true);
  const body=await workspaceFixture(false,initial);let feedReads=0,graphReads=0,release!:()=>void;

@@ -37,7 +37,7 @@ const universeRequests=new Map<CompanyThemeId,{structure:Promise<UniverseGraph>;
 /** The directory can render without waiting for source reads or price enrichment. */
 export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai',structureOnly=false):Promise<IntelligenceSnapshot>{
   const graph=await (structureOnly?universeStructure(theme):universeWork(theme).complete);
-  return {theme,graph,graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
+  return {theme,graph,...(structureOnly?{graphStructureOnly:true}:{}),graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
 }
 
 const structureRequests=new Map<CompanyThemeId,Promise<UniverseGraph>>();

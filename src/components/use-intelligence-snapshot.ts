@@ -25,6 +25,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const searchRegion = useIndustryBrowseParam('region');
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
   const bootstrapRequired = useRef(!initialSnapshot);
+  const firstGraphRequired=useRef(!initialSnapshot||initialSnapshot.graphStructureOnly===true);
   const serverFeedAvailable=useRef(Boolean(initialSnapshot&&!initialSnapshot.eventsPending));
   const serverFeedTheme=useRef(parseCompanyTheme(initialSnapshot?.theme));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
@@ -83,7 +84,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       const timeoutMs = cachedFeed && !cachedFeed.eventsPending ? 15_000 : 40_000;
       const timeout = setTimeout(() => controller?.abort(), timeoutMs);
       try {
-        const url=`/api/intelligence?theme=${theme}&graph=${bootstrapRequired.current?'compact':'omit'}${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
+        const url=`/api/intelligence?theme=${theme}&graph=${firstGraphRequired.current?'compact':'omit'}${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
         const response=await intelligenceRequest(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
         if (!response.ok&&response.status!==304) throw new Error();
@@ -118,7 +119,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         if ((data.theme ?? 'ai') !== theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt) throw new Error();
         if (isCurrentTheme()) {
           const cachedGraph=graphs.current.get(theme);
-          if(bootstrapRequired.current||repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
+          if(firstGraphRequired.current||repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
           const old = themeSnapshots.current.get(theme);
           // Preserve the graph object on unchanged polls so camera tours continue.
           const next = old?.graphVersion === data.graphVersion ? { ...data, graph: old.graph } : data;
@@ -129,6 +130,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
           }
           snapshotScope.current = scope;
           bootstrapRequired.current = false;
+          firstGraphRequired.current=false;
           setSnapshot(next);
           previousDay.current=undefined;
           setError('');
