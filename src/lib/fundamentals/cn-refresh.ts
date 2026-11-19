@@ -1,3 +1,4 @@
+import {financialControl, patchWorker, type WorkerControl} from "./worker-control";
 import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { readPublishedFinancialRows, updatePublishedMarketCap } from "../market-store/runtime";
@@ -9,7 +10,7 @@ import { createFxReader, readLatestCnPrices } from "./cn-prices";
 
 // A-share documents share company_fundamentals with US tickers but are keyed by
 // full ID (XSHG:600584) and use cn* fields, so the SEC worker never selects them.
-export const CN_WORKER_DOC = "_cn_worker";
+
 const HOUR = 3_600_000;
 const COMPANY_LEASE_MS = 120_000;
 const RETRY_MS = 6 * HOUR;
@@ -20,7 +21,7 @@ export const CN_FAILURE_THRESHOLD = 2;
 type Stored = DocumentData & { cnShares?: CnShareCount | null; cnActions?: CnActionCheck | null; cnOrgId?: string | null };
 export type CnRunOptions = { db: Firestore; log: MaintenanceLog; sources: CnSources; companies: string[]; deadline: number; dryRun?: boolean;
   leasedProviderCooldowns?: Record<string, number>;
-  readFinancials?: typeof readPublishedFinancialRows; publishMarketCap?: typeof updatePublishedMarketCap;
+  control?:WorkerControl; readFinancials?: typeof readPublishedFinancialRows; publishMarketCap?: typeof updatePublishedMarketCap;
   now?: () => Date; print?: (line: string) => void; blockedHosts?: () => Record<string, string>; manualRetry?: boolean };
 
 // A validated unavailable outcome; anything else thrown while refreshing is retryable.
@@ -43,8 +44,8 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   const clock = options.now ?? (() => new Date());
   const print = options.print ?? console.log;
   const collection = db.collection(FUNDAMENTALS_COLLECTION);
-  const worker = collection.doc(CN_WORKER_DOC);
-  const cooldowns: Record<string, number> = { ...(options.leasedProviderCooldowns ?? (await worker.get()).data()?.providerRetryAfter) };
+  const worker = options.control??financialControl('cn');
+  const cooldowns: Record<string, number> = { ...(options.leasedProviderCooldowns ?? (await worker.read()).providerRetryAfter) };
   const result = {
     companies: companies.length,
     actions: { checked: 0, events: 0, failed: 0, skipped: 0 },
@@ -69,7 +70,7 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   const coolDown = async (host: string) => {
     cooldowns[host.replaceAll(".", "_")] = clock().getTime() + PROVIDER_COOLDOWN_MS;
     log.emit("WARNING", "provider_cooldown", { host, retryAfter: new Date(clock().getTime() + PROVIDER_COOLDOWN_MS).toISOString() });
-    if (!dryRun) await worker.set({ providerRetryAfter: cooldowns }, { merge: true });
+    if (!dryRun) await patchWorker(worker,{ providerRetryAfter: cooldowns });
   };
 
   log.stage("sources", { companies: companies.length, dryRun });

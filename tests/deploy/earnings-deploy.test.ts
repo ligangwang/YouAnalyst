@@ -20,6 +20,8 @@ function run(extra: Record<string, string> = {}, script = "scripts/deploy-earnin
         echo "$*" >> "$CALLS"
         if [[ -n "\${MISSING_RESOURCE:-}" && "$*" == *"describe $MISSING_RESOURCE "* ]]; then return 1; fi
         case "$*" in
+          "storage cat gs://demo-snapshots/worker-state/v1/fundamentals/handoff.json") echo '{"version":1,"bucket":"demo-snapshots","generations":{"sec":"1","cn":"2"}}' ;;
+          "storage objects describe gs://demo-snapshots/worker-state/v1/fundamentals/sec.json"|"storage objects describe gs://demo-snapshots/worker-state/v1/fundamentals/cn.json") ;;
           "run revisions describe cn-company-discovery-subscriber-"*)
             node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/serve-cn-discovery.cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
           "run services describe cn-company-discovery-subscriber"*)

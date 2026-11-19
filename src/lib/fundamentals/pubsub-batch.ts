@@ -1,8 +1,8 @@
+import {financialControl, acquireWorker, releaseWorker, patchWorker, type WorkerControl} from "./worker-control";
 import { usFundamentalsId, usFundamentalsTicker } from "./identity";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { FUNDAMENTALS_COLLECTION, needsShareMetadataUpgrade } from "./service";
 import { refreshCompanyFundamentals } from "./worker";
-import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance-lease";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { withSecRequestContext } from "../sec-request";
 import { refreshCompanyMarketCaps } from "./market-cap";
@@ -56,14 +56,14 @@ export async function publishPendingFundamentals(db: Firestore, runId: string,
 
 async function executeFundamentalsBatch(input: unknown, db: Firestore, log: MaintenanceLog,
   publish: (event: FundamentalsUpdate) => Promise<unknown>, dependencies: {
-    refresh?: typeof refreshCompanyFundamentals; marketCaps?: typeof refreshCompanyMarketCaps; deadline?: number;
+    control?:WorkerControl; refresh?: typeof refreshCompanyFundamentals; marketCaps?: typeof refreshCompanyMarketCaps; deadline?: number;
   } = {}) {
   const request = parseFundamentalsRequest(input);
   const ref = batchRef(db, request.batchId);
-  const worker = db.collection(FUNDAMENTALS_COLLECTION).doc("_worker");
+  const worker = dependencies.control??financialControl('sec');
   // Same global lease as direct mode: excludes overlapping revisions and batch runs,
   // preserving existing aggregate SEC throttling during migrations and retries.
-  if (!await acquireMaintenanceLease(worker, log.runId)) throw new Error("Fundamentals worker is busy; retry batch");
+  if (!await acquireWorker(worker, log.runId)) throw new Error("Fundamentals worker is busy; retry batch");
   try {
     let ledger = (await ref.get()).data() as Ledger | undefined;
     if (ledger && digest(ledger.request) !== digest(request)) throw new Error("Batch ID reused with different contents");
@@ -98,7 +98,7 @@ async function executeFundamentalsBatch(input: unknown, db: Firestore, log: Main
         const fresh = stored?.outcome === "ready" && stored?.pending !== true
           && (request.reason === "verification" || (!filingRefresh && Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)));
         if (request.reason === "verification" && (!fresh || !stored?.value)) throw new Error("Verification requires an existing cached company");
-        if (!fresh && Number((await worker.get()).get("providerRetryAfter") ?? 0) > Date.now()) break;
+        if (!fresh && Number((await worker.read()).providerRetryAfter ?? 0) > Date.now()) break;
         if (!ledger.progress[ticker]) {
           ledger.progress[ticker] = { before: fundamentalsVersion(stored?.value) };
           await ref.set({ progress: ledger.progress }, { merge: true });
@@ -127,7 +127,7 @@ async function executeFundamentalsBatch(input: unknown, db: Firestore, log: Main
         log.emit("ERROR", "company_failed", { ticker, batchId: request.batchId, error: details,
           ...(request.filing ? { filingEventId: request.filing.eventId, accessionNumber: request.filing.accessionNumber } : {}) });
         if (Number(details.code) === 403 || Number(details.code) === 429) {
-          await worker.set({ providerRetryAfter: Date.now() + 3_600_000 }, { merge: true });
+          await patchWorker(worker,{ providerRetryAfter: Date.now() + 3_600_000 });
           break;
         }
       }
@@ -157,7 +157,7 @@ async function executeFundamentalsBatch(input: unknown, db: Firestore, log: Main
     }
     await ref.set({ completed: true, manualRequired:false, completedAt: new Date().toISOString() }, { merge: true });
     return result;
-  } finally { await releaseMaintenanceLease(worker, log.runId); }
+  } finally { await releaseWorker(worker, log.runId); }
 }
 
 // A bounded deployment probe goes through the real topic, IAM and subscriber.

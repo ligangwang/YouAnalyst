@@ -1,12 +1,12 @@
+import {financialControl, acquireWorker, releaseWorker, patchWorker} from "../src/lib/fundamentals/worker-control";
 import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
 import { loadFundamentalsCompanyIds } from "../src/lib/fundamentals/company-scope";
 import { CN_COMPANY_ID } from "../src/lib/knowledge-graph/cn-companies";
-import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
-import { CN_WORKER_DOC, cnRunFailed, refreshCnFundamentals } from "../src/lib/fundamentals/cn-refresh";
+import { cnRunFailed, refreshCnFundamentals } from "../src/lib/fundamentals/cn-refresh";
 import { createCnRequester, createCnSources } from "../src/lib/fundamentals/cn-sources";
-import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
+import { cloudRunTaskAttempt } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { refreshCnAnnual } from "../src/lib/fundamentals/cn-annual-worker";
 
@@ -33,11 +33,11 @@ async function main() {
       request => publishJobMessage(process.env.CN_FUNDAMENTALS_REQUEST_TOPIC!, request));
     log.emit("INFO", "run_completed", result); return;
   }
-  const lease = db.collection(FUNDAMENTALS_COLLECTION).doc(CN_WORKER_DOC);
+  const lease = financialControl('cn');
   if (dryRun) {
     // Read-only: do not take the lease, but do not overlap a real run either.
-    if (Number((await lease.get()).get("leaseExpiresAtMs")) > Date.now()) throw new Error("A real A-share fundamentals run holds the lease; retry the dry run later");
-  } else if (!await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) {
+    if (Number((await lease.read()).leaseExpiresAtMs) > Date.now()) throw new Error("A real A-share fundamentals run holds the lease; retry the dry run later");
+  } else if (!await acquireWorker(lease, log.runId, Date.now(), cloudRunTaskAttempt())) {
     throw new Error("Another A-share fundamentals worker holds the lease");
   }
   const deadline = Date.now() + 18 * 60_000;
@@ -52,14 +52,14 @@ async function main() {
     const requester = createCnRequester({ context: { runId: log.runId, job: "refresh-cn-fundamentals" } });
     const result = await refreshCnFundamentals({ db, log, sources: createCnSources(requester), companies, deadline, dryRun,
       blockedHosts: requester.blockedHosts, print: line => console.log(line) });
-    if (!dryRun) await lease.set({ lastRunAt: new Date().toISOString(), result: {...result,annual} }, { merge: true });
+    if (!dryRun) await patchWorker(lease,{ lastRunAt: new Date().toISOString(), result: {...result,annual} });
     // Provider/format failures keep old data and exit non-zero above a small
     // threshold; validated unavailable outcomes (e.g. missing H shares) do not.
     const failed = cnRunFailed(result)||annual.failed>0||annual.deferred>0;
     log.emit(failed ? "ERROR" : "INFO", "run_completed", {...result,annual});
     if (failed) throw new Error("A-share fundamentals refresh failed or is incomplete; see run summary");
   } finally {
-    if (!dryRun) await releaseMaintenanceLease(lease, log.runId);
+    if (!dryRun) await releaseWorker(lease, log.runId);
   }
 }
 main().finally(closeLocalCaches).catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

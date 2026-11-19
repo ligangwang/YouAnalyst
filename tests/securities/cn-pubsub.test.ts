@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pubsubFirestore } from "../helpers/pubsub-firestore";
@@ -16,7 +17,7 @@ async function setup() {
   let annualCalls = 0, refreshCalls = 0;
   const annual = async () => { annualCalls++; return { updated: 1, skipped: 0, failed: 0, deferred: 0 }; };
   const refresh = async () => { refreshCalls++; return success(); };
-  return { ...f, request: requests[0], annual, refresh, calls: () => ({ annualCalls, refreshCalls }) };
+  return { ...f, control:memoryControl(f.rows,'cn-control'), request: requests[0], annual, refresh, calls: () => ({ annualCalls, refreshCalls }) };
 }
 test("A-share requests validate IDs and publisher retries reuse the original payload", async () => {
   const f = await setup(), requests: CnRequest[] = [];
@@ -28,7 +29,7 @@ test("A-share requests validate IDs and publisher retries reuse the original pay
 test("A-share partial failure checkpoints annual work and skips completed redelivery", async () => {
   const f = await setup();
   const failed: typeof refreshCnFundamentals = async () => ({ ...success(), actions: { checked: 0, events: 0, failed: 1, skipped: 0 } });
-  await assert.rejects(processCnRequest(f.request, f.db, f.log, { annual: f.annual, refresh: failed }), /incomplete/);
+  await assert.rejects(processCnRequest(f.request, f.db, f.log, { ...f, annual: f.annual, refresh: failed }), /incomplete/);
   await processCnRequest(f.request, f.db, f.log, f);
   assert.ok((await processCnRequest(f.request, f.db, f.log, f)).completed);
   assert.deepEqual(f.calls(), { annualCalls: 1, refreshCalls: 1 });
@@ -44,9 +45,9 @@ test("annual provider cooldown and deferred share sources remain retryable", asy
 });
 test("A-share lease and deadline prevent overlapping or unbounded work", async () => {
   const f = await setup();
-  f.rows.set("company_fundamentals/_cn_worker", { leaseExpiresAtMs: Date.now() + 60000 });
+  f.rows.set("cn-control", { leaseExpiresAtMs: Date.now() + 60000 });
   await assert.rejects(processCnRequest(f.request, f.db, f.log, f), /busy/);
-  f.rows.delete("company_fundamentals/_cn_worker");
+  f.rows.delete("cn-control");
   await assert.rejects(processCnRequest(f.request, f.db, f.log, { ...f, deadline: Date.now() }), /budget/);
   assert.equal(f.calls().refreshCalls, 0);
 });
@@ -54,7 +55,7 @@ test("A-share lease and deadline prevent overlapping or unbounded work", async (
 test("A-share provider failures wait for manual rerun and stop scheduled republication", async () => {
   const f = await setup();
   const failed: typeof refreshCnFundamentals = async () => ({ ...success(), actions: { checked: 0, events: 0, failed: 1, skipped: 0 } });
-  assert.deepEqual(await runCnRequestForAdmin(f.request, f.db, f.log, { annual: f.annual, refresh: failed }), {status: "manual_required"});
+  assert.deepEqual(await runCnRequestForAdmin(f.request, f.db, f.log, { ...f, annual: f.annual, refresh: failed }), {status: "manual_required"});
   assert.equal(f.rows.get(`company_fundamentals/${company}`)?.manualRequired, true);
   const skipped = await publishCnRequests(f.db, "next-schedule", [company], async () => assert.fail("held task was published"));
   assert.equal(skipped.requested, 0);
@@ -90,7 +91,7 @@ test("confirmed Shenzhen delistings skip scheduled refresh and a manual review c
   f.rows.set(`company_fundamentals/${id}`,{manualRequired:true});
   assert.equal((await publishCnRequests(f.db,"scheduled",[id],async()=>assert.fail())).requested,0);
   await publishCnRequests(f.db,"admin",[id],async request=>{requests.push(request);},{manual:true});
-  assert.deepEqual(await runCnRequestForAdmin(requests[0],f.db,f.log,{annual:async()=>assert.fail("delisted source requested")}),{status:"ineligible",reason:"delisted"});
+  assert.deepEqual(await runCnRequestForAdmin(requests[0],f.db,f.log,{control:memoryControl(f.rows,"cn-control"),annual:async()=>assert.fail("delisted source requested")}),{status:"ineligible",reason:"delisted"});
   assert.equal(f.rows.get(`company_fundamentals/${id}`)?.manualRequired,false);
 });
 
@@ -109,7 +110,7 @@ test("admin refresh reads its ledger and company once for ordinary and duplicate
 test("admin refresh passes cooldowns from its own successful worker lease", async () => {
   for (const cooldowns of [{}, { www_cninfo_com_cn: Date.now() + 60000 }]) {
     const f = await setup();
-    f.rows.set("company_fundamentals/_cn_worker", { providerRetryAfter: cooldowns });
+    f.rows.set("cn-control", { providerRetryAfter: cooldowns });
     let observed;
     const result = await runCnRequestForAdmin(f.request, f.db, f.log, { ...f, refresh: async options => {
       observed = options.leasedProviderCooldowns;

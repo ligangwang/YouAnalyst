@@ -1,3 +1,4 @@
+import {financialControl, patchWorker, type WorkerControl} from "./worker-control";
 import { usFundamentalsId, usFundamentalsTicker } from "./identity";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
@@ -28,10 +29,9 @@ export async function auditMapFundamentals(db: Firestore, tickers: string[]) {
   return result;
 }
 
-export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog, deadline: number, refresh = refreshCompanyFundamentals) {
+export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog, deadline: number, refresh = refreshCompanyFundamentals, worker:WorkerControl=financialControl('sec')) {
   const result = { processed: 0, failed: 0, deferred: 0, remaining: 0 };
-  const worker = db.collection(FUNDAMENTALS_COLLECTION).doc("_worker");
-  const cooldown = Number((await worker.get()).get("providerRetryAfter") ?? 0);
+  const cooldown = Number((await worker.read()).providerRetryAfter ?? 0);
   if (cooldown > Date.now()) {
     log.emit("WARNING", "provider_cooldown", { retryAfter: new Date(cooldown).toISOString() });
     result.failed = 1;
@@ -52,7 +52,7 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
       if (!ticker) continue;
       const queued = doc.data();
       if (["error", "retry"].includes(queued.outcome)) { await db.collection(FUNDAMENTALS_COLLECTION).doc(doc.id).set({pending:false,outcome:"error"},{merge:true}); result.failed++; result.deferred++;
-        if ([403,429].includes(Number(queued.lastError?.code)) && Number(queued.refreshAfter)>Date.now()) { await worker.set({providerRetryAfter:queued.refreshAfter},{merge:true}); stop=true; break; }
+        if ([403,429].includes(Number(queued.lastError?.code)) && Number(queued.refreshAfter)>Date.now()) { await patchWorker(worker,{providerRetryAfter:queued.refreshAfter}); stop=true; break; }
         continue; }
       const needsShareUpgrade = needsShareMetadataUpgrade(queued);
       if (Number(queued.refreshAfter) > Date.now() && !needsShareUpgrade) {
@@ -60,7 +60,7 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
         if (queued.outcome === "retry") {
           result.failed++;
           if (queued.lastError?.code === 403 || queued.lastError?.code === 429) {
-            await worker.set({ providerRetryAfter: queued.refreshAfter }, { merge: true });
+            await patchWorker(worker,{ providerRetryAfter: queued.refreshAfter });
             stop = true;
             break;
           }
@@ -80,7 +80,7 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
         log.emit("ERROR", "company_failed", { ticker, error: details });
         // Do not hammer the provider after a block or rate-limit response.
         if (details.code === 403 || details.code === 429) {
-          await worker.set({ providerRetryAfter: Date.now() + 3_600_000 }, { merge: true });
+          await patchWorker(worker,{ providerRetryAfter: Date.now() + 3_600_000 });
           stop = true;
           break;
         }
