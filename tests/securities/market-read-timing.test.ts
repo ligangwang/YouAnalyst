@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {startMarketReadTiming} from '../../src/lib/market-read-timing';
-import {withDuck} from '../../src/lib/price-store/parquet';
+import {withDuck,withPageProjection} from '../../src/lib/price-store/parquet';
 
 test('slow read timings separate wait from work and omit values',()=>{
  let clock=100;const entries:Record<string,unknown>[]=[];
@@ -32,4 +32,17 @@ test('timed DuckDB queue preserves failures and continues serialized work',async
  const second=withDuck(async db=>{order.push('second');return (await db.runAndReadAll('SELECT 42')).getRows();});
  await assert.rejects(first,error=>error===failure);
  assert.deepEqual(await second,[[42]]);assert.deepEqual(order,['first','second']);
+});
+
+test('page reads precede queued bulk work while bulk reads still make progress',async()=>{
+ const order:string[]=[];
+ let release!:()=>void;
+ const hold=new Promise<void>(resolve=>{release=resolve;});
+ const active=withDuck(async()=>hold);
+ const record=(label:string)=>withDuck(async()=>{order.push(label);});
+ const bulk=[record('bulk1'),record('bulk2')];
+ const pages=Array.from({length:5},(_,i)=>withPageProjection(()=>record('page'+i)));
+ release();
+ await Promise.all([active,...bulk,...pages]);
+ assert.deepEqual(order,['page0','page1','page2','bulk1','page3','page4','bulk2']);
 });
