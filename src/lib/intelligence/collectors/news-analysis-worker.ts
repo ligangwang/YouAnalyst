@@ -13,10 +13,11 @@ import {NEWS_ANALYSIS_VERSION,NEWS_ANALYSIS_MODEL,articleHash,newsArticleInput,c
 type Options={deadline:number;now?:()=>number;maxCalls?:number;monthlyBudgetUsd?:number;records?:DocumentSnapshot[];download?:(source:CalendarSource)=>Promise<string>;analyze?:(title:string,content:string)=>Promise<NewsAnalysisResponse>};
 /** Existing event receipts hold reusable article snapshots. New edges are review
  * candidates in the existing relationship collection; the scheduled validation sweep promotes eligible claims. */
-export async function analyzeCollectedNews(db:Firestore,companies:readonly GraphNode[],sources:readonly NewsSource[],options:Options){
+export async function analyzeCollectedNews(db:Firestore,universe:readonly GraphNode[]|(()=>Promise<readonly GraphNode[]>),sources:readonly NewsSource[],options:Options){
  const now=options.now??Date.now,result={scanned:0,paid:0,complete:0,candidates:0,cached:0,failed:0,deferred:0,budgetBlocked:0};
  if(!options.analyze&&!process.env.OPENAI_API_KEY)return {...result,disabled:true};
- const resolveCompany=createNewsCompanyResolver(companies);
+ let companies:readonly GraphNode[]|undefined;
+ let resolver:ReturnType<typeof createNewsCompanyResolver>|undefined;
  const monthlyBudget=options.monthlyBudgetUsd??5;
  if(!Number.isFinite(monthlyBudget)||monthlyBudget<=0||monthlyBudget>100)throw new Error('Invalid news analysis budget');
  const events=db.collection(EVENTS_COLLECTION),meta=db.collection('collectors').doc('news-article-analysis');
@@ -59,6 +60,9 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
    await db.runTransaction(async tx=>{const old=(await tx.get(receipt)).data();if(old&&old.status!=='fetch_failed')return;tx.set(receipt,{type:'news_analysis',version:1,extractorVersion:NEWS_ANALYSIS_VERSION,status:'fetch_failed',sourceEventId:source.id,sourceUrl:url,companyIds:source.companyIds,title:source.title,nextCheckAtMs:now()+86400_000,updatedAt:new Date(now()).toISOString()},{merge:true});});
    await postpone(doc,now()+86400_000);result.failed++;continue;
   }
+  // Resolve the full universe only for usable content, before reserving a paid attempt.
+  companies??=typeof universe==='function'?await universe():universe;
+  const resolveCompany=resolver??=createNewsCompanyResolver(companies);
   const attemptId=randomUUID(),at=new Date(now()).toISOString(),contentHash=articleHash(content),budget=db.collection('collectors').doc('news-analysis-budget-'+at.slice(0,7));
   // UTF-8 bytes conservatively bound input tokens; reserve maximum output too.
   const reservation=Math.ceil((Buffer.byteLength(newsArticleInput(source.title,content))+3000)*.1+8000*.5);
