@@ -1973,7 +1973,7 @@ for(const serverGraph of [false,true])test(`graph version skew recovers one atom
  if(isMobile)await page.getByRole('button',{name:'Activity',exact:true}).click();
  await expect(page.locator('#intelligence-event-stream [data-event-trigger]')).toHaveCount(10);
  await page.evaluate(()=>dispatchEvent(new Event('focus')));
- await expect.poll(()=>feeds).toBe(2);
+ await expect.poll(()=>feeds).toBe(serverGraph?2:1);
  await expect(page.getByRole('alert')).toHaveCount(0);
  expect(repairs).toBe(1);expect(graphReads).toBe(serverGraph?0:1);
 });

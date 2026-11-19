@@ -35,25 +35,36 @@ type UniverseGraph=Awaited<ReturnType<typeof loadThemeGraph>>;
 const universeRequests=new Map<CompanyThemeId,{structure:Promise<UniverseGraph>;complete:Promise<UniverseGraph>}>();
 
 /** The directory can render without waiting for source reads or price enrichment. */
-export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
-  const graph=await loadUniverseGraph(theme);
+export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai',structureOnly=false):Promise<IntelligenceSnapshot>{
+  const graph=await (structureOnly?universeStructure(theme):universeWork(theme).complete);
   return {theme,graph,graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
 }
 
-function universeWork(theme:CompanyThemeId){
-  const pending=universeRequests.get(theme);if(pending)return pending;
-  const preview=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
-  const structure=preview
+const structureRequests=new Map<CompanyThemeId,Promise<UniverseGraph>>();
+function previewGraph(){
+  return process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
+}
+function universeStructure(theme:CompanyThemeId){
+  const pending=universeRequests.get(theme)?.structure??structureRequests.get(theme);
+  if(pending)return pending;
+  const structure=previewGraph()
     ?fetch(`https://youanalyst.com/api/knowledge-graph?theme=${theme}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
     :loadThemeGraphStructure(theme);
-  const complete=preview?structure:structure.then(graph=>loadThemeGraph(theme,graph));
+  structureRequests.set(theme,structure);
+  void structure.finally(()=>{if(structureRequests.get(theme)===structure)structureRequests.delete(theme);}).catch(()=>{});
+  return structure;
+}
+function universeWork(theme:CompanyThemeId){
+  const pending=universeRequests.get(theme);if(pending)return pending;
+  const structure=universeStructure(theme);
+  const complete=previewGraph()?structure:structure.then(graph=>loadThemeGraph(theme,graph));
   const request={structure,complete};
   universeRequests.set(theme,request);
   // Observe errors immediately, including when the feed has not reached pricing.
   void complete.finally(()=>{if(universeRequests.get(theme)===request)universeRequests.delete(theme);}).catch(()=>{});
   return request;
 }
-async function loadUniverseGraph(theme:CompanyThemeId){return universeWork(theme).complete;}
+
 
 /** Only IDs present in the published snapshot can request enrichment. No client
  * supplied event dates, evidence or company records are trusted. */
