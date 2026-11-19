@@ -73,7 +73,7 @@ test('failed publishers save backoff and request independent redelivery',async()
   let failed=0;
   await assert.rejects(processNewsRequest(message(),db,{...base,store:store({fail:async(_source,_cursor,error,retry)=>{assert.equal(error,'HTTP 403');assert(retry.getTime()>at);failed++;}}),read:async()=>{throw new Error('HTTP 403');}}),/HTTP 403/);
   assert.equal(failed,1);
-  await assert.rejects(processNewsRequest(message(),db,{...base,readCursor:async()=>cursor({leaseUntil:new Date(0).toISOString(),lastError:'HTTP 403',nextPollAt:new Date(at+3600000).toISOString()})}),/cooling down/);
+  await assert.rejects(processNewsRequest(message(),db,{...base,readCursor:async()=>cursor({leaseUntil:new Date(0).toISOString(),lastError:'HTTP 503',nextPollAt:new Date(at+3600000).toISOString()})}),/cooling down/);
 });
 
 test('leases and acquisition races retry instead of acknowledging unfinished work',async()=>{
@@ -85,4 +85,18 @@ test('disabled workers retain tasks and withdrawn sources never fetch',async()=>
   await assert.rejects(processNewsRequest(message(),db,{...base,enabled:false}),/disabled/);
   assert.equal((await processNewsRequest(message(),db,{...base,source:async()=>undefined})).status,'ineligible');
   await assert.rejects(processNewsRequest(message(),db,{...base,source:async()=>({...source,companyId:'US:OTHER'})}),/identity mismatch/);
+});
+
+test('scheduled publication resumes a denied or missing feed after its saved cooldown',async()=>{
+  const due=at+3600000;
+  for(const status of [403,404]){
+    const readCursor=async()=>cursor({leaseUntil:new Date(0).toISOString(),lastError:`Feed returned HTTP ${status}`,nextPollAt:new Date(due).toISOString()});
+    const result=await processNewsRequest(message(),db,{...base,readCursor,store:store({acquire:async()=>assert.fail('Cooldown must prevent reacquisition')})});
+    assert.equal(result.notDue,true);
+    for(const time of [due-1,due]){
+      const sent:NewsRequest[]=[];
+      await publishNewsRequests([source],async item=>{sent.push(item);},{execution:'next-sweep',now:()=>time,readCursor});
+      assert.equal(sent.length,time===due?1:0);
+    }
+  }
 });
