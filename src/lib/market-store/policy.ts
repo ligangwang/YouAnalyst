@@ -140,9 +140,13 @@ export function receiptHasField(field: string) {
 }
 export function mergeMarketOverlay(collection: MarketCollection, published?: Data, overlay?: Data): Data {
     const combined = { ...published, ...overlay };
-    if (collection === 'company_fundamentals' && published?.cnActions && overlay?.cnActions
-        && Date.parse(published.cnActions.checkedAt) > Date.parse(overlay.cnActions.checkedAt))
-        combined.cnActions = published.cnActions;
+    if (collection === 'company_fundamentals' && published?.cnActions && overlay?.cnActions) {
+        const checkTime = (value: unknown) => {
+            const time = value && typeof value === 'object' && 'checkedAt' in value && value.checkedAt;
+            return typeof time === 'string' ? Date.parse(time) : NaN;
+        };
+        if (checkTime(published.cnActions) > checkTime(overlay.cnActions)) combined.cnActions = published.cnActions;
+    }
     return combined;
 }
 export function splitRecord(collection: MarketCollection, id: string, data: Data, fieldsOnly = false): {
