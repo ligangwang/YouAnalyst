@@ -1,18 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useLocale } from './providers/locale-provider';
 import { LocalizedLink as Link } from './localized-link';
 import { hierarchyHref, hierarchyPath, type HierarchyNode } from '@/lib/hierarchy/model';
 import styles from './hierarchy-browser.module.css';
 import type { BrowseCompany } from '@/lib/hierarchy/companies';
 
-export function HierarchyBrowser({ kind, nodes, selectedId, companies = [], companiesUnavailable = false }: {
+function CategoryLink({ href, ...props }: Omit<ComponentProps<typeof Link>, 'href'> & { href: string }) {
+  return <Link {...props} href={href} prefetch={false} onNavigate={event => {
+    event.preventDefault();
+    const target = window.location.pathname + new URL(href, window.location.href).search;
+    if (target !== window.location.pathname + window.location.search) window.history.pushState(null, '', target);
+  }} />;
+}
+
+export function HierarchyBrowser({ kind, nodes, selectedId: initialId, companies = [], companiesUnavailable = false }: {
   kind: 'industries' | 'investment-themes'; nodes: HierarchyNode[]; selectedId: string;
   companies?: BrowseCompany[]; companiesUnavailable?: boolean;
 }) {
   const { locale, text } = useLocale();
   const [search, setSearch] = useState('');
+  const params = useSearchParams();
+  const single = (name: string) => params?.getAll(name).length === 1 ? params.get(name) : null;
+  const taxonomy = single('taxonomy')?.toUpperCase();
+  const code = single('code');
+  const selectedId = !params ? initialId : kind === 'investment-themes' ? single('node') ?? single('theme') ?? ''
+    : code ? (taxonomy || 'SIC') + ':' + code : taxonomy || '';
   const selected = nodes.find(node => node.id === selectedId);
   const path = selected ? hierarchyPath(nodes, selected.id) : [];
   const roots = nodes.filter(node => node.parentId === null).sort((a, b) => a.order - b.order);
@@ -38,33 +53,33 @@ export function HierarchyBrowser({ kind, nodes, selectedId, companies = [], comp
         {query ? <>
           <p role="status">{results.length} {text('matches', '个结果')}</p>
           <ul className={styles.results}>{results.map(node => <li key={node.id}>
-            <Link href={hierarchyHref(kind, node.id)} aria-current={selected?.id === node.id ? 'page' : undefined} onClick={() => setSearch('')}>
+            <CategoryLink href={hierarchyHref(kind, node.id)} aria-current={selected?.id === node.id ? 'page' : undefined} onClick={() => setSearch('')}>
               {node.names[locale]}<small>{node.code ?? node.id}</small>
-            </Link>
+            </CategoryLink>
           </li>)}</ul>
           {!results.length && <p>{text('No matching categories. Try a different name or code.', '没有匹配的分类，请尝试其他名称或代码。')}</p>}
         </> : <nav aria-label={text('Hierarchy', '分类层级')}><ul className={styles.results}>
           {roots.map(root => <li key={root.id}>
-            <Link href={hierarchyHref(kind, root.id)} aria-current={selected?.id === root.id ? 'page' : undefined}>{root.names[locale]}</Link>
+            <CategoryLink href={hierarchyHref(kind, root.id)} aria-current={selected?.id === root.id ? 'page' : undefined}>{root.names[locale]}</CategoryLink>
             {path.some(node => node.id === root.id) && <ul>{nodes.filter(node => node.parentId === root.id).sort((a,b) => a.order-b.order).map(node => <li key={node.id}>
-              <Link href={hierarchyHref(kind, node.id)} aria-current={path.some(item => item.id === node.id) ? 'location' : undefined}>{node.names[locale]}</Link>
+              <CategoryLink href={hierarchyHref(kind, node.id)} aria-current={path.some(item => item.id === node.id) ? 'location' : undefined}>{node.names[locale]}</CategoryLink>
             </li>)}</ul>}
           </li>)}
         </ul></nav>}
       </aside>
       <section className={styles.detail} aria-labelledby="category-title">
         <nav className={styles.breadcrumbs} aria-label={text('Breadcrumb', '当前位置')}>
-          <Link href={`/${kind}`}>{text('All', '全部')}</Link>
-          {path.map(node => <span key={node.id}> / <Link href={hierarchyHref(kind, node.id)} aria-current={selected?.id === node.id ? 'page' : undefined}>{node.names[locale]}</Link></span>)}
+          <CategoryLink href={`/${kind}`}>{text('All', '全部')}</CategoryLink>
+          {path.map(node => <span key={node.id}> / <CategoryLink href={hierarchyHref(kind, node.id)} aria-current={selected?.id === node.id ? 'page' : undefined}>{node.names[locale]}</CategoryLink></span>)}
         </nav>
         <h2 id="category-title">{selected?.names[locale] ?? (selectedId ? text('Category not found', '未找到分类') : text('Choose a category', '选择分类'))}</h2>
         {selected?.code && <p className={styles.code}>{selected.id.split(':')[0]} · {selected.code}</p>}
         {selected?.descriptions && <p>{selected.descriptions[locale]}</p>}
         {selectedId && !selected && <p role="status">{text('This link does not match an available category. Browse below or search by name or code.', '此链接未匹配到可用分类，请浏览下方分类或按名称、代码搜索。')}</p>}
-        <div className={styles.cards}>{children.map(node => <Link key={node.id} href={hierarchyHref(kind, node.id)} className={styles.card}>
+        <div className={styles.cards}>{children.map(node => <CategoryLink key={node.id} href={hierarchyHref(kind, node.id)} className={styles.card}>
           <span>{node.names[locale]} <span aria-hidden="true">↗</span></span>
           <small>{node.code ?? text('Explore category', '浏览分类')}</small>
-        </Link>)}</div>
+        </CategoryLink>)}</div>
         {selected && children.length === 0 && <p>{text('This is the most specific category in this catalog.', '这是当前目录中最细的分类。')}</p>}
         {selected && <section className={styles.companyList} aria-labelledby="category-companies">
           <h3 id="category-companies">{text('Companies tracked by YouAnalyst', 'YouAnalyst 跟踪的公司')}{!companiesUnavailable && ` · ${matches.length}`}</h3>

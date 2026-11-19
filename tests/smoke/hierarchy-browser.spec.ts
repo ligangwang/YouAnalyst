@@ -3,10 +3,17 @@ import { test, expect } from '@playwright/test';
 test('industry links locate a code, search navigates, and back restores selection', async ({ page }) => {
   await page.goto('/en/industries?taxonomy=SIC&code=3674');
   await expect(page.getByRole('heading', { level: 2 })).toHaveText('Semiconductors & Related Devices');
+  // The current page already contains every category and its company assignments.
+  const categoryRequests: string[] = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith('/industries') && url.searchParams.get('code') === '7372') categoryRequests.push(url.href);
+  });
   await page.getByLabel('Find a category').fill('7372');
   await page.locator('aside').getByRole('link', { name: /Prepackaged Software/ }).click();
   await expect(page).toHaveURL(/code=7372/);
   await expect(page.getByRole('heading', { level: 2 })).toHaveText('Services-Prepackaged Software');
+  expect(categoryRequests).toEqual([]);
   await page.goBack();
   await expect(page.getByRole('heading', { level: 2 })).toHaveText('Semiconductors & Related Devices');
   await page.goto('/en/industries?taxonomy=SIC&code=invalid');
