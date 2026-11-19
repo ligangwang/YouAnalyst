@@ -47,6 +47,9 @@ export async function archiveReceiptBatch(db:Firestore, files:MarketFiles, shard
             rows.set(doc.id,row);archived.set(doc.id,row);members.delete(doc.id);
         }
         if(!archived.size)return 0;
+        const siblings=await tx.getAll(...[...archived.keys()].map(id=>db.doc(retainedPath('market_ugc',collection,id))));
+        if(siblings.some(doc=>doc.exists))throw Error('Receipt also exists in UGC');
+
         const next=await files.write(collection,shard,[...rows.values()],[...members]);
         const stored=new Map((await files.read(next)).map(row=>[row.id,row]));
         assert.equal(stored.size,rows.size);
