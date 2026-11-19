@@ -890,3 +890,22 @@ check('retired bare tickers keep their full data in Parquet and require a canoni
         }
     }
 });
+
+check('archived US companies stay discoverable by outcome and can re-enter the active queue',async t=>{
+    const {archiveReceiptBatch}=await import('../../src/lib/market-store/archive-fundamentals-receipts');
+    const f=fixture(false,false,true);
+    t.after(()=>f.db.terminate());
+    const collection='company_fundamentals',id='US:ABC',ref=f.db.collection(collection).doc(id);
+    const physical=f.raw.doc(retainedPath('market_state',collection,id));
+    await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    await ref.set({version:1,value:{metrics:[42]},outcome:'ready',pending:false,refreshAfter:100});
+    assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shardFor(id),[id],'settled-us'),1);
+    const matching=(field:string,value:unknown)=>f.db.runTransaction(tx=>tx.get(f.db.collection(collection).where(field,'==',value).limit(10)));
+    assert.deepEqual((await matching('outcome','ready')).docs.map(doc=>doc.id),[id]);
+    await ref.set({refreshAfter:200},{merge:true});
+    assert.equal((await physical.get()).exists,false);
+    await ref.set({pending:true},{merge:true});
+    assert.deepEqual((await matching('pending',true)).docs.map(doc=>doc.get('value')),[{metrics:[42]}]);
+    assert.equal((await physical.get()).get('pending'),true);
+});

@@ -19,7 +19,7 @@ test('unmigrated events and retained operational state still have a native read 
     assert.doesNotThrow(()=>assertReadControl({version:1,ready:true,cleanedCollections:['companies']}));
     assert.throws(()=>assertReadControl(undefined),/missing or invalid/);
 });
-import {splitRecord} from '../../src/lib/market-store/policy';
+import {settledWorkerField,splitRecord} from '../../src/lib/market-store/policy';
 test('CNI source pages use Parquet while leases and authored records retain their data',()=>{
     const id='_cni_batch_page_0',companies=[{id:'XSHE:000001'}];
     assert.deepEqual(splitRecord('directory_syncs',id,{companies}),{external:{companies},retained:{}});
@@ -41,4 +41,22 @@ test('published financials on an authored company keep editorial data separate',
     const financials={value:{revenue:123},marketCap:{value:345},version:1,isDeleted:false};
     const editorial={createdBy:'editor',pending:true};
     assert.deepEqual(splitRecord('company_fundamentals','US:AMD',{...financials,...editorial}),{external:financials,retained:editorial});
+});
+
+test('a company refresh date lives with the published row until workflow state is present',()=>{
+    const data={value:{metrics:[]},refreshAfter:100,updatedAt:90};
+    assert.deepEqual(splitRecord('company_fundamentals','US:ABC',data),{external:data,retained:{}});
+    assert.equal(splitRecord('company_fundamentals','US:ABC',{...data,pending:true}).retained.pending,true);
+    assert.equal(splitRecord('company_fundamentals','US:ABC',{...data,reviewedBy:'user'}).retained.reviewedBy,'user');
+    assert.equal(splitRecord('company_fundamentals','US:ABC',data,true).retained.refreshAfter,100);
+});
+
+test('settled company rows participate in ready scans and keep active work queries bounded',()=>{
+    assert.equal(settledWorkerField('outcome','==','ready'),true);
+    assert.equal(settledWorkerField('outcome','in',['ready','retry']),true);
+    assert.equal(settledWorkerField('outcome','in',['retry','error']),false);
+    assert.equal(settledWorkerField('pending','==',true),false);
+    assert.equal(settledWorkerField('pending','==',false),true);
+    assert.equal(settledWorkerField('lastFilingRefresh.eventId','==','filing'),true);
+    assert.equal(settledWorkerField('manualRequired','==',true),false);
 });

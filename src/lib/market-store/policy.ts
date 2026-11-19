@@ -104,6 +104,25 @@ export function retainedOnlyQuery(collection: MarketCollection, steps: Array<{
 }
 const financialFields=new Set(['value','version','marketCap','cnAnnual','isDeleted']);
 export const publishedFinancialField=(field:string)=>financialFields.has(field.split('.')[0]);
+// Completed US refreshes can be read from immutable company rows. Positive
+// pending queries and unresolved failures still use the active worker index.
+const settledFields = new Set(['refreshAfter','pending','outcome','requestedAt','dispatchAfter','dispatchOwner',
+    'lastAttemptAt','lastError','lastFilingRefresh','secFilingsCollector','failedAt','updatedAt']);
+export function settledUsFundamentals(id: string, data: Data, now: number) {
+    return /^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(id) && data.pending === false
+        && (data.outcome === 'ready' || data.outcome === 'unavailable')
+        && (data.dispatchAfter == null || typeof data.dispatchAfter === 'number' && data.dispatchAfter <= now)
+        && Object.keys(data).every(key => settledFields.has(key) || financialFields.has(key) || key === 'unavailableReason')
+        && !authored(data);
+}
+export function settledWorkerField(field: string, operator?: unknown, operand?: unknown) {
+    const root=field.split('.')[0];
+    if (!settledFields.has(root)) return false;
+    const values=operator==='=='?[operand]:operator==='in'&&Array.isArray(operand)?operand:undefined;
+    if (values && root==='pending') return values.includes(false);
+    if (values && root==='outcome') return values.includes('ready') || values.includes('unavailable');
+    return true;
+}
 const receiptFields = new Set([
     'request', 'progress', 'result', 'annual', 'annualCompleted', 'createdAt', 'updatedAt', 'dispatchedAt',
     'completed', 'completedAt', 'manualRequired', 'publishedEventId', 'verificationDuplicateRunId', 'cursor',
@@ -133,6 +152,12 @@ export function splitRecord(collection: MarketCollection, id: string, data: Data
             (financialFields.has(key) ? external : retained)[key] = value;
         return {external,retained};
     }
+    // A refresh date alone is scheduling metadata on the published company row.
+    // Existing overlays still need their date when merging pre-migration records.
+    if (!fieldsOnly && collection === 'company_fundamentals' && id.startsWith('US:')
+        && typeof data.refreshAfter === 'number' && Number.isFinite(data.refreshAfter)
+        && Object.keys(data).every(key => financialFields.has(key) || ['refreshAfter','updatedAt','unavailableReason'].includes(key)))
+        return {external: data, retained: {}};
     if (!fieldsOnly && retainedWhole(collection, id, data))
         return { external: {}, retained: data };
     const external: Data = {}, retained: Data = {};
