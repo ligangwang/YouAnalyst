@@ -20,7 +20,6 @@ export function secCooldownMs(status: number, retryAfter: string | null, now = D
 // delayed processes cannot spend old reservations together in a burst.
 export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal }),monotonicNow=()=>performance.now()) {
   const ref = db.collection(SEC_COLLECTOR_STATE_COLLECTION).doc("_sec_request_budget");
-  const legacyRef = db.collection("company_fundamentals").doc("_sec_request_budget");
   let localCooldownUntil=0;
   const cooling=(remaining:number)=>Object.assign(new Error('SEC shared cooldown is active'),{code:429,retryAfterMs:remaining});
   const throwIfCoolingDown=()=>{
@@ -36,17 +35,13 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
       throwIfCoolingDown();
       const owner = randomUUID();
       let cooldownMs = 0;
-      let bridge = false;
       let contentionWaitMs = 250;
       for (;;) {
         signal.throwIfAborted();
         const wait = await db.runTransaction(async tx => {
           const snap = await tx.get(ref);
           const now = snap.readTime.toMillis(); // Shared server clock, not replica clocks.
-          bridge = snap.get("bridgeRetired") !== true;
-          // During rollout, old workers still own the legacy gate. Mirror its
-          // acquisition atomically so both generations serialize on one lock.
-          const stored = bridge ? (await tx.get(legacyRef)).data() : snap.data();
+          const stored = snap.data();
           if (Number(stored?.cooldownUntil) > now) {
             const remaining=Number(stored?.cooldownUntil)-now;
             localCooldownUntil=monotonicNow()+remaining;
@@ -64,7 +59,6 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
           }
           signal.throwIfAborted();
           tx.set(ref, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
-          if (bridge) tx.set(legacyRef, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
           return 0;
         });
         if (wait > 0) {
@@ -84,15 +78,13 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
         // Do not use the caller's aborted signal: the gate still needs releasing.
         await db.runTransaction(async tx => {
           const snap = await tx.get(ref);
-          const legacy = bridge ? await tx.get(legacyRef) : undefined;
           if (snap.get("owner") !== owner) return;
           const now = snap.readTime.toMillis();
           const remaining=Math.max(Number(snap.get('cooldownUntil'))-now||0,cooldownMs);
           if(remaining>0)localCooldownUntil=monotonicNow()+remaining;
           tx.set(ref, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
             cooldownUntil: Math.max(Number(snap.get("cooldownUntil")) || 0, now + cooldownMs) }, { merge: true });
-          if (legacy?.get("owner") === owner) tx.set(legacyRef, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
-            cooldownUntil: Math.max(Number(legacy.get("cooldownUntil")) || 0, now + cooldownMs) }, { merge: true });
+
         });
         // Wait locally after release instead of making the next request read
         // Firestore merely to discover our own 200ms spacing. The next request

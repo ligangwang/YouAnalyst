@@ -5,11 +5,10 @@ import { sharedFirestore as baseFirestore } from "./shared-firestore-fixture";
 
 function sharedFirestore(){const f=baseFirestore();f.documents.set("sec_collector_state/_sec_request_budget",{bridgeRetired:true});return f;}
 
-test("migration honors the legacy cooldown and writes only operational state", async () => {
+test("SEC workers honor the shared cooldown and release the operational lock", async () => {
   const f = sharedFirestore();
-  f.documents.delete("sec_collector_state/_sec_request_budget");
-  const legacy = { cooldownUntil: f.now() + 60_000 };
-  f.documents.set("company_fundamentals/_sec_request_budget", legacy);
+  const state = { cooldownUntil: f.now() + 60_000 };
+  f.documents.set("sec_collector_state/_sec_request_budget", state);
   let calls = 0;
   const budget = createSecBudget(f.db, async ms => { f.advance(ms); },f.now);
   await assert.rejects(budget.run(new AbortController().signal, async () => { calls++; }), { code: 429 });
@@ -17,7 +16,7 @@ test("migration honors the legacy cooldown and writes only operational state", a
   f.advance(60_000);
   await budget.run(new AbortController().signal, async () => { calls++; });
   assert.equal(calls, 1);
-  assert.equal(f.documents.get("company_fundamentals/_sec_request_budget")?.owner, null);
+  assert.equal(f.documents.has("company_fundamentals/_sec_request_budget"), false);
   assert.equal(f.documents.get("sec_collector_state/_sec_request_budget")?.owner, null);
 });
 test("held SEC lease uses bounded backoff and still checks ownership before sending",async()=>{
@@ -27,21 +26,6 @@ test("held SEC lease uses bounded backoff and still checks ownership before send
     .run(new AbortController().signal,async()=>{assert.ok(f.now()>=start+5000);});
   assert.deepEqual(waits,[250,500,1000,1000,1000,1000,250,200]);
   assert.equal(f.documents.get('sec_collector_state/_sec_request_budget')?.nextAllowedAt,start+5200);
-});
-
-test("bridge serializes with legacy workers, then retirement stops legacy writes",async()=>{
- const f=baseFirestore(),old='company_fundamentals/_sec_request_budget',next='sec_collector_state/_sec_request_budget';
- f.documents.set(old,{owner:'legacy',leaseUntil:f.now()+500});
- const budget=createSecBudget(f.db,async ms=>{f.advance(ms);});
- const start=f.now();
- await budget.run(new AbortController().signal,async()=>{
-  assert.ok(f.now()>=start+500);
-  assert.equal(f.documents.get(old)?.owner,f.documents.get(next)?.owner);
- });
- const legacy=structuredClone(f.documents.get(old));
- f.documents.set(next,{...f.documents.get(next),bridgeRetired:true});
- await budget.run(new AbortController().signal,async()=>{});
- assert.deepEqual(f.documents.get(old),legacy);
 });
 
 test("independent workers share a maximum of five starts in any rolling second", async () => {
