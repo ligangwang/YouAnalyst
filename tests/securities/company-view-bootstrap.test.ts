@@ -48,3 +48,19 @@ test('a real listener failure after the wait expires still uses cooldown and one
     assert.equal(await first,await second);
     assert.deepEqual(f.counts(),{attempts:2,stops:1});
 });
+
+test('capped symbol searches reuse a warm company view without starting the full listener',async t=>{
+    const {MarketRepository}=await import('../../src/lib/market-store/repository');
+    const {RetainedStore}=await import('../../src/lib/market-store/retained-store');
+    const starts:boolean[]=[];
+    t.mock.method(RetainedStore.prototype,'companies',async (_context:unknown,start:boolean)=>{starts.push(start);return undefined;});
+    const files={query:async()=>[],filter:async()=>[],close:async()=>{}};
+    const repo=new MarketRepository({} as Firestore,files as unknown as import('../../src/lib/market-store/files').MarketFiles);
+    t.mock.method(repo,'heads',async()=>new Map());
+    t.after(()=>repo.close());
+    for(const limit of [50,51]){
+        const rows=await repo.query('companies',[{method:'select',args:['name']},{method:'where',args:['symbolLower','>=','a']},{method:'limit',args:[limit]}]);
+        assert.deepEqual(rows,[]);
+    }
+    assert.deepEqual(starts,[false,true]);
+});
