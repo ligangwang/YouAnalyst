@@ -69,3 +69,11 @@ test('A-share refreshes publish share counts, corporate actions and provider IDs
     assert.deepEqual(split.retained,checkpoint);
     assert.deepEqual(splitRecord('company_fundamentals','XSHG:600584',{cnActions:payload.cnActions},true).retained,{cnActions:payload.cnActions});
 });
+
+import {mergeMarketOverlay} from '../../src/lib/market-store/policy';
+test('reconciliation preserves the latest corporate action check across cutover',()=>{
+    const older={cnActions:{checkedAt:'2026-11-17',events:[]}};
+    const newer={cnActions:{checkedAt:'2026-11-19',events:['split']}};
+    assert.deepEqual(mergeMarketOverlay('company_fundamentals',newer,{...older,pending:true}),{...newer,pending:true});
+    assert.deepEqual(mergeMarketOverlay('company_fundamentals',older,newer),newer);
+});

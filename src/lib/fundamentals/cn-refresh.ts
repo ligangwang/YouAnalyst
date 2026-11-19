@@ -84,6 +84,12 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
       result.shares.skipped++; result.actions.skipped++;
       continue;
     }
+    if (!dryRun) {
+      // Acquiring the lease also publishes any outstanding legacy financial fields.
+      // Use the committed row if another worker changed it after the batch read.
+      const [current] = await (options.readFinancials ?? readPublishedFinancialRows)(db, [id], ["marketCap", "cnShares", "cnActions", "cnOrgId"]);
+      if (current && !current.isDeleted) Object.assign(stored, current);
+    }
     const update: Record<string, unknown> = { market: "CN_A" };
     const next: Stored = { ...stored };
     try {

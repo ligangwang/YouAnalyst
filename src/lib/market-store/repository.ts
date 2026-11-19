@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, settledUsFundamentals, settledWorkerField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
+import { mergeMarketOverlay, archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, settledUsFundamentals, settledWorkerField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {project} from './query';
@@ -454,7 +454,7 @@ export class MarketRepository {
             if (doc.exists) {
                 const previous = result.get(doc.id), overlay = previous ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();
                 if(previous&&!Object.keys(overlay??{}).length)continue;
-                result.set(doc.id, { id: doc.id, data: { ...previous?.data, ...overlay }, version: doc.updateTime ?? previous?.version ?? Timestamp.now() });
+                result.set(doc.id, { id: doc.id, data: mergeMarketOverlay(collection, previous?.data, overlay), version: doc.updateTime ?? previous?.version ?? Timestamp.now() });
             }
         const selected: MarketRow[] = [];
         for (const id of ids)
@@ -605,7 +605,7 @@ export class MarketRepository {
                 const data=fields?project(Object.fromEntries([...new Set(fields.map(field=>field.split('.')[0]))].map(field=>[field,doc.get(field)])),fields):doc.data()!;
                 const prior = result.get(doc.id), overlay = prior ? splitRecord(collection, doc.id, data, true).retained : data;
                 if(prior&&!Object.keys(overlay??{}).length)continue;
-                result.set(doc.id, { id: doc.id, data: { ...prior?.data, ...overlay }, version: doc.updateTime ?? prior?.version ?? Timestamp.now() });
+                result.set(doc.id, { id: doc.id, data: mergeMarketOverlay(collection, prior?.data, overlay), version: doc.updateTime ?? prior?.version ?? Timestamp.now() });
             }
         const selected = await this.files.filter([...result.values()], steps), hydrated: MarketRow[] = [];
         for (const row of selected)
@@ -724,7 +724,7 @@ export class MarketRepository {
                     const id = change.path.split('/')[1], doc = context.documents.get(change.path)!;
                     const overlay = doc.exists && retained.has(id) ? rows.has(id) ? splitRecord(collection, id, doc.data()!, true).retained : doc.data() : undefined;
                     const stored = rows.get(id), base = stored ? (await this.files.hydrate(stored)).data : undefined;
-                    const before = complete.has(id) ? complete.get(id) : ready ? (rows.has(id) || overlay ? { ...base, ...overlay } : undefined) : doc.data();
+                    const before = complete.has(id) ? complete.get(id) : ready ? (rows.has(id) || overlay ? mergeMarketOverlay(collection, base, overlay) : undefined) : doc.data();
                     const options = change.args.at(-1) as {
                         lastUpdateTime?: Timestamp;
                     } | undefined;
