@@ -53,7 +53,10 @@ async function shardTerms(raw:Firestore, files:MarketFiles, head:MarketHead){
 
 // Partition before grouping so millions of distinct substrings fit in the existing job.
 export async function buildDirectoryParts(source:string,directory:string){
-    const instance=await DuckDBInstance.create(':memory:',{threads:'1',memory_limit:'768MB'});
+    // Cloud Run's application directory is read-only. Spill alongside this build's parts.
+    const instance=await DuckDBInstance.create(':memory:',{
+        threads:'1',memory_limit:'768MB',temp_directory:join(directory,'scratch'),
+    });
     const db=await instance.connect();
     const stage=join(directory,'terms'),output=join(directory,'parts');
     await mkdir(output,{recursive:true});
