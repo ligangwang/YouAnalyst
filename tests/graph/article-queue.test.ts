@@ -95,3 +95,16 @@ test('default enrichment context reads companies once and rejects withdrawn sour
  assert.equal((await processArticleTask(task,f.db,options)).status,'ineligible');
  assert.equal(calls,1);assert.equal(f.queries.filter(q=>q.collection==='companies').length,2);
 });
+
+test('single-issuer disclosure checks its issuer without querying the company universe',async()=>{
+ const f=earningsFirestore(), disclosure={...row,type:'company_disclosure'};
+ f.rows.set(`${EVENTS_COLLECTION}/news-one`,disclosure);
+ const input={...task,fingerprint:articleFingerprint(disclosure)};
+ const execute=()=>processArticleTask(input,f.db,{enabled:true,calendarEnabled:true,now,run:async()=>({status:'verified'})});
+ assert.equal((await execute()).status,'ineligible');
+ f.rows.set('companies/US:AMD',{name:'AMD',status:'PUBLISHED',onboarding:{status:'SUPPORTED'}});
+ assert.equal((await execute()).status,'verified');
+ f.rows.set('companies/US:AMD',{name:'AMD',status:'PUBLISHED',onboarding:{status:'SUPPORTED'},isDeleted:true});
+ assert.equal((await execute()).status,'ineligible');
+ assert.equal(f.queries.filter(query=>query.collection==='companies').length,0);
+});
