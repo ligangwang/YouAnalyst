@@ -3,7 +3,7 @@ import { loadThemeCatalog } from './catalog';
 import { catalogThemeIds } from './catalog-model';
 import { applyThemeCatalog } from './catalog-graph';
 import { loadThemeRelationships } from '../knowledge-graph/relationship-cache';
-import { loadCompanyDocuments } from '../company-document-cache';
+import { readPublishedFinancialRows } from '../market-store/runtime';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadKnowledgeGraphStructure, loadGraphValuations } from '../knowledge-graph/service';
 import { attachCnMarketCaps } from '../knowledge-graph/cn-market-caps';
@@ -37,9 +37,9 @@ export async function loadThemeGraph(theme: CompanyThemeId, loadedStructure?:Kno
   // Reuse existing public financial summaries; viewing never initiates a provider call.
   try {
     if (us.length) {
-      const values = await loadCompanyDocuments(db, 'company_fundamentals', us.map(node => node.id), 'marketCap');
+      const values = await readPublishedFinancialRows(db,us.map(node=>node.id),['marketCap']);
       values.forEach((doc, index) => {
-        const cap = doc.data()?.marketCap;
+        const cap = doc?.isDeleted ? undefined : doc?.marketCap;
         if (cap?.status === 'estimated' && cap.currency === 'USD' && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? '')) us[index].marketCap = {value:cap.value,currency:'USD',priceDate:cap.priceDate};
       });
     }

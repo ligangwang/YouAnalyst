@@ -1,3 +1,4 @@
+import { readPublishedFinancialRows } from '../market-store/runtime';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { loadThemeEnrolledCompanies } from './company-cache';
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -40,9 +41,9 @@ async function attachUsMarketCaps(db:Firestore,graph:KnowledgeGraph){
   const usCompanies = graph.nodes.filter(n => n.kind === "COMPANY" && n.id.startsWith("US:"));
   for (let i = 0; i < usCompanies.length; i += 1000) {
     const batch = usCompanies.slice(i, i + 1000);
-    const values = await loadCompanyDocuments(db, 'company_fundamentals', batch.map(n => n.id), 'marketCap');
+    const values = await readPublishedFinancialRows(db,batch.map(n=>n.id),['marketCap']);
     values.forEach((doc, index) => {
-      const cap = doc.data()?.marketCap;
+      const cap = doc?.isDeleted ? undefined : doc?.marketCap;
       if (cap?.status === "estimated" && cap.currency === "USD" && typeof cap.value === "number" && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? "")) {
         batch[index].marketCap = { value: cap.value, currency: "USD", priceDate: cap.priceDate };
       }

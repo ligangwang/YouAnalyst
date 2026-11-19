@@ -1,3 +1,5 @@
+import {peerFinancialProjection} from './financial-projection';
+import { readPublishedFinancialRows } from '../market-store/runtime';
 import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { loadPeerPrices } from './price-cache';
@@ -43,12 +45,11 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
      }
     });
    }else await timeCompanyPhase('peer_financials',async()=>{
-    // Fill four 30-ID listeners; 100-ID pages left a fourth group mostly empty.
     for(let i=0;i<group.companies.length;i+=120){
      options.signal?.throwIfAborted();
      const batch=group.companies.slice(i,i+120);
-     const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id),'peerFinancials').catch(error=>{if(options.strict)throw error;complete=false;return [];});
-     docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
+     const docs=await readPublishedFinancialRows(db,batch.map(c=>c.id),['value','cnAnnual','marketCap']).catch(error=>{if(options.strict)throw error;complete=false;return [];});
+     docs.forEach((doc,index)=>financials.set(batch[index].id,doc && peerFinancialProjection(doc)));
     }
    });
    const result=buildPeerComparison(companyId,demand?graph.nodes.filter(node=>demand.includes(node.id)):graph.nodes,financials,prices,today);
