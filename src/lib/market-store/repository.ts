@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
+import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {project} from './query';
@@ -406,6 +406,16 @@ export class MarketRepository {
             ]);
             return Promise.all(rows.map(row=>this.files.hydrate(row)));
         }
+        if (collection === 'company_fundamentals' && ids.length === 1 && fundamentalsReceiptId(ids[0])) {
+            const head = await this.head(collection, shardFor(ids[0]), context);
+            const [row] = head.file && !head.retained.includes(ids[0])
+                ? await this.files.query([head], [{method: 'where', args: [FieldPath.documentId(), '==', ids[0]]}]) : [];
+            if (row && row.data.completed === true) {
+                const full = await this.files.hydrate(row);
+                if (archivedFundamentalsReceipt(full.id, full.data))
+                    return [fields ? {...full, data: project(full.data, fields)} : full];
+            }
+        }
         const earningsHeads=collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_'));
         const reserved=earningsHeads||collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
         if(reserved&&[...reserved.values()].every(doc=>doc.exists&&(earningsHeads?doc.get('recordType')==='head':doc.get('completed')!==true)))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
@@ -518,7 +528,11 @@ export class MarketRepository {
         // identify every candidate; scanning Parquet for an absent field adds
         // a full collection read without finding any additional records.
         // updatedAt is special: external-only records keep it in Parquet.
-        const requiresOverlay = steps.some(step => ['where', 'orderBy'].includes(step.method)
+        const receiptCandidates = collection === 'company_fundamentals'
+            && steps.filter(step => ['where', 'orderBy'].includes(step.method)).every(step =>
+                receiptHasField(fieldName(step.args[0]))
+                && !(step.method === 'where' && fieldName(step.args[0]) === 'manualRequired' && step.args[1] === '==' && step.args[2] === true));
+        const requiresOverlay = !receiptCandidates && steps.some(step => ['where', 'orderBy'].includes(step.method)
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
             && isOperationalField(collection, fieldName(step.args[0])));
         const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay
