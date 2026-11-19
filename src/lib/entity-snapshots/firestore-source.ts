@@ -1,3 +1,4 @@
+import {completeCompaniesInParquet} from '../market-store/runtime';
 import { FieldPath, type Firestore, type Query, type Timestamp } from 'firebase-admin/firestore';
 import type { Row, Source, Collection } from './sync';
 import {withLiveCompanyReads} from '../local-cache/company-directory';
@@ -18,6 +19,7 @@ export function snapshotSource(db: Firestore): Source {
       }
   }
   return {
+    replaceSnapshot:async collection=>collection==='companies' && await completeCompaniesInParquet(db),
     boundary:async()=>withLiveCompanyReads(async()=>(await db.collection('companies').limit(1).get()).readTime),
     pages,
     rows:async(collection,since,through)=>{

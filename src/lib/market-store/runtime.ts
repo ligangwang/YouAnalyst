@@ -50,6 +50,12 @@ export async function marketStoreClientReady(client:Firestore,collection:string)
     if(!isParquetMarketCollection(collection))return false;
     return await state.readers?.get(client)?.ready(undefined,collection)??false;
 }
+export async function completeCompaniesInParquet(client:Firestore):Promise<boolean> {
+    const repository=state.readers?.get(client);
+    if(!repository)return false;
+    const heads=await repository.heads('companies');
+    return heads.size===256 && [...heads.values()].every(head=>head.companyStorage==='parquet');
+}
 export function registerObservedMarketClient(client:Firestore,observed:Firestore) {
     const repo=state.readers?.get(client);
     if(repo)state.readers!.set(observed,repo);
