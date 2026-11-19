@@ -61,5 +61,10 @@ test('capped symbol searches reuse a warm company view without starting the full
         const rows=await repo.query('companies',[{method:'select',args:['name']},{method:'where',args:['symbolLower','>=','a']},{method:'limit',args:[limit]}]);
         assert.deepEqual(rows,[]);
     }
-    assert.deepEqual(starts,[false,true]);
+    for (let n=0;n<2;n++) {
+        const rows=await repo.query('companies',[{method:'select',args:['name']},{method:'where',args:['inGraph.status','==','PUBLISHED']}]);
+        assert.deepEqual(rows,[]);
+        repo.invalidate('companies');
+    }
+    assert.deepEqual(starts,[false,true,false,true]);
 });
