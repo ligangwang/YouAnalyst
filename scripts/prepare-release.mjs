@@ -130,7 +130,7 @@ try {
     }
     const hints=[response.headers.get('link')??'',...(html.match(/<link\b[^>]*>/g)??[])].join('\n');
     for(const file of graphScripts)assert.equal(hints.includes(file),expected,`Unexpected 3D preload for ${view}: ${file}`);
-    assert(hints.replaceAll('&amp;','&').includes('/api/intelligence?theme=ai&graph=omit&payload=compact'),`Missing early graph-free feed preload for ${view}`);
+    assert(hints.replaceAll('&amp;','&').includes('/api/intelligence?theme=ai&graph=compact&payload=compact'),`Missing early feed and valuation preload for ${view}`);
   }
   const scopedHome=await fetch(`${base}/en?company=US%3ANVDA`);
   const scopedHtml=await scopedHome.text();
