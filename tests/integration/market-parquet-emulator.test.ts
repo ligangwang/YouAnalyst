@@ -875,10 +875,11 @@ check('retired bare tickers keep their full data in Parquet and require a canoni
     const collection='company_fundamentals';
     await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
     await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
-    for(const [id,expected,extra] of [['ABC',1,{}],['XYZ',0,{pending:true}],['EDIT',0,{reviewedBy:'editor'}],['ORPHAN',0,{}]] as const){
+    for(const [id,expected,extra] of [['ABC',1,{}],['XYZ',0,{pending:true}],['EDIT',0,{reviewedBy:'editor'}],['ORPHAN',0,{}],['ARCHIVED',0,{}]] as const){
         const data={value:{ticker:id},pending:false,outcome:'ready',...extra};
         await f.db.collection(collection).doc(id).set(data);
-        if(id!=='ORPHAN')await f.db.collection(collection).doc('US:'+id).set({pending:false,outcome:'ready'});
+        if(id!=='ORPHAN')await f.db.collection(collection).doc('US:'+id).set(
+            id==='ARCHIVED'?{pending:false,outcome:'ready'}:{pending:true});
         const before=(await f.db.collection(collection).doc(id).get()).data();
         const shard=shardFor(id);
         assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shard,[id],'retired-ticker'),expected);
@@ -899,7 +900,8 @@ check('archived US companies stay discoverable by outcome and can re-enter the a
     const physical=f.raw.doc(retainedPath('market_state',collection,id));
     await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
     await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
-    await ref.set({version:1,value:{metrics:[42]},outcome:'ready',pending:false,refreshAfter:100});
+    await ref.set({version:1,value:{metrics:[42]},outcome:'ready',pending:false,refreshAfter:100,dispatchAfter:Date.now()+60000});
+    await physical.update({dispatchAfter:0});
     assert.equal(await archiveReceiptBatch(f.raw,f.repository.files,shardFor(id),[id],'settled-us'),1);
     const matching=(field:string,value:unknown)=>f.db.runTransaction(tx=>tx.get(f.db.collection(collection).where(field,'==',value).limit(10)));
     assert.deepEqual((await matching('outcome','ready')).docs.map(doc=>doc.id),[id]);
@@ -908,4 +910,12 @@ check('archived US companies stay discoverable by outcome and can re-enter the a
     await ref.set({pending:true},{merge:true});
     assert.deepEqual((await matching('pending',true)).docs.map(doc=>doc.get('value')),[{metrics:[42]}]);
     assert.equal((await physical.get()).get('pending'),true);
+    await ref.set({pending:false,outcome:'ready',dispatchAfter:0},{merge:true});
+    assert.equal((await physical.get()).exists,false);
+    assert.deepEqual((await ref.get()).get('value'),{metrics:[42]});
+    assert.deepEqual((await matching('pending',true)).docs,[]);
+    const fresh=f.db.collection(collection).doc('US:NEW');
+    await fresh.set({pending:false,outcome:'unavailable',unavailableReason:'no coverage'});
+    assert.equal((await f.raw.doc(retainedPath('market_state',collection,'US:NEW')).get()).exists,false);
+    assert.equal((await fresh.get()).get('outcome'),'unavailable');
 });

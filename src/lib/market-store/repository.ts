@@ -784,12 +784,14 @@ export class MarketRepository {
                         continue;
                     }
                     const published = rows.get(id);
-                    // Preserve an archived issuer's placement on subsequent
-                    // settled updates. Active work returns to its queue index.
-                    const preserve = collection === 'company_fundamentals' && !retained.has(id)
-                        && published?.data.pending === false && settledUsFundamentals(id, data, at.toMillis());
+                    // After cutover, completing live work must also retire its queue entry.
+                    // Before cutover, keep the previous placement of already archived rows.
+                    const canArchive = retire && ready && relocated.cleanupAuthorized && cleanedCollections?.has(collection);
+                    const alreadyArchived = !retained.has(id) && published?.data.pending === false;
+                    const archive = collection === 'company_fundamentals' && (canArchive || alreadyArchived)
+                        && settledUsFundamentals(id, data, at.toMillis());
                     const parquetCompany = collection === 'companies' && head.companyStorage === 'parquet';
-                    const split = preserve || parquetCompany ? {external:data, retained:{}} : splitRecord(collection, id, data);
+                    const split = archive || parquetCompany ? {external:data, retained:{}} : splitRecord(collection, id, data);
                     const keep=!parquetCompany && retainsRecord(collection,id,data,split.retained);
                     if (Object.keys(split.external).length || !keep) {
                         if (!isDeepStrictEqual(rows.get(id)?.data, split.external))
