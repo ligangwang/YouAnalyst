@@ -551,6 +551,7 @@ export class MarketRepository {
                 && !(step.method === 'where' && fieldName(step.args[0]) === 'manualRequired' && step.args[1] === '==' && step.args[2] === true));
         const requiresOverlay = !receiptCandidates && steps.some(step => ['where', 'orderBy'].includes(step.method)
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
+            && !(collection === 'company_fundamentals' && fieldName(step.args[0]) === 'refreshAfter')
             && isOperationalField(collection, fieldName(step.args[0])));
         const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay
             ? Promise.resolve([]) : this.files.query(heads, candidateSteps);

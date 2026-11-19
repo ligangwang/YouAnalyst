@@ -42,3 +42,11 @@ test('published financials on an authored company keep editorial data separate',
     const editorial={createdBy:'editor',pending:true};
     assert.deepEqual(splitRecord('company_fundamentals','US:AMD',{...financials,...editorial}),{external:financials,retained:editorial});
 });
+
+test('a company refresh date lives with the published row until workflow state is present',()=>{
+    const data={value:{metrics:[]},refreshAfter:100,updatedAt:90};
+    assert.deepEqual(splitRecord('company_fundamentals','US:ABC',data),{external:data,retained:{}});
+    assert.equal(splitRecord('company_fundamentals','US:ABC',{...data,pending:true}).retained.pending,true);
+    assert.equal(splitRecord('company_fundamentals','US:ABC',{...data,reviewedBy:'user'}).retained.reviewedBy,'user');
+    assert.equal(splitRecord('company_fundamentals','US:ABC',data,true).retained.refreshAfter,100);
+});

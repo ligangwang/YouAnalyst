@@ -133,6 +133,12 @@ export function splitRecord(collection: MarketCollection, id: string, data: Data
             (financialFields.has(key) ? external : retained)[key] = value;
         return {external,retained};
     }
+    // A refresh date alone is scheduling metadata on the published company row.
+    // Existing overlays still need their date when merging pre-migration records.
+    if (!fieldsOnly && collection === 'company_fundamentals' && id.startsWith('US:')
+        && typeof data.refreshAfter === 'number' && Number.isFinite(data.refreshAfter)
+        && Object.keys(data).every(key => financialFields.has(key) || ['refreshAfter','updatedAt','unavailableReason'].includes(key)))
+        return {external: data, retained: {}};
     if (!fieldsOnly && retainedWhole(collection, id, data))
         return { external: {}, retained: data };
     const external: Data = {}, retained: Data = {};
