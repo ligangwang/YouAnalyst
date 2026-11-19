@@ -1,3 +1,4 @@
+import {completedCatalog,completedPage,usesHistoryCatalog} from './completed-history';
 import type {Firestore} from 'firebase-admin/firestore';
 import {validInstrumentId} from '../instruments/model';
 import {ONBOARDING_COLLECTION,ONBOARDING_STEPS,parseOnboardingRequest,type OnboardingRequest} from './model';
@@ -24,9 +25,19 @@ export async function listInstrumentOnboarding(db:Firestore,cursor?:string,now=D
       query=query.startAfter(previous);
     }else query=query.startAfter(cursor);
   }
-  const page=await query.get(),selected=page.docs.slice(0,25);
+  let entries;
+  if((filter==='ALL'||filter==='SUPPORTED')&&usesHistoryCatalog()){
+    const {catalog,page}=await db.runTransaction(async tx=>({
+      catalog:await completedCatalog(db,tx),page:await tx.get(query),
+    }),{readOnly:true});
+    const archived=catalog?await completedPage(catalog,cursor,26):[];
+    const merged=new Map(archived.map(row=>[row.id,row]));
+    for(const doc of page.docs)merged.set(doc.id,{id:doc.id,data:doc.data()});
+    entries=[...merged.values()].sort((a,b)=>Buffer.compare(Buffer.from(a.id),Buffer.from(b.id)));
+  }else entries=(await query.get()).docs.map(doc=>({id:doc.id,data:doc.data()}));
+  const selected=entries.slice(0,25);
   if(!selected.length)return {items:[],nextCursor:null};
-  const requests=selected.map(doc=>{const row=parseOnboardingRequest(doc.data());if(row.instrumentId!==doc.id)throw Error('Request identity mismatch');return row;});
+  const requests=selected.map(doc=>{const row=parseOnboardingRequest(doc.data);if(row.instrumentId!==doc.id)throw Error('Request identity mismatch');return row;});
   const refs=requests.flatMap(row=>[db.collection('instruments').doc(row.instrumentId),db.collection('companies').doc(row.companyId)]);
   const records=await db.getAll(...refs);
   return {items:requests.map((request,index)=>{
@@ -35,5 +46,5 @@ export async function listInstrumentOnboarding(db:Firestore,cursor?:string,now=D
       companyStatus:String(company.onboarding?.status??'DIRECTORY'),instrumentStatus:String(instrument.onboarding?.status??'DIRECTORY'),
       step:ONBOARDING_STEPS.find(step=>request.steps[step]!=='COMPLETE')??null,
       canRetry:request.status!=='SUPPORTED'&&Boolean(request.lastError)&&request.leaseExpiresAt<=now};
-  }),nextCursor:page.docs.length>25?selected.at(-1)!.id:null};
+  }),nextCursor:entries.length>25?selected.at(-1)!.id:null};
 }

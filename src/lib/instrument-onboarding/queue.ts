@@ -1,3 +1,4 @@
+import {archiveCompletion,completedRequest} from './completed-history';
 import {isDuplicateLease,onboardingLeaseOwner} from './delivery-lease';
 import {isDeepStrictEqual} from 'node:util';
 import {Timestamp,type Firestore,type Transaction} from 'firebase-admin/firestore';
@@ -40,8 +41,9 @@ export async function requestInstrumentOnboarding(db:Firestore,id:string,request
     const record=inst.exists?validateInstrument(inst.data() as Instrument):instrumentFromCompany(listing,source,companyId);
     if(!record||record.companyId!==companyId||record.providerSymbols.youanalyst!==listing)throw new OnboardingBlocked('Instrument company link changed');
     instrumentOnboardingIdentity(record,company);
-    if(saved.exists){
-      const current=parseOnboardingRequest(saved.data());if(current.instrumentId!==id||current.companyId!==companyId)throw new OnboardingBlocked('Onboarding identity mismatch');
+    const existingRequest=saved.exists?saved.data():await completedRequest(db,tx,id);
+    if(existingRequest){
+      const current=parseOnboardingRequest(existingRequest);if(current.instrumentId!==id||current.companyId!==companyId)throw new OnboardingBlocked('Onboarding identity mismatch');
       // Keep the original requester represented for staged/older job documents.
       if(current.requestedByUid!==null){
         const originalRef=ref.collection(REQUESTERS_COLLECTION).doc(requesterId(current.requestedByUid));
@@ -140,7 +142,9 @@ export async function processInstrumentOnboarding(db:Firestore,id:string,handler
       if(done&&(!isSupportedCompany(fresh.company)||step!=='verify'))throw Error('Company must be ready before instrument admission');
       if(done&&onboardingTargetThrough(fresh.instrument,fresh.company,new Date(clock()))>current.targetThrough)throw Error('Onboarding needs a latest-session catchup');
       const retained=options.retainLease&&!done;
-      tx.set(ref,{...current,steps,status:done?'SUPPORTED':retained?'PROCESSING':'QUEUED',attemptCount:0,nextAttemptAt:0,leaseOwner:retained?owner:null,leaseExpiresAt:retained?current.leaseExpiresAt:0,lastError:null,updatedAt:new Date(clock()).toISOString()});
+      const next={...current,steps,status:done?'SUPPORTED':retained?'PROCESSING':'QUEUED',attemptCount:0,nextAttemptAt:0,leaseOwner:retained?owner:null,leaseExpiresAt:retained?current.leaseExpiresAt:0,lastError:null,updatedAt:new Date(clock()).toISOString()};
+      if(done && await archiveCompletion(db,tx,{id,data:next}))tx.delete(ref);
+      else tx.set(ref,next);
       tx.update(db.collection('instruments').doc(id),{onboarding:onboardingSummary(done?'SUPPORTED':'PROCESSING',clock(),current.requestedAt,fresh.instrument.onboarding),updatedAt:Timestamp.fromMillis(clock())});
       if(step==='events'&&COMPANY_STEPS.every(key=>steps[key]==='COMPLETE')&&!isSupportedCompany(fresh.company))tx.update(db.collection('companies').doc(current.companyId),{onboarding:onboardingSummary('SUPPORTED',clock(),current.requestedAt,fresh.company.onboarding),updatedAt:Timestamp.fromMillis(clock())});
     });

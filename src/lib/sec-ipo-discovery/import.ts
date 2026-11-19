@@ -1,3 +1,4 @@
+import {completedRequest} from '../instrument-onboarding/completed-history';
 import {createHash} from 'node:crypto';
 import {Timestamp,type Firestore} from 'firebase-admin/firestore';
 import {normalizedCik} from '../industry-classification/sec';
@@ -19,6 +20,7 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
   const legacy=`US:${listing.symbol}`,id=instrumentId(legacy),sourceRef=db.collection('companies').doc(legacy),instRef=db.collection('instruments').doc(id),requestRef=db.collection(ONBOARDING_COLLECTION).doc(id);
   return db.runTransaction(async tx=>{
     const [issuer,claim,source,inst,request]=await tx.getAll(issuerRef,claimRef,sourceRef,instRef,requestRef);
+    const savedRequest=request.exists?request.data():await completedRequest(db,tx,id);
     const bare=String(Number(listing.cik));
     const variants=[Number(bare),...Array.from({length:11-bare.length},(_,i)=>bare.padStart(bare.length+i,'0'))];
     const matches=await tx.get(db.collection('companies').where('cik','in',variants));
@@ -37,7 +39,7 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
     if(!companyId||companyId.includes('/'))throw new IpoIdentityReview('Invalid issuer claim');
     const ownerRef=db.collection('companies').doc(companyId),owner=await tx.get(ownerRef);
     if(owner.exists&&(storedCik(owner.get('cik'))!==listing.cik||owner.get('supersededByCompanyId')||owner.get('isDeleted')||owner.get('listingStatus')==='PRIVATE'||!['DIRECTORY','PUBLISHED'].includes(owner.get('status'))))throw new IpoIdentityReview('Issuer is not eligible for automatic onboarding');
-    if(!owner.exists&&(companyId!==legacy||inst.exists||request.exists||issuer.exists||claim.exists))throw new IpoIdentityReview('Existing listing identity references a missing company');
+    if(!owner.exists&&(companyId!==legacy||inst.exists||savedRequest||issuer.exists||claim.exists))throw new IpoIdentityReview('Existing listing identity references a missing company');
     if(claim.exists&&(claim.get('companyId')!==companyId||claim.get('instrumentId')!==id))throw new IpoIdentityReview('Listing identity claim conflict');
     const at=new Date(now).toISOString(),stamp=Timestamp.fromMillis(now);
     const fresh={name:listing.name,symbol:listing.symbol,cik:listing.cik,status:'DIRECTORY',market:'US',micCode:listing.exchangeMic,exchange_region:'US',source:'SEC IPO discovery',lastSyncedAt:at};
@@ -47,11 +49,11 @@ export async function importConfirmedIpo(db:Firestore,listing:Listing,filings:Fi
     try{record=inst.exists?validateInstrument(inst.data() as Instrument):instrumentFromCompany(legacy,source.exists?source.data()!:fresh,companyId)!;}
     catch{throw new IpoIdentityReview('Stored instrument requires review');}
     if(!record||record.companyId!==companyId||record.symbol!==listing.symbol||record.providerSymbols.youanalyst!==legacy||record.exchangeMic&&record.exchangeMic!==listing.exchangeMic||record.status==='DELISTED'||(inst.exists&&inst.get('isDeleted')))throw new IpoIdentityReview('Existing instrument identity requires review');
-    if(request.exists){
-      let current;try{current=parseOnboardingRequest(request.data());}catch{throw new IpoIdentityReview('Stored onboarding request requires review');}
+    if(savedRequest){
+      let current;try{current=parseOnboardingRequest(savedRequest);}catch{throw new IpoIdentityReview('Stored onboarding request requires review');}
       if(current.companyId!==companyId||current.instrumentId!==id)throw new IpoIdentityReview('Onboarding identity mismatch');
     }
-    const enqueue=!request.exists&&!(isSupportedCompany(company)&&record.onboarding?.status==='SUPPORTED');
+    const enqueue=!savedRequest&&!(isSupportedCompany(company)&&record.onboarding?.status==='SUPPORTED');
     const intent=enqueue?createSecIpoOnboardingRequest(id,record,company,new Date(now)):null;
     if(!owner.exists)tx.create(ownerRef,{...fresh,createdAt:stamp,updatedAt:stamp,...(intent?{onboarding:onboardingSummary('QUEUED',now,at)}:{})});
     if(!source.exists&&companyId!==legacy)tx.create(sourceRef,{...fresh,supersededByCompanyId:companyId,createdAt:stamp,updatedAt:stamp});
