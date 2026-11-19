@@ -38,6 +38,16 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
   return evaluated.exports as typeof import('../../src/lib/intelligence/service');
 }
 
+test('directory bootstrap reads the graph structure without loading Parquet valuations',async()=>{
+  let valuationCalls=0;
+  const service=await isolated(async()=>feed(),{valuations:async graph=>{valuationCalls++;return graph;}});
+  const directory=await service.loadIntelligenceUniverse(now,'ai',true);
+  assert.deepEqual(directory.graph.nodes,graph.nodes);
+  assert.equal(valuationCalls,0);
+  await service.loadIntelligenceUniverse(now,'ai');
+  assert.equal(valuationCalls,1);
+});
+
 test('feed starts graph work without waiting for source data and shares it with bootstrap',async()=>{
   let releaseFeed!:(value:CachedFeed)=>void,releaseGraph!:(value:KnowledgeGraph)=>void,graphCalls=0;
   const feedGate=new Promise<CachedFeed>(resolve=>{releaseFeed=resolve;});

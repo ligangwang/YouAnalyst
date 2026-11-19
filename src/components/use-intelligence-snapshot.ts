@@ -57,12 +57,12 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     // a complete feed or a response belonging to another theme/company.
     let universeRequest:Promise<IntelligenceSnapshot>|undefined;
     const universe=()=>universeRequest??=(async()=>{
-      const response=await intelligenceRequest(`/api/intelligence?theme=${theme}&section=universe&graph=compact`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
+      const response=await intelligenceRequest(`/api/intelligence?theme=${theme}&section=universe&graph=compact&view=structure`,{cache:'no-store',signal:AbortSignal.any([universeController.signal,AbortSignal.timeout(15_000)])});
       if(!response.ok)throw Error('Graph unavailable');
       const data=decodeIntelligenceSnapshot(await response.json());
       if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw Error('Invalid graph');
       const previous=graphs.current.get(theme);
-      if(!previous||Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
+      if(!previous||(bootstrapRequired.current&&Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt)))graphs.current.set(theme,data);
       return data;
     })().catch(error=>{universeRequest=undefined;throw error;});
     if (bootstrapRequired.current) {
@@ -83,7 +83,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       const timeoutMs = cachedFeed && !cachedFeed.eventsPending ? 15_000 : 40_000;
       const timeout = setTimeout(() => controller?.abort(), timeoutMs);
       try {
-        const url=`/api/intelligence?theme=${theme}&graph=omit${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
+        const url=`/api/intelligence?theme=${theme}&graph=${bootstrapRequired.current?'compact':'omit'}${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
         const response=await intelligenceRequest(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
         if (!response.ok&&response.status!==304) throw new Error();
@@ -118,7 +118,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         if ((data.theme ?? 'ai') !== theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt) throw new Error();
         if (isCurrentTheme()) {
           const cachedGraph=graphs.current.get(theme);
-          if(repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
+          if(bootstrapRequired.current||repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
           const old = themeSnapshots.current.get(theme);
           // Preserve the graph object on unchanged polls so camera tours continue.
           const next = old?.graphVersion === data.graphVersion ? { ...data, graph: old.graph } : data;
