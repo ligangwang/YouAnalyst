@@ -563,8 +563,12 @@ export class MarketRepository {
             && steps.some(step => step.method === 'where' && searchFields.includes(fieldName(step.args[0])));
         // Search reads the same immutable Parquet heads whichever retained snapshot arrives.
         // Start both loads together on a miss so a new instance pays the longer wait only once.
+        // A capped directory search can query each retained root directly on a cold
+        // instance. Reuse a warm view, but reserve full listener bootstrap for broad reads.
+        const boundedSearch = directoryLookup && this.nativeQuerySteps(collection, steps, operational)
+            .some(step => step.method === 'limit' && Number(step.args[0]) <= 50);
         const [companyView, earlyCandidates] = await Promise.all([
-            collection === 'companies' ? this.retainedStore.companies(context, true) : undefined,
+            collection === 'companies' ? this.retainedStore.companies(context, !boundedSearch) : undefined,
             directoryLookup ? externalCandidates() : undefined,
         ]);
         // Selecting candidates only needs predicate/order fields. Decoding all
