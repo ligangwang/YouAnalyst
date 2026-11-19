@@ -88,6 +88,7 @@ export class MarketRepository {
         error: (error: unknown) => void;
     }>>();
     private queriedPublishedGraph = false;
+    private queriedThemeMembership = false;
     constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
         this.retainedStore=new RetainedStore(raw,stagedRetained,ids=>{
             const shards=new Set(ids.map(shardFor));
@@ -573,9 +574,15 @@ export class MarketRepository {
         const firstGraphRead = !context && !this.queriedPublishedGraph && collection === 'companies'
             && onlyRetained && !!projection && steps.some(step => step.method === 'where'
                 && step.args[0] === 'inGraph.status' && step.args[1] === '==' && step.args[2] === 'PUBLISHED');
+        // The theme subscription can follow the graph subscription on the same
+        // cold instance. Its first lookup already has an indexed array predicate.
+        const firstThemeRead = !context && !this.queriedThemeMembership && collection === 'companies'
+            && !!projection && this.nativeQuerySteps(collection, steps, operational).some(step => step.method === 'where'
+                && step.args[0] === 'themeIds' && step.args[1] === 'array-contains');
+        if (firstThemeRead) this.queriedThemeMembership = true;
         if (firstGraphRead) this.queriedPublishedGraph = true;
         const [companyView, earlyCandidates] = await Promise.all([
-            collection === 'companies' ? this.retainedStore.companies(context, !boundedSearch && !firstGraphRead) : undefined,
+            collection === 'companies' ? this.retainedStore.companies(context, !boundedSearch && !firstGraphRead && !firstThemeRead) : undefined,
             directoryLookup ? externalCandidates() : undefined,
         ]);
         // Selecting candidates only needs predicate/order fields. Decoding all

@@ -66,5 +66,10 @@ test('capped symbol searches reuse a warm company view without starting the full
         assert.deepEqual(rows,[]);
         repo.invalidate('companies');
     }
-    assert.deepEqual(starts,[false,true,false,true]);
+    for (let n=0;n<2;n++) {
+        const rows=await repo.query('companies',[{method:'select',args:['name']},{method:'where',args:['themeIds','array-contains','ai']}]);
+        assert.deepEqual(rows,[]);
+        repo.invalidate('companies');
+    }
+    assert.deepEqual(starts,[false,true,false,true,false,true]);
 });
