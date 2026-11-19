@@ -12,6 +12,8 @@ function run(script: string, extra: Record<string, string> = {}) {
       gcloud() {
         echo "$*" >> "$CALLS"
         case "$*" in
+          "storage cat gs://demo-snapshots/worker-state/v1/fundamentals/handoff.json") echo '{"version":1,"bucket":"demo-snapshots","generations":{"sec":"1","cn":"2"}}' ;;
+          "storage objects describe gs://demo-snapshots/worker-state/v1/fundamentals/sec.json"|"storage objects describe gs://demo-snapshots/worker-state/v1/fundamentals/cn.json") ;;
           "storage buckets describe gs://demo-snapshots"*|"storage buckets describe gs://fallback"*) [[ "\${MISSING_SNAPSHOT:-0}" != 1 ]] || return 1 ;;
           "storage buckets get-iam-policy"*)
             [[ "$*" != *"--filter"* ]] || return 2

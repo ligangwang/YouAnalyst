@@ -1,6 +1,6 @@
+import {financialControl, acquireWorker, releaseWorker, type WorkerControl} from "./worker-control";
 import type {Firestore} from 'firebase-admin/firestore';
 import {parseCompanyWorkRequest,processCompanyRun,processCompanyWork,type CompanyWorkRequest} from '../company-work-queue';
-import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
 import type {MaintenanceLog} from '../maintenance-log';
 import {publishJobMessage} from '../job-pubsub';
 import {digest} from './pubsub';
@@ -34,19 +34,19 @@ export async function queueMarketCapRefresh(db:Firestore,execution:string,ticker
 }
 export async function processMarketCapMessage(value:MarketCapMessage,db:Firestore,log:MaintenanceLog,
   publish:(message:MarketCapMessage)=>Promise<unknown>=message=>publishJobMessage(process.env.FUNDAMENTALS_REQUEST_TOPIC||'sec-fundamentals-requests',message),
-  refresh=refreshCompanyMarketCaps){
+  refresh=refreshCompanyMarketCaps, control?:WorkerControl){
   const request=parseMarketCapMessage(value),state=db.collection(FUNDAMENTALS_COLLECTION).doc('_marketcap_pipeline');
   if(request.type==='company.work.requested')return processCompanyWork<MarketCapRunRequest>(request,{
     db,parent:parentRef(db,request.parentBatchId),state,collection:FUNDAMENTALS_COLLECTION,owner:log.runId,publish,
     work:async()=>{
       // Preserve exclusion with SEC refreshes while using the existing subscriber.
-      const worker=db.collection(FUNDAMENTALS_COLLECTION).doc('_worker');
-      if(!await acquireMaintenanceLease(worker,log.runId))throw Error('Fundamentals refresh is active');
+      const worker=control??financialControl('sec');
+      if(!await acquireWorker(worker,log.runId))throw Error('Fundamentals refresh is active');
       try{
         const result=await refresh(db,log,[usFundamentalsTicker(request.companyId)!]);
         if(result.failed)throw Error('Company market-cap refresh incomplete');
         return null;
-      }finally{await releaseMaintenanceLease(worker,log.runId);}
+      }finally{await releaseWorker(worker,log.runId);}
     },
   });
   return processCompanyRun(request,{

@@ -13,6 +13,7 @@ const rawClients=new Set([
     'scripts/finalize-market-parquet.ts','scripts/migrate-market-parquet.ts',
     'scripts/migrate-read-optimization.ts',
     'scripts/sync-entity-snapshots.ts',
+    'scripts/handoff-fundamentals-controls.ts', // One-time operator fence on the two physical legacy records.
     'scripts/migrate-retained-state.ts','scripts/archive-fundamentals-receipts.ts',
 ]);
 test('direct REST market access requires an explicitly reviewed boundary',()=>{

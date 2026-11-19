@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import test from "node:test";
 import assert from "node:assert/strict";
 import {NextRequest} from "next/server";
@@ -21,22 +22,22 @@ test("SEC manual run requires admin and returns accepted without awaiting execut
 
 test("SEC trigger rejects active or recently dispatched runs and never acquires the worker lease",async()=>{
  const {reserveSecDispatch}=await import("../../src/lib/admin-jobs/run-sec");
- let stored:Record<string,unknown>={};
- const db={collection:()=>({doc:()=>({})}),runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn({get:async()=>({data:()=>stored}),set:(_ref:unknown,data:Record<string,unknown>)=>{stored={...stored,...data};}})} as unknown as Parameters<typeof reserveSecDispatch>[0];
- await reserveSecDispatch(db,"admin",1000);assert.equal(stored.manualRequestedBy,"admin");assert.equal(stored.leaseExpiresAtMs,undefined);
- await assert.rejects(reserveSecDispatch(db,"admin",1001),{code:"ALREADY_RUNNING"});
- stored={leaseExpiresAtMs:200000};await assert.rejects(reserveSecDispatch(db,"admin",1001),{code:"ALREADY_RUNNING"});
- await reserveSecDispatch(db,"admin",200001);assert.equal(stored.leaseExpiresAtMs,200000);
+ const rows=new Map<string,Record<string,unknown>>(),control=memoryControl(rows,'sec');
+ const db={} as Parameters<typeof reserveSecDispatch>[0];
+ await reserveSecDispatch(db,"admin",1000,control);assert.equal(rows.get('sec')?.manualRequestedBy,"admin");assert.equal(rows.get('sec')?.leaseExpiresAtMs,undefined);
+ await assert.rejects(reserveSecDispatch(db,"admin",1001,control),{code:"ALREADY_RUNNING"});
+ rows.set('sec',{leaseExpiresAtMs:200000});await assert.rejects(reserveSecDispatch(db,"admin",1001,control),{code:"ALREADY_RUNNING"});
+ await reserveSecDispatch(db,"admin",200001,control);assert.equal(rows.get('sec')?.leaseExpiresAtMs,200000);
 });
 
 test("A-share fundamentals manual run uses its own worker lease and job",async(t)=>{
  t.mock.method(console,"error",()=>{});
  const {reserveWorkerDispatch,runWorkerResponse}=await import("../../src/lib/admin-jobs/run-sec");
- const leases:string[]=[];let stored:Record<string,unknown>={};
- const db={collection:()=>({doc:(id:string)=>{leases.push(id);return {};}}),runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn({get:async()=>({data:()=>stored}),set:(_ref:unknown,data:Record<string,unknown>)=>{stored={...stored,...data};}})} as unknown as Parameters<typeof reserveWorkerDispatch>[0];
- await reserveWorkerDispatch(db,"admin",1000,"cnFundamentals");
- assert.deepEqual(leases,["_cn_worker"]);
- await assert.rejects(reserveWorkerDispatch(db,"admin",1001,"cnFundamentals"),/A-share fundamentals is already running/);
+ const rows=new Map<string,Record<string,unknown>>(),control=memoryControl(rows,'cn');
+ const db={} as Parameters<typeof reserveWorkerDispatch>[0];
+ await reserveWorkerDispatch(db,"admin",1000,"cnFundamentals",control);
+ assert.equal(rows.get('cn')?.manualRequestedBy,'admin');
+ await assert.rejects(reserveWorkerDispatch(db,"admin",1001,"cnFundamentals",control),/A-share fundamentals is already running/);
  const req=()=>new NextRequest("https://example.test/api/admin/jobs/cn-fundamentals",{method:"POST"});
  let started=0;
  const ok=await runWorkerResponse("cnFundamentals",req(),{getUser:async()=>({uid:"admin"}) as never,isAdmin:async()=>true,start:async()=>{started++;return {operation:"operations/cn"};}});

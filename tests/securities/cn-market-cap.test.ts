@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -212,10 +213,11 @@ test("suspended stocks use their last close, labelled with its own date", () => 
   assert.equal(publicCnMarketCap({ ...cap, shares: { ...cap.shares, sourceUrl: "javascript:alert(1)" } })?.status, "unavailable");
 });
 
+const controls=new WeakMap<Firestore,Map<string,Record<string,unknown>>>();
 const financialStores = new WeakMap<Firestore, Record<string, Record<string, unknown>>>();
 function refreshCnFundamentals(options: CnRunOptions) {
   const financials = financialStores.get(options.db)!;
-  return runWorker({...options,
+  return runWorker({...options, control:memoryControl(controls.get(options.db)!,"cn-control"),
     readFinancials: async (_db, ids) => ids.map(id => financials[id]),
     publishMarketCap: async (_db, id, calculate) => {
       financials[id] = {...financials[id], marketCap: calculate(financials[id] ?? {})};
@@ -238,6 +240,7 @@ function memoryDb(docs: Record<string, Record<string, unknown>>, prices: Record<
       set: (r: { id: string }, value: Record<string, unknown>) => { writes.push([r.id, value]); docs[r.id] = { ...docs[r.id], ...value }; },
     }),
   } as unknown as Firestore;
+  controls.set(db,new Map());
   financialStores.set(db, docs);
   return { db, writes };
 }
@@ -289,7 +292,7 @@ test("job keeps old data on provider failure, applies cooldowns, and honours per
   assert.deepEqual(stored.cnShares, previous);
   assert.equal(stored.cnShareStatus.outcome, "retry");
   assert.ok(Number(stored.cnShareStatus.retryAfter) > NOW.getTime());
-  assert.ok(Number(((await db.collection("company_fundamentals").doc("_cn_worker").get()).data() as { providerRetryAfter: Record<string, number> }).providerRetryAfter.www_cninfo_com_cn) > NOW.getTime());
+  assert.ok(Number((controls.get(db)!.get("cn-control") as { providerRetryAfter: Record<string, number> }).providerRetryAfter.www_cninfo_com_cn) > NOW.getTime());
   // The previous count still values the company; the next run respects the cooldown.
   assert.equal((stored.marketCap as { status: string }).status, "estimated");
   await refreshCnFundamentals({ db, log, sources: blocked, companies: ["XSHG:688981"], deadline: Date.now() + 600_000, now: () => NOW });

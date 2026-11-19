@@ -30,6 +30,7 @@ function run(target:string,extra:Record<string,string>={}) {
           done
         fi
         case "$*" in
+          "storage cat gs://"*"/worker-state/v1/fundamentals/handoff.json") node -e 'console.log(JSON.stringify({version:1,bucket:process.env.ENTITY_SNAPSHOT_BUCKET||process.env.EODHD_BULK_EOD_BUCKET,generations:{sec:"1",cn:"2"}}))' ;;
           "run revisions describe cn-company-discovery-subscriber-"*|"run revisions describe news-source-subscriber-"*)
             node -e 'console.log(JSON.stringify({metadata:{name:process.env.DISCOVERY_RELEASE_REVISION},spec:{serviceAccountName:process.env.DISCOVERY_RELEASE_ACCOUNT,containers:[{image:process.env.DISCOVERY_RELEASE_IMAGE,command:["node"],args:["dist/"+process.env.DISCOVERY_RELEASE_BUNDLE+".cjs"],env:[{name:"GIT_SHA",value:process.env.GIT_SHA}]}]},status:{conditions:[{type:"Ready",status:"True"}]}}))' ;;
           "run services describe cn-company-discovery-subscriber"*|"run services describe news-source-subscriber"*)

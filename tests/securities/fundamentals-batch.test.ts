@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
@@ -47,7 +48,7 @@ function queueFixture(data: Map<string, Record<string, unknown>>) {
     return query;
   } }) } as unknown as Firestore;
   const log = {emit:()=>undefined} as unknown as MaintenanceLog;
-  return {db,log};
+  return {db,log,control:memoryControl(data,"_worker")};
 }
 
 test("fresh legacy fundamentals reach the share upgrade worker while completed assessments and retry cooldowns wait", async () => {
@@ -56,9 +57,9 @@ test("fresh legacy fundamentals reach the share upgrade worker while completed a
     ["US:MU", {pending:true,outcome:"ready",value:{shareAssessment:{basis:null,reason:"unsupported"}},refreshAfter:Date.now()+86400000}],
     ["US:NVDA", {pending:true,outcome:"retry",value:{fetchedAt:"2026-09-21"},refreshAfter:Date.now()+3600000}],
   ]);
-  const {db,log}=queueFixture(data);
+  const {db,log,control}=queueFixture(data);
   const refreshed:string[]=[];
-  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async ticker=>{refreshed.push(ticker);data.set(`US:${ticker}`,{pending:false});return null;});
+  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async ticker=>{refreshed.push(ticker);data.set(`US:${ticker}`,{pending:false});return null;},control);
   assert.deepEqual(refreshed,["AMD"]);
   assert.equal(result.processed,1);
   assert.equal(result.deferred,2);
@@ -67,22 +68,22 @@ test("fresh legacy fundamentals reach the share upgrade worker while completed a
 
 test("queue pagination does not skip requests when completed entries disappear", async () => {
   const data = new Map(Array.from({length:105},(_,i)=>[`US:T${String(i).padStart(3,"0")}`,{pending:true}]));
-  const {db,log} = queueFixture(data);
-  const result = await drainFundamentalsQueue(db,log,Date.now()+10000,async ticker=>{data.set(`US:${ticker}`,{pending:false});return null;});
+  const {db,log,control} = queueFixture(data);
+  const result = await drainFundamentalsQueue(db,log,Date.now()+10000,async ticker=>{data.set(`US:${ticker}`,{pending:false});return null;},control);
   assert.equal(result.processed,105);
   assert.equal(result.remaining,0);
 });
 
 test("rate-limit responses stop the batch and leave untouched requests queued", async () => {
   const data = new Map<string,Record<string,unknown>>([ ["US:AMD", {pending:true}], ["US:MU", {pending:true}] ]);
-  const {db,log} = queueFixture(data);
+  const {db,log,control} = queueFixture(data);
   let calls=0;
-  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;throw Object.assign(new Error("SEC status 429"),{code:429});});
+  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;throw Object.assign(new Error("SEC status 429"),{code:429});},control);
   assert.equal(calls,1);
   assert.equal(result.failed,1);
   assert.equal(result.remaining,2);
   data.set("US:AAPL",{pending:true});
-  const retried=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;return null;});
+  const retried=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;return null;},control);
   assert.equal(calls,1);
   assert.equal(retried.failed,1);
   assert.equal(retried.remaining,3);
@@ -93,9 +94,9 @@ test("a saved per-company SEC block stops a retry before other queued tickers", 
     ["US:AMD", {pending:true,outcome:"retry",refreshAfter:Date.now()+3600000,lastError:{code:403}}],
     ["US:MU", {pending:true}],
   ]);
-  const {db,log}=queueFixture(data);
+  const {db,log,control}=queueFixture(data);
   let calls=0;
-  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;return null;});
+  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;return null;},control);
   assert.equal(calls,0);
   assert.equal(result.failed,1);
   assert.ok(Number(data.get("_worker")?.providerRetryAfter)>Date.now());
@@ -103,8 +104,8 @@ test("a saved per-company SEC block stops a retry before other queued tickers", 
 
 test("a retry during provider cooldown still reports the unresolved failure", async () => {
   const data = new Map([ ["US:AMD", {pending:true,outcome:"retry",refreshAfter:Date.now()+3600000}] ]);
-  const {db,log} = queueFixture(data);
-  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{throw Error("should not fetch during cooldown");});
+  const {db,log,control} = queueFixture(data);
+  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{throw Error("should not fetch during cooldown");},control);
   assert.equal(result.failed,1);
   assert.equal(result.deferred,1);
   assert.equal(result.remaining,0);
@@ -114,11 +115,11 @@ test("a retry during provider cooldown still reports the unresolved failure", as
 test("US queue excludes legacy copies, CN companies and operational records", async () => {
   const data = new Map([ ["AMD", {pending:true}], ["US:AMD", {pending:true}],
     ["XSHG:688041", {pending:true}], ["_worker_receipt", {pending:true}] ]);
-  const {db,log} = queueFixture(data);
+  const {db,log,control} = queueFixture(data);
   const calls: string[] = [];
   const result = await drainFundamentalsQueue(db,log,Date.now()+10000,async ticker=>{
     calls.push(ticker);data.set(`US:${ticker}`,{pending:false});return null;
-  });
+  },control);
   assert.deepEqual(calls,["AMD"]);
   assert.equal(result.remaining,0);
   assert.equal(data.get("AMD")?.pending,true);

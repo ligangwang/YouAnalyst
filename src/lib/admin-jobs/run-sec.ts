@@ -3,30 +3,36 @@ import { GoogleAuth } from "google-auth-library";
 import { getDecodedUserFromRequest } from "../firebase/auth";
 import { isAdminUser } from "../firebase/admin-role";
 import { getAdminFirestore } from "../firebase/admin";
-import { FUNDAMENTALS_COLLECTION } from "../fundamentals/service";
+import { financialControl, type WorkerControl } from "../fundamentals/worker-control";
 import { maintenanceError } from "../maintenance-log";
 import { scheduledJobs } from "./model";
 
 // Manually runnable Cloud Run workers and the lease document each one holds.
 const workers = {
   directory: { lease: "CN_A_CNI", label: "China company directory", event: "admin_directory_job" },
-  fundamentals: { lease: "_worker", label: "SEC fundamentals", event: "admin_sec_job" },
-  cnFundamentals: { lease: "_cn_worker", label: "A-share fundamentals", event: "admin_cn_fundamentals_job" },
+  fundamentals: { label: "SEC fundamentals", event: "admin_sec_job" },
+  cnFundamentals: { label: "A-share fundamentals", event: "admin_cn_fundamentals_job" },
 } as const;
 export type WorkerJob = keyof typeof workers;
 
-export async function reserveWorkerDispatch(db: ReturnType<typeof getAdminFirestore>, uid: string, now = Date.now(), job: WorkerJob = "fundamentals") {
-  const ref = db.collection(job === "directory" ? "directory_syncs" : FUNDAMENTALS_COLLECTION).doc(workers[job].lease);
-  // Separate from the execution lease: the worker must still acquire its own lock.
-  const accepted = await db.runTransaction(async tx => {
-    const current = (await tx.get(ref)).data();
-    if (Number(current?.leaseExpiresAtMs) > now || Number(current?.manualDispatchUntil) > now) return false;
-    tx.set(ref, {manualDispatchUntil:now+120_000,manualRequestedBy:uid,manualRequestedAt:new Date(now).toISOString()}, {merge:true});
-    return true;
-  });
+export async function reserveWorkerDispatch(db: ReturnType<typeof getAdminFirestore>, uid: string, now = Date.now(), job: WorkerJob = "fundamentals", control?:WorkerControl) {
+  const patch={manualDispatchUntil:now+120_000,manualRequestedBy:uid,manualRequestedAt:new Date(now).toISOString()};
+  const busy=(current?:FirebaseFirestore.DocumentData)=>Number(current?.leaseExpiresAtMs)>now || Number(current?.manualDispatchUntil)>now;
+  let accepted:boolean;
+  if(job==='directory'){
+    const ref=db.collection('directory_syncs').doc(workers.directory.lease);
+    accepted=await db.runTransaction(async tx=>{
+      if(busy((await tx.get(ref)).data()))return false;
+      tx.set(ref,patch,{merge:true});
+      return true;
+    });
+  }else{
+    const worker=control??financialControl(job==='fundamentals'?'sec':'cn');
+    accepted=await worker.change(state=>busy(state)?{result:false}:{result:true,next:{...state,...patch}});
+  }
   if (!accepted) throw Object.assign(new Error(`${workers[job].label} is already running or was recently requested.`), {code:"ALREADY_RUNNING"});
 }
-export const reserveSecDispatch = (db: ReturnType<typeof getAdminFirestore>, uid: string, now = Date.now()) => reserveWorkerDispatch(db, uid, now, "fundamentals");
+export const reserveSecDispatch = (db: ReturnType<typeof getAdminFirestore>, uid: string, now = Date.now(), control?:WorkerControl) => reserveWorkerDispatch(db, uid, now, "fundamentals",control);
 
 export async function startWorkerJob(job: WorkerJob, uid: string) {
   const project = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;

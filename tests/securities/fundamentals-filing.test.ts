@@ -1,3 +1,4 @@
+import {memoryControl} from '../helpers/worker-control';
 import { rerunFundamentalsBatch } from '../../src/lib/fundamentals/admin-rerun';
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,7 +37,7 @@ function fixture() {
   };
   const refresh: typeof refreshCompanyFundamentals = (ticker, input) => refreshCompanyFundamentals(ticker,
     { ...input!, identify: async () => filing.cik, readJson });
-  const dependencies = { refresh, marketCaps: async () => ({ processed: 1, failed: 0 }) };
+  const dependencies = { control:memoryControl(rows,"sec-control"), refresh, marketCaps: async () => ({ processed: 1, failed: 0 }) };
   return { rows, db, log, before, events, dependencies, reads: () => reads,
     available: (value: boolean) => { available = value; },
     publish: async (event: FundamentalsUpdate) => { events.push(event); },
@@ -94,7 +95,7 @@ test("filing result publication resumes from the saved outbox without another SE
 
 test("filing requests preserve global SEC provider cooldowns", async () => {
   const f = fixture();
-  f.rows.set("company_fundamentals/_worker", { providerRetryAfter: Date.now() + 3600000 });
+  f.rows.set("sec-control", { providerRetryAfter: Date.now() + 3600000 });
   assert.equal((await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies)).status,'needs_admin');
   assert.equal(f.reads(), 0);
   assert.deepEqual(f.rows.get("company_fundamentals/US:AMD")!.value, f.before);
