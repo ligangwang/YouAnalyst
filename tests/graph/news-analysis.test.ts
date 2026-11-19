@@ -170,3 +170,16 @@ test('companies named only in a headline resolve locally while evidence must rem
  const candidate=[...f.state.entries()].find(([path])=>path.startsWith('company_relationships/'))![1];assert.equal(candidate.source,'US:ANET');assert.equal(candidate.target,'US:AMD');
  assert.throws(()=>validateNewsAnalysis({relationships:[relationship]},body,companies),/evidence is absent/);
 });
+
+test('failed article download skips company discovery; valid content loads the full universe before payment',async()=>{
+ const f=fake(),g=fake();
+ let loads=0;
+ const universe=async()=>{loads++;return companies;};
+ const failed=await analyzeCollectedNews(f.db,universe,sources,{...options,records:f.records,
+   download:async()=>{throw Error('Publisher unavailable');},analyze:async()=>assert.fail()});
+ assert.equal(failed.failed,1);
+ assert.equal(loads,0);
+ const success=await analyzeCollectedNews(g.db,universe,sources,{...options,records:g.records,
+   analyze:async()=>{assert.equal(loads,1);return output();}});
+ assert.equal(success.candidates,1);
+});

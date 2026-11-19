@@ -96,9 +96,12 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
     const type=doc.get('type');
     if(type!=='company_news'&&type!=='company_disclosure')return {status:'ineligible',articleId:task.articleId};
     // Only news analysis can discover additional issuers in the article text.
-    const needsUniverse=type==='company_news'&&task.stages.includes('analysis');
-    const issuer=companyIds.length===1&&!needsUniverse?primary:undefined;
+    const issuer=companyIds.length===1?primary:undefined;
     const {graph,sources}=await (options.context?options.context():loadNewsEnrichmentContext(db,issuer));
+    const analysisCompanies=async()=>{
+      const universe=issuer&&!options.context?(await loadNewsEnrichmentContext(db)).graph:graph;
+      return universe.nodes.filter(node=>node.kind==='COMPANY');
+    };
     const mapped=new Set(graph.nodes.map(n=>n.id));
     if(!mapped.has(primary))return {status:'ineligible',articleId:task.articleId};
     const deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
@@ -118,7 +121,7 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
       if(!doc.exists||articleFingerprint(doc.data()??{})!==task.fingerprint)return {...result,status:'stale'};
       if(now()+95000>=deadline)throw new Error('Article enrichment deadline; retry remaining stages');
       const row=doc.data()!;
-      if(stage==='analysis'&&row.type==='company_news'&&Number(row.newsAnalysisNextCheckAtMs)<=now())result.analysis=await analyzeCollectedNews(db,graph.nodes.filter(n=>n.kind==='COMPANY'),sources,{records:[doc],maxCalls:1,deadline,now,download,monthlyBudgetUsd:Number(process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD??5)});
+      if(stage==='analysis'&&row.type==='company_news'&&Number(row.newsAnalysisNextCheckAtMs)<=now())result.analysis=await analyzeCollectedNews(db,analysisCompanies,sources,{records:[doc],maxCalls:1,deadline,now,download,monthlyBudgetUsd:Number(process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD??5)});
       if(stage==='headline'&&needsHeadlineTranslation(row))result.headline=await translateCollectedHeadlines(db,mapped,{records:[doc],deadline,now});
       if(stage==='calendar'&&options.calendarEnabled&&calendarCandidate(row)&&Number(row.calendarNextCheckAtMs)<=now())result.calendar=await processCalendarSource(db,{...row,id:doc.id} as CalendarSource,{sourceSnapshot:doc,now,companyCountries:new Map(graph.nodes.flatMap(n=>n.country?[[n.id,n.country] as const]:[])),download});
     }

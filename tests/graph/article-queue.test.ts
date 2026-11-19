@@ -82,7 +82,7 @@ test('calendar deferrals retire non-candidates and postpone withdrawn companies 
  assert.equal(f.rows.get(`${EVENTS_COLLECTION}/other`)![field],Number.MAX_SAFE_INTEGER);
 });
 
-test('default enrichment context reads companies once and rejects withdrawn sources on the next task',async()=>{
+test('default enrichment context checks the named issuer and rejects withdrawn sources on the next task',async()=>{
  const f=earningsFirestore();
  const feed={...sources[0],status:'PUBLISHED',reviewedAt:'2026-10-06'};
  const company={name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},newsSources:[feed]};
@@ -90,10 +90,10 @@ test('default enrichment context reads companies once and rejects withdrawn sour
  let calls=0;
  const options={enabled:true,calendarEnabled:true,now,run:async()=>{calls++;return {status:'verified'};}};
  assert.equal((await processArticleTask(task,f.db,options)).status,'verified');
- assert.equal(calls,1);assert.equal(f.queries.filter(q=>q.collection==='companies').length,1);
+ assert.equal(calls,1);assert.equal(f.queries.filter(q=>q.collection==='companies').length,0);
  f.rows.set('companies/US:AMD',{...company,newsSources:[{...feed,status:'WITHDRAWN'}]});
  assert.equal((await processArticleTask(task,f.db,options)).status,'ineligible');
- assert.equal(calls,1);assert.equal(f.queries.filter(q=>q.collection==='companies').length,2);
+ assert.equal(calls,1);assert.equal(f.queries.filter(q=>q.collection==='companies').length,0);
 });
 
 test('single-issuer disclosure checks its issuer without querying the company universe',async()=>{
