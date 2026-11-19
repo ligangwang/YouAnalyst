@@ -1,7 +1,7 @@
 import type {Firestore,DocumentData} from 'firebase-admin/firestore';
 import type {CompanyFundamentals} from '../fundamentals/model';
 import {resolveInstrumentContext} from './service';
-import {requestMissingCompanyFundamentals} from '../fundamentals/service';
+import {readUsFundamentals} from '../fundamentals/service';
 import {readPublishedFinancials} from '../market-store/runtime';
 import {readCnFundamentals} from '../fundamentals/cn-service';
 
@@ -20,7 +20,7 @@ export async function instrumentFundamentals(db:Firestore,instrumentId:string) {
   const legacy=context.historyKey,companyId=context.company.id;
   if(!legacy)return null;
   if(legacy.startsWith('US:')&&companyId.startsWith('US:')){
-    const companyValue=await requestMissingCompanyFundamentals(companyId.slice(3),db);
+    const companyValue=await readUsFundamentals(companyId.slice(3),db);
     if(!companyValue)return {instrumentId:context.instrument.id,companyId,data:null};
     if(legacy===companyId)return {instrumentId:context.instrument.id,companyId,data:companyValue};
     const stored=await readPublishedFinancials(db,legacy,['marketCap','value']);

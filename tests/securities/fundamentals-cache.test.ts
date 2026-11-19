@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refreshCompanyFundamentals } from "../../src/lib/fundamentals/worker";
-import { requestMissingCompanyFundamentals, requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
+import { readUsFundamentals, requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
 
 type Dependencies = NonNullable<Parameters<typeof refreshCompanyFundamentals>[1]>;
 function fixture(initial: Record<string, unknown> = {}) {
@@ -159,12 +159,11 @@ test('company page push cache retains transactional checks for a cached absence'
  push({docs:[]});assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),1);assert.equal(f.writes(),0);
 });
 
-test("visitor miss queues once without calling SEC", async () => {
-  const f = fixture();
-  for (let i = 0; i < 10; i++) assert.equal(await requestMissingCompanyFundamentals("AMD", f.dependencies.db, Date.now(),async()=>f.stored()), null);
-  assert.equal(f.writes(), 1);
-  assert.equal(f.stored().pending, true);
-  assert.equal(f.requests(), 0);
+test("visitor misses read only the published dataset on every request", async () => {
+  const db = new Proxy({} as ReturnType<typeof fixture>['dependencies']['db'], {
+    get() { throw Error("Unexpected Firestore access"); }
+  });
+  for (let i = 0; i < 10; i++) assert.equal(await readUsFundamentals("AMD", db, Date.now(), async()=>undefined), null);
 });
 
 test("visitor reads do not refresh existing data or retry failed/unavailable work", async () => {
@@ -175,7 +174,7 @@ test("visitor reads do not refresh existing data or retry failed/unavailable wor
     {outcome: "unavailable", requestedAt: "2020-01-01T00:00:00Z", refreshAfter: 0},
   ]) {
     const f = fixture(initial);
-    const result = await requestMissingCompanyFundamentals("AMD", f.dependencies.db, Date.now(),async()=>f.stored());
+    const result = await readUsFundamentals("AMD", f.dependencies.db, Date.now(),async()=>f.stored());
     assert.equal(f.writes(), 0);
     assert.equal(f.transactions(), 0);
     assert.equal(f.requests(), 0);

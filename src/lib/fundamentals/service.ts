@@ -18,13 +18,12 @@ export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stor
 
 // The existing cache document doubles as a durable, deduplicated request record.
 // Page reads never import the SEC worker or make provider requests.
-export async function requestCompanyFundamentals(ticker: string, db: Database, now = Date.now(), missingOnly = false) {
+export async function requestCompanyFundamentals(ticker: string, db: Database, now = Date.now()) {
   if (!validFundamentalsTicker(ticker)) return null;
   const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
   const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.isDeleted !== true && stored?.version === 1 && stored.value
     ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
   const needsRequest = (stored?: DocumentData) => stored?.isDeleted !== true && !["error", "retry"].includes(stored?.outcome) && stored?.pending !== true
-    && (!missingOnly || (!valueOf(stored) && !stored?.requestedAt))
     && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now
       || needsShareMetadataUpgrade(stored));
   const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
@@ -40,26 +39,17 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
   });
 }
 
-/** Queue missing snapshots once; only the scheduled publisher dispatches visitor work. */
-export async function requestMissingCompanyFundamentals(ticker: string, db: Database, now = Date.now(), read=readPublishedFinancials) {
+/** Public requests read the published dataset. Workers own refresh scheduling. */
+export async function readUsFundamentals(ticker: string, db: Database, now = Date.now(), read=readPublishedFinancials) {
   if(!validFundamentalsTicker(ticker))return null;
-  const id=usFundamentalsId(ticker);
-  const load=()=>read(db,id,['version','value','marketCap']);
-  let row=await load();
-  if(row?.isDeleted===true)return null;
-  if(row?.version!==1 || !row.value){
-    // A publisher can finish between the Parquet miss and queue admission.
-    // Return only the published financial payload, including in that race.
-    if(!await requestCompanyFundamentals(ticker,db,now,true))return null;
-    row=await load();
-  }
+  const row=await read(db,usFundamentalsId(ticker),['version','value','marketCap']);
   if(row?.isDeleted===true || row?.version!==1 || !row.value)return null;
   return {...row.value,...(row.marketCap?{marketCap:row.marketCap}:{}),stale:now-Date.parse(row.value.fetchedAt)>2*86_400_000} as CompanyFundamentals;
 }
 
 export async function loadCompanyFundamentals(ticker: string): Promise<CompanyFundamentals | null> {
   try {
-    return await withCompanyPageReads(()=>requestMissingCompanyFundamentals(ticker, getAdminFirestore()));
+    return await withCompanyPageReads(()=>readUsFundamentals(ticker, getAdminFirestore()));
   } catch (error) {
     console.error(JSON.stringify({ severity: "ERROR", message: "fundamentals: cache_request_failed", ticker, error: maintenanceError(error) }));
     return null;
