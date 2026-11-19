@@ -1,3 +1,4 @@
+import {completeCompaniesInParquet} from '../market-store/runtime';
 import { themeIdBatches } from '../company-themes/company-query';
 import { FieldPath, Timestamp, type Firestore, type Query, type DocumentData } from 'firebase-admin/firestore';
 import type { Collection, Row, Source, Stamp } from './store';
@@ -16,7 +17,16 @@ export function firestoreSource(db:Firestore):Source {
       if(collection==='companies'){const batches=await themeIdBatches(db);const rows=await companyRows(db.collection(collection).orderBy(FieldPath.documentId()),batches);knownThemeIds=new Set(batches.flat());return rows;}
       return collection==='company_fundamentals'?documents(collection,ids):read(db.collection(collection).orderBy(FieldPath.documentId()));
     },
-    changes:async(collection,since,through)=>{
+    changes:async(collection,since,through,priorCompanyIds)=>{
+      // Parquet rows are encoded before the catalog transaction commits. A closed
+      // updatedAt interval can miss an edit published after that interval ended.
+      if(collection==='companies' && await completeCompaniesInParquet(db)){
+        const batches=await themeIdBatches(db);
+        const companies=await companyRows(db.collection(collection).orderBy(FieldPath.documentId()),batches);
+        const present=new Set(companies.map(company=>company.id));
+        knownThemeIds=new Set(batches.flat());
+        return [...companies,...priorCompanyIds.filter(id=>!present.has(id)).map(id=>({id,data:{},deleted:true}))];
+      }
       const base=db.collection(collection).where('updatedAt','>=',stamp(since)).where('updatedAt','<=',stamp(through)).orderBy('updatedAt').orderBy(FieldPath.documentId());
       const rows:Row[]=[];
       let currentThemeIds:Set<string>|undefined;

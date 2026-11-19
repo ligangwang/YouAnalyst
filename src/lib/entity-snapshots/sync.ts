@@ -8,6 +8,7 @@ export type PriceCursor = {id: string; updatedAt?: Timestamp};
 export type PricePage = {rows: Row[]; cursor?: PriceCursor; done: boolean; reads: number};
 export interface Source {
   pricePage?(since: Timestamp | undefined, through: Timestamp, cursor: PriceCursor | undefined, limit: number): Promise<PricePage>;
+  replaceSnapshot?(collection: Collection): Promise<boolean>;
   boundary(): Promise<Timestamp>;
   pages?(collection: Collection, since: Timestamp | undefined, through: Timestamp): AsyncIterable<Row[]>;
   rows(collection: Collection, since: Timestamp | undefined, through: Timestamp): Promise<Row[]>;
@@ -23,8 +24,9 @@ export async function syncCollection(collection: Collection, source: Source, fil
   const previous = await files.load(collection);
   const through = await source.boundary();
   if(previous.snapshot && previous.snapshot.watermark.toMillis()>through.toMillis())throw Error('Snapshot watermark is in the future');
-  const changes = await source.rows(collection, previous.snapshot?.watermark, through);
-  const rows = new Map(previous.snapshot?.rows.map(row => [row.id, row]) ?? []);
+  const replace = await source.replaceSnapshot?.(collection);
+  const changes = await source.rows(collection, replace ? undefined : previous.snapshot?.watermark, through);
+  const rows = new Map((replace ? undefined : previous.snapshot)?.rows.map(row => [row.id, row]) ?? []);
   for(const row of changes) {
     if(!(row.data.updatedAt instanceof Timestamp))throw Error(`Timestamp migration required: ${collection}/${row.id}`);
     if(row.data.isDeleted===true)rows.delete(row.id);

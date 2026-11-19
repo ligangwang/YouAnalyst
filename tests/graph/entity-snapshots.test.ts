@@ -151,3 +151,13 @@ test('Firestore snapshot source refuses price scans before any database operatio
  await assert.rejects(source.rows('eod_prices',undefined,stamp(2)),/Prices are stored in Parquet/);
  assert.equal(source.pricePage,undefined);
 });
+test('complete company snapshots include late publications and remove hard-deleted IDs',async()=>{
+ let saved:Snapshot={version:1,collection:'companies',watermark:stamp(10),rows:[{id:'obsolete',data:{updatedAt:stamp(2)}}]};
+ const source:Source={
+   replaceSnapshot:async()=>true,boundary:async()=>stamp(20),
+   rows:async(_collection,since)=>{assert.equal(since,undefined);return [{id:'late',data:{updatedAt:stamp(8)}}];},
+ };
+ await syncCollection('companies',source,{load:async()=>({snapshot:saved,generation:'1'}),save:async(_collection,next)=>{saved=next;}});
+ assert.deepEqual(saved.rows.map(row=>row.id),['late']);
+ assert(saved.watermark.isEqual(stamp(20)));
+});
