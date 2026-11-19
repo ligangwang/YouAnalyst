@@ -118,7 +118,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         if ((data.theme ?? 'ai') !== theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt) throw new Error();
         if (isCurrentTheme()) {
           const cachedGraph=graphs.current.get(theme);
-          if(repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
+          if(bootstrapRequired.current||repairedGraph||!cachedGraph||Date.parse(cachedGraph.generatedAt)<=Date.parse(data.generatedAt))graphs.current.set(theme,data);
           const old = themeSnapshots.current.get(theme);
           // Preserve the graph object on unchanged polls so camera tours continue.
           const next = old?.graphVersion === data.graphVersion ? { ...data, graph: old.graph } : data;
