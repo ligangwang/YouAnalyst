@@ -54,7 +54,7 @@ export function registerObservedMarketClient(client:Firestore,observed:Firestore
     const repo=state.readers?.get(client);
     if(repo)state.readers!.set(observed,repo);
 }
-type FinancialField='value'|'version'|'marketCap'|'isDeleted'|'cnAnnual';
+type FinancialField='value'|'version'|'marketCap'|'isDeleted'|'cnAnnual'|'cnShares'|'cnActions'|'cnOrgId';
 /** Align the published rows to caller order, including missing and duplicate IDs. */
 export async function readPublishedFinancialRows(db:Firestore,ids:string[],fields:FinancialField[]):Promise<(DocumentData|undefined)[]> {
     if(!ids.length)return [];

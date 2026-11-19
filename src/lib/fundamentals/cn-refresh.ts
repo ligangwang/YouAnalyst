@@ -59,11 +59,11 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   for (let i = 0; i < companies.length; i += 100) {
     const ids = companies.slice(i, i + 100);
     const [state, published] = await Promise.all([
-      db.getAll(...ids.map(id => collection.doc(id)), { fieldMask: ["cnShares", "cnActions", "cnOrgId", "cnShareStatus"] }),
-      (options.readFinancials ?? readPublishedFinancialRows)(db, ids, ["marketCap"]),
+      db.getAll(...ids.map(id => collection.doc(id)), { fieldMask: ["cnShareStatus"] }),
+      (options.readFinancials ?? readPublishedFinancialRows)(db, ids, ["marketCap", "cnShares", "cnActions", "cnOrgId"]),
     ]);
     state.forEach((doc, index) => docs.set(doc.id, {
-      ...doc.data(), marketCap: published[index]?.isDeleted ? undefined : published[index]?.marketCap,
+      cnShareStatus: doc.get("cnShareStatus"), ...(published[index]?.isDeleted ? {} : published[index]),
     }));
   }
   const cooling = (host: string) => Number(cooldowns[host.replaceAll(".", "_")] ?? 0) > clock().getTime();
@@ -84,6 +84,12 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
       log.emit("WARNING", "company_leased", { company: id });
       result.shares.skipped++; result.actions.skipped++;
       continue;
+    }
+    if (!dryRun) {
+      // Acquiring the lease also publishes any outstanding legacy financial fields.
+      // Use the committed row if another worker changed it after the batch read.
+      const [current] = await (options.readFinancials ?? readPublishedFinancialRows)(db, [id], ["marketCap", "cnShares", "cnActions", "cnOrgId"]);
+      if (current && !current.isDeleted) Object.assign(stored, current);
     }
     const update: Record<string, unknown> = { market: "CN_A" };
     const next: Stored = { ...stored };

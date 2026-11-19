@@ -61,6 +61,23 @@ test('settled company rows participate in ready scans and keep active work queri
     assert.equal(settledWorkerField('manualRequired','==',true),false);
 });
 
+test('A-share refreshes publish share counts, corporate actions and provider IDs in the same Parquet row',()=>{
+    const payload={cnActions:{checkedAt:'2026-11-19',events:[]},cnShares:{totalShares:42},cnOrgId:'issuer'};
+    const checkpoint={cnActionStatus:{outcome:'ready'},cnLeaseUntil:0};
+    const split=splitRecord('company_fundamentals','XSHG:600584',{...payload,...checkpoint});
+    assert.deepEqual(split.external,payload);
+    assert.deepEqual(split.retained,checkpoint);
+    assert.deepEqual(splitRecord('company_fundamentals','XSHG:600584',{cnActions:payload.cnActions},true).retained,{cnActions:payload.cnActions});
+});
+
+import {mergeMarketOverlay} from '../../src/lib/market-store/policy';
+test('reconciliation preserves the latest corporate action check across cutover',()=>{
+    const older={cnActions:{checkedAt:'2026-11-17',events:[]}};
+    const newer={cnActions:{checkedAt:'2026-11-19',events:['split']}};
+    assert.deepEqual(mergeMarketOverlay('company_fundamentals',newer,{...older,pending:true}),{...newer,pending:true});
+    assert.deepEqual(mergeMarketOverlay('company_fundamentals',older,newer),newer);
+});
+
 test('financial page reads reuse the watched retirement state until invalidation',async t=>{
     const {FundamentalsControl}=await import('../../src/lib/market-store/fundamentals-control');
     let now=1000,reads=0;
