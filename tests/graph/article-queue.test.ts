@@ -108,3 +108,18 @@ test('single-issuer disclosure checks its issuer without querying the company un
  assert.equal((await execute()).status,'ineligible');
  assert.equal(f.queries.filter(query=>query.collection==='companies').length,0);
 });
+
+test('single-company calendar and headline tasks validate the live publisher without a roster query',async()=>{
+ const f=earningsFirestore();
+ const feed={...sources[0],status:'PUBLISHED',reviewedAt:'2026-10-06'};
+ const company={name:'AMD',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},newsSources:[feed]};
+ f.rows.set('companies/US:AMD',company);
+ f.rows.set(`${EVENTS_COLLECTION}/news-one`,row);
+ const execute=()=>processArticleTask({...task,stages:['calendar','headline']},f.db,{
+   enabled:true,calendarEnabled:true,now,run:async()=>({status:'verified'}),
+ });
+ assert.equal((await execute()).status,'verified');
+ f.rows.set('companies/US:AMD',{...company,newsSources:[]});
+ assert.equal((await execute()).status,'ineligible');
+ assert.equal(f.queries.filter(q=>q.collection==='companies').length,0);
+});

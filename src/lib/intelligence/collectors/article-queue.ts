@@ -93,14 +93,15 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
     const companyIds=doc.get('companyIds');
     const primary=doc.get('companyId')??companyIds?.[0];
     if(!Array.isArray(companyIds)||typeof primary!=='string'||!primary||primary.includes('/')||!companyIds.includes(primary))return {status:'ineligible',articleId:task.articleId};
-    // Disclosure translation and calendar extraction resolve only the named issuer.
-    // News analysis can discover other companies in article text.
-    const disclosureIssuer=doc.get('type')==='company_disclosure'&&companyIds.length===1?primary:undefined;
-    const {graph,sources}=await (options.context?options.context():loadNewsEnrichmentContext(db,disclosureIssuer));
+    const type=doc.get('type');
+    if(type!=='company_news'&&type!=='company_disclosure')return {status:'ineligible',articleId:task.articleId};
+    // Only news analysis can discover additional issuers in the article text.
+    const needsUniverse=type==='company_news'&&task.stages.includes('analysis');
+    const issuer=companyIds.length===1&&!needsUniverse?primary:undefined;
+    const {graph,sources}=await (options.context?options.context():loadNewsEnrichmentContext(db,issuer));
     const mapped=new Set(graph.nodes.map(n=>n.id));
     if(!mapped.has(primary))return {status:'ineligible',articleId:task.articleId};
     const deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
-    if(!['company_news','company_disclosure'].includes(String(doc.get('type'))))return {status:'ineligible',articleId:task.articleId};
     if(doc.get('type')==='company_news'){
       const source=sources.find(s=>s.id===doc.get('sourceId')&&s.companyId===primary);
       if(!source||typeof doc.get('url')!=='string'||!approvedNewsUrl(doc.get('url'),source,true))return {status:'ineligible',articleId:task.articleId};

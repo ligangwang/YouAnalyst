@@ -38,9 +38,9 @@ export async function loadNewsSources(db:Firestore):Promise<NewsSource[]>{
 }
 
 /** Derive article scope and publisher eligibility from one live company view. */
-export async function loadNewsEnrichmentContext(db:Firestore,disclosureIssuer?:string){
-  if(disclosureIssuer){
-    const doc=await db.collection('companies').doc(disclosureIssuer).get();
+export async function loadNewsEnrichmentContext(db:Firestore,issuer?:string){
+  if(issuer){
+    const doc=await db.collection('companies').doc(issuer).get();
     const records=doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[];
     return {graph:supportedCompanyUniverse(records),sources:approvedCompanyNewsSources(records)};
   }
