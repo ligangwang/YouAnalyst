@@ -106,12 +106,12 @@ const financialFields=new Set(['value','version','marketCap','cnAnnual','isDelet
 export const publishedFinancialField=(field:string)=>financialFields.has(field.split('.')[0]);
 const receiptFields = new Set([
     'request', 'progress', 'result', 'annual', 'annualCompleted', 'createdAt', 'updatedAt', 'dispatchedAt',
-    'completed', 'completedAt', 'manualRequired', 'publishedEventId', 'verificationDuplicateRunId',
+    'completed', 'completedAt', 'manualRequired', 'publishedEventId', 'verificationDuplicateRunId', 'cursor',
 ]);
-export const fundamentalsReceiptId = (id: string) => id.startsWith('_batch_') || id.startsWith('_cn_request_');
+export const fundamentalsReceiptId = (id: string) => id.startsWith('_batch_') || id.startsWith('_cn_request_') || id.startsWith('_company_');
 export function archivedFundamentalsReceipt(id: string, data: Data) {
     return fundamentalsReceiptId(id) && data.completed === true && data.manualRequired !== true
-        && !!data.request && !authored(data) && Object.keys(data).every(key => receiptFields.has(key));
+        && data.cursor == null && !!data.request && !authored(data) && Object.keys(data).every(key => receiptFields.has(key));
 }
 /** An archived receipt can satisfy predicates on its own fields. Worker company
  * status and lease predicates still use their bounded operational indexes. */

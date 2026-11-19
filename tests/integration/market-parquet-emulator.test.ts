@@ -829,6 +829,12 @@ check('completed batch receipts survive native retirement and remain queryable f
     assert.equal(stored.completed,true);
     const complete=await f.db.collection(collection).where('completed','==',true).get();
     assert.deepEqual(complete.docs.map(doc=>doc.id),[id]);
+    const child=f.db.collection(collection).doc('_company_child'),active=f.db.collection(collection).doc('_company_active');
+    await child.set({request,cursor:null,completed:true,result:{}});
+    await active.set({request,completed:false});
+    const mixed=await f.db.getAll(child,active,ref);
+    assert.deepEqual(mixed.map(doc=>doc.get('completed')),[true,false,true]);
+    assert.equal((await f.raw.doc(retainedPath('market_state',collection,child.id)).get()).exists,false);
     await ref.set({verificationDuplicateRunId:'repeat'},{merge:true});
     assert.equal((await ref.get()).get('verificationDuplicateRunId'),'repeat');
     assert.equal((await physical.get()).exists,false);
