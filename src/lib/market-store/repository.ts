@@ -551,6 +551,7 @@ export class MarketRepository {
                 && !(step.method === 'where' && fieldName(step.args[0]) === 'manualRequired' && step.args[1] === '==' && step.args[2] === true));
         const requiresOverlay = !receiptCandidates && steps.some(step => ['where', 'orderBy'].includes(step.method)
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
+            && !(collection === 'company_fundamentals' && publishedFinancialField(fieldName(step.args[0])))
             && !(collection === 'company_fundamentals' && settledWorkerField(fieldName(step.args[0]),
                 step.method === 'where' ? step.args[1] : undefined, step.args[2]))
             && isOperationalField(collection, fieldName(step.args[0])));

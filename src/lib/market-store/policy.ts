@@ -103,7 +103,8 @@ export function retainedOnlyQuery(collection: MarketCollection, steps: Array<{
     });
 }
 const financialFields=new Set(['value','version','marketCap','cnAnnual','isDeleted']);
-export const publishedFinancialField=(field:string)=>financialFields.has(field.split('.')[0]);
+const cnSourceFields=new Set(['cnShares','cnActions','cnOrgId']);
+export const publishedFinancialField=(field:string)=>financialFields.has(field.split('.')[0]) || cnSourceFields.has(field.split('.')[0]);
 // Completed US refreshes can be read from immutable company rows. Positive
 // pending queries and unresolved failures still use the active worker index.
 const settledFields = new Set(['refreshAfter','pending','outcome','requestedAt','dispatchAfter','dispatchOwner',
@@ -149,7 +150,7 @@ export function splitRecord(collection: MarketCollection, id: string, data: Data
     if (collection === 'company_fundamentals' && !id.startsWith('_') && authored(data)) {
         const external: Data = {}, retained: Data = {};
         for (const [key,value] of Object.entries(data))
-            (financialFields.has(key) ? external : retained)[key] = value;
+            (publishedFinancialField(key) ? external : retained)[key] = value;
         return {external,retained};
     }
     // A refresh date alone is scheduling metadata on the published company row.
@@ -162,7 +163,8 @@ export function splitRecord(collection: MarketCollection, id: string, data: Data
         return { external: {}, retained: data };
     const external: Data = {}, retained: Data = {};
     for (const [key, value] of Object.entries(data))
-        (key !== 'updatedAt' && isOperationalField(collection, key) ? retained : external)[key] = value;
+        (key !== 'updatedAt' && isOperationalField(collection, key)
+            && (fieldsOnly || collection !== 'company_fundamentals' || !cnSourceFields.has(key)) ? retained : external)[key] = value;
     // Deduplication receipts remain transactional; their historical usage payload moves.
     if (collection === 'openai_usage_events' && data.id !== undefined)
         retained.id = data.id;

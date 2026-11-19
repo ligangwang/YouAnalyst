@@ -60,3 +60,12 @@ test('settled company rows participate in ready scans and keep active work queri
     assert.equal(settledWorkerField('lastFilingRefresh.eventId','==','filing'),true);
     assert.equal(settledWorkerField('manualRequired','==',true),false);
 });
+
+test('A-share refreshes publish share counts, corporate actions and provider IDs in the same Parquet row',()=>{
+    const payload={cnActions:{checkedAt:'2026-11-19',events:[]},cnShares:{totalShares:42},cnOrgId:'issuer'};
+    const checkpoint={cnActionStatus:{outcome:'ready'},cnLeaseUntil:0};
+    const split=splitRecord('company_fundamentals','XSHG:600584',{...payload,...checkpoint});
+    assert.deepEqual(split.external,payload);
+    assert.deepEqual(split.retained,checkpoint);
+    assert.deepEqual(splitRecord('company_fundamentals','XSHG:600584',{cnActions:payload.cnActions},true).retained,{cnActions:payload.cnActions});
+});

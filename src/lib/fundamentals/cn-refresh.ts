@@ -58,11 +58,11 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   for (let i = 0; i < companies.length; i += 100) {
     const ids = companies.slice(i, i + 100);
     const [state, published] = await Promise.all([
-      db.getAll(...ids.map(id => collection.doc(id)), { fieldMask: ["cnShares", "cnActions", "cnOrgId", "cnShareStatus"] }),
-      (options.readFinancials ?? readPublishedFinancialRows)(db, ids, ["marketCap"]),
+      db.getAll(...ids.map(id => collection.doc(id)), { fieldMask: ["cnShareStatus"] }),
+      (options.readFinancials ?? readPublishedFinancialRows)(db, ids, ["marketCap", "cnShares", "cnActions", "cnOrgId"]),
     ]);
     state.forEach((doc, index) => docs.set(doc.id, {
-      ...doc.data(), marketCap: published[index]?.isDeleted ? undefined : published[index]?.marketCap,
+      cnShareStatus: doc.get("cnShareStatus"), ...(published[index]?.isDeleted ? {} : published[index]),
     }));
   }
   const cooling = (host: string) => Number(cooldowns[host.replaceAll(".", "_")] ?? 0) > clock().getTime();
