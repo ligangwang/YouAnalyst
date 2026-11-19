@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
+import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, settledWorkerField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {project} from './query';
@@ -551,7 +551,8 @@ export class MarketRepository {
                 && !(step.method === 'where' && fieldName(step.args[0]) === 'manualRequired' && step.args[1] === '==' && step.args[2] === true));
         const requiresOverlay = !receiptCandidates && steps.some(step => ['where', 'orderBy'].includes(step.method)
             && fieldName(step.args[0]).split('.')[0] !== 'updatedAt'
-            && !(collection === 'company_fundamentals' && fieldName(step.args[0]) === 'refreshAfter')
+            && !(collection === 'company_fundamentals' && settledWorkerField(fieldName(step.args[0]),
+                step.method === 'where' ? step.args[1] : undefined, step.args[2]))
             && isOperationalField(collection, fieldName(step.args[0])));
         const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay
             ? Promise.resolve([]) : this.files.query(heads, candidateSteps);

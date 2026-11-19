@@ -104,6 +104,18 @@ export function retainedOnlyQuery(collection: MarketCollection, steps: Array<{
 }
 const financialFields=new Set(['value','version','marketCap','cnAnnual','isDeleted']);
 export const publishedFinancialField=(field:string)=>financialFields.has(field.split('.')[0]);
+// Completed US refreshes can be read from immutable company rows. Positive
+// pending queries and unresolved failures still use the active worker index.
+const settledFields = new Set(['refreshAfter','pending','outcome','requestedAt','dispatchAfter','dispatchOwner',
+    'lastAttemptAt','lastError','lastFilingRefresh','secFilingsCollector','failedAt','updatedAt']);
+export function settledWorkerField(field: string, operator?: unknown, operand?: unknown) {
+    const root=field.split('.')[0];
+    if (!settledFields.has(root)) return false;
+    const values=operator==='=='?[operand]:operator==='in'&&Array.isArray(operand)?operand:undefined;
+    if (values && root==='pending') return values.includes(false);
+    if (values && root==='outcome') return values.includes('ready') || values.includes('unavailable');
+    return true;
+}
 const receiptFields = new Set([
     'request', 'progress', 'result', 'annual', 'annualCompleted', 'createdAt', 'updatedAt', 'dispatchedAt',
     'completed', 'completedAt', 'manualRequired', 'publishedEventId', 'verificationDuplicateRunId', 'cursor',
