@@ -1,4 +1,4 @@
-import {validFundamentalsTicker} from '../src/lib/fundamentals/identity';
+import {validFundamentalsTicker,usFundamentalsTicker} from '../src/lib/fundamentals/identity';
 import assert from 'node:assert/strict';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getFirestore} from 'firebase-admin/firestore';
@@ -14,7 +14,7 @@ async function main(){
     assert.equal(process.env.GOOGLE_CLOUD_PROJECT,project);
     assert(!process.env.FIRESTORE_EMULATOR_HOST);
     const kind=process.env.ARCHIVE_KIND??'receipt';
-    assert(kind==='receipt'||kind==='retired-ticker');
+    assert(kind==='receipt'||kind==='retired-ticker'||kind==='settled-us');
     const start=Number(process.env.START_SHARD??0),end=Number(process.env.END_SHARD??256);
     assert(Number.isInteger(start)&&Number.isInteger(end)&&start>=0&&start<end&&end<=256);
     initializeApp({projectId:project,credential:applicationDefault()});
@@ -25,7 +25,7 @@ async function main(){
             const shard=n.toString(16).padStart(2,'0');
             const head=(await db.collection('collectors').doc(headId('company_fundamentals',shard)).get()).get('marketHead') as MarketHead;
             assert(head.collection==='company_fundamentals'&&head.shard===shard);
-            const ids=head.retained.filter(kind==='receipt'?fundamentalsReceiptId:validFundamentalsTicker);
+            const ids=head.retained.filter(id=>kind==='receipt'?fundamentalsReceiptId(id):kind==='settled-us'?usFundamentalsTicker(id)!==null:validFundamentalsTicker(id));
             let archived=0;
             for(let offset=0;offset<ids.length;offset+=100){
                 const batch=ids.slice(offset,offset+100);

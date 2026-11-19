@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { createHash, randomUUID } from 'node:crypto';
 import { encode } from '../central-cache/codec';
 import { MarketFiles, shardFor, type MarketHead, type MarketRow } from './files';
-import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, settledWorkerField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
+import { archivedFundamentalsReceipt, fundamentalsReceiptId, receiptHasField, settledUsFundamentals, settledWorkerField, publishedFinancialField, isOperationalField, isRoutingField, splitRecord, retainsRecord, retainedWhole, retainedOnlyQuery, type MarketCollection } from './policy';
 import { applyMutation, fieldName, pathParts, type Data } from './value';
 import type { Step } from './query';
 import {project} from './query';
@@ -745,7 +745,12 @@ export class MarketRepository {
                             writes.push(() => this.retainedStore.write(tx,relocated,collection,id,undefined));
                         continue;
                     }
-                    const split = splitRecord(collection, id, data);
+                    const published = rows.get(id);
+                    // Preserve an archived issuer's placement on subsequent
+                    // settled updates. Active work returns to its queue index.
+                    const preserve = collection === 'company_fundamentals' && !retained.has(id)
+                        && published?.data.pending === false && settledUsFundamentals(id, data, at.toMillis());
+                    const split = preserve ? {external:data, retained:{}} : splitRecord(collection, id, data);
                     const keep=retainsRecord(collection,id,data,split.retained);
                     if (Object.keys(split.external).length || !keep) {
                         if (!isDeepStrictEqual(rows.get(id)?.data, split.external))

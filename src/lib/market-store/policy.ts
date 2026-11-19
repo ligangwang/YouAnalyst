@@ -108,6 +108,13 @@ export const publishedFinancialField=(field:string)=>financialFields.has(field.s
 // pending queries and unresolved failures still use the active worker index.
 const settledFields = new Set(['refreshAfter','pending','outcome','requestedAt','dispatchAfter','dispatchOwner',
     'lastAttemptAt','lastError','lastFilingRefresh','secFilingsCollector','failedAt','updatedAt']);
+export function settledUsFundamentals(id: string, data: Data, now: number) {
+    return /^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(id) && data.pending === false
+        && (data.outcome === 'ready' || data.outcome === 'unavailable')
+        && (data.dispatchAfter == null || typeof data.dispatchAfter === 'number' && data.dispatchAfter <= now)
+        && Object.keys(data).every(key => settledFields.has(key) || financialFields.has(key) || key === 'unavailableReason')
+        && !authored(data);
+}
 export function settledWorkerField(field: string, operator?: unknown, operand?: unknown) {
     const root=field.split('.')[0];
     if (!settledFields.has(root)) return false;
