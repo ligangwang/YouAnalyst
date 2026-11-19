@@ -102,10 +102,20 @@ export function retainedOnlyQuery(collection: MarketCollection, steps: Array<{
         return field === 'recordType' && (collection === 'earnings_records' && values.every(v => v === 'head') || collection === 'earnings_sources' && values.every(v => v === 'source'));
     });
 }
+const financialFields=new Set(['value','version','marketCap','cnAnnual','isDeleted']);
+export const publishedFinancialField=(field:string)=>financialFields.has(field.split('.')[0]);
 export function splitRecord(collection: MarketCollection, id: string, data: Data, fieldsOnly = false): {
     external: Data;
     retained: Data;
 } {
+    // An authored company row can contain both editorial metadata and a
+    // published financial payload. Public readers use only the Parquet copy.
+    if (collection === 'company_fundamentals' && !id.startsWith('_') && authored(data)) {
+        const external: Data = {}, retained: Data = {};
+        for (const [key,value] of Object.entries(data))
+            (financialFields.has(key) ? external : retained)[key] = value;
+        return {external,retained};
+    }
     if (!fieldsOnly && retainedWhole(collection, id, data))
         return { external: {}, retained: data };
     const external: Data = {}, retained: Data = {};

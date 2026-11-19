@@ -294,14 +294,14 @@ test("graph loader attaches A-share caps in USD for sizing, with the CNY value a
   const cap = calculateCnMarketCap({ id: "XSHG:688981", count, check: check(), price: price(100), latestSession: "2026-09-25", fx, now: NOW });
   const docs: Record<string, unknown> = { "XSHG:688981": { marketCap: cap }, "XSHE:000063": { marketCap: { ...cap, usd: null } }, "XSHE:300308": { marketCap: { ...cap, status: "unavailable" } } };
   const requested: string[] = [];
-  const db = { collection: () => ({ doc: (id: string) => ({ id, get: async()=>({data:()=>({enabled:false})}) }) }),
-    getAll: async (...args: unknown[]) => {
-      assert.deepEqual(args.pop(), { fieldMask: ["marketCap", "isDeleted"] });
-      return (args as { id: string }[]).map(r => { requested.push(r.id); return { id: r.id, exists: docs[r.id] !== undefined, data: () => docs[r.id] }; });
-    } } as unknown as Firestore;
+  const db = {} as Firestore;
   const graph: Pick<KnowledgeGraph, "nodes"> = { nodes: [{ id: "XSHG:688981", kind: "COMPANY", order: 0 }, { id: "XSHE:000063", kind: "COMPANY", order: 1 },
     { id: "XSHE:300308", kind: "COMPANY", order: 2 }, { id: "US:NVDA", kind: "COMPANY", order: 3 }] };
-  await attachCnMarketCaps(db, graph);
+  await attachCnMarketCaps(db,graph,async(_db,ids,fields)=>{
+    assert.deepEqual(fields,['marketCap']);
+    requested.push(...ids);
+    return ids.map(id=>docs[id] as Record<string,unknown>);
+  });
   assert.deepEqual(requested, ["XSHG:688981", "XSHE:000063", "XSHE:300308"]);
   const smic = graph.nodes[0].marketCap!;
   assert.deepEqual(smic, { value: cap.usd!.value, currency: "USD", priceDate: "2026-09-25", local: { value: cap.value!, currency: "CNY", rateDate: "2026-09-24" } });

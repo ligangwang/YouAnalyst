@@ -35,3 +35,10 @@ test('graph source identities use Parquet and graph processing state stays trans
         assert.deepEqual(splitRecord('company_research_runs',id,doc),{external:{},retained:doc});
     }
 });
+
+test('published financials on an authored company keep editorial data separate',async()=>{
+    const {splitRecord}=await import('../../src/lib/market-store/policy');
+    const financials={value:{revenue:123},marketCap:{value:345},version:1,isDeleted:false};
+    const editorial={createdBy:'editor',pending:true};
+    assert.deepEqual(splitRecord('company_fundamentals','US:AMD',{...financials,...editorial}),{external:financials,retained:editorial});
+});

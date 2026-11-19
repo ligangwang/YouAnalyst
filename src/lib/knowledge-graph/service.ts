@@ -1,3 +1,4 @@
+import { readPublishedFinancialRows } from '../market-store/runtime';
 import { loadCompanyDocuments } from '../company-document-cache';
 import { loadThemeEnrolledCompanies } from './company-cache';
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -36,13 +37,13 @@ export async function loadKnowledgeGraphStructure(options: GraphOptions = {}): P
   });
 }
 
-async function attachUsMarketCaps(db:Firestore,graph:KnowledgeGraph){
+async function attachUsMarketCaps(db:Firestore,graph:KnowledgeGraph,read:typeof readPublishedFinancialRows){
   const usCompanies = graph.nodes.filter(n => n.kind === "COMPANY" && n.id.startsWith("US:"));
   for (let i = 0; i < usCompanies.length; i += 1000) {
     const batch = usCompanies.slice(i, i + 1000);
-    const values = await loadCompanyDocuments(db, 'company_fundamentals', batch.map(n => n.id), 'marketCap');
+    const values = await read(db,batch.map(n=>n.id),['marketCap']);
     values.forEach((doc, index) => {
-      const cap = doc.data()?.marketCap;
+      const cap = doc?.isDeleted ? undefined : doc?.marketCap;
       if (cap?.status === "estimated" && cap.currency === "USD" && typeof cap.value === "number" && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? "")) {
         batch[index].marketCap = { value: cap.value, currency: "USD", priceDate: cap.priceDate };
       }
@@ -51,10 +52,10 @@ async function attachUsMarketCaps(db:Firestore,graph:KnowledgeGraph){
 }
 
 /** Enrich a copy so concurrent metadata readers never observe partial mutation. */
-export async function loadGraphValuations(db: Firestore, structure: KnowledgeGraph): Promise<KnowledgeGraph> {
+export async function loadGraphValuations(db: Firestore, structure: KnowledgeGraph,read=readPublishedFinancialRows): Promise<KnowledgeGraph> {
   const graph=structuredClone(structure);
   return changeCached(db,'knowledge-graph-valuations',['company_fundamentals','directory_syncs'],async()=>{
-    const results=await Promise.allSettled([attachUsMarketCaps(db,graph),attachCnMarketCaps(db,graph)]);
+    const results=await Promise.allSettled([attachUsMarketCaps(db,graph,read),attachCnMarketCaps(db,graph,read)]);
     const messages=['Graph market cap summaries unavailable','A-share market cap summaries unavailable'];
     results.forEach((result,index)=>{if(result.status==='rejected')console.error(messages[index],result.reason);});
     return graph;

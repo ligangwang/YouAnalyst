@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { Storage, type Bucket } from '@google-cloud/storage';
 import { MarketFiles } from './files';
 import { MarketRepository } from './repository';
@@ -49,6 +49,29 @@ export const marketStoreReady = (collection?:string) => (collection===undefined|
 export async function marketStoreClientReady(client:Firestore,collection:string):Promise<boolean> {
     if(!isParquetMarketCollection(collection))return false;
     return await state.readers?.get(client)?.ready(undefined,collection)??false;
+}
+export function registerObservedMarketClient(client:Firestore,observed:Firestore) {
+    const repo=state.readers?.get(client);
+    if(repo)state.readers!.set(observed,repo);
+}
+type FinancialField='value'|'version'|'marketCap'|'isDeleted'|'cnAnnual';
+/** Align the published rows to caller order, including missing and duplicate IDs. */
+export async function readPublishedFinancialRows(db:Firestore,ids:string[],fields:FinancialField[]):Promise<(DocumentData|undefined)[]> {
+    if(!ids.length)return [];
+    const repo=state.readers?.get(db);
+    if(!repo)throw Error('No published financial store configured for this client');
+    if(ids.some(id=>id.startsWith('_')))throw Error('Expected company financial record IDs');
+    if(!await repo.ready(undefined,'company_fundamentals'))throw Error('Published financial dataset is not ready');
+    const byId=new Map<string,DocumentData>();
+    const unique=[...new Set(ids)], projection=[...new Set([...fields,'isDeleted'])];
+    for(let start=0;start<unique.length;start+=1000){
+        const rows=await repo.documents('company_fundamentals',unique.slice(start,start+1000),undefined,projection);
+        for(const row of rows)byId.set(row.id,row.data);
+    }
+    return ids.map(id=>byId.get(id));
+}
+export async function readPublishedFinancials(db:Firestore,id:string,fields:FinancialField[]){
+    return (await readPublishedFinancialRows(db,[id],fields))[0];
 }
 export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     if (!marketStoreEnabled())

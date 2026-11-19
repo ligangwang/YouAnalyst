@@ -1,3 +1,4 @@
+import {readPublishedFinancials} from '../market-store/runtime';
 import type {Firestore} from 'firebase-admin/firestore';
 import {gunzipSync} from 'node:zlib';
 import {sha256,sourceIdentity,stableId,type EarningsSource} from '../earnings/model';
@@ -45,11 +46,11 @@ export function boundedBusinessEvidence(company:ThemedCompany,items:BusinessEvid
 
 /** Optional read-only cache input. Missing/corrupt caches leave official search
  * available; they never trigger fundamentals/earnings jobs or new schema writes. */
-export async function loadBusinessEvidence(db:Firestore,company:ThemedCompany,now=Date.now()):Promise<BusinessEvidence[]>{
+export async function loadBusinessEvidence(db:Firestore,company:ThemedCompany,now=Date.now(),read=readPublishedFinancials):Promise<BusinessEvidence[]>{
   const items:BusinessEvidence[]=[];
   try{
-    const stored=(await db.collection('company_fundamentals').doc(company.id).get()).data();
-    const value=stored?.value,report=value?.report;
+    const stored=await read(db,company.id,['value']);
+    const value=stored?.isDeleted ? undefined : stored?.value,report=value?.report;
     if(company.id.startsWith('US:')&&Number(report?.cik)===Number(company.cik)&&/^\d{10}-\d{2}-\d{6}$/.test(report?.accession??'')&&['10-K','20-F','40-F'].includes(report?.form)&&isOfficialBusinessUrl(company,report?.url)){
       let text=typeof value.excerpt==='string'?value.excerpt:'';
       if(report.form==='10-K'){

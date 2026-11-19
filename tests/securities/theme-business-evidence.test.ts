@@ -26,8 +26,9 @@ test('bounded business excerpts include later segment passages and reject stale 
   assert.equal(boundedBusinessEvidence(company,[{...annual,url:'https://news.example.com/report'}],now).length,0);
 });
 test('cached annual section supplements the short fundamentals excerpt without invoking another job',async()=>{
-  const f=fixture({'company_fundamentals/US:TEST':{value:{report:{cik:company.cik,accession:'0000000123-26-000001',form:'10-K',filed:'2026-02-01',url},excerpt:'Too short.'}},'sec_filing_sections/0000000123-26-000001_item1':{accessionNumber:'0000000123-26-000001',sectionId:'item1',text:annual.text+'\nOperating segments: Robotics builds robots.'}});
-  const evidence=await loadBusinessEvidence(f.db,company,now);assert.equal(evidence.length,1);assert.match(evidence[0].text,/Our products/);assert(f.reads.some(r=>r.startsWith('sec_filing_sections/')));
+  const published={value:{report:{cik:company.cik,accession:'0000000123-26-000001',form:'10-K',filed:'2026-02-01',url},excerpt:'Too short.'}};
+  const f=fixture({'sec_filing_sections/0000000123-26-000001_item1':{accessionNumber:'0000000123-26-000001',sectionId:'item1',text:annual.text+'\nOperating segments: Robotics builds robots.'}});
+  const evidence=await loadBusinessEvidence(f.db,company,now,async()=>published);assert.equal(evidence.length,1);assert.match(evidence[0].text,/Our products/);assert(f.reads.some(r=>r.startsWith('sec_filing_sections/')));
 });
 test('verified US and A-share earnings captures provide supplemental business narrative',async()=>{
   for(const row of [capture(),capture('XSHG:600129','cn:600129','https://static.cninfo.com.cn/finalpage/2026-10-01/report.PDF')]){
