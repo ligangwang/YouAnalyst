@@ -90,11 +90,15 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
   try{
     let doc=await ref.get();
     if(!doc.exists||articleFingerprint(doc.data()??{})!==task.fingerprint)return {status:'stale',articleId:task.articleId};
-    const {graph,sources}=await (options.context?options.context():loadNewsEnrichmentContext(db));
-    const mapped=new Set(graph.nodes.map(n=>n.id));
     const companyIds=doc.get('companyIds');
     const primary=doc.get('companyId')??companyIds?.[0];
-    if(!Array.isArray(companyIds)||!companyIds.includes(primary)||!mapped.has(primary))return {status:'ineligible',articleId:task.articleId};
+    if(!Array.isArray(companyIds)||typeof primary!=='string'||!primary||primary.includes('/')||!companyIds.includes(primary))return {status:'ineligible',articleId:task.articleId};
+    // Disclosure translation and calendar extraction resolve only the named issuer.
+    // News analysis can discover other companies in article text.
+    const disclosureIssuer=doc.get('type')==='company_disclosure'&&companyIds.length===1?primary:undefined;
+    const {graph,sources}=await (options.context?options.context():loadNewsEnrichmentContext(db,disclosureIssuer));
+    const mapped=new Set(graph.nodes.map(n=>n.id));
+    if(!mapped.has(primary))return {status:'ineligible',articleId:task.articleId};
     const deadline=now()+6*60000,result:Record<string,unknown>={status:'verified',articleId:task.articleId};
     if(!['company_news','company_disclosure'].includes(String(doc.get('type'))))return {status:'ineligible',articleId:task.articleId};
     if(doc.get('type')==='company_news'){

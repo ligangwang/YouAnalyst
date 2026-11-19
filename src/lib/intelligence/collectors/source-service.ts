@@ -2,7 +2,7 @@ import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
 import {loadThemeEnrolledCompanies,loadSingleThemeCompanies} from '../../knowledge-graph/company-cache';
 import {loadCompanyDocuments} from '../../company-document-cache';
 import type {KnowledgeGraph} from '../../knowledge-graph/model';
-import type {CompanyThemeId} from '../../company-themes/model';
+import type {CompanyThemeId,ThemedCompany} from '../../company-themes/model';
 import {loadCollectionCompanies} from '../../company-themes/service';
 import {approvedCompanyNewsSources, type NewsSource} from './sources';
 import {changeCached} from '../../change-cache';
@@ -38,7 +38,12 @@ export async function loadNewsSources(db:Firestore):Promise<NewsSource[]>{
 }
 
 /** Derive article scope and publisher eligibility from one live company view. */
-export async function loadNewsEnrichmentContext(db:Firestore){
+export async function loadNewsEnrichmentContext(db:Firestore,disclosureIssuer?:string){
+  if(disclosureIssuer){
+    const doc=await db.collection('companies').doc(disclosureIssuer).get();
+    const records=doc.exists?[{...doc.data(),id:doc.id} as ThemedCompany]:[];
+    return {graph:supportedCompanyUniverse(records),sources:approvedCompanyNewsSources(records)};
+  }
   const docs=await loadCollectionCompanies(db,undefined,'news');
   const records=docs.map(doc=>({...doc.data(),id:doc.id}));
   return {graph:supportedCompanyUniverse(records),sources:approvedCompanyNewsSources(records)};
