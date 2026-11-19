@@ -1,3 +1,4 @@
+import {AsyncLocalStorage} from 'node:async_hooks';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -13,14 +14,34 @@ export const priceColumns={id:'VARCHAR',market:'VARCHAR',ticker:'VARCHAR',tradin
  close:'DOUBLE',rawClose:'DOUBLE',open:'DOUBLE',high:'DOUBLE',low:'DOUBLE',volume:'DOUBLE',
  isFinal:'BOOLEAN',isDeleted:'BOOLEAN',updatedAt:'BIGINT',payload:'VARCHAR'} as const;
 export const timestampNanos=(value:Timestamp)=>BigInt(value.seconds)*BigInt(1_000_000_000)+BigInt(value.nanoseconds);
-declare global {var __youAnalystDuckQueue:{tail:Promise<unknown>}|undefined;}
-const queue=globalThis.__youAnalystDuckQueue??={tail:Promise.resolve()};
-export function withDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
+type DuckQueue = {busy:boolean; page:Array<()=>void>; other:Array<()=>void>; consecutivePage:number};
+declare global {
+ var __youAnalystDuckScheduler:DuckQueue|undefined;
+ var __youAnalystPageProjection:AsyncLocalStorage<true>|undefined;
+}
+const queue=globalThis.__youAnalystDuckScheduler??={busy:false,page:[],other:[],consecutivePage:0};
+const pageProjection=globalThis.__youAnalystPageProjection??=new AsyncLocalStorage<true>();
+export const withPageProjection=<T>(work:()=>Promise<T>)=>pageProjection.run(true,work);
+
+function admitDuck():Promise<void>{
+ if(!queue.busy){queue.busy=true;return Promise.resolve();}
+ return new Promise(resolve=>(pageProjection.getStore()?queue.page:queue.other).push(resolve));
+}
+function releaseDuck(){
+ // Keep a single native instance and give queued bulk work a turn after three page reads.
+ if(queue.page.length&&(!queue.other.length||queue.consecutivePage<3)){
+  queue.consecutivePage++;queue.page.shift()!();return;
+ }
+ queue.consecutivePage=0;
+ const next=queue.other.shift();
+ if(next)next();else queue.busy=false;
+}
+export async function withDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
  const timing=startMarketReadTiming('duckdb');
- const result=queue.tail.then(async()=>{
-  timing?.workStarted();let status:'success'|'error'='error';
-  try{const value=await runDuck(work);status='success';return value;}finally{timing?.finish(status);}
- });queue.tail=result.catch(()=>{});return result;
+ await admitDuck();
+ let status:'success'|'error'='error';
+ try{timing?.workStarted();const value=await runDuck(work);status='success';return value;}
+ finally{releaseDuck();timing?.finish(status);}
 }
 async function runDuck<T>(work:(connection:DuckDBConnection)=>Promise<T>):Promise<T>{
  const {DuckDBInstance}=await import('@duckdb/node-api');

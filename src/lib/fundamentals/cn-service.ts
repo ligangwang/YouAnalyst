@@ -1,3 +1,4 @@
+import {withPageProjection} from '../price-store/parquet';
 import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
@@ -44,7 +45,7 @@ export async function loadCnMarketCap(id: string): Promise<PublicCnMarketCap | n
 
 export async function readCnFundamentals(id:string,db:ReturnType<typeof getAdminFirestore>,now=Date.now(),read=readPublishedFinancials){
   if(!CN_COMPANY_ID.test(id))return null;
-  const doc=await read(db,id,['cnAnnual','marketCap']);
+  const doc=await withPageProjection(()=>read(db,id,['cnAnnual','marketCap']));
   if(!doc||doc.isDeleted===true)return null;
   const stored=doc.cnAnnual as CnAnnual|undefined;
   const annual=stored?.version===1&&stored.companyId===id&&Array.isArray(stored.metrics)?stored:null;

@@ -1,3 +1,4 @@
+import {withPageProjection} from '../price-store/parquet';
 import {withCompanyPageReads} from '../local-cache/company-page-scope';
 import { usFundamentalsId, validFundamentalsTicker } from "./identity";
 import { getAdminFirestore } from "../firebase/admin";
@@ -42,7 +43,7 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
 /** Public requests read the published dataset. Workers own refresh scheduling. */
 export async function readUsFundamentals(ticker: string, db: Database, now = Date.now(), read=readPublishedFinancials) {
   if(!validFundamentalsTicker(ticker))return null;
-  const row=await read(db,usFundamentalsId(ticker),['version','value','marketCap']);
+  const row=await withPageProjection(()=>read(db,usFundamentalsId(ticker),['version','value','marketCap']));
   if(row?.isDeleted===true || row?.version!==1 || !row.value)return null;
   return {...row.value,...(row.marketCap?{marketCap:row.marketCap}:{}),stale:now-Date.parse(row.value.fetchedAt)>2*86_400_000} as CompanyFundamentals;
 }

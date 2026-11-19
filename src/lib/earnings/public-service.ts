@@ -1,3 +1,4 @@
+import {withPageProjection} from '../price-store/parquet';
 import {getAdminFirestore} from '../firebase/admin';
 import {latestPublicEarnings,type PublicEarningsSummary} from './public-summary';
 import type {EarningsRecord} from './model';
@@ -7,7 +8,7 @@ import {changeCached} from '../change-cache';
 export async function loadLatestCompanyEarnings(companyId:string):Promise<PublicEarningsSummary|null>{
   if(!/^(?:US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHE:[03]\d{5}|XSHG:6\d{5})$/.test(companyId))return null;
   const db=getAdminFirestore();
-  try{return await changeCached(db,`earnings:${companyId}`,['earnings_records'],async()=>{
+  try{return await withPageProjection(()=>changeCached(db,`earnings:${companyId}`,['earnings_records'],async()=>{
       const collection=db.collection('earnings_records');
       const page=await collection.where('companyId','==',companyId).get();
       const records=page.docs.filter(doc=>doc.get('recordType')==='revision').map(doc=>doc.get('record') as EarningsRecord).filter(record=>Boolean(record?.eventId&&record.revisionId));
@@ -18,5 +19,5 @@ export async function loadLatestCompanyEarnings(companyId:string):Promise<Public
         docs.forEach((doc,index)=>{const revision=doc.get('revisionId');if(typeof revision==='string')heads.set(ids[offset+index],revision);});
       }
       return latestPublicEarnings(records,heads,companyId);
-  });}catch(error){console.error('Company earnings summary unavailable',companyId,error);return null;}
+  }));}catch(error){console.error('Company earnings summary unavailable',companyId,error);return null;}
 }
