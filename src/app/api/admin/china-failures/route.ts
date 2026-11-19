@@ -4,6 +4,7 @@ import {getDecodedUserFromRequest} from '@/lib/firebase/auth';
 import {isAdminUser} from '@/lib/firebase/admin-role';
 import {getAdminFirestore} from '@/lib/firebase/admin';
 import {CN_COMPANY_ID} from '@/lib/knowledge-graph/cn-companies';
+import {configuredAnnualStatusStore} from '@/lib/fundamentals/cn-annual-status';
 import {publishCnRequests} from '@/lib/fundamentals/cn-pubsub';
 import {parseCnDiscoveryTask,CN_DISCOVERY_TOPIC} from '@/lib/events/cn-discovery-queue';
 import {publishJobMessage} from '@/lib/job-pubsub';
@@ -15,8 +16,18 @@ export async function GET(request:NextRequest){
   const db=getAdminFirestore();
   try{
     const [fundamentals,announcements,earnings]=await Promise.all(['company_fundamentals','collectors','earnings_collectors'].map(name=>db.collection(name).where('manualRequired','==',true).limit(100).get()));
+    const fundDocs=fundamentals.docs.filter(doc=>CN_COMPANY_ID.test(doc.id));
+    const statusStore=configuredAnnualStatusStore();
+    const financialErrors=[];
+    for(let i=0;i<fundDocs.length;i+=12){
+      financialErrors.push(...await Promise.all(fundDocs.slice(i,i+12).map(async doc=>{
+        const {status}=await statusStore.read(doc.id);
+        return {id:doc.id,companyId:doc.id,kind:'fundamentals',message:status?.lastError??doc.get('cnShareStatus.lastError.message')??doc.get('cnActionStatus.lastError.message')??'A-share financial refresh failed',
+          failedAt:status?.outcome==='retry'?new Date(status.checkedAtMs).toISOString():doc.get('cnShareStatus.attemptedAt')??null};
+      })));
+    }
     const errors=[
-      ...fundamentals.docs.filter(doc=>CN_COMPANY_ID.test(doc.id)).map(doc=>({id:doc.id,companyId:doc.id,kind:'fundamentals',message:doc.get('cnAnnualStatus.lastError')??doc.get('cnShareStatus.lastError.message')??doc.get('cnActionStatus.lastError.message')??'A-share financial refresh failed',failedAt:doc.get('cnAnnualStatus.attemptedAt')??doc.get('cnShareStatus.attemptedAt')??null})),
+      ...financialErrors,
       ...announcements.docs.filter(doc=>doc.id.startsWith('exchange-')&&CN_COMPANY_ID.test(doc.id.slice(9))).map(doc=>({id:doc.id.slice(9),companyId:doc.id.slice(9),kind:'announcements',message:doc.get('lastError')??'China discovery failed',failedAt:doc.get('lastAttemptAt')??null})),
       ...earnings.docs.filter(doc=>doc.id.startsWith('cn_')&&CN_COMPANY_ID.test(doc.id.slice(3))).map(doc=>({id:doc.id.slice(3),companyId:doc.id.slice(3),kind:'earnings-fallback',message:doc.get('lastError')??'China earnings discovery failed',failedAt:doc.get('lastAttemptAt')??null})),
     ];

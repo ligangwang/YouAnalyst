@@ -611,6 +611,9 @@ export class MarketRepository {
     }
     /** Recalculate against the latest published row on every transaction retry. */
     async updatePublishedMarketCap(id: string, calculate: (published: Data) => Data) {
+        return this.updatePublishedFinancialField(id, 'marketCap', calculate);
+    }
+    async updatePublishedFinancialField(id: string, field: 'marketCap' | 'cnAnnual', calculate: (published: Data) => Data) {
         if (this.readOnlyProbe || !id || id.startsWith('_') || id.includes('/'))
             throw Error('Expected a writable company financial record');
         const collection = 'company_fundamentals';
@@ -625,8 +628,8 @@ export class MarketRepository {
             const index = rows.findIndex(row => row.id === id);
             const data = index < 0 ? {} : (await this.files.hydrate(rows[index])).data;
             const version = Timestamp.now();
-            const marketCap = calculate(data);
-            const updated = applyMutation(data, 'set', [{marketCap}, {merge: true}], version)!;
+            const value = calculate(data);
+            const updated = applyMutation(data, 'set', [{[field]: value}, {merge: true}], version)!;
             const row = {id, data: updated, version};
             if (index < 0) rows.push(row);
             else rows[index] = row;
