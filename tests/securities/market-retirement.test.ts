@@ -60,3 +60,25 @@ test('settled company rows participate in ready scans and keep active work queri
     assert.equal(settledWorkerField('lastFilingRefresh.eventId','==','filing'),true);
     assert.equal(settledWorkerField('manualRequired','==',true),false);
 });
+
+test('financial page reads reuse the watched retirement state until invalidation',async t=>{
+    const {FundamentalsControl}=await import('../../src/lib/market-store/fundamentals-control');
+    let now=1000,reads=0;
+    t.mock.method(Date,'now',()=>now);
+    const snapshot=(ready:boolean,cleanedCollections:string[])=>({data:()=>({version:1,ready,cleanedCollections})}) as unknown as DocumentSnapshot;
+    let notify!:(doc:DocumentSnapshot)=>void,fail!:()=>void;
+    const db={doc:()=>({
+        onSnapshot:(next:typeof notify,error:typeof fail)=>{notify=next;fail=error;return ()=>{};},
+        get:async()=>{reads++;return snapshot(false,[]);},
+    })};
+    const control=new FundamentalsControl(db as unknown as import('firebase-admin/firestore').Firestore,()=>{});
+    notify(snapshot(true,['company_fundamentals']));
+    for(let i=0;i<10;i++){now+=60_000;assert((await control.read()).ready);}
+    assert.equal(reads,0);
+    fail();
+    assert.equal((await control.read()).ready,false);assert.equal(reads,1);
+    notify(snapshot(true,['company_fundamentals']));
+    notify(snapshot(false,[]));now+=60_000;
+    assert.equal((await control.read()).ready,false);assert.equal(reads,2);
+    control.close();
+});
