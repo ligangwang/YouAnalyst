@@ -62,7 +62,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       const data=decodeIntelligenceSnapshot(await response.json());
       if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw Error('Invalid graph');
       const previous=graphs.current.get(theme);
-      if(!previous||(previous.eventsPending&&Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt)))graphs.current.set(theme,data);
+      if(!previous||(bootstrapRequired.current&&Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt)))graphs.current.set(theme,data);
       return data;
     })().catch(error=>{universeRequest=undefined;throw error;});
     if (bootstrapRequired.current) {
