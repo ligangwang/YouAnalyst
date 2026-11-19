@@ -31,6 +31,10 @@ if [[ "$target" == production && "${PREBUILT_RELEASE:-0}" != 1 ]]; then
   exit 1
 fi
 
+if [[ "$target" == production ]]; then
+  bash scripts/check-fundamentals-handoff.sh
+fi
+
 echo "[1/5] Deploying Firestore indexes"
 if [[ "${APPLY_FIRESTORE_INDEXES:-1}" == "1" ]]; then
   FIRESTORE_PROJECT_ID="$firestore_project_id" npm run firestore:indexes:apply

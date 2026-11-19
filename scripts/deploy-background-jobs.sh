@@ -47,6 +47,9 @@ if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 && " ${targets[*]} " == *' 
   for target in "${targets[@]}"; do if [[ "$target" != sec-filings ]]; then ordered+=("$target"); fi; done
   targets=("${ordered[@]}" sec-filings)
 fi
+if [[ " ${targets[*]} " == *" sec-fundamentals "* || " ${targets[*]} " == *" cn-fundamentals "* ]]; then
+  bash scripts/check-fundamentals-handoff.sh
+fi
 # Validate every selected target before any build or mutation.
 case "${CALENDAR_EXTRACTION_ENABLED:-0}" in 0|1) ;; *) echo 'CALENDAR_EXTRACTION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
 if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
