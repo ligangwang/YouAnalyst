@@ -490,6 +490,11 @@ test('initial peer comparison never starts prices; demand reads only validated v
  const ids=Array.from({length:2000},(_,i)=>`US:P${i}`),priceStarts:string[]=[],priceFinishes:(()=>void)[]=[];
  let active=0,maxActive=0,financialReads=0;
  const injected=(id:string)=>{
+  if(id==='./financial-projection')return {peerFinancialProjection:(value:unknown)=>value};
+  if(id.endsWith('/market-store/runtime'))return {readPublishedFinancialRows:async(_db:unknown,requested:string[])=>{
+   financialReads+=requested.length;
+   return requested.map(id=>({id}));
+  }};
   if(id.endsWith('/price-demand'))return demandHelpers;
   if(id.endsWith('/company-page-scope'))return {withCompanyPageReads:(work:()=>unknown)=>work()};
   if(id.endsWith('/change-cache'))return {changeCached:(_db:unknown,_key:unknown,_collections:unknown,work:()=>unknown)=>work()};
@@ -501,7 +506,7 @@ test('initial peer comparison never starts prices; demand reads only validated v
   if(id==='./structure')return {loadPeerStructure:async()=>{throw Error('fixture selection owns graph');}};
   if(id.endsWith('/theme-group'))return {findPeerThemeGroup:async()=>({graph:{nodes:ids.map(id=>({id}))},group:{companies:ids.map(id=>({id})),market:'US'}})};
   if(id.endsWith('/company-document-cache'))return {loadCompanyDocuments:async(_db:unknown,collection:string,requested:string[])=>{
-   if(collection==='company_fundamentals')financialReads+=requested.length;
+   assert.equal(collection,'companies');
    return requested.map(id=>({data:()=>({id})}));
   }};
   if(id.endsWith('/price-cache'))return {loadPeerPrices:async(_db:unknown,id:string)=>{
