@@ -1,7 +1,7 @@
-import { usFundamentalsId, usFundamentalsTicker } from "./identity";
-import { FieldPath, type Firestore } from "firebase-admin/firestore";
+import { usFundamentalsId } from "./identity";
+import type { Firestore } from "firebase-admin/firestore";
 import type { CompanyFacts } from "./model";
-import { FUNDAMENTALS_COLLECTION } from "./service";
+import { updatePublishedMarketCap } from "../market-store/runtime";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { readLatestUsPrices } from "../predictions/latest-eod";
 import { verifiedForeignListings, foreignOutstandingTags, reviewedForeignShareCounts, type VerifiedForeignListing } from "./foreign-listings";
@@ -77,42 +77,16 @@ export function calculateMarketCap(assessment: ShareAssessment | undefined, pric
 }
 
 // Recalculate all cached/requested companies without making any provider calls.
-export async function refreshCompanyMarketCaps(db: Firestore, log: MaintenanceLog, tickers: string[]) {
+export async function refreshCompanyMarketCaps(db: Firestore, log: MaintenanceLog, tickers: string[], update = updatePublishedMarketCap) {
   const result = { processed: 0, failed: 0 };
   if (!tickers.length) return result;
   const prices = await readLatestUsPrices(db, tickers);
   for (const ticker of tickers) {
     try {
-      const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
-      const value = (await ref.get()).data()?.value;
-      await ref.set({ marketCap: calculateMarketCap(value?.shareAssessment, prices.get(ticker), ticker) }, { merge: true });
+      await update(db, usFundamentalsId(ticker), published =>
+        calculateMarketCap(published.value?.shareAssessment, prices.get(ticker), ticker));
       result.processed++;
     } catch (error) { result.failed++; log.emit("ERROR", "market_cap_failed", { ticker, error: maintenanceError(error) }); }
   }
   return result;
-}
-
-export async function refreshCachedMarketCaps(db: Firestore, log: MaintenanceLog, deadline: number) {
-  const result = {processed:0,estimated:0,unavailable:0,failed:0,incomplete:false};
-  let cursor: string | undefined;
-  while (Date.now() < deadline) {
-    let query = db.collection(FUNDAMENTALS_COLLECTION).orderBy(FieldPath.documentId()).startAt("US:").endBefore("US;").limit(100);
-    if (cursor) query = query.startAfter(cursor);
-    const page = await query.get();
-    const latestPrices = await readLatestUsPrices(db, page.docs.flatMap(d => { const ticker = usFundamentalsTicker(d.id); return ticker ? [ticker] : []; }));
-    for (const doc of page.docs) {
-      if (Date.now() >= deadline) return {...result,incomplete:true};
-      cursor = doc.id;
-      const ticker = usFundamentalsTicker(doc.id);
-      if (!ticker) continue;
-      try {
-        const marketCap = calculateMarketCap(doc.data().value?.shareAssessment,latestPrices.get(ticker),ticker);
-        await doc.ref.set({marketCap},{merge:true});
-        result.processed++; result[marketCap.status]++;
-        log.emit("INFO","market_cap_calculated",{ticker,...marketCap});
-      } catch(error) {result.failed++;log.emit("ERROR","market_cap_failed",{ticker,error:maintenanceError(error)});}
-    }
-    if (page.size < 100) return result;
-  }
-  return {...result,incomplete:true};
 }

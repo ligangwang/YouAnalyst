@@ -73,6 +73,11 @@ export async function readPublishedFinancialRows(db:Firestore,ids:string[],field
 export async function readPublishedFinancials(db:Firestore,id:string,fields:FinancialField[]){
     return (await readPublishedFinancialRows(db,[id],fields))[0];
 }
+export async function updatePublishedMarketCap(db: Firestore, id: string, calculate: (published: DocumentData) => DocumentData) {
+    const repository = state.readers?.get(db);
+    if (!repository) throw Error('No published financial store configured for this client');
+    await repository.updatePublishedMarketCap(id, calculate);
+}
 export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     if (!marketStoreEnabled())
         return raw;
