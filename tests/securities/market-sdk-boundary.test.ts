@@ -12,6 +12,7 @@ const rawClients=new Set([
     'scripts/bundle-market-indexes.ts','scripts/compact-market-heads.ts',
     'scripts/finalize-market-parquet.ts','scripts/migrate-market-parquet.ts',
     'scripts/migrate-read-optimization.ts',
+    'scripts/firestore/verify-company-scope.ts', // Deployment verifier reads the authoritative shard catalog.
     'scripts/sync-entity-snapshots.ts',
     'scripts/handoff-fundamentals-controls.ts', // One-time operator fence on the two physical legacy records.
     'scripts/migrate-retained-state.ts','scripts/archive-fundamentals-receipts.ts',

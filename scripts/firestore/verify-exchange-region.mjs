@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {retainedReadReady,companyQueryParents} from '../lib/retained-firestore-paths.mjs';
 export async function verifyExchangeRegion({project,token,request=fetch}){
   assert(project&&token,'Project and access token are required');
@@ -29,6 +29,5 @@ export async function verifyExchangeRegion({project,token,request=fetch}){
   }finally{await post(base+':rollback',{transaction});}
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
-  const token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN??execFileSync('gcloud',['auth','print-access-token'],{encoding:'utf8'}).trim();
-  verifyExchangeRegion({project:process.env.GCP_PROJECT_ID,token}).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1;});
+  execFileSync(process.execPath,['--import','tsx',fileURLToPath(new URL('./verify-company-scope.ts',import.meta.url))],{stdio:'inherit'});
 }

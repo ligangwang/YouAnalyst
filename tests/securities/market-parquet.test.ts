@@ -657,3 +657,25 @@ test('a cold subscription refreshes once for its initial head and once per later
         assert.equal(calls.length,2);
     }finally{await repo.close();}
 });
+test('company edits preserve complete Parquet rows and only publish catalog pointers', async () => {
+    const files = fixture(), id = 'US:TEST', shard = shardFor(id);
+    const row = {id, version: Timestamp.now(), data: {name:'Test', themeIds:['ai'], onboarding:{status:'READY'}}};
+    const head = {...await files.write('companies',shard,[row],[]), companyStorage:'parquet' as const};
+    const raw = {doc:(path:string)=>({path}), collection:(name:string)=>({doc:(id:string)=>({path:name+'/'+id})})} as unknown as Firestore;
+    const repo = new MarketRepository(raw,files);
+    try {
+        const context = repo.context({get:async()=>assert.fail('unexpected Firestore read'),getAll:async()=>assert.fail('unexpected Firestore batch read')});
+        context.control=true; context.cleanupAuthorized=true; context.cleanedCollections=new Set(['companies']);
+        context.retainedMode={enabled:true,ready:true,cleanupAuthorized:true};
+        context.heads.set('companies/'+shard,head);
+        const writes=new Map<string,{marketHead:typeof head}>();
+        const tx={set:(ref:{path:string},value:{marketHead:typeof head})=>writes.set(ref.path,value)} as unknown as Parameters<typeof repo.prepare>[1];
+        const publish=await repo.prepare(context,tx,[{path:'companies/'+id,method:'update',args:[{'onboarding.status':'DONE',editorialReviewedAt:row.version}]}]);
+        publish();
+        assert.equal(writes.size,2);
+        const next=writes.get('collectors/'+headId('companies',shard))!.marketHead;
+        assert.equal(next.companyStorage,'parquet');
+        assert.deepEqual(next.retained,[]);
+        assert.deepEqual((await files.read(next))[0].data,{...row.data,onboarding:{status:'DONE'},editorialReviewedAt:row.version});
+    }finally{await repo.close();}
+});

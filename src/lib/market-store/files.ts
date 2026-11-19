@@ -32,6 +32,7 @@ export type MarketHead = {
     bytes?: number;
     rows: number;
     retained: string[];
+    companyStorage?: "parquet";
     revision?: string;
     format?: number;
     indexFile?: string;

@@ -41,7 +41,8 @@ export class RetainedStore {
     constructor(private raw:Firestore,private stagedReads=false,onCompaniesChanged?:(ids:string[])=>void){
         if(onCompaniesChanged&&companyViewEnabled())this.companyView=new CompanyView(raw,onCompaniesChanged);
     }
-    close(){this.companyView?.close();this.logicalCompanies=undefined;}
+    closeCompanyView(){this.companyView?.close();this.companyView=undefined;this.logicalCompanies=undefined;}
+    close(){this.closeCompanyView();}
     companiesCommitted(at:Timestamp){this.companyView?.afterCommit(at);}
     async companies(context?:RetainedContext,start=false){
         if(context||!this.companyView||!this.readsNew(await this.mode()))return undefined;

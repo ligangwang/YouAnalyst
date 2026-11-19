@@ -321,13 +321,15 @@ export class MarketRepository {
                     for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
                     initial=false;
                 }
+                if(collection==='companies' && heads.size===256 && [...heads.values()].every(head=>head.companyStorage==='parquet'))
+                    this.retainedStore.closeCompanyView();
                 if(changed.size){this.invalidate(collection,changed);this.changed(collection,changed);}
                 resolve(heads);
             }catch(error){fail(error);}},fail);
             watch = { ready, heads, stop, through };
             this.watches.set(collection, watch);
             if(this.bootstrapHeads&&!this.compactHeads){
-                const fields=['collection','shard','file','bytes','rows','revision','format','indexFile','indexBytes','prefixFile','prefixBytes'];
+                const fields=['collection','shard','file','bytes','rows','revision','format','indexFile','indexBytes','prefixFile','prefixBytes','companyStorage'];
                 // A field-masked get can initialize immutable file pointers
                 // without blocking small queries on every operational ID. The
                 // unmasked listener remains authoritative for live changes.
@@ -340,7 +342,8 @@ export class MarketRepository {
                         const value={...doc.get('marketHead'),retained:[]};
                         const head=this.parseHead(collection,shard,{exists:doc.exists,get:()=>value} as unknown as DocumentSnapshot);
                         if(!sameMetadata(heads.get(shard),head))changed.add(shard);
-                        this.unknownRetained.add(head);heads.set(shard,head);through.set(shard,snapshot.readTime);
+                        if(!head.companyStorage)this.unknownRetained.add(head);
+                        heads.set(shard,head);through.set(shard,snapshot.readTime);
                     }
                     for(const shard of heads.keys())if(!seen.has(shard)&&!newer(shard)){heads.delete(shard);through.set(shard,snapshot.readTime);changed.add(shard);}
                     if(changed.size){this.invalidate(collection,changed);this.changed(collection,changed);}
@@ -525,16 +528,29 @@ export class MarketRepository {
         return this.queryUncached(collection, steps, context);
     }
     private async queryUncached(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
-        const heads = [...(await this.heads(collection, context)).values()];
+        let heads = [...(await this.heads(collection, context)).values()];
+        // A local committed-write notification may arrive before the atomic catalog
+        // snapshot. Refresh one consistent catalog before choosing the query path.
+        if (collection === 'companies' && heads.some(head => head.companyStorage) && !heads.every(head => head.companyStorage)) {
+            const catalog = this.raw.collection('collectors').where('marketCollection', '==', collection);
+            const snapshot = context ? await context.reader.get(catalog) as FirebaseFirestore.QuerySnapshot : await catalog.get();
+            heads = snapshot.docs.map(doc => this.parseHead(collection, doc.get('marketHead.shard'), doc));
+            if (!heads.every(head => head.companyStorage)) throw Error('Inconsistent company storage catalog');
+        }
+        const parquetCompanies = collection === 'companies' && heads.length === 256 && heads.every(head => head.companyStorage === 'parquet');
         if (!context && collection === 'companies' && this.files.directoryCandidates) {
             const ids = await this.files.directoryCandidates(heads, steps);
-            if (ids && (await this.retainedStore.mode()).ready) {
+            if (ids && (parquetCompanies || (await this.retainedStore.mode()).ready)) {
                 if (!ids.length) return [];
                 const fields = steps.find(step => step.method === 'select')!.args.map(fieldName);
                 const rows = await this.documents(collection, ids, undefined, fields);
                 const byId = new Map(rows.map(row => [row.id, row]));
                 return ids.flatMap(id => byId.get(id) ?? []);
             }
+        }
+        if (parquetCompanies) {
+            const rows = await this.files.query(heads, steps);
+            return Promise.all(rows.map(row => this.files.hydrate(row)));
         }
         const operational = steps.some(s => ['where', 'orderBy'].includes(s.method) && isOperationalField(collection, fieldName(s.args[0])));
         const retainedIds = this.retainedMembership(heads);
@@ -763,7 +779,7 @@ export class MarketRepository {
                     if (!data) {
                         rows.delete(id);
                         const hadRetained = retained.delete(id);
-                        if (!retire || hadRetained || context.documents.get(ref.path)?.exists)
+                        if (!head.companyStorage && (!retire || hadRetained || context.documents.get(ref.path)?.exists))
                             writes.push(() => this.retainedStore.write(tx,relocated,collection,id,undefined));
                         continue;
                     }
@@ -772,8 +788,9 @@ export class MarketRepository {
                     // settled updates. Active work returns to its queue index.
                     const preserve = collection === 'company_fundamentals' && !retained.has(id)
                         && published?.data.pending === false && settledUsFundamentals(id, data, at.toMillis());
-                    const split = preserve ? {external:data, retained:{}} : splitRecord(collection, id, data);
-                    const keep=retainsRecord(collection,id,data,split.retained);
+                    const parquetCompany = collection === 'companies' && head.companyStorage === 'parquet';
+                    const split = preserve || parquetCompany ? {external:data, retained:{}} : splitRecord(collection, id, data);
+                    const keep=!parquetCompany && retainsRecord(collection,id,data,split.retained);
                     if (Object.keys(split.external).length || !keep) {
                         if (!isDeepStrictEqual(rows.get(id)?.data, split.external))
                             rows.set(id, { id, data: split.external, version: at });
@@ -801,6 +818,7 @@ export class MarketRepository {
                             scan(change.args[0], []);
                     }
                     const serverStamps = (value: Data, path: string[] = []): Data => Object.fromEntries(Object.entries(value).map(([key, item]) => { const next = [...path, key]; return [key, item instanceof Timestamp && item.isEqual(at) && stampPaths.has(next.join('.')) ? FieldValue.serverTimestamp() : item && Object.getPrototypeOf(item) === Object.prototype ? serverStamps(item as Data, next) : item]; }));
+                    if (parquetCompany) continue;
                     if (!retire)
                         writes.push(() => this.retainedStore.write(tx,relocated,collection,id,{ ...split.external, ...serverStamps(split.retained) }));
                     else if (keep)
@@ -813,6 +831,7 @@ export class MarketRepository {
                 // The small head revision also delivers retained-only changes to existing
                 // entity caches, without listening to entire external-data collections.
                 const next = changed ? await this.files.write(collection, shard, nextRows, [...retained]) : { ...head, retained: [...retained].sort() };
+                if (head.companyStorage) next.companyStorage = head.companyStorage;
                 next.revision = randomUUID();
                 writes.push(() => tx.set(this.raw.collection('collectors').doc(headId(collection, shard)), { marketCollection: collection, marketHead: next }));
                 const pointer=compactHead(next);

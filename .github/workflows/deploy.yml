@@ -982,8 +982,6 @@ jobs:
           name: firestore-usage-before-cache
           path: artifacts/firestore-usage
           if-no-files-found: warn
-      - name: Verify company scope index and additive backfill
-        run: node scripts/firestore/verify-exchange-region.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -999,6 +997,8 @@ jobs:
       - name: Install migration dependencies
         if: steps.node-modules.outputs.cache-hit != 'true'
         run: npm ci
+      - name: Verify company scope index and additive backfill
+        run: node scripts/firestore/verify-exchange-region.mjs
       - name: Seed pending work and compact status documents
         run: npx tsx scripts/migrate-read-optimization.ts --apply
       - name: Deploy changed background workers
