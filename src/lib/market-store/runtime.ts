@@ -1,6 +1,6 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { Storage, type Bucket } from '@google-cloud/storage';
-import { MarketFiles } from './files';
+import { completeParquetHead, MarketFiles } from './files';
 import { MarketRepository } from './repository';
 import { marketFirestore } from './adapter';
 import {isParquetMarketCollection} from './policy';
@@ -50,11 +50,26 @@ export async function marketStoreClientReady(client:Firestore,collection:string)
     if(!isParquetMarketCollection(collection))return false;
     return await state.readers?.get(client)?.ready(undefined,collection)??false;
 }
-export async function completeCompaniesInParquet(client:Firestore):Promise<boolean> {
+export async function completeRecordsInParquet(client:Firestore,collection:'companies'|'instruments'):Promise<boolean> {
     const repository=state.readers?.get(client);
     if(!repository)return false;
-    const heads=await repository.heads('companies');
-    return heads.size===256 && [...heads.values()].every(head=>head.companyStorage==='parquet');
+    const heads=await repository.heads(collection);
+    return heads.size===256 && [...heads.values()].every(completeParquetHead);
+}
+// Capture one catalog generation so a concurrent onboarding edit cannot mix shards.
+export async function publishedSupportedInstruments(client:Firestore) {
+    const repo=state.readers?.get(client);
+    if (!repo || !await repo.ready(undefined,'instruments')) return undefined;
+    const heads=[...(await repo.heads('instruments')).values()];
+    if (!heads.some(completeParquetHead)) return undefined;
+    if (heads.length!==256 || !heads.every(completeParquetHead)) throw Error('Incomplete instrument Parquet catalog');
+    // A broad membership query needs the listing fields of most supported rows.
+    // Project them in a single DuckDB pass instead of resolving thousands of IDs.
+    const rows=await repo.files.query(heads,[
+        {method:'where',args:['onboarding.status','==','SUPPORTED']},
+        {method:'select',args:['companyId','status','onboarding.status','isDeleted','providerSymbols.youanalyst','symbol']},
+    ],false);
+    return Promise.all(rows.map(row=>repo.files.hydrate(row)));
 }
 export function registerObservedMarketClient(client:Firestore,observed:Firestore) {
     const repo=state.readers?.get(client);

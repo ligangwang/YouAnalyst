@@ -33,6 +33,7 @@ export type MarketHead = {
     rows: number;
     retained: string[];
     companyStorage?: "parquet";
+    recordStorage?: "parquet";
     revision?: string;
     format?: number;
     indexFile?: string;
@@ -40,6 +41,10 @@ export type MarketHead = {
     prefixFile?: string;
     prefixBytes?: number;
 };
+export function completeParquetHead(head: MarketHead): boolean {
+    return (head.collection === 'companies' && head.companyStorage === 'parquet')
+        || (head.collection === 'instruments' && head.recordStorage === 'parquet');
+}
 const CALENDAR_LOOKUP='type/scheduled_date';
 // Format 11 keeps the same field/payload schema in a small immutable sidecar.
 export const calendarIndexFile=(prefixFile:string)=>prefixFile.replace(/\.parquet$/,'-ca.parquet');

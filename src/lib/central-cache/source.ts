@@ -1,4 +1,4 @@
-import {completeCompaniesInParquet} from '../market-store/runtime';
+import {completeRecordsInParquet} from '../market-store/runtime';
 import { themeIdBatches } from '../company-themes/company-query';
 import { FieldPath, Timestamp, type Firestore, type Query, type DocumentData } from 'firebase-admin/firestore';
 import type { Collection, Row, Source, Stamp } from './store';
@@ -20,7 +20,7 @@ export function firestoreSource(db:Firestore):Source {
     changes:async(collection,since,through,priorCompanyIds)=>{
       // Parquet rows are encoded before the catalog transaction commits. A closed
       // updatedAt interval can miss an edit published after that interval ended.
-      if(collection==='companies' && await completeCompaniesInParquet(db)){
+      if(collection==='companies' && await completeRecordsInParquet(db,collection)){
         const batches=await themeIdBatches(db);
         const companies=await companyRows(db.collection(collection).orderBy(FieldPath.documentId()),batches);
         const present=new Set(companies.map(company=>company.id));
