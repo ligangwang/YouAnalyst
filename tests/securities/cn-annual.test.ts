@@ -34,34 +34,40 @@ test('selects latest corrected year, never a half year or forecast, and preserve
 });
 function database(seed:Record<string,unknown>={}){
   const docs=new Map<string,Record<string,unknown>>([[id,seed]]),writes:unknown[]=[];
-  const db={collection:(name:string)=>{if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})};assert.equal(name,'company_fundamentals');return {doc:(key:string)=>({
-    get:async()=>({exists:docs.has(key),data:()=>docs.get(key),get:(field:string)=>docs.get(key)?.[field]}),
-    set:async(value:Record<string,unknown>,options:unknown)=>{assert.deepEqual(options,{merge:true});writes.push(value);docs.set(key,{...docs.get(key),...value});}
-  })};}} as unknown as Firestore;
-  return {db,docs,writes};
+  const db={} as Firestore;
+  let generation=0,status:import('../../src/lib/fundamentals/cn-annual-status').AnnualStatus|undefined;
+  const dependencies:Partial<Parameters<typeof refreshCnAnnual>[0]>={
+    statusStore:{
+      read:async()=>({generation:String(generation),status}),
+      write:async(_id,expected,next)=>{assert.equal(expected,String(generation));generation++;status=next;writes.push(next);},
+    },
+    read:async(_db,key)=>docs.get(key),
+    publish:async(_db,annual)=>{docs.set(annual.companyId,{...docs.get(annual.companyId),cnAnnual:annual});writes.push(annual);},
+  };
+  return {db,docs,writes,dependencies};
 }
 test('annual worker merges into the existing cache and public reads do not enqueue SEC work',async()=>{
   const state=database({marketCap:{close:123},cnShares:{totalShares:100}}),annual=parse([row]);
-  const result=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>annual});
+  const result=await refreshCnAnnual({...state.dependencies,db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>annual});
   assert.equal(result.updated,1);assert.deepEqual(state.docs.get(id)?.cnShares,{totalShares:100});
   const writes=state.writes.length;
   const snapshot=await readCnFundamentals(id,state.db,now.getTime()+4*86400000,async()=>state.docs.get(id));
   assert.equal(snapshot?.annual?.end,'2025-12-31');assert.equal(snapshot?.stale,true);
   assert.equal(state.writes.length,writes);
-  const again=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('should skip');}});
+  const again=await refreshCnAnnual({...state.dependencies,db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('should skip');}});
   assert.equal(again.skipped,1);
 });
 test('provider failures preserve last report, retry later, and dry runs never write',async()=>{
   const annual=parse([row]),state=database({cnAnnual:annual});
-  const result=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('provider offline');}});
+  const result=await refreshCnAnnual({...state.dependencies,db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('provider offline');}});
   assert.equal(result.failed,1);assert.deepEqual(state.docs.get(id)?.cnAnnual,annual);
-  const retry=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('cooldown must prevent fetch');}});
+  const retry=await refreshCnAnnual({...state.dependencies,db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('cooldown must prevent fetch');}});
   assert.equal(retry.failed,1);assert.equal(retry.skipped,0);
   assert.deepEqual(state.docs.get(id)?.cnAnnual,annual);
   const dry=database();
-  await refreshCnAnnual({db:dry.db,companies:[id],deadline:now.getTime()+120000,log,dryRun:true,now:()=>now.getTime(),fetch:async()=>annual,print:()=>{}});
+  await refreshCnAnnual({...dry.dependencies,db:dry.db,companies:[id],deadline:now.getTime()+120000,log,dryRun:true,now:()=>now.getTime(),fetch:async()=>annual,print:()=>{}});
   assert.equal(dry.writes.length,0);
-  const deferred=await refreshCnAnnual({db:dry.db,companies:[id],deadline:now.getTime()+1000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('must not start');}});
+  const deferred=await refreshCnAnnual({...dry.dependencies,db:dry.db,companies:[id],deadline:now.getTime()+1000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('must not start');}});
   assert.equal(deferred.deferred,1);assert.equal(dry.writes.length,0);
 });
 
@@ -76,4 +82,27 @@ test('the public annual reader handles published and deleted Parquet rows', asyn
   assert.deepEqual(result?.metrics,annual.metrics);
   assert.equal(await readCnFundamentals(id,db,now.getTime(),async()=>({cnAnnual:annual,isDeleted:true})),null);
   assert.equal(await readCnFundamentals(id,db,now.getTime(),async()=>undefined),null);
+});
+
+test('annual checkpoints bind reads and competing updates to the observed object generation',async()=>{
+  const {annualStatusStore}=await import('../../src/lib/fundamentals/cn-annual-status');
+  let generation=0,bytes='';
+  const error=(code:number)=>Object.assign(new Error(String(code)),{code});
+  const bucket={file:(name:string,options?:{generation:string})=>{
+    assert.equal(name,'worker-state/v1/cn-annual/'+id+'.json');
+    return {
+      getMetadata:async()=>{if(!generation)throw error(404);return [{generation:String(generation)}];},
+      download:async()=>{assert.equal(options?.generation,String(generation));return [Buffer.from(bytes)];},
+      save:async(value:string,options:{preconditionOpts:{ifGenerationMatch:string}})=>{
+        if(options.preconditionOpts.ifGenerationMatch!==String(generation))throw error(412);
+        generation++;bytes=value;
+      },
+    };
+  }} as unknown as import('@google-cloud/storage').Bucket;
+  const store=annualStatusStore(bucket),original=await store.read(id);
+  assert.equal(original.generation,'0');
+  const ready={outcome:'ready' as const,checkedAtMs:100,retryAfter:200,lastError:null};
+  await store.write(id,original.generation,ready);
+  await assert.rejects(store.write(id,original.generation,{...ready,outcome:'retry'}),/412/);
+  assert.deepEqual(await store.read(id),{generation:'1',status:ready});
 });

@@ -73,6 +73,16 @@ export async function readPublishedFinancialRows(db:Firestore,ids:string[],field
 export async function readPublishedFinancials(db:Firestore,id:string,fields:FinancialField[]){
     return (await readPublishedFinancialRows(db,[id],fields))[0];
 }
+export async function publishCnAnnual(db: Firestore, annual: import('../fundamentals/cn-annual').CnAnnual) {
+    const repository = state.readers?.get(db);
+    if (!repository) throw Error('No published financial store configured for this client');
+    await repository.updatePublishedFinancialField(annual.companyId, 'cnAnnual', row => {
+        const previous = row.cnAnnual as typeof annual | undefined;
+        if (previous && (previous.end > annual.end || previous.end === annual.end && previous.updated > annual.updated))
+            throw Error('Provider returned an older annual snapshot');
+        return annual;
+    });
+}
 export async function updatePublishedMarketCap(db: Firestore, id: string, calculate: (published: DocumentData) => DocumentData) {
     const repository = state.readers?.get(db);
     if (!repository) throw Error('No published financial store configured for this client');
