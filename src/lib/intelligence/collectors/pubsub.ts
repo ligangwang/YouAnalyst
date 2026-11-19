@@ -64,6 +64,10 @@ export async function processNewsRequest(input:unknown,db:Firestore,options:{
   const now=options.now??Date.now;
   if(cursor&&Date.parse(cursor.leaseUntil??'')>now())throw new Error('News source busy; retry');
   if(cursor&&Date.parse(cursor.nextPollAt??'')>now()){
+    // The scheduled publisher rechecks nextPollAt and dispatches when due.
+    if(cursor.lastError && /^(?:Feed returned )?HTTP (403|404)$/.test(cursor.lastError)){
+      return {sourceId:source.id,notDue:true};
+    }
     if(cursor.lastError)throw new Error('News source cooling down; retry');
     return {sourceId:source.id,notDue:true};
   }
