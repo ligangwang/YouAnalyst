@@ -87,6 +87,7 @@ export class MarketRepository {
         change: () => void;
         error: (error: unknown) => void;
     }>>();
+    private queriedPublishedGraph = false;
     constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
         this.retainedStore=new RetainedStore(raw,stagedRetained,ids=>{
             const shards=new Set(ids.map(shardFor));
@@ -567,8 +568,14 @@ export class MarketRepository {
         // instance. Reuse a warm view, but reserve full listener bootstrap for broad reads.
         const boundedSearch = directoryLookup && this.nativeQuerySteps(collection, steps, operational)
             .some(step => step.method === 'limit' && Number(step.args[0]) <= 50);
+        // A cold graph subscription needs only published issuers. If it refreshes
+        // repeatedly, allow the shared view to amortize subsequent invalidations.
+        const firstGraphRead = !context && !this.queriedPublishedGraph && collection === 'companies'
+            && onlyRetained && !!projection && steps.some(step => step.method === 'where'
+                && step.args[0] === 'inGraph.status' && step.args[1] === '==' && step.args[2] === 'PUBLISHED');
+        if (firstGraphRead) this.queriedPublishedGraph = true;
         const [companyView, earlyCandidates] = await Promise.all([
-            collection === 'companies' ? this.retainedStore.companies(context, !boundedSearch) : undefined,
+            collection === 'companies' ? this.retainedStore.companies(context, !boundedSearch && !firstGraphRead) : undefined,
             directoryLookup ? externalCandidates() : undefined,
         ]);
         // Selecting candidates only needs predicate/order fields. Decoding all
