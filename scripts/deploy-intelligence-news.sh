@@ -28,8 +28,9 @@ check_maintenance_job_iam "$cn_job"
 if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh; fi
 if [[ "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh article; fi
 env_file="$(mktemp)"
-chmod 600 "$env_file"
-trap 'rm -f "$env_file"' EXIT
+cn_env_file="$(mktemp)"
+chmod 600 "$env_file" "$cn_env_file"
+trap 'rm -f "$env_file" "$cn_env_file"' EXIT
 node - "$env_file" <<'NODE'
 const fs = require('node:fs');
 const env = {NODE_OPTIONS:"--max-old-space-size=1536",ENTITY_SNAPSHOT_BUCKET:process.env.ENTITY_SNAPSHOT_BUCKET,CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL || '',GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
@@ -45,11 +46,17 @@ const env = {NODE_OPTIONS:"--max-old-space-size=1536",ENTITY_SNAPSHOT_BUCKET:pro
 if (env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED === '1' || env.CALENDAR_EXTRACTION_ENABLED === '1') env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 fs.writeFileSync(process.argv[2],JSON.stringify(env),{mode:0o600});
 NODE
+node - "$env_file" "$cn_env_file" <<'CN_ENV'
+const fs = require('node:fs');
+const env = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+for (const key of ['OPENAI_API_KEY','OPENAI_CALENDAR_MODEL','CALENDAR_EXTRACTION_ENABLED','NEWS_ANALYSIS_MONTHLY_BUDGET_USD','NEWS_ENRICHMENT_REQUEST_TOPIC','SEC_USER_AGENT']) delete env[key];
+fs.writeFileSync(process.argv[3], JSON.stringify(env), {mode:0o600});
+CN_ENV
 gcloud run jobs deploy "$cn_job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
   --max-retries 0 --task-timeout 20m --memory 2Gi --cpu 1 \
   --command node --args dist/collect-intelligence-news.cjs,--apply,--cn-announcements-only \
-  --env-vars-file "$env_file" --quiet
+  --env-vars-file "$cn_env_file" --quiet
 ensure_maintenance_job_iam "$cn_job"
 cn_args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '0 12 * * *' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$cn_job:run"
