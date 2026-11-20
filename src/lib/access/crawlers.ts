@@ -22,7 +22,7 @@ export function crawlerResearchPath(url: URL): boolean {
   return path === '/' || /^\/(?:company|ticker|research|industries|investment-themes|companies|intelligence|map|feed)(?:\/|$)/.test(path)
     || path === '/compare' || path === '/compare/embed' || path.startsWith('/sitemaps/')
     || /^\/api\/(?:intelligence(?:\/enrichment)?|company-(?:fundamentals|updates|timeline|relationships|peer-prices|peer-comparison)|knowledge-graph|industry-graph|investment-themes|market-companies|tickers\/search|compare(?:\/share-image)?)$/.test(path)
-    || /^\/api\/company-graph\/[^/]+$/.test(path);
+    || /^\/api\/company-graph\/[A-Z0-9.-]+$/.test(path);
 }
 export function crawlerEngine(agent: string): Engine | null {
   return /\bGooglebot(?:-Image|-Video)?\//i.test(agent) ? 'google' : /\bbingbot\//i.test(agent) ? 'bing' : null;

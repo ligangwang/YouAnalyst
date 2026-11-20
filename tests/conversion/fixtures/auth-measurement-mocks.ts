@@ -15,7 +15,7 @@ export const browserPopupRedirectResolver = {};
 export const isFirebaseConfigured = () => true;
 export const getFirebaseServices = () => ({ auth: {}, googleProvider: {} });
 export const setPersistence = async () => {};
-export function onAuthStateChanged(_auth: unknown, callback: (user: MockUser | null) => void) {
+export function onIdTokenChanged(_auth: unknown, callback: (user: MockUser | null) => void) {
   observers.add(callback);
   queueMicrotask(() => { if (observers.has(callback)) callback(user); });
   return () => observers.delete(callback);
@@ -35,6 +35,7 @@ export const getAdditionalUserInfo = (credential: { isNewUser: boolean }) => ({ 
 export const signOut = async () => { user = null; observers.forEach(callback => callback(user)); };
 
 export const useRouter = () => ({
+  refresh() {},
   push(href: string) {
     window.history.pushState(null, "", href);
     window.dispatchEvent(new Event("route-change"));

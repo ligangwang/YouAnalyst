@@ -40,6 +40,10 @@ test.beforeEach(async ({ page }) => {
     const request = route.request(), url = new URL(request.url());
     if (url.origin !== origin) return route.abort();
     if (request.isNavigationRequest() && request.method() === "GET") return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === '/api/auth/session' && ['POST','DELETE'].includes(request.method())) {
+      if(request.method()==='POST') expect(request.headers().authorization).toBe('Bearer measurement-token');
+      return route.fulfill({status:204});
+    }
     if (url.pathname === "/api/users/bootstrap" && request.method() === "POST") return route.fulfill({ json: { created: true } });
     if (url.pathname === "/api/knowledge-graph" && request.method() === "GET") return route.fulfill({ json: { nodes: [] } });
     if (url.pathname === "/api/map-follows" && request.method() === "PATCH") {

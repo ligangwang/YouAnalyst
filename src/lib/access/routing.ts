@@ -129,4 +129,3 @@ export function routeRequest(request: NextRequest) {
 
   return NextResponse.redirect(url, 308);
 }
-
