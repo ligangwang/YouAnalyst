@@ -16,6 +16,7 @@ import {DocumentBatcher} from './document-batcher';
 import {EVENTS_CONTROL,EventsControl,eventsMode,type EventsMode} from './events-control';
 import {FUNDAMENTALS_CONTROL,FundamentalsControl,fundamentalsMode,type FundamentalsMode} from './fundamentals-control';
 import {compactHead,pointerCollection,pointerId,pointerHasRetained} from './head-pointer';
+export const PREDICTION_MARKS_CONTROL = 'collectors/_market_parquet_prediction_marks_control';
 export const CONTROL = 'collectors/_market_parquet_control';
 export const headId = (collection: MarketCollection, shard: string) => `_market_parquet_${collection}_${shard}`;
 export type Mutation = {
@@ -31,6 +32,7 @@ export type MarketContext = {
     reader: Reader;
     retainedMode?:RetainedMode;
     control?: boolean;
+    predictionMarksReady?: Promise<boolean>;
     fundamentals?: FundamentalsMode;
     events?: EventsMode;
     cleanupAuthorized?: boolean;
@@ -88,6 +90,7 @@ export class MarketRepository {
         change: () => void;
         error: (error: unknown) => void;
     }>>();
+    private predictionMarksControl?: { until: number; ready: Promise<boolean> };
     private queriedPublishedGraph = false;
     private queriedThemeMembership = false;
     constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
@@ -212,6 +215,23 @@ export class MarketRepository {
         return this.events.read();
     }
     async ready(context?: MarketContext,collection?:MarketCollection): Promise<boolean> {
+        if(collection==='prediction_daily_marks'){
+            const read = async () => {
+                const ref = this.raw.doc(PREDICTION_MARKS_CONTROL);
+                const doc = (context ? await context.reader.get(ref) : await ref.get()) as DocumentSnapshot;
+                if (!doc.exists) return false;
+                const data = doc.data();
+                assertReadControl(data);
+                return data.ready;
+            };
+            if (context) return context.predictionMarksReady ??= read();
+            if (!this.predictionMarksControl || this.predictionMarksControl.until <= Date.now()) {
+                const current = { until: Date.now() + 1000, ready: read() };
+                this.predictionMarksControl = current;
+                void current.ready.catch(() => { if (this.predictionMarksControl === current) this.predictionMarksControl = undefined; });
+            }
+            return this.predictionMarksControl.ready;
+        }
         if(collection==='events'&&this.events){
             if(this.readOnlyProbe)return true;
             const mode=await this.eventsState(context);

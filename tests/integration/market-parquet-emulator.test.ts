@@ -11,7 +11,7 @@ import {EVENTS_CONTROL} from '../../src/lib/market-store/events-control';
 import {RETAINED_CONTROL,retainedPath,RetainedStore} from '../../src/lib/market-store/retained-store';
 import {reconcileRetainedRecords} from '../../src/lib/market-store/retained-migration';
 import {FUNDAMENTALS_CONTROL} from '../../src/lib/market-store/fundamentals-control';
-import { MarketRepository, CONTROL,headId } from '../../src/lib/market-store/repository';
+import { MarketRepository, CONTROL,PREDICTION_MARKS_CONTROL,headId } from '../../src/lib/market-store/repository';
 import {bundleMarketIndexes} from '../../src/lib/market-store/index-bundles';
 import { marketFirestore as routeMarketFirestore } from '../../src/lib/market-store/adapter';
 import {MARKET_COLLECTIONS} from '../../src/lib/market-store/policy';
@@ -975,4 +975,35 @@ check('mixed migration pages past stale copies through both query directions',as
         },undefined,{count:1,fromEnd,accepts});
         assert.deepEqual(rows.map(row=>row.id),[fromEnd?'d':'c']);
     }
+});
+
+check('daily marks accept native writes until cutover, then read and update only the Parquet copy', async t=>{
+    const f=fixture();
+    t.after(()=>f.db.terminate());
+    await Promise.all([
+        f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[]}),
+        f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true}),
+    ]);
+    const collection='prediction_daily_marks',id='p1_2026-11-20',shard=shardFor(id);
+    const raw=f.raw.collection(collection).doc(id),mark=f.db.collection(collection).doc(id);
+    await f.db.runTransaction(async tx=>{
+        assert(!(await tx.get(mark)).exists);
+        tx.set(mark,{userId:'u1',predictionId:'p1',date:'2026-11-20',score:10});
+    });
+    const source=await raw.get();
+    assert.equal(source.get('score'),10);
+    const head=await f.repository.files.write(collection,shard,[{id,data:source.data()!,version:source.updateTime!}],[]);
+    await f.raw.collection('collectors').doc(headId(collection,shard)).set({
+        marketCollection:collection,marketHead:{...head,recordStorage:'parquet'},
+    });
+    await f.raw.doc(PREDICTION_MARKS_CONTROL).set({version:1,ready:true});
+    await f.db.runTransaction(async tx=>{
+        assert.equal((await tx.get(mark)).get('score'),10);
+        tx.update(mark,{score:15});
+        tx.set(f.db.doc('user_daily_scores/u1-test'),{totalScore:15});
+    });
+    assert.equal((await raw.get()).get('score'),10);
+    await raw.delete();
+    assert.equal((await f.db.runTransaction(tx=>tx.get(mark))).get('score'),15);
+    assert.equal((await f.raw.doc('user_daily_scores/u1-test').get()).get('totalScore'),15);
 });

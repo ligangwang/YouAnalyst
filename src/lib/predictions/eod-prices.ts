@@ -1102,12 +1102,13 @@ async function readPreviousPredictionDailyScore(
   };
 }
 
-async function writeUserDailyScoreSnapshots(
+export async function writeUserDailyScoreSnapshots(
   db: FirebaseFirestore.Firestore,
   userIds: string[],
   tradingDate: string,
   nowIso: string,
   log?: MaintenanceLog,
+  capture?: (id: string, score: FirebaseFirestore.DocumentData) => void,
 ): Promise<{ userScores: number; skippedUsers: number }> {
   let userScores = 0;
   let skippedUsers = 0;
@@ -1198,7 +1199,7 @@ async function writeUserDailyScoreSnapshots(
     const closingPredictions = 0;
     const closedPredictions = countMarksByStatus(aggregateMarks, ["SETTLED"]);
 
-    await userDailyRef.set({
+    const score = {
       userId,
       date: tradingDate,
       totalScore,
@@ -1233,7 +1234,9 @@ async function writeUserDailyScoreSnapshots(
       worstPredictionScoreChange: worstMark?.scoreChange ?? null,
       createdAt: existingDailySnapshot.get("createdAt") ?? nowIso,
       updatedAt: nowIso,
-    }, { merge: true });
+    };
+    if (capture) capture(userDailyRef.id, score);
+    else await userDailyRef.set(score, { merge: true });
 
     userScores += 1;
   }
