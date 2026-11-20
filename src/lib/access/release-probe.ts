@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { incomingOrigin } from './http-origin';
 
 // Release tests may read research without creating a real member account.
 // Never transmit the long-lived service secret into browser traces.
@@ -14,6 +15,7 @@ export function verifiedReleaseProbe(request: {method:string;headers:Headers;nex
   try {
     const claims=JSON.parse(Buffer.from(payload,'base64url').toString());
     const now=Math.floor(Date.now()/1000);
-    return claims.v===1 && claims.aud===request.nextUrl.origin && Number.isInteger(claims.exp) && claims.exp>now && claims.exp<=now+600;
+    const origin=incomingOrigin(request);
+    return claims.v===1 && claims.aud===origin && Number.isInteger(claims.exp) && claims.exp>now && claims.exp<=now+600;
   } catch { return false; }
 }

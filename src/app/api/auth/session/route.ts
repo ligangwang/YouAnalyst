@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MEMBER_COOKIE } from '@/lib/access/policy';
 import { verifyMember } from '@/lib/access/member';
+import { incomingOrigin } from '@/lib/access/http-origin';
 
 function sameOrigin(request: NextRequest) {
-  return request.headers.get('origin') === request.nextUrl.origin && request.headers.get('sec-fetch-site') !== 'cross-site';
+  const origin = incomingOrigin(request);
+  return !!origin && request.headers.get('origin') === origin && request.headers.get('sec-fetch-site') !== 'cross-site';
 }
 export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return new NextResponse(null, {status:403});

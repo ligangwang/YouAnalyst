@@ -24,3 +24,13 @@ test('release credentials are signed, origin-bound, read-only and short-lived',(
     }
   } finally {if(previous===undefined)delete process.env.INTERNAL_API_TOKEN;else process.env.INTERNAL_API_TOKEN=previous;}
 });
+
+test('release probes retain the incoming loopback authority despite NextURL normalization',async()=>{
+  const {NextRequest}=await import('next/server');
+  const previous=process.env.INTERNAL_API_TOKEN;process.env.INTERNAL_API_TOKEN='local-test-secret';
+  try {
+    const url='http://127.0.0.1:3187/api/investment-themes';
+    const request=new NextRequest(url,{headers:{host:'127.0.0.1:3187',...releaseProbeHeaders(url)}});
+    assert(verifiedReleaseProbe(request));
+  } finally {if(previous===undefined)delete process.env.INTERNAL_API_TOKEN;else process.env.INTERNAL_API_TOKEN=previous;}
+});
