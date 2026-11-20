@@ -1,3 +1,4 @@
+import {ANNOUNCEMENT_EVENT_FIELDS,announcementCachePath} from '../events/announcement-projection';
 import {reportNativeRead} from './native-read-observability';
 import {RetainedReadCache} from './retained-read-cache';
 import {RetainedStore,relocatesCollection,type RetainedMode} from './retained-store';
@@ -711,6 +712,7 @@ export class MarketRepository {
             groups.set(key, group);
         }
         const writes: Array<() => void> = [];
+        const changedAnnouncementCompanies = new Set<string>();
         const missingHeads = [...groups.values()].filter(group => !context.heads.has(group.collection + '/' + group.shard));
         for (let offset = 0; offset < missingHeads.length; offset += 100) {
             const batch = missingHeads.slice(offset, offset + 100), docs = await context.reader.getAll(...batch.map(group => this.raw.collection('collectors').doc(headId(group.collection, group.shard))));
@@ -776,6 +778,15 @@ export class MarketRepository {
                 }
                 for (const [id, data] of complete) {
                     const ref = this.raw.collection(collection).doc(id);
+                    if (collection === 'events' && !ready) {
+                        const previous = context.documents.get(ref.path)?.data();
+                        if (ANNOUNCEMENT_EVENT_FIELDS.some(field => !isDeepStrictEqual(previous?.[field], data?.[field]))) {
+                            for (const row of [previous, data]) {
+                                if (row?.publication_date !== undefined && typeof row.companyId === 'string' && /^(?:US|XSHG|XSHE):[A-Z0-9.-]+$/.test(row.companyId))
+                                    changedAnnouncementCompanies.add(row.companyId);
+                            }
+                        }
+                    }
                     if (!data) {
                         rows.delete(id);
                         const hadRetained = retained.delete(id);
@@ -841,7 +852,9 @@ export class MarketRepository {
                 writes.push(() => tx.set(this.raw.collection('collectors').doc(pointerId(collection,shard)),{marketCollection:pointerCollection(collection),marketHead:pointer}));
             }
         }));
-        return () => { for (const write of writes)
-            write(); };
+        return () => {
+            for (const write of writes) write();
+            for (const company of changedAnnouncementCompanies) tx.delete(this.raw.doc(announcementCachePath(company)));
+        };
     }
 }

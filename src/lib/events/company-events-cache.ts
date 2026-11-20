@@ -3,10 +3,8 @@ import { collectionSourceSnapshot, withSourceCache } from '../local-cache/read-s
 import { EVENTS_COLLECTION } from './model';
 import {marketStoreReady} from '../market-store/runtime';
 
-// Announcement cards and publisher validation need no captured article body,
-// model analysis, or ingestion metadata. Keep the pagination field included.
-export const ANNOUNCEMENT_EVENT_FIELDS = ['version','companyId','id','title','url','published_at','publication_date',
-  'type','sourceType','sourceId','category','form'] as const;
+import {ANNOUNCEMENT_EVENT_FIELDS} from './announcement-projection';
+export {ANNOUNCEMENT_EVENT_FIELDS} from './announcement-projection';
 
 // Shared with other cached event reads across server bundles.
 export function loadCompanyEventSnapshot(db: Firestore, companyId: string, limit: number, after?: QueryDocumentSnapshot): Promise<QuerySnapshot> {

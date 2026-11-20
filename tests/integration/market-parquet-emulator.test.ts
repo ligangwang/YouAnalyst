@@ -1,3 +1,5 @@
+import {readSharedAnnouncementWindow} from '../../src/lib/events/shared-announcement-window';
+import {announcementCachePath} from '../../src/lib/events/announcement-projection';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -131,6 +133,27 @@ check('retained records move atomically, preserve queries and never recreate ret
     assert.equal((await f.raw.doc('events/native-feed').get()).get('title'),'Keep the feed in Firestore');
     assert.equal((await f.raw.doc(retainedPath('market_state','events','native-feed')).get()).exists,false);
 });
+check('shared announcement windows survive cold clients and follow committed event changes',async t=>{
+    const f=fixture(false,false,false,false,true);
+    const other=new Firestore({projectId:f.projectId});
+    t.after(async()=>{await other.terminate();await f.db.terminate();});
+    await f.raw.doc(EVENTS_CONTROL).set({version:1,ready:false});
+    const read=(id:string)=>readSharedAnnouncementWindow(other,id);
+    assert.deepEqual(await read('US:AMD'),[]);
+    const ref=f.db.doc('events/window-test');
+    await ref.set({id:ref.id,companyId:'US:AMD',title:'New announcement',publication_date:'2026-11-19'});
+    const titles=async(id:string)=>(await read(id)).map(row=>row.title);
+    assert.deepEqual(await titles('US:AMD'),['New announcement']);
+    const cache=f.raw.doc(announcementCachePath('US:AMD')),built=(await cache.get()).updateTime!;
+    assert.equal((await readSharedAnnouncementWindow(f.db,'US:AMD'))[0].title,'New announcement');
+    await ref.update({analysisStatus:'complete'});
+    assert((await cache.get()).updateTime!.isEqual(built));
+    await ref.update({title:'Correction',companyId:'US:MU'});
+    assert.deepEqual(await titles('US:AMD'),[]);
+    assert.deepEqual(await titles('US:MU'),['Correction']);
+    await ref.delete();
+    assert.deepEqual(await titles('US:MU'),[]);
+});
 check('native announcement snapshots remain listenable before Parquet cutover',async t=>{
     const raw=new Firestore({projectId:'demo-announcements-'+randomUUID().slice(0,8)});
     t.after(async()=>{closeLocalCaches();await raw.terminate();});
@@ -155,9 +178,10 @@ function fixture(stagedReads=false,compact:boolean|'default'=false,fundamentalsG
     const previous=process.env.MARKET_PARQUET_HEAD_POINTERS;
     if(compact==='default')delete process.env.MARKET_PARQUET_HEAD_POINTERS;
     else process.env.MARKET_PARQUET_HEAD_POINTERS=compact?'1':'0';
-    const raw = new Firestore({ projectId: 'demo-market-' + randomUUID().slice(0, 8) }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads,fundamentalsGate,stagedFundamentals,eventsGate,stagedEvents);
+    const projectId='demo-market-'+randomUUID().slice(0,8);
+    const raw = new Firestore({ projectId }), repository = new MarketRepository(raw, new MarketFiles(bucket,32*1024*1024),undefined,false,stagedReads,fundamentalsGate,stagedFundamentals,eventsGate,stagedEvents);
     if(previous===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;else process.env.MARKET_PARQUET_HEAD_POINTERS=previous;
-    return { raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
+    return { projectId, raw, repository, db: observeFirestore(marketFirestore(raw, repository), () => { }), fail: () => { fail = true; }, objects };
 }
 for(const suffix of ['-ca.parquet','-af.parquet'])check(`${suffix} upload failure cannot publish a new event or shard pointer`,async t=>{
     const f=fixture(true,false,false,false,true,true);t.after(()=>f.db.terminate());
