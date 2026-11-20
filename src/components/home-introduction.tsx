@@ -70,7 +70,7 @@ export function HomeIntroduction() {
           </section>
           <section className={styles.panel}>
             <h2>{text('Compare ideas', '对比投资思路')}</h2>
-            <div className={styles.legend}><span>● NVDA</span><span>● AMD</span><span>● MSFT</span></div>
+            <div className={styles.legend}>{examples.map(item => <span key={item.id}>● {item.symbol}</span>)}</div>
             <svg className={styles.chart} viewBox="0 0 420 160" role="img" aria-label={text('Illustrative comparison chart, not market data', '示意对比图，非市场数据')}>
               <path d="M10 30H410M10 80H410M10 130H410" stroke="currentColor" opacity=".12" fill="none"/>
               <path d="M10 130L65 111L120 119L175 78L230 88L285 40L340 51L410 18" stroke="#0891b2" strokeWidth="3" fill="none"/>
