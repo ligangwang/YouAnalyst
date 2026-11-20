@@ -657,7 +657,7 @@ test('a cold subscription refreshes once for its initial head and once per later
         assert.equal(calls.length,2);
     }finally{await repo.close();}
 });
-for (const collection of ['companies','instruments'] as const) test(collection+' edits preserve complete Parquet rows and only publish catalog pointers', async () => {
+for (const collection of ['companies','instruments','company_relationships','company_fundamentals'] as const) test(collection+' edits preserve complete Parquet rows and only publish catalog pointers', async () => {
     const files = fixture(), id = 'US:TEST', shard = shardFor(id);
     const row = {id, version: Timestamp.now(), data: {name:'Test', themeIds:['ai'], onboarding:{status:'READY'}}};
     const storage = collection==='companies' ? {companyStorage:'parquet' as const} : {recordStorage:'parquet' as const};

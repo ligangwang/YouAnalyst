@@ -16,6 +16,7 @@ const rawClients=new Set([
     'scripts/sync-entity-snapshots.ts',
     'scripts/handoff-fundamentals-controls.ts', // One-time operator fence on the two physical legacy records.
     'scripts/migrate-retained-state.ts','scripts/archive-fundamentals-receipts.ts',
+    'scripts/migrate-retained-market-records.ts', // Operator-only copy verification against physical source paths.
 ]);
 test('direct REST market access requires an explicitly reviewed boundary',()=>{
     const reviewed=new Set([

@@ -944,3 +944,20 @@ check('archived US companies stay discoverable by outcome and can re-enter the a
     assert.equal((await f.raw.doc(retainedPath('market_state',collection,'US:NEW')).get()).exists,false);
     assert.equal((await fresh.get()).get('outcome'),'unavailable');
 });
+
+check('mixed migration pages past stale copies through both query directions',async t=>{
+    const f=fixture();t.after(()=>f.db.terminate());
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const collection='company_relationships';
+    for(const id of ['a','b','c','d','e'])
+        await f.raw.doc(retainedPath('market_ugc',collection,id)).set({status:'PUBLISHED', order:id});
+    const store=new RetainedStore(f.raw);
+    const accepts=(id:string)=>id==='c'||id==='d';
+    for(const fromEnd of [false,true]){
+        const rows=await store.query(collection,path=>{
+            const query=f.raw.collection(path).orderBy('order');
+            return fromEnd?query.limitToLast(1):query.limit(1);
+        },undefined,{count:1,fromEnd,accepts});
+        assert.deepEqual(rows.map(row=>row.id),[fromEnd?'d':'c']);
+    }
+});

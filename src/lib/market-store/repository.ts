@@ -428,8 +428,13 @@ export class MarketRepository {
                     if (archivedFundamentalsReceipt(full.id, full.data))
                         archived.set(full.id, fields ? {...full, data: project(full.data, fields)} : full);
                 }
-                if (archived.size) {
-                    const remaining = ids.filter(id => !archived.has(id));
+                const mode = this.fundamentals ? await this.fundamentalsState(context) : undefined;
+                const authoritative = mode?.ready && mode.cleanupAuthorized && mode.cleanedCollections.has(collection);
+                const membership = this.retainedMembership(heads);
+                if (archived.size || authoritative) {
+                    const saved = new Set(stored.map(row => row.id));
+                    const remaining = ids.filter(id => !archived.has(id)
+                        && (!authoritative || membership.has(id) || saved.has(id)));
                     if (remaining.length) for (const row of await this.documentsWithRetained(collection, remaining, context, fields))
                         archived.set(row.id, row);
                     return ids.flatMap(id => archived.has(id) ? [archived.get(id)!] : []);
@@ -439,10 +444,20 @@ export class MarketRepository {
         return this.documentsWithRetained(collection, ids, context, fields);
     }
     private async documentsWithRetained(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
-        const earningsHeads=collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_'));
-        const reserved=earningsHeads||collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
-        if(reserved&&[...reserved.values()].every(doc=>doc.exists&&(earningsHeads?doc.get('recordType')==='head':doc.get('completed')!==true)))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
+        const earningsHeads = collection === 'earnings_records' && !fields && ids.every(id => id.startsWith('head_'));
+        const rawRefs = (keys: string[]) => keys.map(id => this.raw.collection(collection).doc(id));
+        const earnings = earningsHeads ? await this.rawDocuments(rawRefs(ids), context) : undefined;
+        if (earnings && [...earnings.values()].every(doc => doc.exists && doc.get('recordType') === 'head'))
+            return ids.map(id => {const doc = earnings.get(collection + '/' + id)!; return {id, data: doc.data()!, version: doc.updateTime!};});
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
+        const reservedFundamentals = collection === 'company_fundamentals' && !fields && ids.every(id => id.startsWith('_'));
+        const completeShards = new Set(heads.filter(completeParquetHead).map(head => head.shard));
+        const reservedIds = reservedFundamentals ? ids.filter(id => !completeShards.has(shardFor(id))) : [];
+        const reserved = earnings ?? (reservedIds.length
+            ? await this.rawDocuments(rawRefs(reservedIds), context) : undefined);
+        if (reservedFundamentals && reserved && reservedIds.length === ids.length
+            && [...reserved.values()].every(doc => doc.exists && doc.get('completed') !== true))
+            return ids.map(id => {const doc = reserved.get(collection + '/' + id)!; return {id, data: doc.data()!, version: doc.updateTime!};});
         const retained = this.retainedMembership(heads);
         // Full company reads already require these live records. A complete
         // editorial company has no external payload. Require its external status
@@ -532,7 +547,7 @@ export class MarketRepository {
         let heads = [...(await this.heads(collection, context)).values()];
         // A local committed-write notification may arrive before the atomic catalog
         // snapshot. Refresh one consistent catalog before choosing the query path.
-        if (heads.some(completeParquetHead) && !heads.every(completeParquetHead)) {
+        if ((collection === 'companies' || collection === 'instruments') && heads.some(completeParquetHead) && !heads.every(completeParquetHead)) {
             const catalog = this.raw.collection('collectors').where('marketCollection', '==', collection);
             const snapshot = context ? await context.reader.get(catalog) as FirebaseFirestore.QuerySnapshot : await catalog.get();
             heads = snapshot.docs.map(doc => this.parseHead(collection, doc.get('marketHead.shard'), doc));
@@ -574,8 +589,9 @@ export class MarketRepository {
             && !(collection === 'company_fundamentals' && settledWorkerField(fieldName(step.args[0]),
                 step.method === 'where' ? step.args[1] : undefined, step.args[2]))
             && isOperationalField(collection, fieldName(step.args[0])));
-        const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay
-            ? Promise.resolve([]) : this.files.query(heads, candidateSteps);
+        const candidateHeads = requiresOverlay ? heads.filter(completeParquetHead) : heads;
+        const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || !candidateHeads.length
+            ? Promise.resolve([]) : this.files.query(candidateHeads, candidateSteps);
         const searchFields = ['searchPrefixes', 'symbolLower'];
         const directoryLookup = collection === 'companies' && !context && projection
             && steps.some(step => step.method === 'limit' && Number(step.args[0]) <= 50)
@@ -608,8 +624,15 @@ export class MarketRepository {
         const viewFields=[...new Set(viewSteps.filter(step=>['where','orderBy'].includes(step.method)).map(step=>fieldName(step.args[0]).split('.')[0]))].filter(field=>field!=='__name__');
         const viewRows=companyView?await this.files.filter([...companyView.values()].map(doc=>({id:doc.id,
             data:Object.fromEntries(viewFields.map(field=>[field,doc.get(field)]).filter(([,value])=>value!==undefined)),version:doc.updateTime!})),viewSteps):undefined;
+        const nativeLimit = heads.some(completeParquetHead) && this.nativeQuerySteps(collection, steps, operational)
+            .find(step => step.method === 'limit' || step.method === 'limitToLast');
+        const retainedWindow = nativeLimit && Number(nativeLimit.args[0]) > 0 ? {
+            count: Number(nativeLimit.args[0]),
+            fromEnd: nativeLimit.method === 'limitToLast',
+            accepts: (id: string) => retainedIds.has(id),
+        } : undefined;
         const rawPage = {docs:viewRows?viewRows.map(row=>companyView!.get(row.id)!):heads.some(head=>head.retained.length||this.unknownRetained.has(head))
-            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context):[]};
+            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context,retainedWindow):[]};
         if(!companyView)reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
         if (!steps.some(s => s.method === 'select'))
             for (const doc of rawPage.docs)
@@ -621,7 +644,7 @@ export class MarketRepository {
         // cannot add payloads (and is expensive for the company directory).
         const completeExternalScan = !onlyRetained && !requiresOverlay && candidateSteps.every(step =>
             step.method === 'select' || step.method === 'orderBy' && fieldName(step.args[0]) === '__name__');
-        const missingExternal = completeExternalScan ? [] : rawPage.docs.filter(doc => !result.has(doc.id)).map(doc => doc.id);
+        const missingExternal = completeExternalScan ? [] : rawPage.docs.filter(doc => retainedIds.has(doc.id) && !result.has(doc.id)).map(doc => doc.id);
         if (missingExternal.length && !onlyRetained) {
             const selected = heads.filter(head => missingExternal.some(id => shardFor(id) === head.shard));
             for (const row of await this.files.query(selected, [{ method: 'where', args: [FieldPath.documentId(), 'in', missingExternal] }, ...candidateSteps.filter(step => step.method === 'select')]))
@@ -721,7 +744,12 @@ export class MarketRepository {
                 context.heads.set(group.collection + '/' + group.shard, this.parseHead(group.collection, group.shard, docs[n]));
             }
         }
-        const sourcePaths = [...new Set(mutations.map(write => write.path))].filter(path => { const [collection, id] = path.split('/'); return !context.documents.has(path) && (!retires(collection) || !modeFor(collection).cleanedCollections?.has(collection) || context.heads.get(collection + '/' + shardFor(id))!.retained.includes(id)); });
+        const sourcePaths = [...new Set(mutations.map(write => write.path))].filter(path => {
+            const [collection, id] = path.split('/');
+            const head = context.heads.get(collection + '/' + shardFor(id))!;
+            return !context.documents.has(path) && !completeParquetHead(head)
+                && (!retires(collection) || !modeFor(collection).cleanedCollections?.has(collection) || head.retained.includes(id));
+        });
         await this.rawDocuments(sourcePaths.map(path => this.raw.doc(path)), context);
         const queued = [...groups.values()];
         let nextGroup = 0;
@@ -735,7 +763,7 @@ export class MarketRepository {
                 const head = await this.head(collection, shard, context), retained = new Set(head.retained);
                 const paths = [...new Set(changes.map(change => change.path))].filter(path => !context.documents.has(path));
                 for (const path of paths)
-                    if (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1]))
+                    if (completeParquetHead(head) || (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1])))
                         context.documents.set(path, { exists: false, id: path.split('/')[1], ref: this.raw.doc(path), data: () => undefined } as DocumentSnapshot);
                 const refs = paths.filter(path => !context.documents.has(path)).map(path => this.raw.doc(path));
                 await this.rawDocuments(refs, context);
