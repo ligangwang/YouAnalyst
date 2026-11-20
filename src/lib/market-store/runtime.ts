@@ -120,7 +120,7 @@ export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     const name = bucket?.name || process.env.ENTITY_SNAPSHOT_BUCKET || process.env.EODHD_BULK_EOD_BUCKET;
     if (!name)
         throw Error('Market Parquet bucket is required');
-    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), (ready,collection) => { if(collection==='prediction_daily_marks')state.predictionMarksCutover=ready;else if(collection==='events')state.eventsCutover=ready;else if(collection==='company_fundamentals')state.fundamentalsCutover=ready;else state.cutover = ready; if (ready || marketStagedReads())
+    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), (ready,collection) => { if(collection==='prediction_daily_marks'){state.predictionMarksCutover=ready;return;} if(collection==='events')state.eventsCutover=ready;else if(collection==='company_fundamentals')state.fundamentalsCutover=ready;else state.cutover = ready; if (ready || marketStagedReads())
         void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe(), marketStagedReads(),true,fundamentalsStagedReads(),true,eventsStagedReads(),retainedStagedReads());
     repositories.add(repository);
     client = marketFirestore(raw, repository);
