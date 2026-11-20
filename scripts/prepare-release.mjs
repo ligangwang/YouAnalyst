@@ -1,3 +1,5 @@
+import {randomBytes} from 'node:crypto';
+import {releaseProbeHeaders} from './release-probe.mjs';
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { cp, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
@@ -77,12 +79,14 @@ globalThis.__adminApp = { firestore: () => fixtureDb };
 // outside the storage adapter; real Parquet transactions have emulator tests.
 globalThis.__youAnalystMarketStore = { clients: new WeakMap([[fixtureDb,fixtureDb]]), cutover: false };
 `);
+const probeSecret = randomBytes(32).toString('hex');
 const server = spawn(process.execPath, ["--require", fixture, "server.js"], {
   cwd: isolated,
-  env: { ...process.env, NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: port },
+  env: { ...process.env, NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: port, INTERNAL_API_TOKEN: probeSecret },
   stdio: "ignore",
 });
 const base = `http://127.0.0.1:${port}`;
+const memberRead = (url, options = {}) => fetch(url, {...options, headers:{...options.headers,...releaseProbeHeaders(url,probeSecret)}});
 try {
   let health;
   for (let attempt = 0; attempt < 60; attempt++) {
@@ -104,7 +108,9 @@ try {
   assert.ok((await assetResponse.text()).length > 0);
   const privateResponse = await fetch(`${base}/api/watchlists/default`, { method: "POST" });
   assert.equal(privateResponse.status, 401, "Private API must still require authentication");
-  const catalogResponse = await fetch(`${base}/api/investment-themes`);
+  const anonymousResearch = await fetch(`${base}/api/investment-themes`);
+  assert.equal(anonymousResearch.status, 401, 'Research API must require membership');
+  const catalogResponse = await memberRead(`${base}/api/investment-themes`);
   assert.equal(catalogResponse.status, 200, 'Standalone must serve the Firestore theme catalog');
   const catalog = await catalogResponse.json();
   assert.equal(catalog.nodes.filter(node=>node.parentId===null).length, 4);
@@ -121,7 +127,7 @@ try {
   assert(graphScripts.length>0,'Missing dynamic 3D graph chunk mapping');
   for(const [view,expected] of [['graph',true],['table',false]]) {
     // The fixture has no intelligence snapshot: hints must not wait for data.
-    const response=await fetch(`${base}/en?view=${view}`);
+    const response=await memberRead(`${base}/en?view=${view}`);
     assert.equal(response.status,200);
     const html=await response.text();
     if(expectedAssetPrefix){
@@ -132,13 +138,13 @@ try {
     for(const file of graphScripts)assert.equal(hints.includes(file),expected,`Unexpected 3D preload for ${view}: ${file}`);
     assert(hints.replaceAll('&amp;','&').includes('/api/intelligence?theme=ai&graph=compact&payload=compact'),`Missing early feed and valuation preload for ${view}`);
   }
-  const scopedHome=await fetch(`${base}/en?company=US%3ANVDA`);
+  const scopedHome=await memberRead(`${base}/en?company=US%3ANVDA`);
   const scopedHtml=await scopedHome.text();
   const scopedHints=[scopedHome.headers.get('link')??'',...(scopedHtml.match(/<link\b[^>]*>/g)??[])].join('\n');
   assert(!scopedHints.includes('/api/intelligence?'),'Scoped visits must not preload an unscoped feed');
   for (const symbol of ["XSHG:688041", "XSHG%3A688041", "688041"]) {
     // Node fetch does not retain the language cookie across the numeric redirect.
-    const response = await fetch(`${base}/ticker/${symbol}?lang=zh-CN`, {
+    const response = await memberRead(`${base}/ticker/${symbol}?lang=zh-CN`, {
       headers: { cookie: "ya-language=zh-CN" },
     });
     assert.equal(response.status, 200, `A-share company route failed: ${symbol}`);
@@ -147,19 +153,19 @@ try {
     assert.match(html, /公司概览/);
     assert.match(html, /Fixture report/);
   }
-  const missing = await fetch(`${base}/ticker/XSHG:688042`);
+  const missing = await memberRead(`${base}/ticker/XSHG:688042`);
   assert.equal(missing.status, 404, "Unknown company must remain a 404");
   for (const locale of ["en", "zh-cn"]) {
-    const clean = await fetch(`${base}/${locale}/company/openai`);
+    const clean = await memberRead(`${base}/${locale}/company/openai`);
     assert.equal(clean.status, 200);
     assert.match(await clean.text(), new RegExp(`rel="canonical"[^>]+href="[^"]+/${locale}/company/openai"`));
     for (const id of ["ORG:OPENAI", "ORG%3AOPENAI"]) {
-      const redirect = await fetch(`${base}/${locale}/company/${id}?source=legacy&tag=a&tag=b`, { redirect: "manual" });
+      const redirect = await memberRead(`${base}/${locale}/company/${id}?source=legacy&tag=a&tag=b`, { redirect: "manual" });
       assert.equal(redirect.status, 308);
       assert.equal(redirect.headers.get("location"), `/${locale}/company/openai?source=legacy&tag=a&tag=b`);
     }
     for (const id of ["ORG:GLOBAL-LAB", "ORG%3AGLOBAL-LAB"]) {
-      const response = await fetch(`${base}/${locale}/company/${id}`);
+      const response = await memberRead(`${base}/${locale}/company/${id}`);
       assert.equal(response.status, 200, `Global profile failed: ${locale}/${id}`);
       const html = await response.text();
       const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1];
@@ -171,11 +177,11 @@ try {
     }
   }
   for (const id of ["ORG:UNKNOWN", "ORG%2FBAD"]) {
-    const response = await fetch(`${base}/en/company/${id}`);
+    const response = await memberRead(`${base}/en/company/${id}`);
     assert.equal(response.status, 404);
     assert.match(await response.text(), /Company profile not available/);
   }
-  const unavailable = await fetch(`${base}/en/company/openabc`);
+  const unavailable = await memberRead(`${base}/en/company/openabc`);
   assert.equal(unavailable.status, 404);
   const unavailableHtml = await unavailable.text();
   assert.match(unavailableHtml, /Company profile not available/);
