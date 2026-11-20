@@ -93,7 +93,7 @@ export class MarketRepository {
     private predictionMarksControl?: { until: number; ready: Promise<boolean> };
     private queriedPublishedGraph = false;
     private queriedThemeMembership = false;
-    constructor(readonly raw: Firestore, readonly files: MarketFiles, onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
+    constructor(readonly raw: Firestore, readonly files: MarketFiles, private onMode?: (ready: boolean, collection?: MarketCollection) => void, private readOnlyProbe = false, private stagedReads = false, fundamentalsGate=false, private stagedFundamentals=false, eventsGate=false, private stagedEvents=false,stagedRetained=false) {
         this.retainedStore=new RetainedStore(raw,stagedRetained,ids=>{
             const shards=new Set(ids.map(shardFor));
             this.invalidate('companies',ids.length?shards:undefined);
@@ -228,7 +228,12 @@ export class MarketRepository {
             if (!this.predictionMarksControl || this.predictionMarksControl.until <= Date.now()) {
                 const current = { until: Date.now() + 1000, ready: read() };
                 this.predictionMarksControl = current;
-                void current.ready.catch(() => { if (this.predictionMarksControl === current) this.predictionMarksControl = undefined; });
+                void current.ready.then(ready => {
+                    if(this.predictionMarksControl===current){
+                        if(ready)current.until=Date.now()+10000;
+                        this.onMode?.(ready,collection);
+                    }
+                }, () => { if (this.predictionMarksControl === current) this.predictionMarksControl = undefined; });
             }
             return this.predictionMarksControl.ready;
         }
@@ -466,6 +471,7 @@ export class MarketRepository {
         const earningsHeads = collection === 'earnings_records' && !fields && ids.every(id => id.startsWith('head_'));
         const rawRefs = (keys: string[]) => keys.map(id => this.raw.collection(collection).doc(id));
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
+        if(collection==='prediction_daily_marks'&&!heads.every(completeParquetHead))throw Error('Incomplete prediction marks catalog');
         const reservedFundamentals = collection === 'company_fundamentals' && !fields && ids.every(id => id.startsWith('_'));
         const completeShards = new Set(heads.filter(completeParquetHead).map(head => head.shard));
         const earningsIds = earningsHeads ? ids.filter(id => !completeShards.has(shardFor(id))) : [];
@@ -575,6 +581,7 @@ export class MarketRepository {
             if (heads.length !== 256 || !heads.every(completeParquetHead)) throw Error('Inconsistent Parquet record catalog');
         }
         const parquetRecords = heads.length === 256 && heads.every(completeParquetHead);
+        if(collection==='prediction_daily_marks'&&!parquetRecords)throw Error('Incomplete prediction marks catalog');
         if (!context && collection === 'companies' && this.files.directoryCandidates) {
             const ids = await this.files.directoryCandidates(heads, steps);
             if (ids && (parquetRecords || (await this.retainedStore.mode()).ready)) {
@@ -783,6 +790,7 @@ export class MarketRepository {
                 const { collection, shard, writes: changes } = queued[index];
                 const {ready,cleanedCollections}=modeFor(collection),retire=retires(collection);
                 const head = await this.head(collection, shard, context), retained = new Set(head.retained);
+                if(collection==='prediction_daily_marks'&&!completeParquetHead(head))throw Error('Incomplete prediction marks catalog');
                 const paths = [...new Set(changes.map(change => change.path))].filter(path => !context.documents.has(path));
                 for (const path of paths)
                     if (completeParquetHead(head) || (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1])))

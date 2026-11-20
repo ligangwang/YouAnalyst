@@ -10,6 +10,7 @@ declare global {
         cutover: boolean | undefined;
         fundamentalsCutover?:boolean;
         eventsCutover?:boolean;
+        predictionMarksCutover?:boolean;
         repositories?: Set<MarketRepository>;
         readers?: WeakMap<Firestore, MarketRepository>;
     } | undefined;
@@ -25,6 +26,7 @@ export async function closeMarketStores() {
     state.cutover = undefined;
     state.fundamentalsCutover = undefined;
     state.eventsCutover = undefined;
+    state.predictionMarksCutover = undefined;
     await Promise.all(active.map(repository => repository.close()));
 }
 export const marketStoreEnabled = () => process.env.MARKET_PARQUET_ENABLED === '1'
@@ -44,7 +46,7 @@ export const marketStagedReads = () => process.env.MARKET_PARQUET_READ_READY ===
 export const fundamentalsStagedReads=()=>process.env.MARKET_FUNDAMENTALS_READ_READY==='1'&&process.env.K_SERVICE==='ifindata-web'&&!process.env.CLOUD_RUN_JOB;
 export const eventsStagedReads=()=>process.env.MARKET_EVENTS_READ_READY==='1'&&process.env.K_SERVICE==='ifindata-web'&&!process.env.CLOUD_RUN_JOB;
 export const retainedStagedReads=()=>process.env.MARKET_RETAINED_READ_READY==='1'&&process.env.K_SERVICE==='ifindata-web'&&!process.env.CLOUD_RUN_JOB;
-export const marketStoreReady = (collection?:string) => (collection===undefined||isParquetMarketCollection(collection))&&marketStoreEnabled() && (marketReadOnlyProbe() || (collection==='events'?eventsStagedReads()||state.eventsCutover===true:collection==='company_fundamentals'?fundamentalsStagedReads()||state.fundamentalsCutover===true:marketStagedReads()||state.cutover===true));
+export const marketStoreReady = (collection?:string) => (collection===undefined||isParquetMarketCollection(collection))&&marketStoreEnabled() && (marketReadOnlyProbe() || (collection==='prediction_daily_marks'?state.predictionMarksCutover===true:collection==='events'?eventsStagedReads()||state.eventsCutover===true:collection==='company_fundamentals'?fundamentalsStagedReads()||state.fundamentalsCutover===true:marketStagedReads()||state.cutover===true));
 /** Resolve this client's authoritative read gate before choosing a legacy snapshot. */
 export async function marketStoreClientReady(client:Firestore,collection:string):Promise<boolean> {
     if(!isParquetMarketCollection(collection))return false;
@@ -118,7 +120,7 @@ export function enableMarketStore(raw: Firestore, bucket?: Bucket): Firestore {
     const name = bucket?.name || process.env.ENTITY_SNAPSHOT_BUCKET || process.env.EODHD_BULK_EOD_BUCKET;
     if (!name)
         throw Error('Market Parquet bucket is required');
-    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), (ready,collection) => { if(collection==='events')state.eventsCutover=ready;else if(collection==='company_fundamentals')state.fundamentalsCutover=ready;else state.cutover = ready; if (ready || marketStagedReads())
+    const repository = new MarketRepository(raw, new MarketFiles(bucket ?? new Storage().bucket(name)), (ready,collection) => { if(collection==='prediction_daily_marks'){state.predictionMarksCutover=ready;return;} if(collection==='events')state.eventsCutover=ready;else if(collection==='company_fundamentals')state.fundamentalsCutover=ready;else state.cutover = ready; if (ready || marketStagedReads())
         void import('../local-cache/entity-sync').then(module => module.closeEntitySyncs()); }, marketReadOnlyProbe(), marketStagedReads(),true,fundamentalsStagedReads(),true,eventsStagedReads(),retainedStagedReads());
     repositories.add(repository);
     client = marketFirestore(raw, repository);

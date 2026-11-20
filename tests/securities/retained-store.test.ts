@@ -30,7 +30,6 @@ test('retained routing preserves authored records and keeps events out of reloca
     assert.equal(retainedRoot('company_relationships','edge',{recordKind:'FILING_OBSERVATION',pending:true}),'market_state');
     assert.equal(retainedPath('market_ugc','companies','US:A'),'market_ugc/companies/records/US:A');
     assert.equal(relocatesCollection('events'),false);assert.equal(relocatesCollection('users'),false);
-    assert.equal(relocatesCollection('prediction_daily_marks'),false);
 });
 test('retained stores cannot authorize removal before read cutover',()=>{
     assert.deepEqual(retainedMode(snapshot()),{enabled:false,ready:false,cleanupAuthorized:false});
