@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {initializeApp, applicationDefault} from 'firebase-admin/app';
-import {getFirestore} from 'firebase-admin/firestore';
+import {Firestore} from '@google-cloud/firestore';
+import {createRequire} from 'node:module';
 import {Storage} from '@google-cloud/storage';
 import {MarketFiles, shardFor, type MarketHead, type MarketRow} from '../src/lib/market-store/files';
 import {headId, CONTROL} from '../src/lib/market-store/repository';
@@ -18,10 +18,17 @@ async function main() {
     const apply = process.argv.includes('--apply');
     const start = Number(process.env.START_SHARD ?? 0), end = Number(process.env.END_SHARD ?? 256);
     assert(Number.isInteger(start) && Number.isInteger(end) && 0 <= start && start < end && end <= 256);
-    initializeApp({projectId: project, credential: applicationDefault()});
-    const db = getFirestore();
-    const files = new MarketFiles(new Storage({projectId: project}).bucket('ifindata-80905-eodhd-bulk-eod'));
-    const capacity = new CleanupGate(migrationCapacity(project), 20);
+    const require = createRequire(import.meta.url);
+    // Use the same auth library instance as the Firestore transport.
+    const {GoogleAuth, OAuth2Client} = require(require.resolve('google-auth-library', {
+        paths: [require.resolve('google-gax')],
+    })) as typeof import('google-auth-library');
+    const token = process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
+    const auth = token ? new OAuth2Client() : undefined;
+    auth?.setCredentials({access_token: token});
+    const db = new Firestore({projectId: project, auth: auth && new GoogleAuth({projectId: project, authClient: auth})});
+    const files = new MarketFiles(new Storage({projectId: project, authClient: auth}).bucket('ifindata-80905-eodhd-bulk-eod'));
+    const capacity = new CleanupGate(migrationCapacity(project, auth), 20);
     try {
         for (let n = start; n < end; n++) {
             const shard = n.toString(16).padStart(2, '0');

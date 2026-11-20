@@ -1,4 +1,4 @@
-import {GoogleAuth} from 'google-auth-library';
+import {GoogleAuth, type OAuth2Client} from 'google-auth-library';
 export type CapacitySample={requestErrors:number;backlogs:Record<string,number>};
 export function capacityRegression(initial:CapacitySample,current:CapacitySample):string|undefined{
     if(current.requestErrors>0)return 'Production website request errors detected';
@@ -7,10 +7,10 @@ export function capacityRegression(initial:CapacitySample,current:CapacitySample
         if(count>before+Math.max(100,Math.ceil(before*0.2)))return 'Subscriber backlog grew beyond the migration allowance';
     }
 }
-export function migrationCapacity(project:string){
+export function migrationCapacity(project:string, credentials?:OAuth2Client){
     const auth=new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform']});
     return async():Promise<CapacitySample>=>{
-        const client=await auth.getClient(),end=new Date(),start=new Date(end.getTime()-5*60000);
+        const client=credentials ?? await auth.getClient(),end=new Date(),start=new Date(end.getTime()-5*60000);
         const [logs,metrics]=await Promise.all([
             client.request<{entries?:unknown[]}>({url:'https://logging.googleapis.com/v2/entries:list',method:'POST',data:{resourceNames:['projects/'+project],filter:`resource.type="cloud_run_revision" AND resource.labels.service_name="ifindata-web" AND httpRequest.status>=500 AND timestamp>="${start.toISOString()}"`,pageSize:1,orderBy:'timestamp desc'},timeout:15000}),
             client.request<{timeSeries?:Array<{resource?:{labels?:{subscription_id?:string}};points?:Array<{value?:{int64Value?:string;doubleValue?:number}}>}>,nextPageToken?:string}>({url:`https://monitoring.googleapis.com/v3/projects/${project}/timeSeries`,params:{filter:'metric.type="pubsub.googleapis.com/subscription/num_undelivered_messages"','interval.startTime':start.toISOString(),'interval.endTime':end.toISOString(),view:'FULL',pageSize:1000},timeout:15000}),
