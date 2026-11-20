@@ -1,10 +1,11 @@
+import {releaseProbeHeaders} from './release-probe.mjs';
 import {verifyPublicAccess} from './verify-public-access.mjs';
 import {taggedReleaseRequest,taggedUnauthenticatedProbe} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now(),warn=console.warn}) {
   const rawRequest=request;
-  request=(input,options)=>taggedReleaseRequest(input,{...options,headers:{...options?.headers,...(process.env.INTERNAL_API_TOKEN?{'x-ya-internal-token':process.env.INTERNAL_API_TOKEN}:{})}},{request:rawRequest});
+  request=(input,options)=>taggedReleaseRequest(input,{...options,headers:{...options?.headers,...releaseProbeHeaders(input)}},{request:rawRequest});
   assert(url && revision && commit, 'Candidate URL, revision and commit required');
   const health = await request(`${url}/api/health`, {signal:AbortSignal.timeout(60000)});
   assert.equal(health.status, 200, 'Candidate health check failed; existing traffic stays unchanged');

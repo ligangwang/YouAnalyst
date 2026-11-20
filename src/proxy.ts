@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqual } from 'node:crypto';
 import { routeRequest } from './lib/access/routing';
 import { MEMBER_COOKIE, requiresMembership } from './lib/access/policy';
 import { pathLocale, unlocalizedPath } from './lib/ui/i18n/urls';
 import { verifiedSearchCrawler } from './lib/access/crawlers';
+import { verifiedReleaseProbe } from './lib/access/release-probe';
 
 export async function proxy(request: NextRequest) {
+  const host = request.headers.get('host')?.split(':')[0]?.toLowerCase();
+  if (host && ['www.youanalyst.com','younalyst.com','www.younalyst.com','ifindata.com','www.ifindata.com'].includes(host)) return routeRequest(request);
   if (!requiresMembership(request.nextUrl)) return routeRequest(request);
-  const supplied = request.headers.get('x-ya-internal-token') ?? '';
-  const expected = process.env.INTERNAL_API_TOKEN ?? '';
-  const a = Buffer.from(supplied), b = Buffer.from(expected);
-  const service = !!expected && a.length === b.length && timingSafeEqual(a, b);
+  const service = verifiedReleaseProbe(request);
   const bearer = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
   const cookie = request.cookies.get(MEMBER_COOKIE)?.value;
   const member = service || !!(cookie && await (await import('./lib/access/member')).verifyMember(cookie)) || !!(bearer && await (await import('./lib/access/member')).verifyMember(bearer));

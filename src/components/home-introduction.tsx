@@ -33,7 +33,11 @@ export function HomeIntroduction() {
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [query]);
-  const signIn = (path:string) => member ? localizedPath(path,locale) : '/auth?' + new URLSearchParams({next:localizedPath(path,locale),lang:locale});
+  const signIn = (path:string) => {
+    const url = new URL(path, 'https://youanalyst.com');
+    const next = localizedPath(url.pathname,locale) + url.search;
+    return member ? next : '/auth?' + new URLSearchParams({next,lang:locale});
+  };
   return (
     <main className={styles.home} data-testid="home-introduction">
       <header className={styles.intro}>

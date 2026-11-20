@@ -13,7 +13,7 @@ const observers = new Set<(user: MockUser | null) => void>();
 export const browserLocalPersistence = {};
 export const browserPopupRedirectResolver = {};
 export const isFirebaseConfigured = () => true;
-export const getFirebaseServices = () => ({ auth: {}, googleProvider: {} });
+export const getFirebaseServices = () => ({ auth: {currentUser:user}, googleProvider: {} });
 export const setPersistence = async () => {};
 export function onIdTokenChanged(_auth: unknown, callback: (user: MockUser | null) => void) {
   observers.add(callback);

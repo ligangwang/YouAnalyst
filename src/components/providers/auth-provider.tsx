@@ -116,6 +116,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const bootstrapUserProfile = useCallback(async (nextUser: User) => {
     const token = await nextUser.getIdToken();
+    if (getFirebaseServices().auth.currentUser?.uid !== nextUser.uid) throw new Error("Authentication changed. Please sign in again.");
     await syncMemberSession(token);
     const response = await fetch("/api/users/bootstrap", {
       method: "POST",

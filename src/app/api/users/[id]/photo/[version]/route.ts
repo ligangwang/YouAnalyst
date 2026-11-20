@@ -13,7 +13,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     return new Response(new Uint8Array(image), {
       headers: {
         "Content-Type": "image/webp",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },
     });
