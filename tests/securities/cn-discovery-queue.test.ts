@@ -65,6 +65,25 @@ test('paced deadline rotation eventually reaches every issuer without a stored c
   assert.deepEqual([...seen].sort(),ids);
 });
 
+test('daily announcement dispatch rotates the production-sized scope at the existing pace',async()=>{
+  const ids=Array.from({length:5201},(_,i)=>`XSHG:${600001+i}`);
+  const seen=new Set<string>();
+  // Consecutive noon Eastern runs across the fall daylight saving change.
+  for(const start of ['2026-10-31T16:00:00Z','2026-11-01T17:00:00Z','2026-11-02T17:00:00Z']){
+    let now=Date.parse(start);
+    const publishedAt:number[]=[];
+    const result=await publishCnDiscoveryTasks(ids,'announcements',async task=>{
+      seen.add(task.companyId);
+      publishedAt.push(now);
+    },{execution:start,deadline:now+145*60000,now:()=>now,earningsEnabled:false,daily:true,
+      readState:async()=>undefined,sleep:async ms=>{now+=ms;}});
+    assert.equal(result.requested,264);
+    assert.equal(result.deferred,4937);
+    assert(publishedAt.slice(1).every((time,i)=>time-publishedAt[i]===30000));
+  }
+  assert.equal(seen.size,792);
+});
+
 test('worker rechecks canonical enrollment and completed deliveries before any provider work',async()=>{
   const fx=earningsFirestore(),none={...graph,nodes:[]};
   fx.rows.set(`companies/${id}`,{name:'Longsys',status:'PUBLISHED',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'chips'}}});

@@ -54,7 +54,7 @@ fs.writeFileSync(process.argv[3], JSON.stringify(env), {mode:0o600});
 CN_ENV
 gcloud run jobs deploy "$cn_job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
-  --max-retries 0 --task-timeout 20m --memory 2Gi --cpu 1 \
+  --max-retries 0 --task-timeout 150m --memory 2Gi --cpu 1 \
   --command node --args dist/collect-intelligence-news.cjs,--apply,--cn-announcements-only \
   --env-vars-file "$cn_env_file" --quiet
 ensure_maintenance_job_iam "$cn_job"

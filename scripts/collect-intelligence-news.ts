@@ -37,9 +37,10 @@ async function main(){
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
   const cnTopic=process.env.CN_DISCOVERY_REQUEST_TOPIC;
   if(cnTopic&&cnTopic!==CN_DISCOVERY_TOPIC)throw new Error('Unexpected A-share discovery destination');
-  const exchangeDeadline=Math.min(deadline-4*60_000,Date.now()+6*60_000),earningsEnabled=process.env.EARNINGS_COLLECTION_ENABLED==='1';
+  const exchangeDeadline=cnOnly&&cnTopic?Date.now()+145*60_000:Math.min(deadline-4*60_000,Date.now()+6*60_000);
+  const earningsEnabled=process.env.EARNINGS_COLLECTION_ENABLED==='1';
   const exchange=skipCn?undefined:cnTopic?await publishCnDiscoveryTasks(mapListedCompanies(graph).filter(n=>n.market==='CN_A').map(n=>n.id),'announcements',task=>publishJobMessage(cnTopic,task),{
-    execution:process.env.CLOUD_RUN_EXECUTION??randomUUID(),deadline:exchangeDeadline,earningsEnabled,readState:(id,mode)=>cnDiscoveryState(db,id,mode),
+    execution:process.env.CLOUD_RUN_EXECUTION??randomUUID(),deadline:exchangeDeadline,earningsEnabled,daily:cnOnly,readState:(id,mode)=>cnDiscoveryState(db,id,mode),
   }):await collectCnMapDisclosures(db,graph,transport.request,{deadline:exchangeDeadline,runId:randomUUID(),earningsEnabled});
   if(cnOnly){
     console.log(JSON.stringify({job:'collect-cn-announcements',exchange}));

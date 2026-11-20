@@ -5,7 +5,9 @@ discovery behind the existing authenticated Pub/Sub subscriber pattern. It defau
 to `0`; shipping this code alone does not activate collection or execute jobs.
 
 The daily A-share announcement job runs at noon Eastern and publishes
-an `announcements` task for each due enrolled A-share company. The scheduled earnings job publishes `earnings-fallback` tasks
+an `announcements` task for each due enrolled company within a rotating
+batch. It attempts at most 264 submissions per run with 30 seconds between
+dispatches. The scheduled earnings job publishes `earnings-fallback` tasks
 when announcement coverage is missing, incomplete or stale. Both use
 `cn-company-discovery-requests`, subscription `cn-company-discovery-worker`, and
 the private `cn-company-discovery-subscriber` service. Each message identifies one

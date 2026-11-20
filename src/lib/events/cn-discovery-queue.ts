@@ -35,7 +35,7 @@ export function cnAnnouncementFresh(state:State,now:number){
 export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDiscoveryTask['mode'],publish:(task:CnDiscoveryTask)=>Promise<unknown>,options:{
   execution:string;deadline:number;now?:()=>number;earningsEnabled:boolean;
   readState:(id:string,mode:CnDiscoveryTask['mode'])=>Promise<State>;
-  intervalMs?:number;sleep?:(ms:number)=>Promise<void>;
+  daily?:boolean;intervalMs?:number;sleep?:(ms:number)=>Promise<void>;
 }){
   if(ids.some(id=>!validId(id)))throw new Error('Invalid A-share company scope');
   const now=options.now??Date.now,requestedAt=new Date(now()).toISOString();
@@ -43,16 +43,19 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
   if(!Number.isSafeInteger(intervalMs)||intervalMs<0||intervalMs>60000)throw new Error('Invalid A-share dispatch interval');
   // State reads can remain parallel, while all publications from this run
   // share one pace. Unpublished tasks remain eligible for the next scan.
-  let tail:Promise<void>=Promise.resolve(),nextPublishAt=0;
+  const maxDispatches=options.daily?264:Infinity;
+  let tail:Promise<void>=Promise.resolve(),nextPublishAt=0,dispatches=0;
   const dispatch=async(task:CnDiscoveryTask)=>{
     const previous=tail;let release!:()=>void;
     tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
     try{
+      if(dispatches>=maxDispatches)return false;
       const wait=Math.max(0,nextPublishAt-now());
       if(now()+30000+wait>=options.deadline)return false;
       if(wait)await sleep(wait);
       if(now()+30000>=options.deadline)return false;
+      dispatches++;
       try{await publish(task);}finally{nextPublishAt=now()+intervalMs;}
       return true;
     }finally{release();}
@@ -61,17 +64,19 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
   const sorted=[...new Set(ids)].sort();
   // Use a step coprime to the scope size so every issuer eventually appears
   // at the front, even if every run exhausts its deadline. No schema change is
-  // needed, and retries within the same 15-minute window start together.
+  // needed. Noon Eastern is always on the same UTC calendar date, so daylight
+  // saving changes still advance the daily rotation by exactly one step.
   const gcd=(a:number,b:number):number=>b===0?a:gcd(b,a%b);
-  let step=Math.min(10,Math.max(1,sorted.length-1));
+  let step=Math.min(options.daily?maxDispatches:10,Math.max(1,sorted.length-1));
   while(gcd(step,sorted.length)>1)step--;
-  const start=sorted.length?((Math.floor(now()/900000)*step)%sorted.length):0;
+  const rotationInterval=options.daily?86400000:900000;
+  const start=sorted.length?((Math.floor(Date.parse(requestedAt)/rotationInterval)*step)%sorted.length):0;
   const companies=[...sorted.slice(start),...sorted.slice(0,start)];
   await Promise.all(Array.from({length:Math.min(8,companies.length)},async()=>{while(next<companies.length){
     const id=companies[next++];
     // Once the next paced publication cannot fit, further status reads cannot
     // produce work. Leave those companies eligible for the next rotated run.
-    if(Math.max(now(),nextPublishAt)+30000>=options.deadline){result.deferred++;continue;}
+    if(dispatches>=maxDispatches||Math.max(now(),nextPublishAt)+30000>=options.deadline){result.deferred++;continue;}
     try{
       const state=await options.readState(id,mode);
       if(state?.manualRequired===true){result.skipped++;continue;}

@@ -180,7 +180,7 @@ test('unified SEC activation verifies all three consumer configurations before s
     assert(ready.calls.indexOf(`run services describe ${name}`)<ready.calls.indexOf('run jobs deploy collect-sec-filings-production'));
   }
   assert.match(ready.calls,/SEC_FILINGS_TOPIC=sec-filing-download-requests/);
-  assert.match(ready.calls,/--schedule 0 \* \* \* \*/);
+  assert.match(ready.calls,/--schedule 0 23 \* \* \* --time-zone America\/New_York/);
   const blocked=run('scripts/deploy-sec-filings.sh',{...enabled,MISMATCH_CONSUMER:'earnings-subscriber'});
   assert.notEqual(blocked.status,0);assert.doesNotMatch(blocked.calls,/run deploy|run jobs deploy|scheduler jobs update/);
   const pending=run('scripts/deploy-sec-filings.sh',{...enabled,STALE_READY:'1'});
