@@ -100,7 +100,11 @@ export function proxy(request: NextRequest) {
     const market = explicitMarket ?? parseMarket(request.cookies.get("ya-market")?.value) ?? "US";
     headers.set("x-ya-market", market);
     const rewrite = new URL(request.url);
-    rewrite.pathname = plain;
+    // Keep shared research URLs while bundling the idle homepage separately.
+    const opensWorkspace = plain === "/" &&
+      ["theme", "preview", "event", "relationship", "company", "market", "q", "view", "type"]
+        .some(key => request.nextUrl.searchParams.getAll(key).some(value => value.length > 0));
+    rewrite.pathname = opensWorkspace ? "/intelligence" : plain;
     const response = prefix && localizable ? NextResponse.rewrite(rewrite, { request: { headers } }) : NextResponse.next({ request: { headers } });
     if(companyRequestId){
       response.headers.set('x-ya-company-request-id',companyRequestId);

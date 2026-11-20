@@ -13,7 +13,21 @@ test("legacy graph links preserve company and market without redirect loops", ()
   assert.equal(url.searchParams.get("market"), "CN_A");
   const next = proxy(request(url.pathname + url.search));
   assert.equal(next.headers.get("location"), null);
-  assert.equal(new URL(next.headers.get("x-middleware-rewrite")!).pathname, "/");
+  assert.equal(new URL(next.headers.get("x-middleware-rewrite")!).pathname, "/intelligence");
+});
+test("homepage stays lean while explicit research URLs open the workspace", () => {
+  for (const prefix of ["/en", "/zh-cn"]) {
+    for (const query of ["", "?utm_source=newsletter", "?theme="]) {
+      const response = proxy(request(prefix + query));
+      assert.equal(new URL(response.headers.get("x-middleware-rewrite")!).pathname, "/");
+    }
+    for (const query of ["?view=graph", "?company=US%3ANVDA", "?theme=space", "?q=chip"]) {
+      const response = proxy(request(prefix + query));
+      const destination = new URL(response.headers.get("x-middleware-rewrite")!);
+      assert.equal(destination.pathname, "/intelligence");
+      assert.equal(destination.search, query);
+    }
+  }
 });
 test("explicit language path overrides visitor cookie and forwards locale", () => {
   const response = proxy(request("/zh-cn/ticker/XSHG%3A688041", "ya-language=en"));
