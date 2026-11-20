@@ -45,8 +45,8 @@ test('workspace locates AMD across tree hierarchy and paginated list without los
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
-async function workspaceFixture(realCharts=false,fixture:EncodedIntelligenceSnapshot=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean;feedPreload?:boolean}={}){
-  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';${options.feedPreload?"import {PreloadIntelligenceFeed} from './src/components/intelligence-feed-preload';":''}createRoot(document.getElementById('root')).render(<>${options.feedPreload?'<PreloadIntelligenceFeed theme="ai"/>':''}${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence initialEvent={new URLSearchParams(location.search).get('event')??''} initialView={new URLSearchParams(location.search).get('view')??''} initialCompany={new URLSearchParams(location.search).get('company')??''} ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+async function workspaceFixture(realCharts=false,fixture:EncodedIntelligenceSnapshot=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean;feedPreload?:boolean;showEvents?:boolean}={}){
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';${options.feedPreload?"import {PreloadIntelligenceFeed} from './src/components/intelligence-feed-preload';":''}createRoot(document.getElementById('root')).render(<>${options.feedPreload?'<PreloadIntelligenceFeed theme="ai"/>':''}${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence showEvents={${options.showEvents!==false}} initialEvent={new URLSearchParams(location.search).get('event')??''} initialView={new URLSearchParams(location.search).get('view')??''} initialCompany={new URLSearchParams(location.search).get('company')??''} ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     if(options.scenery===false){
       build.onResolve({filter:/tree-meadow-environment$/},()=>({path:'meadow',namespace:'lifecycle-scenery'}));
       build.onLoad({filter:/.*/,namespace:'lifecycle-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
@@ -79,6 +79,24 @@ async function revealWorkspaceFilters(page:import('@playwright/test').Page){
  if((page.viewportSize()?.width??1280)<=850){const button=page.getByRole('button',{name:/^(Filters|筛选)$/});if(await button.getAttribute('aria-expanded')!=='true')await button.click();}
  else {const button=page.getByRole('button',{name:'Expand left panel'});if(await button.isVisible())await button.click();}
 }
+
+test('graph without events loads only the universe and opens directly to Explore',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false,false,{showEvents:false});
+ const sections:(string|null)[]=[];
+ await page.route('**/*',route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==='/api/intelligence'){
+   sections.push(url.searchParams.get('section'));
+   return route.fulfill({json:{...snapshot,eventsPending:true}});
+  }
+  return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404});
+ });
+ await page.goto('http://workspace.test/?event=scheduled_event_micron_call');
+ await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Events and sources'})).toHaveCount(0);
+ await expect(page.getByRole('region',{name:'Theme activity summary'})).toHaveCount(0);
+ expect(sections).toEqual(['universe']);
+});
 
 test('workspace defaults to graph and respects an explicit list link',async({page})=>{
  await open(page);await exploreMobile(page);

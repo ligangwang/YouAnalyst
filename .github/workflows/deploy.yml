@@ -932,6 +932,7 @@ jobs:
       SEC_GRAPH_ACTIVATE_TREE: ${{ vars.SEC_GRAPH_ACTIVATE_TREE }}
       SEC_GRAPH_RECOVERY_SOURCE_TREE: ${{ vars.SEC_GRAPH_RECOVERY_SOURCE_TREE }}
       EARNINGS_PIPELINE_ENABLED: ${{ vars.EARNINGS_PIPELINE_ENABLED }}
+      SEC_FUNDAMENTALS_ENABLED: ${{ vars.SEC_FUNDAMENTALS_ENABLED || '1' }}
       EARNINGS_COLLECTION_ENABLED: ${{ vars.EARNINGS_COLLECTION_ENABLED }}
       EARNINGS_PROCESSING_ENABLED: ${{ vars.EARNINGS_PROCESSING_ENABLED }}
       EARNINGS_DELIVERY_MODE: ${{ vars.EARNINGS_DELIVERY_MODE || 'push' }}
@@ -1012,11 +1013,11 @@ jobs:
       # The separately approved NVDA canary inspects these named steps. Record
       # evidence only for probes selected above, after the entire pool succeeds.
       - name: Verify SEC Pub/Sub delivery with cached companies
-        if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals' }}
+        if: ${{ env.SEC_FUNDAMENTALS_ENABLED != '0' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals') }}
         run: echo 'SEC delivery verification passed in the worker delivery pool.'
       - name: Verify graph Pub/Sub delivery without SEC or OpenAI calls
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'company-graph' || env.TARGET_JOB == 'sec-filings') }}
         run: echo 'Graph delivery verification passed in the worker delivery pool.'
       - name: Verify capped NVDA pipeline and activate reviewed source tree
-        if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && env.COMPANY_GRAPH_PROCESSING_ENABLED == '1' && env.SEC_FILINGS_COLLECTOR_ENABLED == '1' && env.SEC_GRAPH_ACTIVATE_TREE != '' }}
+        if: ${{ env.SEC_FUNDAMENTALS_ENABLED != '0' && env.ENABLE_SEC_FILING_PIPELINE == '1' && env.COMPANY_GRAPH_PROCESSING_ENABLED == '1' && env.SEC_FILINGS_COLLECTOR_ENABLED == '1' && env.SEC_GRAPH_ACTIVATE_TREE != '' }}
         run: bash scripts/activate-sec-graph.sh

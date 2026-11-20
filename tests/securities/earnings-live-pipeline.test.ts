@@ -227,7 +227,7 @@ test("CNINFO sequential requests wait locally with one shared reservation read e
   assert.equal(fx.writes.length, 3);
 });
 test("CNINFO waits for the full shared delay and rechecks a competing reservation", async () => {
-  const fx = earningsFirestore(), path = "earnings_collectors/provider_cninfo", waits: number[] = [];
+  const fx = earningsFirestore(), path = "collectors/cninfo-request-budget", waits: number[] = [];
   fx.rows.set(path, { nextAllowedAtMs: fx.now() + 2400 });
   const gate = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async ms => {
     waits.push(ms); fx.advance(ms);
@@ -251,7 +251,7 @@ test("CNINFO local wait never bypasses a cooldown set by another instance", asyn
 });
 test("CNINFO excessive shared wait fails within the request budget without polling", async () => {
   const fx = earningsFirestore();
-  fx.rows.set("earnings_collectors/provider_cninfo", { nextAllowedAtMs: fx.now() + 60_000 });
+  fx.rows.set("collectors/cninfo-request-budget", { nextAllowedAtMs: fx.now() + 60_000 });
   const gate = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async () => { assert.fail("Must not wait beyond budget"); } });
   await assert.rejects(() => gate.beforeRequest({ host: "www.cninfo.com.cn" }), /budget timed out/);
   assert.equal(fx.reads.length, 1);

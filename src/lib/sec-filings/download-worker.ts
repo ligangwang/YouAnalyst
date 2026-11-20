@@ -55,11 +55,13 @@ export function secFilingDocumentUrl(event:SecFilingDiscovered){
   return `https://www.sec.gov/Archives/edgar/data/${Number(event.cik)}/${event.accessionNumber.replaceAll('-','')}/${event.primaryDocument}`;
 }
 /** The original event and SEC URLs survive the internal download boundary. */
-export async function prepareSecFiling(input:unknown,options:{enabled:boolean;cache?:SecDocumentCache;download?:(url:string)=>Promise<{bytes:Buffer;contentType:string}>;publish:(topic:string,event:SecFilingDiscovered)=>Promise<unknown>}){
+export async function prepareSecFiling(input:unknown,options:{enabled:boolean;fundamentalsEnabled?:boolean;cache?:SecDocumentCache;download?:(url:string)=>Promise<{bytes:Buffer;contentType:string}>;publish:(topic:string,event:SecFilingDiscovered)=>Promise<unknown>}){
   const event=parseSecFilingDiscovered(input);
   if(!options.enabled)throw new Error('SEC downloads disabled; retain delivery');
+  const owners=[...(options.fundamentalsEnabled!==false?[secCacheOwner('fundamentals',event.eventId)]:[]),
+    ...(event.form==='10-K'?[secCacheOwner('graph',event.eventId)]:[])];
+  if(!owners.length)return {status:'skipped',eventId:event.eventId,companyId:event.companyId};
   const cache=options.cache??configuredSecDocumentCache();if(!cache)throw new Error('SEC document cache bucket is required');
-  const owners=[secCacheOwner('fundamentals',event.eventId),...(event.form==='10-K'?[secCacheOwner('graph',event.eventId)]:[])];
   const url=secFilingDocumentUrl(event);
   await cache.read(url,owners,options.download?()=>options.download!(url):()=>{
     if(!process.env.SEC_USER_AGENT)throw new Error('SEC_USER_AGENT required');
@@ -72,7 +74,7 @@ export async function prepareSecFiling(input:unknown,options:{enabled:boolean;ca
 }
 
 /** Route by validated task kind, never by caller-supplied URLs or destinations. */
-export async function prepareSecIntake(input:unknown,db:Firestore,options:{enabled:boolean;cache?:SecDocumentCache;
+export async function prepareSecIntake(input:unknown,db:Firestore,options:{enabled:boolean;fundamentalsEnabled?:boolean;cache?:SecDocumentCache;
   download?:(url:string)=>Promise<{bytes:Buffer;contentType:string}>;
   publish:(topic:string,event:SecIntakeJob)=>Promise<unknown>;
   readWork?:(id:string)=>Promise<EarningsWork|undefined>;

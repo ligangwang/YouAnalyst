@@ -8,7 +8,7 @@ export function deliveryTasks(env) {
     'run', 'jobs', 'execute', job, '--project', env.GCP_PROJECT_ID,
     '--region', env.GCP_REGION, ...args, '--wait', '--quiet',
   ] });
-  if (['all', 'fundamentals', 'sec-fundamentals'].includes(target)) {
+  if (env.SEC_FUNDAMENTALS_ENABLED !== '0' && ['all', 'fundamentals', 'sec-fundamentals'].includes(target)) {
     add('verify-sec', 'refresh-sec-fundamentals-production', ['--update-env-vars', 'FUNDAMENTALS_VERIFY_ONLY=1']);
   }
   if (env.INSTRUMENT_ONBOARDING_ENABLED === '1' && ['all', 'fundamentals'].includes(target)) {

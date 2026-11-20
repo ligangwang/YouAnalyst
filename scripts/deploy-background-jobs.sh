@@ -47,6 +47,13 @@ if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 && " ${targets[*]} " == *' 
   for target in "${targets[@]}"; do if [[ "$target" != sec-filings ]]; then ordered+=("$target"); fi; done
   targets=("${ordered[@]}" sec-filings)
 fi
+case "${SEC_FUNDAMENTALS_ENABLED:-1}" in 0|1) ;; *) echo 'SEC_FUNDAMENTALS_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+if [[ "${SEC_FUNDAMENTALS_ENABLED:-1}" == 0 ]]; then
+  enabled_targets=()
+  for target in "${targets[@]}"; do if [[ "$target" != sec-fundamentals ]]; then enabled_targets+=("$target"); fi; done
+  targets=("${enabled_targets[@]}")
+  if [[ ${#targets[@]} == 0 ]]; then exit 0; fi
+fi
 if [[ " ${targets[*]} " == *" sec-fundamentals "* || " ${targets[*]} " == *" cn-fundamentals "* ]]; then
   bash scripts/check-fundamentals-handoff.sh
 fi

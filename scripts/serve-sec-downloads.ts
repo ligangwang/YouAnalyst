@@ -11,5 +11,5 @@ initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT
 const db=getFirestore();
 const admit=createSerialAdmission({maxWaiting:4,waitMs:90000});
 createJobSubscriber({project:process.env.GCP_PROJECT_ID,subscription:SEC_DOWNLOAD_SUBSCRIPTION,job:'sec-filing-download',parse:parseSecIntakeJob,
-  process:(request,_log,signal)=>admit(()=>deliverSecIntake(request,db,{enabled:process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED==='1',publish:publishJobMessage}),signal),
+  process:(request,_log,signal)=>admit(()=>deliverSecIntake(request,db,{enabled:process.env.SEC_INCREMENTAL_DOWNLOADS_ENABLED==='1',fundamentalsEnabled:process.env.SEC_FUNDAMENTALS_ENABLED!=='0',publish:publishJobMessage}),signal),
 }).listen(Number(process.env.PORT||8080),'0.0.0.0');

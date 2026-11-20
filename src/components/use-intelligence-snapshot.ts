@@ -13,7 +13,7 @@ const feedCompany = (params: URLSearchParams) => params.get('feedCompany')?.toUp
 const feedScope = (company:string,query:string,region:string) => JSON.stringify([company,company?'':query.normalize('NFKC').trim(),company?'':region==='US'||region==='CN_A'?region:'']);
 
 /** Keeps the displayed theme usable until a validated replacement is ready. */
-export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, initialTheme = 'ai') {
+export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, initialTheme = 'ai', showEvents = true) {
   const {themes}=useThemeCatalog();
   const defaultTheme=themes[0]??initialTheme;
   const theme = parseCompanyTheme(useIndustryBrowseParam('theme', defaultTheme, initialTheme));
@@ -26,7 +26,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
   const bootstrapRequired = useRef(!initialSnapshot);
   const firstGraphRequired=useRef(!initialSnapshot||initialSnapshot.graphStructureOnly===true);
-  const serverFeedAvailable=useRef(Boolean(initialSnapshot&&!initialSnapshot.eventsPending));
+  const serverFeedAvailable=useRef(Boolean(initialSnapshot && (showEvents ? !initialSnapshot.eventsPending : !initialSnapshot.graphStructureOnly)));
   const serverFeedTheme=useRef(parseCompanyTheme(initialSnapshot?.theme));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
@@ -34,17 +34,19 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const graphs=useRef(new Map<CompanyThemeId,Pick<IntelligenceSnapshot,'graph'|'graphVersion'|'generatedAt'>>(initialSnapshot?[[parseCompanyTheme(initialSnapshot.theme),initialSnapshot]]:[]));
   const themeIntent = useRef<CompanyThemeId | null>(null);
   const snapshotScope = useRef(feedScope('','',''));
-  const company = themeIntent.current === theme || explicitCompany.toUpperCase()==='ALL' ? '' : (explicitCompany || (!selectedEvent && !selectedRelationship ? selectedCompany : '')).toUpperCase();
-  const query = themeIntent.current === theme || company ? '' : searchQuery.normalize('NFKC').trim();
-  const region = themeIntent.current === theme || company ? '' : searchRegion==='US'||searchRegion==='CN_A'?searchRegion:'';
+  const company = !showEvents || themeIntent.current === theme || explicitCompany.toUpperCase()==='ALL' ? '' : (explicitCompany || (!selectedEvent && !selectedRelationship ? selectedCompany : '')).toUpperCase();
+  const query = !showEvents || themeIntent.current === theme || company ? '' : searchQuery.normalize('NFKC').trim();
+  const region = !showEvents || themeIntent.current === theme || company ? '' : searchRegion==='US'||searchRegion==='CN_A'?searchRegion:'';
   const scope = feedScope(company,query,region);
+  const event = showEvents ? selectedEvent : '';
+  const relationship = showEvents ? selectedRelationship : '';
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
   const responses=useRef(new Map<string,{etag:string;data:IntelligenceSnapshot}>());
   const previousDay = useRef<string | undefined>(undefined);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [fullEvents,setFullEvents]=useState(false);
-  const loadFullEvents=()=>{if(!fullEvents&&(!snapshot||snapshot.eventsPending||snapshot.eventsLimited))setFullEvents(true);};
+  const loadFullEvents=()=>{if(showEvents&&!fullEvents&&(!snapshot||snapshot.eventsPending||snapshot.eventsLimited))setFullEvents(true);};
 
   useEffect(() => {
     let disposed = false, inFlight = false;
@@ -52,7 +54,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     const universeController = new AbortController();
     const isCurrentTheme = () => {
       const params = new URLSearchParams(window.location.search);
-      return !disposed && parseCompanyTheme(params.get('theme')||defaultTheme) === theme && (themeIntent.current === theme || feedScope(feedCompany(params),params.get('q')??'',params.get('region')??'') === scope);
+      return !disposed && parseCompanyTheme(params.get('theme')||defaultTheme) === theme && (!showEvents || themeIntent.current === theme || feedScope(feedCompany(params),params.get('q')??'',params.get('region')??'') === scope);
     };
     // Start the directory independently. A late bootstrap must never replace
     // a complete feed or a response belonging to another theme/company.
@@ -66,7 +68,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       if(!previous||(bootstrapRequired.current&&Date.parse(previous.generatedAt)<=Date.parse(data.generatedAt)))graphs.current.set(theme,data);
       return data;
     })().catch(error=>{universeRequest=undefined;throw error;});
-    if (bootstrapRequired.current) {
+    if (showEvents && bootstrapRequired.current) {
       void universe().then(data=>{
         if(!isCurrentTheme())return;
         const cached=themeSnapshots.current.get(theme);
@@ -84,7 +86,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       const timeoutMs = cachedFeed && !cachedFeed.eventsPending ? 15_000 : 40_000;
       const timeout = setTimeout(() => controller?.abort(), timeoutMs);
       try {
-        const url=`/api/intelligence?theme=${theme}&graph=${firstGraphRequired.current?'compact':'omit'}${fullEvents||company||query||region||selectedEvent||selectedRelationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
+        const url=!showEvents ? `/api/intelligence?theme=${theme}&section=universe&graph=compact` : `/api/intelligence?theme=${theme}&graph=${firstGraphRequired.current?'compact':'omit'}${fullEvents||company||query||region||event||relationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
         const saved=responses.current.get(url);
         const response=await intelligenceRequest(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
         if (!response.ok&&response.status!==304) throw new Error();
@@ -111,6 +113,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
             payloadEtag=null; // This full-snapshot validator is not the omitted URL's ETag.
           }
         }
+        if(!showEvents)data={...data,events:[],eventsPending:false,sourceDocuments:[]};
         const etag=payloadEtag;
         if(etag&&response.status!==304){
           if(responses.current.size>=30)responses.current.clear();
@@ -143,7 +146,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
         inFlight = false;
       }
     };
-    if(serverFeedAvailable.current&&serverFeedTheme.current===theme&&!company&&!query&&!region&&!selectedEvent&&!selectedRelationship&&!fullEvents&&!previousDay.current){
+    if(serverFeedAvailable.current&&serverFeedTheme.current===theme&&!company&&!query&&!region&&!event&&!relationship&&!fullEvents&&!previousDay.current){
       serverFeedAvailable.current=false;
     }else{serverFeedAvailable.current=false;void refresh();}
     const timer = setInterval(() => void refresh(), 60_000);
@@ -158,7 +161,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [retry, theme, defaultTheme, company, query, region, scope, fullEvents, selectedEvent, selectedRelationship]);
+  }, [retry, theme, defaultTheme, company, query, region, scope, fullEvents, event, relationship, showEvents]);
 
   const loadPreviousDay = () => {
     if(loadingOlder||!snapshot?.feedWindow?.hasMore)return;

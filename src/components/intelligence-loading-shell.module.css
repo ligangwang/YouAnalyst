@@ -29,6 +29,7 @@
 .retry { color:var(--ui-text,#a6e6d7); background:var(--ui-surface,#122832); border:1px solid var(--ui-line,#31505b); border-radius:8px; padding:7px 12px; cursor:pointer; font-size:12px; }
 .srOnly { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 @keyframes appear { from { opacity:0; } to { opacity:1; } }
-@media(max-width:1000px) { .workspace { grid-template-columns:160px minmax(0,1fr); } .events { display:none; } }
-@media(max-width:600px) { .workspace { grid-template-columns:minmax(0,1fr); min-height:390px; } .sidebar { display:none; } .toolbar { gap:12px; } .status { font-size:12px; } }
+.workspace[data-events="false"] { grid-template-columns:190px minmax(0,1fr); }
+@media(max-width:1000px) { .workspace,.workspace[data-events="false"] { grid-template-columns:160px minmax(0,1fr); } .events { display:none; } }
+@media(max-width:600px) { .workspace,.workspace[data-events="false"] { grid-template-columns:minmax(0,1fr); min-height:390px; } .sidebar { display:none; } .toolbar { gap:12px; } .status { font-size:12px; } }
 @media(prefers-reduced-motion:reduce) { .shell { animation:none; } }
