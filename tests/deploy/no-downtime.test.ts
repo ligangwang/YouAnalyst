@@ -29,7 +29,7 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   const ok = async (url: string | URL | Request, options?: RequestInit) => options?.method === 'POST' || String(url).endsWith('/api/preferences/compare') ? new Response('', {status:401}) : String(url).endsWith('/api/compare/community') ? Response.json({items:[], nextCursor:null}) : String(url).endsWith('/en/compare') ? new Response('<html>Community comparisons · Colors &amp; style templates</html>') : String(url).endsWith('/api/health')
     ? Response.json({status: 'ok', commitSha: 'abc', revision: 'rev-2'})
     : String(url).endsWith('/about') ? new Response('<html>Understand the companies behind your investments. 了解你所投资的公司。 <a href="mailto:support@youanalyst.com">Email</a><a href="https://x.com/knoics321">X</a></html>')
-    : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]},events:[],enrichmentDeferred:true,session:{startAt:'2026-10-31T00:00:00Z'}})
+    : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]},events:[],eventsPending:true,session:{startAt:'2026-10-31T00:00:00Z'}})
     : String(url).includes('/api/company-relationships?') ? Response.json({nodes:[{id:'US:NVDA'}],relationships:[]})
     : String(url).includes('/api/tickers/search?') ? Response.json({items:[{symbol:'NVDA'}]})
     : /\/(industries|investment-themes)\?/.test(String(url)) ? new Response('<html><h2 id="category-title">Semiconductors &amp; Related Devices 集成电路 Chips</h2></html>')
@@ -37,7 +37,9 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   await verifyCandidate({...options, request: ok});
   const order:string[]=[];
   await verifyCandidate({...options,request:async(url,init)=>{order.push(String(url));return ok(url,init);}});
-  assert(order.indexOf(options.url+'/api/intelligence?theme=ai')<order.indexOf(options.url+'/'));
+  const universe=options.url+'/api/intelligence?theme=ai&section=universe';
+  assert(order.indexOf(universe)>=0&&order.indexOf(universe)<order.indexOf(options.url+'/'));
+  assert.deepEqual(order.filter(url=>url.includes('/api/intelligence?')),[universe]);
   // A deterministic clock makes all three timed requests slow without sleeping.
   let ticks=0;const warnings:string[]=[];
   await verifyCandidate({...options,request:ok,now:()=>ticks++*6000,warn:(message:string)=>warnings.push(message)});
@@ -54,7 +56,7 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => init?.method === 'POST' ? new Response('Unexpected success', {status:201}) : ok(url, init)}), /require sign-in/);
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).endsWith('/about') ? new Response('<html>Missing contacts</html>') : ok(url, init)}), /missing About us content/);
   await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).includes('/industries?') ? new Response('<html>Category not found</html>') : ok(url, init)}), /missing selected category/);
-  await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url).endsWith('/api/intelligence?theme=ai')?Response.json({events:[],eventsPending:true}):ok(url,init)}),/refresh is incomplete/);
+  await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url)===universe?Response.json({graph:{nodes:[{kind:'COMPANY'}]},events:[{}],eventsPending:false}):ok(url,init)}),/refresh is incomplete/);
   await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url).includes('/api/company-relationships?')?Response.json({error:'Unavailable'},{status:503}):ok(url,init)}),/company relationships failed/);
   await assert.rejects(verifyCandidate({...options,request:async(url,init)=>String(url).includes('/api/tickers/search?')?Response.json({items:[]}):ok(url,init)}),/search is missing NVIDIA/);
 });
