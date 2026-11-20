@@ -26,7 +26,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
   const bootstrapRequired = useRef(!initialSnapshot);
   const firstGraphRequired=useRef(!initialSnapshot||initialSnapshot.graphStructureOnly===true);
-  const serverFeedAvailable=useRef(Boolean(initialSnapshot&&!initialSnapshot.eventsPending));
+  const serverFeedAvailable=useRef(Boolean(initialSnapshot && (showEvents ? !initialSnapshot.eventsPending : !initialSnapshot.graphStructureOnly)));
   const serverFeedTheme=useRef(parseCompanyTheme(initialSnapshot?.theme));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],

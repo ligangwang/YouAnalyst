@@ -29,7 +29,8 @@ earnings_collection=0
 if [[ "${EARNINGS_PIPELINE_ENABLED:-0}" == 1 ]]; then earnings_collection="${EARNINGS_COLLECTION_ENABLED:-0}"; fi
 filing_topic=sec-filings-discovered
 if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 ]]; then
-  consumers=(sec-fundamentals-subscriber company-graph-subscriber)
+  consumers=(company-graph-subscriber)
+  if [[ "${SEC_FUNDAMENTALS_ENABLED:-1}" != 0 ]]; then consumers+=(sec-fundamentals-subscriber); fi
   if [[ "$earnings_collection" == 1 ]]; then consumers+=(earnings-subscriber); fi
   for consumer in "${consumers[@]}"; do
     gcloud run services describe "$consumer" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --format=json | node -e '

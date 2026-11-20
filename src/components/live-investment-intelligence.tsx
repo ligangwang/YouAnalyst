@@ -73,7 +73,7 @@ export function LiveInvestmentIntelligence({initialSnapshot:initialPayload,showE
   const {snapshot,theme,error,changeTheme,reconnect,loadPreviousDay,loadingOlder,loadFullEvents}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme,showEvents);
   const {ids:guestSaved,change:changeGuestSaved}=useSessionCompanyWatchlist();
   const [panels,setPanels]=useState<Panels>({left:null,right:showEvents});
-  if(!snapshot)return <><PreloadCompanyGraph enabled={(parseIndustryView(initialState.initialView)??'graph')==='graph'}/><IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/></>;
+  if(!snapshot)return <><PreloadCompanyGraph enabled={(parseIndustryView(initialState.initialView)??'graph')==='graph'}/><IntelligenceLoadingShell showEvents={showEvents} theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/></>;
   return <IntelligenceWorkspace showEvents={showEvents} panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} changeGuestSaved={changeGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect} loadPreviousDay={loadPreviousDay} loadingOlder={loadingOlder} loadFullEvents={loadFullEvents}/>;
 }
 

@@ -122,6 +122,7 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
 /** Hold a failed company for an explicit admin rerun; never acknowledge until the hold is saved. */
 export async function runCnDiscoveryForAdmin(input:unknown,db:Firestore,log:MaintenanceLog,options:Parameters<typeof processCnDiscoveryTask>[3]){
   const task=parseCnDiscoveryTask(input);
+  if(!options.enabled||task.mode==='earnings-fallback'&&!options.earningsEnabled)throw new Error('A-share discovery disabled; retain task');
   const ref=task.mode==='announcements'?db.collection('collectors').doc(`exchange-${task.companyId}`):db.collection('earnings_collectors').doc(`cn_${task.companyId}`);
   const manual=task.batchId.startsWith('cn_manual_');
   // The real announcement collector already reads this checkpoint after

@@ -219,10 +219,8 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await page.goto("/?market=US&graphMarkets=US&lang=en");
   await expect(page.getByRole("heading", { name: "Investment Intelligence", exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private|2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
-  // Universe and activity arrive independently; a visible graph is not a signal
-  // that the activity controls have replaced their loading skeleton.
-  await expect(page.getByRole('region',{name:'Theme activity summary'})).toHaveAttribute('aria-busy','false',{timeout:20_000});
-  await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
+  await expect(page.getByRole('region',{name:'Theme activity summary'})).toHaveCount(0);
+  await expect(page.getByRole('complementary',{name:'Events and sources'})).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Relationship graph", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("canvas")).toBeVisible({timeout:30_000});
   await page.getByRole("button", { name: "Reset universe view", exact: true }).click();

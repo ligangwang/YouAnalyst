@@ -8,7 +8,6 @@ import type { Firestore } from "firebase-admin/firestore";
 import { secRequest } from "../sec-request";
 import { secCooldownMs } from "../sec-budget";
 import { validateSource } from "./document";
-import { earningsMetadata } from "./live-store";
 import { validateSourceUrl, type EarningsCompany } from "./issuers";
 import type { EarningsSource, RawEarningsDocument } from "./model";
 
@@ -38,7 +37,7 @@ export function createEarningsRequestGate(db: Firestore, options: { now?: () => 
   let checkAfter = 0;
   const provider = (host: string) => {
     if (!["www.cninfo.com.cn", "static.cninfo.com.cn", "dataclouds.cninfo.com.cn"].includes(host)) throw new Error("Unsupported earnings request host");
-    return earningsMetadata(db, "provider_cninfo");
+    return db.collection("collectors").doc("cninfo-request-budget");
   };
   return {
     async beforeRequest({ host }: { host: string }) {
