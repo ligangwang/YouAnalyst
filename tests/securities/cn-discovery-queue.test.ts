@@ -177,13 +177,17 @@ test('completed delivery checks use one progress read under the company lease',a
   }) as typeof fx.db.collection;
   const at=task().requestedAt;
   fx.rows.set(`collectors/exchange-${id}`,{status:'complete',lastSuccessAt:at,earningsCoverageVersion:2,nextPollAtMs:0});
-  const first=await processCnDiscoveryTask(task(),fx.db,log,{enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph});
+  const options={enabled:true,earningsEnabled:false,now:fx.now,loadCompany:async()=>graph};
+  const first=await runCnDiscoveryForAdmin(task(),fx.db,log,options);
   assert.equal('duplicate' in first&&first.duplicate,true);assert.equal(reads,1);
+  fx.rows.set(`collectors/exchange-${id}`,{manualRequired:true,lastAttemptAt:at});
+  assert.equal((await runCnDiscoveryForAdmin(task(),fx.db,log,options)).status,'manual_required');
+  assert.equal(reads,2);
   configureEarningsMap(graph,new Map());
   try{
     fx.rows.set(`earnings_collectors/cn_${id}`,{status:'complete',lastCompleteAt:at,nextPollAtMs:0});
     const second=await collectLiveEarnings(fx.db,log,{companyId:id,completedSince:at,deadline:fx.now()+60000,now:fx.now,publish:async()=>assert.fail(),discoverCn:async()=>assert.fail()});
-    assert.equal('duplicate' in second&&second.duplicate,true);assert.equal(reads,2);
+    assert.equal('duplicate' in second&&second.duplicate,true);assert.equal(reads,3);
     assert(!fx.rows.get(`collectors/exchange-task-${id}`)?.leaseOwner);
   }finally{restoreEarningsFixtures();}
 });

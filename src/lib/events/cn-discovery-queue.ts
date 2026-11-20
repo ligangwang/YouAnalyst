@@ -95,6 +95,7 @@ export async function loadCnDiscoveryCompany(db:Firestore,id:string):Promise<Kno
 }
 export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:MaintenanceLog,options:{enabled:boolean;earningsEnabled:boolean;now?:()=>number;
   loadCompany?:(id:string)=>Promise<KnowledgeGraph>;
+  respectAnnouncementHold?:boolean;
   announcements?:()=>Promise<{status?:string;failed?:number;deferred?:number}>;fallback?:()=>Promise<{failed?:number;deferred?:number}>;
 }){
   const task=parseCnDiscoveryTask(input),now=options.now??Date.now;
@@ -110,8 +111,9 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
   };
   const cn=createCnEarningsSources(request);
   const publish=(event:Parameters<typeof publishEarningsIntake>[1])=>publishEarningsIntake(db,event);
-  const result=task.mode==='announcements'?await (options.announcements??(()=>collectCnMapDisclosures(db,graph,request,{companyId:task.companyId,completedSince:task.requestedAt,deadline,runId:log.runId,earningsEnabled:options.earningsEnabled,now,publish})))()
+  const result=task.mode==='announcements'?await (options.announcements??(()=>collectCnMapDisclosures(db,graph,request,{companyId:task.companyId,completedSince:task.requestedAt,deadline,runId:log.runId,earningsEnabled:options.earningsEnabled,respectManualHold:options.respectAnnouncementHold,now,publish})))()
     :await (options.fallback??(()=>collectLiveEarnings(db,log,{companyId:task.companyId,completedSince:task.requestedAt,deadline,now,discoveryOwnedByMap:true,publish,discoverCn:async(id,from,to,at)=>(await cn.discover({companyId:id,from,to,firstSeenAt:at,maxPages:20})).sources})))();
+  if('status' in result&&result.status==='manual_required')return {status:'manual_required' as const};
   if('status' in result&&result.status==='busy')throw new Error('A-share discovery worker is busy');
   if(('failed' in result&&result.failed)||('deferred' in result&&result.deferred))throw new Error('A-share discovery incomplete; retry company task');
   return {...result,status:'verified',companyId:task.companyId,mode:task.mode};
@@ -121,11 +123,15 @@ export async function processCnDiscoveryTask(input:unknown,db:Firestore,log:Main
 export async function runCnDiscoveryForAdmin(input:unknown,db:Firestore,log:MaintenanceLog,options:Parameters<typeof processCnDiscoveryTask>[3]){
   const task=parseCnDiscoveryTask(input);
   const ref=task.mode==='announcements'?db.collection('collectors').doc(`exchange-${task.companyId}`):db.collection('earnings_collectors').doc(`cn_${task.companyId}`);
-  const state=(await ref.get()).data();
-  if(state?.manualRequired===true&&(!task.batchId.startsWith('cn_manual_')||Date.parse(task.requestedAt)<=Date.parse(String(state.lastAttemptAt??''))))return {status:'manual_required'};
+  const manual=task.batchId.startsWith('cn_manual_');
+  // The real announcement collector already reads this checkpoint after
+  // acquiring the issuer lease. Use that snapshot for scheduled holds.
+  const respectAnnouncementHold=task.mode==='announcements'&&!manual&&!options.announcements;
+  const state=respectAnnouncementHold?undefined:(await ref.get()).data();
+  if(state?.manualRequired===true&&(!manual||Date.parse(task.requestedAt)<=Date.parse(String(state.lastAttemptAt??''))))return {status:'manual_required'};
   try{
-    const result=await processCnDiscoveryTask(task,db,log,options);
-    if(task.batchId.startsWith('cn_manual_'))await db.runTransaction(async tx=>{
+    const result=await processCnDiscoveryTask(task,db,log,{...options,respectAnnouncementHold});
+    if(manual)await db.runTransaction(async tx=>{
       const current=(await tx.get(ref)).data();
       if(current?.manualRequired===true&&current.lastAttemptAt===state?.lastAttemptAt)tx.set(ref,{manualRequired:false},{merge:true});
     });
