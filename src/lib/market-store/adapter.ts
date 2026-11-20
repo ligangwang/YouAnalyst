@@ -87,7 +87,8 @@ export function marketFirestore(raw: Firestore, repository: MarketRepository, co
             }> = [];
             for (const write of pending) {
                 const path = write.args[0]?.path, parts = String(path).split('/');
-                if (parts.length === 2 && isMarketCollection(parts[0]))
+                if (parts.length === 2 && isMarketCollection(parts[0])
+                    && (parts[0] !== 'prediction_daily_marks' || await repository.ready(context, parts[0])))
                     market.push({ path, method: write.method, args: write.args.slice(1) });
                 else
                     ordinary.push(write);
