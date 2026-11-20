@@ -9,7 +9,9 @@ export const RETAINED_CONTROL='collectors/_market_parquet_retained_control';
 export type RetainedMode={enabled:boolean;ready:boolean;cleanupAuthorized:boolean};
 type Reader={get:(ref:Query|DocumentReference)=>Promise<unknown>;getAll:(...refs:DocumentReference[])=>Promise<DocumentSnapshot[]>};
 export type RetainedContext={reader:Reader;retainedMode?:RetainedMode};
-export const relocatesCollection=(name:string):name is MarketCollection=>isMarketCollection(name)&&name!=='events';
+// Derived marks keep their native source during validation, then move directly to Parquet.
+export const relocatesCollection=(name:string):name is MarketCollection=>
+    isMarketCollection(name)&&name!=='events'&&name!=='prediction_daily_marks';
 export function retainedRoot(collection:MarketCollection,id:string,data:Data):'market_state'|'market_ugc'{
     // Preserve entire curated records, including their existing live fields.
     return hasAuthoredContent(data)

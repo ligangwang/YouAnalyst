@@ -4,8 +4,8 @@ import {MARKET_COLLECTIONS,PARQUET_MARKET_COLLECTIONS,DEFERRED_MARKET_COLLECTION
 import {marketStoreReady} from '../../src/lib/market-store/runtime';
 
 test('events and fundamentals require independent read gates',()=>{
-    assert.equal(MARKET_COLLECTIONS.length,19);
-    assert.equal(PARQUET_MARKET_COLLECTIONS.length,19);
+    assert.equal(MARKET_COLLECTIONS.length,20);
+    assert.equal(PARQUET_MARKET_COLLECTIONS.length,20);
     assert.deepEqual([...DEFERRED_MARKET_COLLECTIONS],[]);
     const names=['MARKET_PARQUET_ENABLED','MARKET_PARQUET_READ_READY','K_SERVICE','CLOUD_RUN_JOB','MARKET_FUNDAMENTALS_READ_READY','MARKET_EVENTS_READ_READY'] as const;
     const previous=names.map(name=>process.env[name]);
