@@ -2,7 +2,7 @@ import type { Data } from './value';
 export const MARKET_COLLECTIONS = [
     'companies', 'company_directory', 'company_fundamentals', 'company_relationships', 'company_research_runs',
     'directory_syncs', 'earnings_records', 'earnings_sources', 'eod_runs', 'events', 'industry_research_candidates',
-    'industry_research_runs', 'instruments', 'openai_usage_events', 'sec_filing_sections', 'sec_filings',
+    'industry_research_runs', 'instruments', 'openai_usage_events', 'prediction_daily_marks', 'sec_filing_sections', 'sec_filings',
     'security_id_mapping_sync_runs', 'security_id_mappings', 'tickers',
 ] as const;
 export type MarketCollection = typeof MARKET_COLLECTIONS[number];

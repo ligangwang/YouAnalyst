@@ -712,7 +712,7 @@ test('earnings pointers skip Firestore payload reads for completed Parquet shard
     }
 });
 
-for (const collection of ['companies','instruments','company_relationships','company_fundamentals','earnings_records'] as const) test(collection+' edits preserve complete Parquet rows and only publish catalog pointers', async () => {
+for (const collection of ['companies','instruments','company_relationships','company_fundamentals','earnings_records','prediction_daily_marks'] as const) test(collection+' edits preserve complete Parquet rows and only publish catalog pointers', async () => {
     const files = fixture(), id = 'US:TEST', shard = shardFor(id);
     const row = {id, version: Timestamp.now(), data: {name:'Test', themeIds:['ai'], onboarding:{status:'READY'}}};
     const storage = collection==='companies' ? {companyStorage:'parquet' as const} : {recordStorage:'parquet' as const};
