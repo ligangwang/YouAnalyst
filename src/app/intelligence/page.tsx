@@ -15,6 +15,7 @@ import {resolveCatalogTheme} from '@/lib/company-themes/catalog-model';
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
 import { themeMetadata } from '@/lib/company-themes/metadata';
 export const dynamic='force-dynamic';
+const showGraphEvents = false;
 export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const params = await searchParams;
   const details = themeMetadata(params.theme, await initialSnapshotWithinBudget(loadThemeCatalog()) ?? []);
@@ -51,11 +52,11 @@ async function InitialWorkspace({theme,value}:{theme:string;value:(key:string)=>
   // Let the browser schedule the public feed before hydration without adding
   // discovery work to this graph response. Its later fetch reuses this preload.
   const scoped=['company','feedCompany','q','region','relationship','event'].some(key=>value(key));
-  return <>{catalog&&!scoped&&<PreloadIntelligenceFeed theme={theme} includeGraph/>}<Suspense fallback={<IntelligenceLoadingShell theme={theme}/>}><GraphWorkspace theme={theme} enabled={Boolean(catalog)} value={value}/></Suspense></>;
+  return <>{showGraphEvents&&catalog&&!scoped&&<PreloadIntelligenceFeed theme={theme} includeGraph/>}<Suspense fallback={<IntelligenceLoadingShell theme={theme}/>}><GraphWorkspace theme={theme} enabled={Boolean(catalog)} value={value}/></Suspense></>;
 }
 
 async function GraphWorkspace({theme,enabled,value}:{theme:string;enabled:boolean;value:(key:string)=>string}){
   const now=new Date();
   const snapshot=enabled?await initialSnapshotWithinBudget(withCompanyPageReads(async()=>encodeIntelligenceSnapshot(await loadIntelligenceUniverse(now,theme,true),true))):undefined;
-  return <LiveInvestmentIntelligence initialTheme={theme} initialSnapshot={snapshot} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
+  return <LiveInvestmentIntelligence showEvents={showGraphEvents} initialTheme={theme} initialSnapshot={snapshot} initialView={value('view')} initialCompany={value('company')} initialQuery={value('q')} initialEdge={value('relationship')} initialEvent={value('event')}/>;
 }
