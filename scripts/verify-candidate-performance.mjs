@@ -1,3 +1,4 @@
+import {releaseProbeHeaders} from './release-probe.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import probe from './graph-readiness-probe.cjs';
@@ -67,11 +68,12 @@ async function run() {
       let page,navigationStatus;const errors=[];
       try {
         const context=await browser.newContext({viewport:{width:1440,height:1000}});
+        if(process.env.INTERNAL_API_TOKEN) await context.route(new URL(url).origin+'/**', route=>route.continue({headers:{...route.request().headers(),...releaseProbeHeaders(url)}}));
         page=await context.newPage();
         page.on('pageerror',error=>{if(errors.length<20)errors.push(error.message.slice(0,160));});
         page.on('requestfailed',request=>{if(errors.length<20)errors.push(`${new URL(request.url()).pathname}: ${request.failure()?.errorText??'request failed'}`.slice(0,180));});
         await page.addInitScript(installGraphReadinessProbe);
-        navigationStatus=await navigateCandidatePage(page,new URL('/en',url).href);
+        navigationStatus=await navigateCandidatePage(page,new URL('/en?view=graph',url).href);
         await page.waitForFunction(()=>window.__releaseGraphReadyAt!==null&&window.__releaseFeedReadyAt!==null,{},{timeout:45000});
         const duration=await page.evaluate(()=>({graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt}));
         await page.waitForTimeout(300);

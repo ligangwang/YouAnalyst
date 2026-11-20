@@ -51,6 +51,10 @@ test.beforeEach(async ({ page }) => {
   page.on("pageerror", error => { throw error; });
   await page.route("**/*", route => {
     const request = route.request(), url = new URL(request.url());
+    if (url.origin === origin && url.pathname === '/api/auth/session' && request.method() === 'POST') {
+      expect(request.headers().authorization).toBe('Bearer isolated-test-token');
+      return route.fulfill({status:204});
+    }
     if (url.origin !== origin || request.method() !== "GET") {
       void route.abort();
       throw new Error(`Unexpected request: ${request.method()} ${url.origin}${url.pathname}`);

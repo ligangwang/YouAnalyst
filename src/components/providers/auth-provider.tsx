@@ -5,7 +5,7 @@ import {
   browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
   getAdditionalUserInfo,
-  onAuthStateChanged,
+  onIdTokenChanged,
   setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -23,6 +23,7 @@ import {
 } from "react";
 import { FirebaseError } from "firebase/app";
 import { getFirebaseServices, isFirebaseConfigured } from "@/lib/firebase/client";
+import { syncMemberSession } from '@/lib/access/browser-session';
 import type { AppFeatures } from "@/lib/features";
 
 type AuthContextValue = {
@@ -115,6 +116,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const bootstrapUserProfile = useCallback(async (nextUser: User) => {
     const token = await nextUser.getIdToken();
+    if (getFirebaseServices().auth.currentUser?.uid !== nextUser.uid) throw new Error("Authentication changed. Please sign in again.");
+    await syncMemberSession(token);
     const response = await fetch("/api/users/bootstrap", {
       method: "POST",
       headers: {
@@ -145,13 +148,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     const { auth } = getFirebaseServices();
-    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+    const unsubscribe = onIdTokenChanged(auth, (nextUser) => {
       setUser(nextUser);
       setProfilePhotoURL(nextUser?.photoURL ?? null);
-      setLoading(false);
 
       if (!nextUser) {
         setFeatures(DEFAULT_FEATURES);
+        setLoading(false);
+        void syncMemberSession(null).catch(() => {});
         return;
       }
 
@@ -161,14 +165,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         })
         .catch((nextError) => {
           setError(toMessage(nextError, "Unable to create user profile."));
-        });
+        }).finally(() => setLoading(false));
     });
 
     void setPersistence(auth, browserLocalPersistence).catch((nextError) => {
       setError(toMessage(nextError, "Unable to persist authentication state."));
     });
 
-    return unsubscribe;
+    // Auth-only clients do not enable the SDK's proactive token refresh.
+    // getIdToken reuses a fresh token and refreshes it near expiry; the observer
+    // above then renews the HttpOnly cookie before active readers lose access.
+    const refreshMemberToken = () => {
+      if (document.visibilityState === "visible") void auth.currentUser?.getIdToken().catch(() => {});
+    };
+    const refreshTimer = window.setInterval(refreshMemberToken, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", refreshMemberToken);
+    return () => {
+      unsubscribe();
+      window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshMemberToken);
+    };
   }, [bootstrapUserProfile, configured]);
 
   const signInWithGoogle = useCallback(async () => {
@@ -268,8 +284,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const { auth } = getFirebaseServices();
       await firebaseSignOut(auth);
+      await syncMemberSession(null);
       setUser(null);
       setFeatures(DEFAULT_FEATURES);
+      window.location.assign("/");
     } catch (nextError) {
       const friendly = friendlyError(nextError, "Sign-out failed.");
       setError(friendly.message);

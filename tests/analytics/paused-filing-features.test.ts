@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { proxy } from "../../src/proxy";
+import { routeRequest as proxy } from "../../src/lib/access/routing";
 
 test("paused filing pages and APIs are unavailable in either language, without blocking research", () => {
   for (const path of ["/institutions", "/institutions/0001067983", "/daily/insiders", "/daily/insider/2026-09-17/purchase/AMD", "/daily/institutional/2026-09-17"]) {

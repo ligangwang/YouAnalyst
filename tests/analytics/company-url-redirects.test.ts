@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { proxy } from "../../src/proxy";
+import { routeRequest as proxy } from "../../src/lib/access/routing";
 import { localizeMetadata } from "../../src/lib/ui/i18n/server";
 
 test("old company links permanently redirect with locale and query values preserved", () => {

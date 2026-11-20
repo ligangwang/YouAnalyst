@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./member-fixture";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
 
 test("listed A-share pages offer calls in both languages while private companies do not", async ({ page }) => {
@@ -41,14 +41,13 @@ test("AI map reads shared company relationships with preserved evidence", async 
   }
 });
 
-test("sitemap index exposes bounded bilingual company sitemaps", async ({ request }) => {
+test("sitemap index exposes public bilingual pages only", async ({ request }) => {
   test.setTimeout(60_000);
   const index = await request.get("/sitemap.xml");
   expect(index.status()).toBe(200);
   const body = await index.text();
   expect(body).toContain("<sitemapindex");
   expect(body).toContain("/sitemaps/companies/US-N.xml");
-  expect(body).toContain("/sitemaps/companies/XSHG-6.xml");
   const pagesResponse = await request.get("/sitemaps/pages/sitemap.xml");
   expect(pagesResponse.status()).toBe(200);
   const pagesXml = await pagesResponse.text();
@@ -56,7 +55,7 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
   expect(new Set(pageUrls).size).toBe(pageUrls.length);
   for (const locale of ["en", "zh-cn"]) {
     expect(pageUrls.some(url => url.endsWith(`/${locale}/calendar`))).toBeFalsy();
-    expect(pageUrls.some(url => url.endsWith(`/${locale}/daily/calls`))).toBeTruthy();
+    expect(pageUrls.some(url => url.endsWith(`/${locale}/about`))).toBeTruthy();
     expect(pageUrls.some(url => url.endsWith(`/${locale}/daily`) || url.endsWith(`/${locale}/watchlists`))).toBeFalsy();
   }
   expect(pageUrls.some(url => /\/(company|ticker)\//.test(url))).toBeFalsy();
@@ -121,7 +120,7 @@ test("Investment Intelligence homepage renders real data without Research shortc
     for (const source of event.evidence) expect(source.url.startsWith("https://")).toBe(true);
   }
   for (const [prefix, heading] of [["en", "Investment Intelligence"], ["zh-cn", "投资情报"]]) {
-    const home = await request.get(`/${prefix}`);
+    const home = await request.get(`/${prefix}?view=graph`);
     expect(home.status()).toBe(200);
     const html = await home.text();
     expect(html).toContain(heading);
@@ -199,7 +198,7 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
 
 test("retired feed opens Explore and retired institutional features stay unavailable", async ({ page, request }) => {
   await page.goto("/feed");
-  await expect(page).toHaveURL(/\/en$/);
+  await expect(page).toHaveURL(/\/en\?view=graph$/);
   await expect(page.getByRole("heading", { name: "Investment Intelligence", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Event types" })).toHaveCount(0);
   for (const path of ["/en/institutions", "/zh-cn/daily/insiders", "/daily/institutional", "/api/insider-transactions/AMD", "/api/institutional-holdings/AMD"]) {

@@ -14,7 +14,7 @@ async function serve(request: Request, { params }: { params: Promise<{ id: strin
     size = Number(metadata.size);
     const { start, end, partial } = audioRange(request.headers.get('range'), size);
     const headers: Record<string, string> = { 'Content-Type': 'audio/mpeg', 'X-Content-Type-Options': 'nosniff',
-      'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1), 'Cache-Control': 'public, max-age=3600' };
+      'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1), 'Cache-Control': 'private, no-store' };
     if (partial) headers['Content-Range'] = `bytes ${start}-${end}/${size}`;
     if (request.method === 'HEAD') return new Response(null, { status: partial ? 206 : 200, headers });
     const stream = file.createReadStream({ start, end });

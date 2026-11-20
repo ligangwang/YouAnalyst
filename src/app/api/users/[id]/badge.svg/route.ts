@@ -135,7 +135,7 @@ export async function GET(
     return new Response(svg, {
       headers: {
         "content-type": "image/svg+xml; charset=utf-8",
-        "cache-control": "no-cache",
+        "cache-control": "private, no-store",
       },
     });
   } catch (error) {

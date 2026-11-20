@@ -220,11 +220,11 @@ export function SiteNav() {
           <div className="ml-auto flex items-center gap-1 sm:gap-3">
             <div className="hidden items-center gap-4 lg:mr-4 lg:flex">
               <nav className="flex items-center gap-1 text-[15px] text-slate-200">
-                {navItems.map(item => <Link key={item.href} href={item.href} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="px-2 py-2 hover:text-cyan-200 aria-[current=page]:text-white aria-[current=page]:underline aria-[current=page]:decoration-cyan-300/80 aria-[current=page]:decoration-1 aria-[current=page]:underline-offset-8">{t(item.label)}</Link>)}
+                {navItems.map(item => <Link key={item.href} href={item.href} prefetch={pathname === "/" ? false : undefined} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="px-2 py-2 hover:text-cyan-200 aria-[current=page]:text-white aria-[current=page]:underline aria-[current=page]:decoration-cyan-300/80 aria-[current=page]:decoration-1 aria-[current=page]:underline-offset-8">{t(item.label)}</Link>)}
               </nav>
               <MoreMenu admin={showAdminLink} />
             </div>
-            <CompanySearch iconOnly typeToSearch={pathname==='/'||pathname==='/companies'} />
+            <CompanySearch publicPreview={!user} iconOnly typeToSearch={pathname==='/'||pathname==='/companies'} />
             <LanguageSwitch />
             <ThemeToggle />
             {loading ? (
@@ -243,7 +243,7 @@ export function SiteNav() {
         <p className="mt-1 pl-1 text-xs leading-5 text-slate-400 lg:hidden">{focus}</p>
         <nav aria-label={ui("Mobile navigation")} className="mt-1 flex flex-wrap items-center text-sm text-slate-200 lg:hidden">
           <div className="flex min-w-0 flex-wrap items-center min-[360px]:gap-0.5 min-[400px]:gap-1">
-            {navItems.map(item => <Link key={item.href} href={item.href} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="shrink-0 whitespace-nowrap px-1 py-3 hover:text-cyan-200 aria-[current=page]:text-white aria-[current=page]:underline aria-[current=page]:decoration-cyan-300/80 aria-[current=page]:decoration-1 aria-[current=page]:underline-offset-8 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
+            {navItems.map(item => <Link key={item.href} href={item.href} prefetch={pathname === "/" ? false : undefined} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="shrink-0 whitespace-nowrap px-1 py-3 hover:text-cyan-200 aria-[current=page]:text-white aria-[current=page]:underline aria-[current=page]:decoration-cyan-300/80 aria-[current=page]:decoration-1 aria-[current=page]:underline-offset-8 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
           </div>
           <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>

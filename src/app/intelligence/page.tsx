@@ -13,8 +13,29 @@ import {parseCompanyTheme} from '@/lib/company-themes/model';
 import {loadThemeCatalog} from '@/lib/company-themes/catalog';
 import {resolveCatalogTheme} from '@/lib/company-themes/catalog-model';
 import {withCompanyPageReads} from '@/lib/local-cache/company-page-scope';
+import { themeMetadata } from '@/lib/company-themes/metadata';
 export const dynamic='force-dynamic';
-export async function generateMetadata():Promise<Metadata>{return localizedMetadata({title:'Investment Intelligence | YouAnalyst',description:'Explore companies, documented relationships and recorded primary-source evidence.',alternates:{canonical:'/intelligence'}});}
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const params = await searchParams;
+  const details = themeMetadata(params.theme, await initialSnapshotWithinBudget(loadThemeCatalog()) ?? []);
+  const view = new URLSearchParams();
+  for (const key of ["company", "relationship"]) {
+    const value = params[key];
+    if (typeof value === "string") view.set(key, value);
+  }
+  const image = `/api/research-preview-image?${new URLSearchParams({ theme: details.theme, company: view.get("company") ?? "", relationship: view.get("relationship") ?? "" })}`;
+  const metadata = await localizedMetadata({
+    title: details.title,
+    description: details.description,
+    alternates: { canonical: details.canonical },
+    openGraph: { images: [{ url: image, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", images: [image] },
+  }, { usePageCanonical: details.theme !== "ai" });
+  if (metadata.openGraph && view.size) {
+    metadata.openGraph.url = `${metadata.alternates?.canonical ?? "/en"}${details.theme === "ai" ? "?" : "&"}${view}`;
+  }
+  return metadata;
+}
 export default async function IntelligencePage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
   const params=await searchParams;
   const value=(key:string)=>typeof params[key]==='string'?params[key]:'';
