@@ -3,6 +3,20 @@ import type {Snapshot} from '../entity-snapshots/sync';
 import {instrumentFromCompany, instrumentId} from './model';
 import {instrumentNeedsSync,syncCompanyInstrument} from './service';
 
+export const companyInstrumentFields = ['isDeleted','listingStatus','listings','symbol','name','micCode',
+  'exchange','instrumentType','type','active','provider','source','lastSyncedAt','exchange_region','currency',
+  'figiCode','supersededByCompanyId'];
+export const instrumentComparisonFields = ['companyId','name','symbol','status','providerSymbols','sourceMetadata',
+  'instrumentType','exchangeMic','exchangeName','exchange_region','currency','identifiers','isDeleted'];
+
+export function companyInstrumentNeedsSync(id: string, company: Snapshot['rows'][number]['data'],
+    previous?: Snapshot['rows'][number]['data']) {
+  if (company.isDeleted === true || previous?.isDeleted === true) return false;
+  const next = instrumentFromCompany(id, company, String(company.supersededByCompanyId ?? id));
+  if (next) return instrumentNeedsSync(previous, next);
+  return company.listingStatus === 'PRIVATE' && !!previous && previous.status !== 'DELISTED';
+}
+
 /** Compare complete files in memory; no Firestore lookups for unchanged instruments. */
 export async function syncSnapshotInstruments(db:Firestore,companies:Snapshot,existing?:Snapshot) {
   if(companies.collection!=='companies'||existing&&existing.collection!=='instruments')throw Error('Invalid instrument sync snapshots');

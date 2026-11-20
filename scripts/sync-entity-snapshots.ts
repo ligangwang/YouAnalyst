@@ -3,12 +3,15 @@ import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getStorage} from 'firebase-admin/storage';
 import {getFirestore} from '../src/lib/firebase/firestore';
 import {snapshotSyncOptions} from '../src/lib/entity-snapshots/cli';
-import {getFirestore as rawFirestore,FieldPath} from 'firebase-admin/firestore';
+import {getFirestore as rawFirestore} from 'firebase-admin/firestore';
 import {CONTROL} from '../src/lib/market-store/repository';
 import {collectMarketGarbage} from '../src/lib/market-store/maintenance';
 import {publishDirectoryIndex} from '../src/lib/market-store/publish-directory-index';
 import {MarketFiles,type MarketHead} from '../src/lib/market-store/files';
 import {bundleMarketIndexes} from '../src/lib/market-store/index-bundles';
+import {completeRecordsInParquet} from '../src/lib/market-store/runtime';
+import {instrumentId} from '../src/lib/instruments/model';
+import {companyInstrumentFields, instrumentComparisonFields, companyInstrumentNeedsSync} from '../src/lib/instruments/snapshot-sync';
 import {CleanupGate,migrationCapacity} from './market-migration-safety';
 
 async function main(){
@@ -25,10 +28,20 @@ async function main(){
     const db=getFirestore();
     try{
       if(dispatchInstruments){
-        const companies=await db.collection('companies').select('isDeleted').orderBy(FieldPath.documentId()).get();
-        const ids=companies.docs.filter(doc=>doc.get('isDeleted')!==true).map(doc=>doc.id);
-        const synchronized=await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`market-${Date.now()}`,ids,'sec-fundamentals-requests','instruments');
-        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'instrument_directory_sync',...synchronized}));
+        const ready = await Promise.all((['companies','instruments'] as const).map(name => completeRecordsInParquet(db,name)));
+        if (ready.some(value => !value)) throw Error('Complete company and instrument Parquet catalogs are required');
+        const [companies,instruments] = await Promise.all([
+          db.collection('companies').select(...companyInstrumentFields).get(),
+          db.collection('instruments').select(...instrumentComparisonFields).get(),
+        ]);
+        const existing = new Map(instruments.docs.map(doc => [doc.id,doc.data()]));
+        const ids = companies.docs
+          .filter(doc => companyInstrumentNeedsSync(doc.id, doc.data(), existing.get(instrumentId(doc.id))))
+          .map(doc => doc.id);
+        const synchronized = ids.length
+          ? await queueFundamentalsSeeding(db,process.env.CLOUD_RUN_EXECUTION??`market-${Date.now()}`,ids,'sec-fundamentals-requests','instruments')
+          : {queued:false,requested:0};
+        console.info(JSON.stringify({job:'sync-entity-snapshots',event:'instrument_directory_sync',compared:companies.size,...synchronized}));
       }
       const bucket=getStorage().bucket(bucketName),files=new MarketFiles(bucket,0);
       const gate=new CleanupGate(migrationCapacity(projectId),50);
