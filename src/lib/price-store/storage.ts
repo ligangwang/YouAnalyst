@@ -109,7 +109,15 @@ export class PriceStore {
    if(step.args[1]==='==')groups=groups.filter(g=>Number(g.split('/')[1])===year);
   }
   const ids=steps.find(s=>s.method==='where'&&field(s.args[0])==='id'&&['==','in'].includes(String(s.args[1])));
-  if(ids){const values=ids.args[1]==='in'?ids.args[2] as string[]:[String(ids.args[2])];const wanted=new Set(values.map(groupFor));groups=groups.filter(g=>wanted.has(g));}
+  const idsByGroup=new Map<string,string[]>();
+  if(ids){
+   const values=ids.args[1]==='in'?ids.args[2] as string[]:[String(ids.args[2])];
+   for(const id of values){
+    const group=groupFor(id),members=idsByGroup.get(group);
+    if(members)members.push(id);else idsByGroup.set(group,[id]);
+   }
+   groups=groups.filter(group=>idsByGroup.has(group));
+  }
   const ticker=steps.find(s=>s.method==='where'&&field(s.args[0])==='ticker'&&s.args[1]==='==')?.args[2];
   if(typeof ticker==='string'){const shard=createHash('sha256').update(ticker).digest('hex')[0];groups=groups.filter(g=>g.endsWith('/'+shard));}
   const lower=steps.find(s=>s.method==='where'&&field(s.args[0])==='id'&&['>=','>'].includes(String(s.args[1])))?.args[2];
@@ -131,9 +139,21 @@ export class PriceStore {
    if(yearOrder&&lastYear!==undefined&&year!==lastYear&&result.length>=plan.limit)break;
    lastYear=year;
    const selected=files.filter(f=>f.groups.includes(group));
+   // Each price ID belongs to one group. A full cross-group IN list in every
+   // UNION branch can exhaust DuckDB's memory before it returns any rows.
+   const members=idsByGroup.get(group);
+   const groupIdentity=members?compileQuery([{method:'where',args:['id','in',members]}]).where:identity;
    const rows=await this.local(selected.map(f=>f.name),paths=>withDuck(async db=>{
-    const union=paths.map((path,i)=>`SELECT *,${i} AS priority FROM read_parquet(${quote(path)}) WHERE ${groupPredicate(group)} AND ${identity}`).join(' UNION ALL ');
-    return (await db.runAndReadAll(`WITH versions AS (${union}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1) SELECT id,payload FROM latest WHERE ${includeDeleted?'TRUE':'"isDeleted" IS NOT TRUE'} AND ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
+    const source=(path:string,priority:number)=>`SELECT *,${priority} AS priority FROM read_parquet(${quote(path)}) WHERE ${groupPredicate(group)} AND ${groupIdentity}`;
+    let versions:string;
+    if(members && paths.length>1){
+     // Materialize only matching IDs, one file at a time. A UNION over many
+     // Parquet scans can pin a row group per file before deduplication.
+     await db.run(`CREATE TEMP TABLE matched_prices AS ${source(paths[0],0)}`);
+     for(let i=1;i<paths.length;i++)await db.run(`INSERT INTO matched_prices ${source(paths[i],i)}`);
+     versions='SELECT * FROM matched_prices';
+    }else versions=paths.map(source).join(' UNION ALL ');
+    return (await db.runAndReadAll(`WITH versions AS (${versions}), latest AS (SELECT * EXCLUDE(priority) FROM versions QUALIFY row_number() OVER (PARTITION BY id ORDER BY "updatedAt" DESC,priority DESC)=1) SELECT id,payload FROM latest WHERE ${includeDeleted?'TRUE':'"isDeleted" IS NOT TRUE'} AND ${plan.where} ORDER BY ${plan.order} LIMIT ${plan.limit}`)).getRows().map(([id,payload])=>({id:String(id),data:decode(JSON.parse(String(payload)))}));
    }));
    result=[...result,...rows].sort(plan.compare).slice(0,plan.limit);
   }
