@@ -89,32 +89,37 @@ export class RetainedStore {
         const mode=relocate?await this.mode(context):undefined;
         const roots=refs.map(ref=>this.readsNew(mode,context)&&relocatesCollection(ref.path.split('/')[0])
             ?this.locations.get(ref.path)??(['companies','company_relationships'].includes(ref.parent.id)?'market_ugc':'market_state'):undefined);
-        const get=async(physical:DocumentReference[])=>{
-            const docs:DocumentSnapshot[]=[];
-            for(let offset=0;offset<physical.length;offset+=100){
-                const batch=physical.slice(offset,offset+100);
-                const rows=context?await context.reader.getAll(...batch):await this.raw.getAll(...batch,...(fields?[{fieldMask:fields}]:[]));
-                reportNativeBatchRead(rows,!!context,context?undefined:fields);
-                const byPath=new Map(rows.map(doc=>[doc.ref.path,doc]));
-                for(const ref of batch){const doc=byPath.get(ref.path);if(!doc)throw Error('Retained read returned an incomplete batch');docs.push(doc);}
+        const read=async(readBatch:(batch:DocumentReference[])=>Promise<DocumentSnapshot[]>)=>{
+            const get=async(physical:DocumentReference[])=>{
+                const docs:DocumentSnapshot[]=[];
+                for(let offset=0;offset<physical.length;offset+=100){
+                    const batch=physical.slice(offset,offset+100);
+                    const rows=await readBatch(batch);
+                    reportNativeBatchRead(rows,!!context,context?undefined:fields);
+                    const byPath=new Map(rows.map(doc=>[doc.ref.path,doc]));
+                    for(const ref of batch){const doc=byPath.get(ref.path);if(!doc)throw Error('Retained read returned an incomplete batch');docs.push(doc);}
+                }
+                return docs;
+            };
+            const primary=await get(refs.map((ref,n)=>roots[n]?this.raw.doc(retainedPath(roots[n]!,ref.parent.id,ref.id)):ref));
+            const missing=refs.flatMap((ref,n)=>roots[n]&&!primary[n].exists?[n]:[]);
+            // Both probes share a snapshot, including when an editor moves the record.
+            const alternateRoots=missing.map(n=>roots[n]==='market_state'?'market_ugc' as const:'market_state' as const);
+            const fallback=await get(missing.map((n,i)=>this.raw.doc(retainedPath(alternateRoots[i],refs[n].parent.id,refs[n].id))));
+            for(const [offset,n] of missing.entries()){
+                primary[n]=fallback[offset];
+                roots[n]=alternateRoots[offset];
             }
-            return docs;
+            return refs.map((ref,n)=>{
+                if(!roots[n])return primary[n];
+                if(primary[n].exists)this.remember(ref.path,roots[n]!);
+                return this.logical(primary[n],ref);
+            });
         };
-        const primary=await get(refs.map((ref,n)=>roots[n]?this.raw.doc(retainedPath(roots[n]!,ref.parent.id,ref.id)):ref));
-        const missing=refs.flatMap((ref,n)=>roots[n]&&!primary[n].exists?[n]:[]);
-        // Re-read both locations together after a miss: a concurrent move could
-        // have installed the first location after its initial read.
-        const fallback=await get(missing.flatMap(n=>(['market_state','market_ugc'] as const).map(root=>this.raw.doc(retainedPath(root,refs[n].parent.id,refs[n].id)))));
-        for(const [offset,n] of missing.entries()){
-            const state=fallback[offset*2],ugc=fallback[offset*2+1];
-            if(state.exists&&ugc.exists)throw Error('Retained record exists in both destinations');
-            primary[n]=ugc.exists?ugc:state;roots[n]=ugc.exists?'market_ugc':'market_state';
-        }
-        return refs.map((ref,n)=>{
-            if(!roots[n])return primary[n];
-            if(primary[n].exists)this.remember(ref.path,roots[n]!);
-            return this.logical(primary[n],ref);
-        });
+        if(context)return read(batch=>context.reader.getAll(...batch));
+        const options=fields?[{fieldMask:fields}]:[];
+        if(roots.some(Boolean))return this.raw.runTransaction(tx=>read(batch=>tx.getAll(...batch,...options)),{readOnly:true});
+        return read(batch=>this.raw.getAll(...batch,...options));
     }
     async query(collection:MarketCollection,build:(path:string)=>Query,context?:RetainedContext):Promise<DocumentSnapshot[]>{
         const mode=relocatesCollection(collection)?await this.mode(context):undefined;
