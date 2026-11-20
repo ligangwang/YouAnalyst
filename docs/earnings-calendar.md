@@ -1,6 +1,6 @@
 # Earnings schedule collection
 
-The existing `collect-intelligence-news-production` job checks issuer IR and Chinese exchange announcements across the unique union of published AI, Robotics and Space companies. Its existing weekday hourly schedule is retained. Articles without an approved configured source or an original publication date cannot enter extraction. Missing sources are not estimated earnings dates.
+General news processing in `collect-intelligence-news-production` runs daily at 11:07 a.m. Eastern. The separate `collect-cn-announcements-production` job starts at 11 a.m. Eastern and dispatches Chinese exchange announcement checks for enrolled A-share companies. Articles without an approved configured source or an original publication date cannot enter extraction. Missing sources are not estimated earnings dates.
 
 ## Extraction and storage
 

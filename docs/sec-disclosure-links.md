@@ -37,4 +37,4 @@ Verification extends `tests/graph/map-disclosures.test.ts`: broad forms, real SE
 ownership path shapes, unknown forms, unsafe URLs, narrow financial extraction,
 coverage upgrades, bounded resume and retry after transaction failure. No new
 Firestore collection, index or per-theme rendering test is needed. Deployment
-must include the SEC job's worker image before the hourly collector can backfill.
+must include the SEC job's worker image before the daily collector can backfill.
