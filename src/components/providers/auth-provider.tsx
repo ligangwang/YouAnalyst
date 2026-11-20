@@ -172,7 +172,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(toMessage(nextError, "Unable to persist authentication state."));
     });
 
-    return unsubscribe;
+    // Auth-only clients do not enable the SDK's proactive token refresh.
+    // getIdToken reuses a fresh token and refreshes it near expiry; the observer
+    // above then renews the HttpOnly cookie before active readers lose access.
+    const refreshMemberToken = () => {
+      if (document.visibilityState === "visible") void auth.currentUser?.getIdToken().catch(() => {});
+    };
+    const refreshTimer = window.setInterval(refreshMemberToken, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", refreshMemberToken);
+    return () => {
+      unsubscribe();
+      window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshMemberToken);
+    };
   }, [bootstrapUserProfile, configured]);
 
   const signInWithGoogle = useCallback(async () => {
