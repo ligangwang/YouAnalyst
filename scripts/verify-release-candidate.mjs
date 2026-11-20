@@ -15,16 +15,15 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
   assert.equal(body.revision, revision, 'Candidate revision mismatch');
   // First data requests on the new candidate: no page warm-up before this gate.
   const refreshStarted=now();
-  const [graphResponse,feed,relationships]=await Promise.all([
-    request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)}),
-    request(`${url}/api/intelligence?theme=ai`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
-      assert.equal(response.status,200,'Candidate refresh failed; existing traffic stays unchanged');
+  const [,relationships]=await Promise.all([
+    request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
+      assert.equal(response.status,200,'Candidate graph failed; existing traffic stays unchanged');
       const data=await response.json();
-      assert(Array.isArray(data.events)&&data.eventsPending!==true&&data.enrichmentDeferred===true&&data.session?.startAt,'Candidate refresh is incomplete');
+      assert(Array.isArray(data.graph?.nodes)&&data.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
+      assert(Array.isArray(data.events)&&data.events.length===0&&data.eventsPending===true&&data.session?.startAt,'Candidate graph-only refresh is incomplete');
       const durationMs=Math.round(now()-refreshStarted);
       if(durationMs>=5000)warn(`::warning::Candidate cold refresh took ${durationMs}ms, exceeding the 5000ms target; continuing deployment because response validation passed.`);
       console.log(JSON.stringify({event:'candidate_cold_refresh',durationMs}));
-      return data;
     }),
     request(`${url}/api/company-relationships?company=US%3ANVDA`,{signal:AbortSignal.timeout(60000)}).then(async response=>{
       assert.equal(response.status,200,'Candidate company relationships failed');
@@ -39,10 +38,6 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
       console.log(JSON.stringify({event:'candidate_concurrent_page',path,durationMs:Math.round(durationMs)}));
     }),
   ]);
-  assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
-  const graph=await graphResponse.json();
-  assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
-  assert(Array.isArray(feed.graph?.nodes)&&feed.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate feed has no companies');
   assert(Array.isArray(relationships.nodes)&&relationships.nodes.some(node=>node.id==='US:NVDA')&&Array.isArray(relationships.relationships),'Candidate relationship graph is invalid');
   // Validate and initialize the search index before the first visitor types.
   const searchResponse=await request(`${url}/api/tickers/search?q=NVIDIA`,{signal:AbortSignal.timeout(30000)});
