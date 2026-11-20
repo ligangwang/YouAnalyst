@@ -695,6 +695,7 @@ export class MarketRepository {
             if (index < 0) rows.push(row);
             else rows[index] = row;
             const next = await this.files.write(collection, shard, rows, head.retained);
+            if (head.recordStorage) next.recordStorage = head.recordStorage;
             next.revision = randomUUID();
             const catalog = this.raw.collection('collectors');
             tx.set(catalog.doc(headId(collection, shard)), {marketCollection: collection, marketHead: next});

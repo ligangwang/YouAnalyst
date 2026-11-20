@@ -834,6 +834,21 @@ check('market-cap refresh updates only the published Parquet row',async t=>{
     await assert.rejects(f.repository.updatePublishedMarketCap(id,()=>({value:456})),/upload failure/);
     assert.deepEqual((await f.repository.documents(collection,[id],undefined,['marketCap']))[0].data.marketCap,{value:123});
 });
+check('published financial updates keep the full Parquet routing marker',async t=>{
+    const f=fixture(false,false,true);
+    t.after(()=>f.db.terminate());
+    const id='US:NVDA',collection='company_fundamentals',shard=shardFor(id);
+    await f.raw.doc(FUNDAMENTALS_CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:[collection]});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const head=f.raw.collection('collectors').doc(headId(collection,shard));
+    await head.set({marketCollection:collection,marketHead:{collection,shard,rows:0,retained:[],recordStorage:'parquet'}});
+    for(const field of ['marketCap','cnAnnual'] as const)
+        await f.repository.updatePublishedFinancialField(id,field,()=>({value:123}));
+    assert.equal((await head.get()).get('marketHead.recordStorage'),'parquet');
+    const pointer=f.raw.collection('collectors').doc(pointerId(collection,shard));
+    assert.equal((await pointer.get()).get('marketHead.recordStorage'),'parquet');
+    assert.equal((await f.raw.doc(retainedPath('market_state',collection,id)).get()).exists,false);
+});
 check('completed batch receipts survive native retirement and remain queryable for retries',async t=>{
     const f=fixture(false,false,true);
     t.after(()=>f.db.terminate());
