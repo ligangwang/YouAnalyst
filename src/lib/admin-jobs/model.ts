@@ -4,7 +4,7 @@ export const scheduledJobs = {
   fundamentalsBatches: { name: "SEC fundamentals batches", scheduler: null, worker: null, logJob: "sec-fundamentals-batch", schedule: "Processes company batches; failed companies require admin review" },
   companyGraph: { name: "Company graph requests", scheduler: "refresh-company-graph-production", worker: "refresh-company-graph-production", logJob: "refresh-company-graph", schedule: "Every 5 minutes, 1–5 requests per run; initially paused" },
   companyGraphBatches: { name: "Company graph processing", scheduler: null, worker: null, logJob: "company-graph-batch", schedule: "Processes queued requests and filing events; initially disabled pending rollout" },
-  secFilings: { name: "SEC filing discovery", scheduler: "collect-sec-filings-production", worker: "collect-sec-filings-production", logJob: "collect-sec-filings", schedule: "Daily at 11 p.m. Eastern" },
+  secFilings: { name: "SEC filing discovery", scheduler: "collect-sec-filings-production", worker: "collect-sec-filings-production", logJob: "collect-sec-filings", schedule: "Daily at noon Eastern" },
   cnFundamentals: { name: "A-share financials and market caps", scheduler: "refresh-cn-fundamentals-production", worker: "refresh-cn-fundamentals-production", logJob: "refresh-cn-fundamentals", schedule: "First of each month, 9:30 AM New York" },
   cnFundamentalsChecks: { name: "A-share fundamentals checks", scheduler: null, worker: null, logJob: "cn-fundamentals-check", schedule: "Processes queued companies; incomplete sources retry" },
   directoryImports: { name: "China directory imports", scheduler: null, worker: null, logJob: "cni-directory-import", schedule: "Imports validated snapshots; retries resume unfinished batches" },

@@ -51,4 +51,4 @@ if [[ "${SEC_DISCOVERY_QUEUE_ENABLED:-0}" == 1 ]]; then
   gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --update-env-vars SEC_DISCOVERY_REQUEST_TOPIC=sec-company-discovery-requests --quiet
 fi
 pipeline_job_invokers "$job"
-pipeline_schedule "$job" "0 23 * * *" America/New_York
+pipeline_schedule "$job" "0 12 * * *" America/New_York
