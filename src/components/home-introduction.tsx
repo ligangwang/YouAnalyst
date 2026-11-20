@@ -83,6 +83,32 @@ export function HomeIntroduction() {
           </section>
         </div>
       </section>
+      <section className={styles.videoPreview} aria-labelledby="home-video-title">
+        <div>
+          <h2 id="home-video-title">{text('Turn your market view into a video', '把你的投资观点做成视频')}</h2>
+          <p>{text('Compare stocks, export an animated chart, and share it on social media.', '比较股票，导出动态图表，再分享到社交媒体。')}</p>
+          <LocalizedLink href={signIn('/compare')} prefetch={false} className={styles.primary}>
+            {member ? text('Create a comparison video', '制作对比视频') : text('Sign in to make a video', '登录制作视频')}
+            <span aria-hidden="true">↗</span>
+          </LocalizedLink>
+        </div>
+        <figure>
+          <video
+            aria-label={text('Sample NVIDIA and AMD comparison video', '英伟达与 AMD 对比视频示例')}
+            aria-describedby="home-video-caption"
+            width={1280}
+            height={720}
+            controls
+            playsInline
+            preload="none"
+            poster="/previews/stock-comparison-v1.webp"
+          >
+            <source src="/previews/stock-comparison-v1.mp4" type="video/mp4" />
+            <a href="/previews/stock-comparison-v1.mp4">{text('Download the sample video', '下载视频示例')}</a>
+          </video>
+          <figcaption id="home-video-caption">{text('15-second example · NVIDIA and AMD historical price returns', '15 秒示例 · 英伟达与 AMD 的历史股价回报')}</figcaption>
+        </figure>
+      </section>
       <section className={styles.samples} aria-label={text('Sample analyses', '分析示例')}>
         <div><h2>{text('A question worth exploring', '值得探索的问题')}</h2><p>{text('Three sample research starting points. Full evidence and current analysis are available to members.', '三个研究思路示例。会员可查看完整依据和最新分析。')}</p></div>
         <div className={styles.sampleGrid}>

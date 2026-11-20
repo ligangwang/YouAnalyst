@@ -5,10 +5,15 @@ import { pathLocale, unlocalizedPath } from './lib/ui/i18n/urls';
 import { verifiedSearchCrawler } from './lib/access/crawlers';
 import { verifiedReleaseProbe } from './lib/access/release-probe';
 
+const PUBLIC_PREVIEW_ASSETS = new Set([
+  '/previews/stock-comparison-v1.mp4',
+  '/previews/stock-comparison-v1.webp',
+]);
+
 export async function proxy(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0]?.toLowerCase();
   if (host && ['www.youanalyst.com','younalyst.com','www.younalyst.com','ifindata.com','www.ifindata.com'].includes(host)) return routeRequest(request);
-  if (!requiresMembership(request.nextUrl)) return routeRequest(request);
+  if (PUBLIC_PREVIEW_ASSETS.has(request.nextUrl.pathname) || !requiresMembership(request.nextUrl)) return routeRequest(request);
   const service = verifiedReleaseProbe(request);
   const bearer = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
   const cookie = request.cookies.get(MEMBER_COOKIE)?.value;
