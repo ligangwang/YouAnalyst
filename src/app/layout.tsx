@@ -70,6 +70,7 @@ export default async function RootLayout({
 }>) {
   const requestHeaders = await headers();
   const locale = parseLocale(requestHeaders.get("x-ya-language")) ?? "en";
+  const memberContent = requestHeaders.get('x-ya-pathname') && !['/', '/about', '/how-it-works'].includes(requestHeaders.get('x-ya-pathname')!);
   const embedded = requestHeaders.get("x-ya-pathname") === "/compare/embed";
   const websiteJsonLd = {
     "@context": "https://schema.org",
@@ -104,7 +105,8 @@ export default async function RootLayout({
           <FollowingReturnTracker />
           <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950"><UiText text={"Skip to content"} /></a>
           <SiteNav />
-          <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
+          {memberContent && <script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify({'@context':'https://schema.org','@type':'WebPage',isAccessibleForFree:false,hasPart:{'@type':'WebPageElement',isAccessibleForFree:false,cssSelector:'.member-content'}})}} />}
+          <div id="page-content" tabIndex={-1} className={memberContent ? 'flex-1 member-content' : 'flex-1'}>{children}</div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
               <UiText text={"YouAnalyst research and analyst views are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />

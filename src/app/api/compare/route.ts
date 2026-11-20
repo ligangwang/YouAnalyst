@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const error = validatePlaybackConfig(config);
   if (error) return Response.json({ error }, { status: 400 });
   try {
-    return Response.json(await loadStockComparison(getAdminFirestore(), config), { headers: { "Cache-Control": "no-cache" } });
+    return Response.json(await loadStockComparison(getAdminFirestore(), config), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return comparisonErrorResponse(error);
   }

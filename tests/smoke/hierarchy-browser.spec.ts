@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './member-fixture';
 
 test('industry links locate a code, search navigates, and back restores selection', async ({ page }) => {
   await page.goto('/en/industries?taxonomy=SIC&code=3674');

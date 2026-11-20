@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NextRequest } from "next/server";
-import { proxy } from "../../src/proxy";
+import { routeRequest as proxy } from "../../src/lib/access/routing";
 import { parsePreferences } from "../../src/lib/preferences";
 import { translateUi } from "../../src/lib/ui/i18n/translate";
 

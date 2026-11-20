@@ -177,6 +177,10 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.origin === origin && url.pathname === '/api/auth/session' && request.method() === 'POST') {
+      expect(request.headers().authorization).toBe('Bearer isolated-test-token');
+      return route.fulfill({status:204});
+    }
     if (url.origin === origin && url.pathname === "/api/watchlists/default" && request.method() === "POST") {
       expect(request.headers().authorization).toBe("Bearer isolated-test-token");
       return route.fulfill({ json: { id: "default" } });

@@ -1,3 +1,4 @@
+import {releaseProbeHeaders} from './release-probe.mjs';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {chromium} from '@playwright/test';
@@ -27,7 +28,7 @@ for(const [label,documentUrl,assetBackend] of [['new-document-old-backend',candi
         }});
         return route.fulfill({response:result.response});
       }
-      return route.continue({headers:{...request.headers(),Authorization:`Bearer ${token}`}});
+      return route.continue({headers:{...request.headers(),...releaseProbeHeaders(documentUrl),Authorization:`Bearer ${token}`}});
     });
     const page=await context.newPage();
     page.on('pageerror',error=>errors.push(error.message));
@@ -39,7 +40,7 @@ for(const [label,documentUrl,assetBackend] of [['new-document-old-backend',candi
       }
     });
     await page.addInitScript(probe.installGraphReadinessProbe);
-    await navigateCandidatePage(page,new URL('/en',documentUrl).href);
+    await navigateCandidatePage(page,new URL('/en?view=graph',documentUrl).href);
     // The predecessor has a known independent feed-version bug. This check
     // requires its rendered graph and late module, not a repaired old feed.
     await page.waitForFunction(requireFeed=>window.__releaseGraphReadyAt!==null&&(!requireFeed||window.__releaseFeedReadyAt!==null),label==='new-document-old-backend',{timeout:45000});
