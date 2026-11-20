@@ -43,3 +43,27 @@ test('relocated records preserve the composite indexes required by existing quer
     const keys=new Set(config.indexes.filter((index:{collectionGroup:string})=>index.collectionGroup==='records').map((index:{queryScope:string;fields:unknown})=>JSON.stringify([index.queryScope,index.fields])));
     for(const index of config.indexes)if(relocatesCollection(index.collectionGroup))assert(keys.has(JSON.stringify([index.queryScope,index.fields])),`Missing retained index for ${index.collectionGroup}`);
 });
+test('a missing preferred location is probed once while an editorial move races the alternate lookup',async()=>{
+    const path='company_relationships/edge',preferred=retainedPath('market_ugc','company_relationships','edge');
+    const other=retainedPath('market_state','company_relationships','edge');
+    const ref={id:'edge',path,parent:{id:'company_relationships'}};
+    let live=other;
+    const reads:string[]=[];
+    const raw={
+        doc:(physical:string)=>({path:physical,get:async()=>snapshot({version:1,ready:true,cleanupAuthorized:true})}),
+        runTransaction:async(work:(tx:unknown)=>Promise<unknown>,options:unknown)=>{
+            assert.deepEqual(options,{readOnly:true});
+            const fixed=live;
+            return work({getAll:async(location:{path:string})=>{
+                reads.push(location.path);
+                live=preferred;
+                return [{ref:location,exists:location.path===fixed,data:()=>({status:'PUBLISHED'})}];
+            }});
+        },
+    } as unknown as Firestore;
+    const store=new RetainedStore(raw);
+    const [doc]=await store.documents([ref as FirebaseFirestore.DocumentReference]);
+    assert.equal(doc.exists,true);
+    assert.equal(doc.ref.path,path);
+    assert.deepEqual(reads,[preferred,other]);
+});
