@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {MARKET_COLLECTIONS,PARQUET_MARKET_COLLECTIONS,DEFERRED_MARKET_COLLECTIONS,isParquetMarketCollection} from '../../src/lib/market-store/policy';
 import {marketStoreReady} from '../../src/lib/market-store/runtime';
 
-test('events and fundamentals require independent read gates',()=>{
-    assert.equal(MARKET_COLLECTIONS.length,19);
-    assert.equal(PARQUET_MARKET_COLLECTIONS.length,19);
+test('events, fundamentals and prediction marks require independent read gates',()=>{
+    assert.equal(MARKET_COLLECTIONS.length,20);
+    assert.equal(PARQUET_MARKET_COLLECTIONS.length,20);
     assert.deepEqual([...DEFERRED_MARKET_COLLECTIONS],[]);
     const names=['MARKET_PARQUET_ENABLED','MARKET_PARQUET_READ_READY','K_SERVICE','CLOUD_RUN_JOB','MARKET_FUNDAMENTALS_READ_READY','MARKET_EVENTS_READ_READY'] as const;
     const previous=names.map(name=>process.env[name]);
@@ -14,6 +14,8 @@ test('events and fundamentals require independent read gates',()=>{
         assert.equal(marketStoreReady(),true);
         for(const name of DEFERRED_MARKET_COLLECTIONS){assert.equal(isParquetMarketCollection(name),false);assert.equal(marketStoreReady(name),false);}
         assert.equal(marketStoreReady('tickers'),true);
+        assert.equal(isParquetMarketCollection('prediction_daily_marks'),true);
+        assert.equal(marketStoreReady('prediction_daily_marks'),false);
         assert.equal(isParquetMarketCollection('events'),true);
         assert.equal(marketStoreReady('events'),false);
         process.env.MARKET_EVENTS_READ_READY='1';
