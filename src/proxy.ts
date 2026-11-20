@@ -69,6 +69,9 @@ export function proxy(request: NextRequest) {
       target.searchParams.delete("lang");
       if (retiredResearch || (feedAlias && target.searchParams.get("view") === "filings")) target.searchParams.set("view", "graph");
       if (followingFeedAlias) target.searchParams.set("view", "updates");
+      if ((graphAlias || (feedAlias && !followingFeedAlias)) && !target.searchParams.has("view")) {
+        target.searchParams.set("view", "graph");
+      }
       if (feedAlias) {
         const supported = new Set(["theme", "company", "q", "event", "relationship", "market", "view"]);
         for (const key of [...target.searchParams.keys()]) if (!supported.has(key)) target.searchParams.delete(key);

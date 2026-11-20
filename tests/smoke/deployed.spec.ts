@@ -199,7 +199,7 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
 
 test("retired feed opens Explore and retired institutional features stay unavailable", async ({ page, request }) => {
   await page.goto("/feed");
-  await expect(page).toHaveURL(/\/en$/);
+  await expect(page).toHaveURL(/\/en\?view=graph$/);
   await expect(page.getByRole("heading", { name: "Investment Intelligence", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Event types" })).toHaveCount(0);
   for (const path of ["/en/institutions", "/zh-cn/daily/insiders", "/daily/institutional", "/api/insider-transactions/AMD", "/api/institutional-holdings/AMD"]) {

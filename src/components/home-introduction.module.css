@@ -1,0 +1,44 @@
+.home {
+  width: min(100%, 880px);
+  margin: 0 auto;
+  padding: clamp(72px, 14vh, 160px) 24px 80px;
+}
+.home h1 {
+  color: var(--text-primary);
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 600;
+  letter-spacing: -.045em;
+  line-height: 1.12;
+}
+.home p {
+  max-width: 510px;
+  margin-top: 24px;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1.7;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-top: 36px;
+}
+.actions button, .actions > a {
+  min-height: 44px;
+}
+.actions > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.actions > a:hover, .about:hover { text-decoration: underline; }
+.about {
+  display: inline-block;
+  margin-top: 48px;
+  padding: 12px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}

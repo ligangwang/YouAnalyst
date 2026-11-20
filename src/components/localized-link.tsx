@@ -9,6 +9,7 @@ export function LocalizedLink({ href, ...props }: ComponentProps<typeof Link>) {
   if (typeof href === "string" && href.startsWith("/") && !href.startsWith("//")) {
     const url = new URL(href, "https://youanalyst.com");
     const path = unlocalizedPath(url.pathname);
+    if (path === "/map" && !url.search) url.searchParams.set("view", "graph");
     if (isLocalizedPage(path)) href = localizedPath(path === "/map" && url.searchParams.get("view") !== "filings" ? "/" : path, locale) + url.search + url.hash;
   }
   return <Link {...props} href={href} />;
