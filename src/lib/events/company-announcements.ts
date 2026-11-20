@@ -1,3 +1,5 @@
+import {readSharedAnnouncementWindow} from './shared-announcement-window';
+import {announcementSearchLimit as searchLimit} from './announcement-projection';
 import {getAdminFirestore} from '../firebase/admin';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {NewsSource} from '../intelligence/collectors/sources';
@@ -9,7 +11,7 @@ import {isSupportedCompany} from '../company-support/model';
 import {canonicalEvidenceUrl,observation} from '../intelligence/model';
 import {loadCompanyEventSnapshot} from './company-events-cache';
 import {newsArticles} from '../intelligence/collectors/article-quality';
-import {marketStoreReady} from '../market-store/runtime';
+import {marketStoreEnabled,marketStoreReady} from '../market-store/runtime';
 
 export type CompanyAnnouncement={id:string;title:string;url:string;date:string;channel:'IR'|'SEC'|'Exchange';earnings:boolean;form?:string};
 /** A page needs this publisher's current approval, not the global source directory. */
@@ -32,11 +34,11 @@ export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:s
   return {id:row.id,title:row.title,url,date:date.day,channel:ir?'IR':sec?'SEC':'Exchange',earnings,...(sec&&typeof row.form==='string'?{form:row.form}:{})};
 }
 const announcementLimit = 12;
-const searchLimit = 30;
+
 
 export async function companyAnnouncementsFromEvents(db:Firestore,companyId:string,sources:NewsSource[],today:string){
-  const select=(docs:Awaited<ReturnType<typeof loadCompanyEventSnapshot>>['docs'])=>
-    newsArticles(docs.map(doc=>doc.data()),sources)
+  const select=(rows:Record<string,unknown>[])=>
+    newsArticles(rows,sources)
       .map(row=>publicCompanyAnnouncement(row,companyId,sources))
       .filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today))
       .slice(0,announcementLimit);
@@ -44,13 +46,22 @@ export async function companyAnnouncementsFromEvents(db:Firestore,companyId:stri
   const limit=sources.some(source=>source.excludedCategories?.length)?searchLimit:announcementLimit;
   // Both Parquet limits scan the same shards. Fetch the bounded fallback window
   // once, but keep the original prefix-selection behavior when it is sufficient.
+  if(marketStoreEnabled() && !marketStoreReady('events') && typeof db.runTransaction==='function'){
+    try {
+      const rows=await readSharedAnnouncementWindow(db,companyId,limit,rows=>select(rows).length<announcementLimit);
+      const leading=select(rows.slice(0,limit));
+      return leading.length===announcementLimit || rows.length<=limit ? leading : select(rows);
+    } catch(error) {
+      console.warn('Shared announcement window unavailable',companyId,error instanceof Error?error.message:'unknown');
+    }
+  }
   const prefetched=marketStoreReady('events')&&limit<searchLimit;
   const first=await loadCompanyEventSnapshot(db,companyId,prefetched?searchLimit:limit);
-  const leading=first.docs.slice(0,limit),items=select(leading);
+  const leading=first.docs.slice(0,limit),items=select(leading.map(doc=>doc.data()));
   if(limit===searchLimit||leading.length<limit||items.length===announcementLimit)return items;
-  if(prefetched)return select(first.docs);
+  if(prefetched)return select(first.docs.map(doc=>doc.data()));
   const tail=await loadCompanyEventSnapshot(db,companyId,searchLimit-limit,leading[limit-1]);
-  return select([...leading,...tail.docs]);
+  return select([...leading,...tail.docs].map(doc=>doc.data()));
 }
 
 export async function loadCompanyAnnouncements(companyId:string){
