@@ -428,8 +428,13 @@ export class MarketRepository {
                     if (archivedFundamentalsReceipt(full.id, full.data))
                         archived.set(full.id, fields ? {...full, data: project(full.data, fields)} : full);
                 }
-                if (archived.size) {
-                    const remaining = ids.filter(id => !archived.has(id));
+                const mode = this.fundamentals ? await this.fundamentalsState(context) : undefined;
+                const authoritative = mode?.ready && mode.cleanupAuthorized && mode.cleanedCollections.has(collection);
+                const membership = this.retainedMembership(heads);
+                if (archived.size || authoritative) {
+                    const saved = new Set(stored.map(row => row.id));
+                    const remaining = ids.filter(id => !archived.has(id)
+                        && (!authoritative || membership.has(id) || saved.has(id)));
                     if (remaining.length) for (const row of await this.documentsWithRetained(collection, remaining, context, fields))
                         archived.set(row.id, row);
                     return ids.flatMap(id => archived.has(id) ? [archived.get(id)!] : []);
@@ -532,7 +537,7 @@ export class MarketRepository {
         let heads = [...(await this.heads(collection, context)).values()];
         // A local committed-write notification may arrive before the atomic catalog
         // snapshot. Refresh one consistent catalog before choosing the query path.
-        if (heads.some(completeParquetHead) && !heads.every(completeParquetHead)) {
+        if (collection !== 'company_relationships' && heads.some(completeParquetHead) && !heads.every(completeParquetHead)) {
             const catalog = this.raw.collection('collectors').where('marketCollection', '==', collection);
             const snapshot = context ? await context.reader.get(catalog) as FirebaseFirestore.QuerySnapshot : await catalog.get();
             heads = snapshot.docs.map(doc => this.parseHead(collection, doc.get('marketHead.shard'), doc));
@@ -574,8 +579,9 @@ export class MarketRepository {
             && !(collection === 'company_fundamentals' && settledWorkerField(fieldName(step.args[0]),
                 step.method === 'where' ? step.args[1] : undefined, step.args[2]))
             && isOperationalField(collection, fieldName(step.args[0])));
-        const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || requiresOverlay
-            ? Promise.resolve([]) : this.files.query(heads, candidateSteps);
+        const candidateHeads = requiresOverlay ? heads.filter(completeParquetHead) : heads;
+        const externalCandidates = (): Promise<MarketRow[]> => onlyRetained || !candidateHeads.length
+            ? Promise.resolve([]) : this.files.query(candidateHeads, candidateSteps);
         const searchFields = ['searchPrefixes', 'symbolLower'];
         const directoryLookup = collection === 'companies' && !context && projection
             && steps.some(step => step.method === 'limit' && Number(step.args[0]) <= 50)
@@ -721,7 +727,12 @@ export class MarketRepository {
                 context.heads.set(group.collection + '/' + group.shard, this.parseHead(group.collection, group.shard, docs[n]));
             }
         }
-        const sourcePaths = [...new Set(mutations.map(write => write.path))].filter(path => { const [collection, id] = path.split('/'); return !context.documents.has(path) && (!retires(collection) || !modeFor(collection).cleanedCollections?.has(collection) || context.heads.get(collection + '/' + shardFor(id))!.retained.includes(id)); });
+        const sourcePaths = [...new Set(mutations.map(write => write.path))].filter(path => {
+            const [collection, id] = path.split('/');
+            const head = context.heads.get(collection + '/' + shardFor(id))!;
+            return !context.documents.has(path) && !completeParquetHead(head)
+                && (!retires(collection) || !modeFor(collection).cleanedCollections?.has(collection) || head.retained.includes(id));
+        });
         await this.rawDocuments(sourcePaths.map(path => this.raw.doc(path)), context);
         const queued = [...groups.values()];
         let nextGroup = 0;
@@ -735,7 +746,7 @@ export class MarketRepository {
                 const head = await this.head(collection, shard, context), retained = new Set(head.retained);
                 const paths = [...new Set(changes.map(change => change.path))].filter(path => !context.documents.has(path));
                 for (const path of paths)
-                    if (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1]))
+                    if (completeParquetHead(head) || (retire && cleanedCollections?.has(collection) && !retained.has(path.split('/')[1])))
                         context.documents.set(path, { exists: false, id: path.split('/')[1], ref: this.raw.doc(path), data: () => undefined } as DocumentSnapshot);
                 const refs = paths.filter(path => !context.documents.has(path)).map(path => this.raw.doc(path));
                 await this.rawDocuments(refs, context);
