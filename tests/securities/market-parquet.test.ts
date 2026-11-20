@@ -667,7 +667,10 @@ test('earnings pointers skip Firestore payload reads for completed Parquet shard
     const version = Timestamp.fromMillis(1700000000123);
     const row = {id: migrated, version, data: {recordType: 'head', revision: 'parquet'}};
     const liveData = {recordType: 'head', revision: 'live'};
-    const raw = {collection: (name: string) => ({doc: (id: string) => ({path: name + '/' + id, id})})} as unknown as Firestore;
+    const raw = {
+        collection: (name: string) => ({doc: (id: string) => ({path: name + '/' + id, id, parent: {id: name}})}),
+        doc: (path: string) => ({path, id: path.split('/').at(-1)}),
+    } as unknown as Firestore;
     const repo = new MarketRepository(raw, files);
     const nativeReads: string[][] = [];
     try {
@@ -676,11 +679,13 @@ test('earnings pointers skip Firestore payload reads for completed Parquet shard
             getAll: async (...args) => {
                 const refs = args as Array<{path: string; id: string}>;
                 nativeReads.push(refs.map(ref => ref.id));
-                assert.deepEqual(refs.map(ref => ref.id), [live]);
+                assert.deepEqual(refs.map(ref => ref.path), ['market_state/earnings_records/records/' + live]);
                 return refs.map(ref => ({ref, id: ref.id, exists: true, updateTime: version,
-                    data: () => liveData, get: (field: keyof typeof liveData) => liveData[field]}));
+                    data: () => liveData, get: (field: keyof typeof liveData) => liveData[field],
+                })) as unknown as FirebaseFirestore.DocumentSnapshot[];
             },
         });
+        context.retainedMode = {enabled: true, ready: true, cleanupAuthorized: true};
         context.control = true;
         context.cleanupAuthorized = true;
         context.cleanedCollections = new Set([collection]);
