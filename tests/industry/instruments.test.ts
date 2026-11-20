@@ -110,3 +110,17 @@ test('global issuers with a verified listing migrate; private and ambiguous list
   assert.equal(instrumentFromCompany('ORG:SAMSUNG',{...company,listingStatus:'PRIVATE'}),null);
   assert.equal(instrumentFromCompany('ORG:SAMSUNG',{...company,listings:[...company.listings,{exchange:'XKRX',symbol:'005935'}]}),null);
 });
+
+test('instrument dispatch selects changes, creates and delistings from the published comparison',async()=>{
+  const {companyInstrumentNeedsSync}=await import('../../src/lib/instruments/snapshot-sync');
+  const id='US:A',company={name:'A',symbol:'A',active:true};
+  const instrument=instrumentFromCompany(id,company)!;
+  assert.equal(companyInstrumentNeedsSync(id,company,instrument),false);
+  assert.equal(companyInstrumentNeedsSync(id,company,{...instrument,sourceMetadata:{...instrument.sourceMetadata,observedAt:'2026-11-01T00:00:00Z'}}),false);
+  assert.equal(companyInstrumentNeedsSync(id,company),true);
+  assert.equal(companyInstrumentNeedsSync(id,{...company,name:'Renamed'},instrument),true);
+  assert.equal(companyInstrumentNeedsSync(id,{...company,listingStatus:'PRIVATE'},instrument),true);
+  assert.equal(companyInstrumentNeedsSync(id,{...company,listingStatus:'PRIVATE'},{...instrument,status:'DELISTED'}),false);
+  assert.equal(companyInstrumentNeedsSync(id,company,{...instrument,isDeleted:true}),false);
+  assert.equal(companyInstrumentNeedsSync(id,{...company,isDeleted:true},instrument),false);
+});
