@@ -36,7 +36,7 @@ export function projectCollectedNews(records:Record<string,unknown>[],graph:Know
 }
 export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Date,earliestDay:string,limit?:number,cachedRecords?:Record<string,unknown>[],loadedSources?:NewsSource[]){
   const companyIds=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
-  const sources=(loadedSources??await loadNewsSources(db)).filter(source=>companyIds.has(source.companyId));
+  const sources=(loadedSources??await loadNewsSources(db)).filter(source=>!source.companyId.startsWith('US:')&&companyIds.has(source.companyId));
   const typed=()=>db.collection(NEWS_EVENTS_COLLECTION).where('type','==','company_news').where('sourceType','==','company_ir');
   const read=(query:ReturnType<typeof typed>)=>limit===undefined?readPeriodDocuments(query):query.limit(limit+1).get().then(page=>page.docs);
   const [page,dated,states]=await Promise.all([

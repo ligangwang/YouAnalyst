@@ -141,7 +141,8 @@ check('shared announcement windows survive cold clients and follow committed eve
     const read=(id:string)=>readSharedAnnouncementWindow(other,id);
     assert.deepEqual(await read('US:AMD'),[]);
     const ref=f.db.doc('events/window-test');
-    await ref.set({id:ref.id,companyId:'US:AMD',title:'New announcement',publication_date:'2026-11-19'});
+    await ref.set({id:ref.id,companyId:'US:AMD',sourceType:'sec',title:'New announcement',publication_date:'2026-11-19'});
+    await f.db.doc('events/discarded-ir').set({id:'discarded-ir',companyId:'US:AMD',sourceType:'company_ir',title:'Issuer news',publication_date:'2026-11-20'});
     const titles=async(id:string)=>(await read(id)).map(row=>row.title);
     assert.deepEqual(await titles('US:AMD'),['New announcement']);
     const cache=f.raw.doc(announcementCachePath('US:AMD')),built=(await cache.get()).updateTime!;
@@ -157,7 +158,7 @@ check('shared announcement windows survive cold clients and follow committed eve
 check('native announcement snapshots remain listenable before Parquet cutover',async t=>{
     const raw=new Firestore({projectId:'demo-announcements-'+randomUUID().slice(0,8)});
     t.after(async()=>{closeLocalCaches();await raw.terminate();});
-    await raw.doc('events/one').set({companyId:'US:AMD',publication_date:'2026-11-13',title:'Original'});
+    await raw.doc('events/one').set({companyId:'US:AMD',sourceType:'sec',publication_date:'2026-11-13',title:'Original'});
     assert.equal((await loadCompanyEventSnapshot(raw,'US:AMD',12)).docs[0].get('title'),'Original');
     await raw.doc('events/one').update({title:'Updated'});
     let title:unknown;

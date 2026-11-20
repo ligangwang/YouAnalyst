@@ -3,5 +3,5 @@
 export const ANNOUNCEMENT_EVENT_FIELDS = ['version','companyId','id','title','url','published_at','publication_date',
   'type','sourceType','sourceId','category','form'] as const;
 
-export const announcementCachePath = (company: string) => `collectors/_announcement_windows_v1/companies/${company}`;
+export const announcementCachePath = (company: string) => `collectors/${company.startsWith('US:')?'_sec_announcement_windows_v1':'_announcement_windows_v1'}/companies/${company}`;
 export const announcementSearchLimit = 30;

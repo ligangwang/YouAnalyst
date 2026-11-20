@@ -72,7 +72,6 @@ for target in "${targets[@]}"; do
     job=collect-intelligence-news-production
     if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh --check; fi
     case "${NEWS_SOURCE_QUEUE_ENABLED:-0}" in 0|1) ;; *) echo 'NEWS_SOURCE_QUEUE_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
-    if [[ "${NEWS_SOURCE_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-news-pubsub.sh --check; fi
     if [[ "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh article --check; fi
     if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 ]]; then : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"; fi
   fi

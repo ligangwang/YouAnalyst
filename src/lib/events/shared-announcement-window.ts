@@ -29,7 +29,8 @@ export async function readSharedAnnouncementWindow(
     if (existing && (existing.complete || (existing.rows.length >= initialLimit && !needsMore(existing.rows))))
       return { action: 'hit', rows: existing.rows };
 
-    const query = db.collection('events').where('companyId', '==', companyId).orderBy('publication_date', 'desc')
+    const company = db.collection('events').where('companyId', '==', companyId);
+    const query = (companyId.startsWith('US:') ? company.where('sourceType','==','sec') : company).orderBy('publication_date', 'desc')
       .select(...ANNOUNCEMENT_EVENT_FIELDS);
     const first = await tx.get(query.limit(initialLimit));
     const rows = first.docs.map(doc => doc.data());

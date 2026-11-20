@@ -8,5 +8,5 @@ if(process.env.NEWS_ENRICHMENT_QUEUE_ENABLED==='1'&&!process.env.OPENAI_API_KEY)
 initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
 const db=getFirestore();
 createJobSubscriber({project:process.env.GCP_PROJECT_ID,subscription:NEWS_ENRICHMENT_SUBSCRIPTION,job:'news-article-enrichment',parse:parseArticleTask,
-  process:task=>processArticleTask(task,db,{enabled:process.env.NEWS_ENRICHMENT_QUEUE_ENABLED==='1',calendarEnabled:process.env.CALENDAR_EXTRACTION_ENABLED==='1'})
+  process:task=>processArticleTask(task,db,{enabled:process.env.NEWS_ENRICHMENT_QUEUE_ENABLED==='1',calendarEnabled:false,disclosuresOnly:true})
 }).listen(Number(process.env.PORT||8080),'0.0.0.0');

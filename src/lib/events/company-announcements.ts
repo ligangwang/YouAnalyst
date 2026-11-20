@@ -16,6 +16,7 @@ import {marketStoreEnabled,marketStoreReady} from '../market-store/runtime';
 export type CompanyAnnouncement={id:string;title:string;url:string;date:string;channel:'IR'|'SEC'|'Exchange';earnings:boolean;form?:string};
 /** A page needs this publisher's current approval, not the global source directory. */
 export function loadCompanyAnnouncementSources(db:Firestore,companyId:string):Promise<NewsSource[]>{
+  if(companyId.startsWith('US:'))return Promise.resolve([]);
   return withCompanyPageReads(async()=>{
     const doc=await readCompanyLookup(db,db.collection('companies').doc(companyId));
     const company:ThemedCompany={...doc.data(),id:doc.id};
@@ -26,7 +27,7 @@ export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:s
   const url=typeof row.url==='string'?canonicalEvidenceUrl(row.url):null,date=observation(row.published_at??row.publication_date);
   if(row.version!==1||row.companyId!==companyId||typeof row.id!=='string'||typeof row.title!=='string'||!url||!date)return null;
   const parsed=new URL(url),host=parsed.hostname;
-  const ir=row.type==='company_news'&&row.sourceType==='company_ir'&&sources.some(s=>s.id===row.sourceId&&s.companyId===companyId&&s.allowedHosts.includes(host));
+  const ir=!companyId.startsWith('US:')&&row.type==='company_news'&&row.sourceType==='company_ir'&&sources.some(s=>s.id===row.sourceId&&s.companyId===companyId&&s.allowedHosts.includes(host));
   const sec=row.type==='company_disclosure'&&row.sourceType==='sec'&&companyId.startsWith('US:')&&host==='www.sec.gov'&&/^\/Archives\/edgar\/data\/\d+\/\d{18}\/[\w.-]+$/.test(parsed.pathname);
   const exchange=row.type==='company_disclosure'&&row.sourceType==='exchange'&&/^(?:XSHE|XSHG):/.test(companyId)&&host==='static.cninfo.com.cn'&&/^\/finalpage\/\d{4}-\d{2}-\d{2}\/[\w.-]+\.pdf$/i.test(parsed.pathname);
   if(!ir&&!sec&&!exchange)return null;

@@ -48,11 +48,12 @@ export async function deferExcludedArticles(db:Firestore,records:readonly Docume
   }
   return deferred;
 }
-export async function readArticleCandidates(db:Firestore,mapped:ReadonlySet<string>,calendar:boolean,now=Date.now()){
+export async function readArticleCandidates(db:Firestore,mapped:ReadonlySet<string>,calendar:boolean,now=Date.now(),disclosuresOnly=false){
   const events=db.collection(EVENTS_COLLECTION);
-  const analysis=(await events.where('newsAnalysisNextCheckAtMs','<=',now).orderBy('newsAnalysisNextCheckAtMs').limit(200).get()).docs;
+  const analysis=disclosuresOnly?[]:(await events.where('newsAnalysisNextCheckAtMs','<=',now).orderBy('newsAnalysisNextCheckAtMs').limit(200).get()).docs;
   const headlines:DocumentSnapshot[]=[];const ids=[...mapped],earliest=new Date(now-30*86400000).toISOString().slice(0,10);
-  for(let offset=0;offset<ids.length;offset+=30)headlines.push(...(await events.where('headlineTranslationPending','==',true).where('companyId','in',ids.slice(offset,offset+30)).where('headlineTranslationDate','>=',earliest).orderBy('headlineTranslationDate','desc').limit(40).get()).docs);
+  const headlineSource=disclosuresOnly?events.where('type','==','company_disclosure'):events;
+  for(let offset=0;offset<ids.length;offset+=30)headlines.push(...(await headlineSource.where('headlineTranslationPending','==',true).where('companyId','in',ids.slice(offset,offset+30)).where('headlineTranslationDate','>=',earliest).orderBy('headlineTranslationDate','desc').limit(40).get()).docs);
   const calendars=calendar?(await events.where('calendarNextCheckAtMs','<=',now).orderBy('calendarNextCheckAtMs').limit(300).get()).docs:[];
   const relevant=(doc:DocumentSnapshot)=>Array.isArray(doc.get('companyIds'))&&doc.get('companyIds').some((id:string)=>mapped.has(id));
   const analysisEligible=(d:DocumentSnapshot)=>d.get('type')==='company_news'&&relevant(d);
@@ -78,7 +79,7 @@ export async function publishArticleTasks(candidates:Record<Stage,readonly Docum
   }
   return result;
 }
-export async function processArticleTask(input:unknown,db:Firestore,options:{enabled:boolean;calendarEnabled:boolean;now?:()=>number;
+export async function processArticleTask(input:unknown,db:Firestore,options:{enabled:boolean;calendarEnabled:boolean;disclosuresOnly?:boolean;now?:()=>number;
   context?:()=>Promise<{graph:KnowledgeGraph;sources:readonly NewsSource[]}>;
   // Tests may substitute the work, while exercising real validation/fencing.
   run?:(doc:DocumentSnapshot,stages:Stage[])=>Promise<Record<string,unknown>>;
@@ -90,6 +91,8 @@ export async function processArticleTask(input:unknown,db:Firestore,options:{ena
   try{
     let doc=await ref.get();
     if(!doc.exists||articleFingerprint(doc.data()??{})!==task.fingerprint)return {status:'stale',articleId:task.articleId};
+    if(options.disclosuresOnly && (doc.get('type')!=='company_disclosure' || !task.stages.includes('headline')))
+      return {status:'retired',articleId:task.articleId};
     const companyIds=doc.get('companyIds');
     const primary=doc.get('companyId')??companyIds?.[0];
     if(!Array.isArray(companyIds)||typeof primary!=='string'||!primary||primary.includes('/')||!companyIds.includes(primary))return {status:'ineligible',articleId:task.articleId};

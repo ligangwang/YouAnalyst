@@ -49,7 +49,7 @@ export function CompanyResearchOverview({ company, classifications, fundamentals
     </header>
     {graphContent}
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
-    <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
+    <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary && /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\//i.test(earningsSummary.url)?earningsSummary:null}/>
     {fundamentals}
     {comparison}
     {!graphContent && !graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
