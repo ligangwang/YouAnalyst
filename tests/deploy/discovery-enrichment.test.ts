@@ -87,7 +87,7 @@ test('A-share announcements have a daily job before the hourly publisher stops d
  const hourlyJob=deploy.indexOf('gcloud run jobs deploy "$job"');
  assert(dailyJob>=0&&dailyJob<dailySchedule&&dailySchedule<hourlyJob);
  assert.match(deploy.slice(dailyJob,dailySchedule),/--cn-announcements-only/);
- assert.match(deploy.slice(dailyJob,hourlyJob),/--schedule '15 18 \* \* \*' --time-zone Asia\/Shanghai/);
+ assert.match(deploy.slice(dailyJob,hourlyJob),/--schedule '0 12 \* \* \*' --time-zone America\/New_York/);
  assert.match(deploy.slice(hourlyJob),/--skip-cn-announcements/);
  assert.match(deploy.slice(hourlyJob),/--schedule '7 \* \* \* 1-5'/);
 });

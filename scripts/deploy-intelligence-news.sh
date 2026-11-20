@@ -51,7 +51,7 @@ gcloud run jobs deploy "$cn_job" --project "$GCP_PROJECT_ID" --region "$region" 
   --command node --args dist/collect-intelligence-news.cjs,--apply,--cn-announcements-only \
   --env-vars-file "$env_file" --quiet
 ensure_maintenance_job_iam "$cn_job"
-cn_args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '15 18 * * *' --time-zone Asia/Shanghai
+cn_args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '0 12 * * *' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$cn_job:run"
   --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
   --attempt-deadline 180s --max-retry-attempts 0 --quiet)

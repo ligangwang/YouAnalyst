@@ -4,7 +4,7 @@
 discovery behind the existing authenticated Pub/Sub subscriber pattern. It defaults
 to `0`; shipping this code alone does not activate collection or execute jobs.
 
-The daily A-share announcement job runs at 6:15 p.m. in Shanghai and publishes
+The daily A-share announcement job runs at noon Eastern and publishes
 an `announcements` task for each due enrolled A-share company. The scheduled earnings job publishes `earnings-fallback` tasks
 when announcement coverage is missing, incomplete or stale. Both use
 `cn-company-discovery-requests`, subscription `cn-company-discovery-worker`, and
