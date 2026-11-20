@@ -2,7 +2,7 @@ import {execFileSync} from 'node:child_process';
 import {needsFeedProducerDrain} from './feed-producer-drain.mjs';
 import {retainedReadReady,eodLeasePath} from './lib/retained-firestore-paths.mjs';
 const jobs=[];
-if(process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED==='1')jobs.push('collect-intelligence-news-production');
+if(process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED==='1')jobs.push('collect-intelligence-news-production','collect-cn-announcements-production');
 if(process.env.ENABLE_SEC_FILING_PIPELINE==='1')jobs.push('collect-sec-filings-production');
 if(process.env.EARNINGS_PIPELINE_ENABLED==='1')jobs.push('collect-earnings-production');
 const waitEod=['all','fundamentals','eod-maintenance'].includes(process.env.TARGET_JOB??'');

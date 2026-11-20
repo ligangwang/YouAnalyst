@@ -28,7 +28,6 @@ done
 earnings_collection=0
 if [[ "${EARNINGS_PIPELINE_ENABLED:-0}" == 1 ]]; then earnings_collection="${EARNINGS_COLLECTION_ENABLED:-0}"; fi
 filing_topic=sec-filings-discovered
-schedule='*/15 * * * *'
 if [[ "${SEC_INCREMENTAL_DOWNLOADS_ENABLED:-0}" == 1 ]]; then
   consumers=(sec-fundamentals-subscriber company-graph-subscriber)
   if [[ "$earnings_collection" == 1 ]]; then consumers+=(earnings-subscriber); fi
@@ -40,7 +39,6 @@ if(!ready||ready!==service.status.latestCreatedRevisionName||active.reduce((sum,
   done
   bash scripts/deploy-sec-downloads.sh
   filing_topic=sec-filing-download-requests
-  schedule='0 * * * *'
 fi
 if [[ "${SEC_DISCOVERY_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh sec; fi
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
@@ -53,4 +51,4 @@ if [[ "${SEC_DISCOVERY_QUEUE_ENABLED:-0}" == 1 ]]; then
   gcloud run jobs update "$job" --project "$GCP_PROJECT_ID" --region "$pipeline_region" --update-env-vars SEC_DISCOVERY_REQUEST_TOPIC=sec-company-discovery-requests --quiet
 fi
 pipeline_job_invokers "$job"
-pipeline_schedule "$job" "$schedule"
+pipeline_schedule "$job" "0 23 * * *" America/New_York

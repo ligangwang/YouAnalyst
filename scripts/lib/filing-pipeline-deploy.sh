@@ -108,8 +108,8 @@ pipeline_job_invokers() {
 }
 
 pipeline_schedule() {
-  local job="$1" cron="$2"
-  local -a args=(--project "$GCP_PROJECT_ID" --location "$pipeline_region" --schedule "$cron" --time-zone UTC
+  local job="$1" cron="$2" timezone="${3:-UTC}"
+  local -a args=(--project "$GCP_PROJECT_ID" --location "$pipeline_region" --schedule "$cron" --time-zone "$timezone"
     --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$pipeline_region/jobs/$job:run"
     --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
     --attempt-deadline 180s --max-retry-attempts 1 --quiet)

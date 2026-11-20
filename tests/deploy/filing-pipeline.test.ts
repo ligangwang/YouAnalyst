@@ -84,7 +84,7 @@ test('filing collector is disabled by default and a new schedule is paused', () 
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.calls, /--args dist\/collect-sec-filings.cjs,--apply/);
   assert.match(r.calls, /SEC_FILINGS_TOPIC=sec-filings-discovered\|SEC_DISCOVERY_REQUEST_TOPIC=\|SEC_IPO_DISCOVERY_ENABLED=0\|SEC_FILINGS_COLLECTOR_ENABLED=0/);
-  assert.match(r.calls, /scheduler jobs create http collect-sec-filings-production.*--schedule \*\/15 \* \* \* \*/);
+  assert.match(r.calls, /scheduler jobs create http collect-sec-filings-production.*--schedule 0 23 \* \* \* --time-zone America\/New_York/);
   assert.match(r.calls, /scheduler jobs pause collect-sec-filings-production/);
   assert.ok(r.calls.indexOf('subscriptions describe company-graph-filings') < r.calls.indexOf('run jobs deploy collect-sec-filings-production'));
   assert.doesNotMatch(r.calls, /add-iam-policy-binding|OPENAI|run jobs execute|scheduler jobs resume/);

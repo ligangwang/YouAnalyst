@@ -9,6 +9,7 @@ export ENTITY_SNAPSHOT_BUCKET="${ENTITY_SNAPSHOT_BUCKET:-${EODHD_BULK_EOD_BUCKET
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
 region="${GCP_REGION:-us-central1}"
 job=collect-intelligence-news-production
+cn_job=collect-cn-announcements-production
 case "${NEWS_SOURCE_QUEUE_ENABLED:-0}" in 0|1) ;; *) echo 'NEWS_SOURCE_QUEUE_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
 export NEWS_SOURCE_QUEUE_ENABLED="${NEWS_SOURCE_QUEUE_ENABLED:-0}"
 case "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'INTELLIGENCE_NEWS_COLLECTOR_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
@@ -22,6 +23,7 @@ if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
 fi
 source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
 check_maintenance_job_iam "$job"
+check_maintenance_job_iam "$cn_job"
 # Deploy and wire the private subscriber before the scheduled job can publish.
 if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh; fi
 if [[ "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh article; fi
@@ -43,14 +45,32 @@ const env = {NODE_OPTIONS:"--max-old-space-size=1536",ENTITY_SNAPSHOT_BUCKET:pro
 if (env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED === '1' || env.CALENDAR_EXTRACTION_ENABLED === '1') env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 fs.writeFileSync(process.argv[2],JSON.stringify(env),{mode:0o600});
 NODE
+gcloud run jobs deploy "$cn_job" --project "$GCP_PROJECT_ID" --region "$region" \
+  --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
+  --max-retries 0 --task-timeout 20m --memory 2Gi --cpu 1 \
+  --command node --args dist/collect-intelligence-news.cjs,--apply,--cn-announcements-only \
+  --env-vars-file "$env_file" --quiet
+ensure_maintenance_job_iam "$cn_job"
+cn_args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '15 18 * * *' --time-zone Asia/Shanghai
+  --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$cn_job:run"
+  --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
+  --attempt-deadline 180s --max-retry-attempts 0 --quiet)
+if gcloud scheduler jobs describe "$cn_job" --project "$GCP_PROJECT_ID" --location "$region" >/dev/null 2>&1; then
+  gcloud scheduler jobs update http "$cn_job" "${cn_args[@]}"
+else
+  gcloud scheduler jobs create http "$cn_job" "${cn_args[@]}"
+  # Mirror the existing news schedule on first deployment.
+  if [[ "$(gcloud scheduler jobs describe "$job" --project "$GCP_PROJECT_ID" --location "$region" --format='value(state)')" != ENABLED ]]; then
+    gcloud scheduler jobs pause "$cn_job" --project "$GCP_PROJECT_ID" --location "$region" --quiet
+  fi
+fi
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
   --max-retries 0 --task-timeout 20m --memory 2Gi --cpu 1 \
-  --command node --args dist/collect-intelligence-news.cjs,--apply \
+  --command node --args dist/collect-intelligence-news.cjs,--apply,--skip-cn-announcements \
   --env-vars-file "$env_file" --quiet
 ensure_maintenance_job_iam "$job"
-# Keep hourly news SEC enrichment between the quarter-hour filing polls.
-# Preserve cadence and shared gate checks for delayed/manual executions.
+# Preserve the hourly cadence of the remaining news work.
 args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '7 * * * 1-5' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$job:run"
   --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
