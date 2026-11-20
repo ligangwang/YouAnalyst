@@ -87,9 +87,10 @@ export async function listCompanyGraphRequests(db = getAdminFirestore()): Promis
   const order = { PROCESSING: 0, QUEUED: 1, FAILED: 2, COMPLETED: 3 };
   return snapshot.docs.filter(doc => !doc.id.startsWith("_")).slice(0, 100).map(doc => item(doc.id, doc.data())).sort((a, b) => order[a.status] - order[b.status] || b.lastRequestedAt.localeCompare(a.lastRequestedAt));
 }
-export async function listQueuedCompanyGraphRequests(limit: number, db = getAdminFirestore(), now = Date.now(), options: { unpublishedOnly?: boolean; preview?: boolean } = {}) {
+export async function listQueuedCompanyGraphRequests(limit: number, db = getAdminFirestore(), now = Date.now(), options: { unpublishedOnly?: boolean; preview?: boolean; cursor?: string | null } = {}) {
   const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
-  let cursor = options.unpublishedOnly ? str((await cursorRef.get()).data()?.cursor) : null;
+  let cursor = options.cursor ?? null;
+  if (options.unpublishedOnly && options.cursor === undefined) cursor = str((await cursorRef.get()).data()?.cursor);
   const candidates: CompanyGraphRequestListItem[] = [];
   const max = Math.max(1, Math.min(25, Math.trunc(limit)));
   // A persisted cursor bounds each scan while ensuring stuck/published records
