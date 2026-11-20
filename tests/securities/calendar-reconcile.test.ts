@@ -1,7 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {reconcileCalendarSchedules} from '../../src/lib/calendar/reconcile';
-import {groupCalendarItems} from '../../src/components/earnings-calendar-groups';
 import type {CalendarItem} from '../../src/lib/calendar/model';
 
 const call:CalendarItem={version:1,id:'jbl_q4_call',type:'scheduled_event',companyId:'US:JBL',companyIds:['US:JBL'],eventKind:'earnings_call',fiscalPeriod:'FY2026-Q4',
@@ -22,8 +21,6 @@ test('JBL Q4/full-year aliases become one results-and-call card without losing p
   assert.deepEqual(merged.fiscalPeriods,['FY2026-Q4','FY2026']);
   assert.deepEqual(new Set(merged.equivalentScheduleIds),new Set([call.id,annual.id]));
   assert.equal(result.byId.get(annual.id)?.id,call.id);
-  const groups=groupCalendarItems(input).get('2026-09-30')!;
-  assert.equal(groups.length,1);assert.equal(groups[0].schedules.length,2);
   assert.deepEqual(input,before);
   assert.deepEqual(reconcileCalendarSchedules(result.schedules).schedules,result.schedules);
 });
@@ -33,7 +30,6 @@ test('the release establishes a Q4 alias for an annual call even when the old qu
   const merged=result.schedules.find(item=>item.eventKind==='earnings_call')!;
   assert.equal(merged.fiscalPeriod,'FY2026-Q4');
   assert.deepEqual(merged.fiscalPeriods,['FY2026-Q4','FY2026']);
-  assert.equal(groupCalendarItems(result.schedules).get('2026-09-30')?.length,1);
   assert.equal(reconcileCalendarSchedules([annual]).schedules[0].fiscalPeriod,'FY2026');
 });
 
@@ -47,8 +43,6 @@ test('other periods, issuers, announcement sources and actual start times remain
     {...annual,scheduled_at:null,local_time:null,time_precision:'date' as const},
   ];
   for(const other of separate)assert.equal(reconcileCalendarSchedules([call,other]).schedules.length,2,JSON.stringify(other));
-  assert.equal(groupCalendarItems([call,{...annual,fiscalPeriod:'FY2026-Q3'}]).get('2026-09-30')?.length,2);
-  assert.equal(groupCalendarItems([call,{...annual,scheduled_at:'2026-09-30T13:30:00Z'}]).get('2026-09-30')?.length,2);
   assert.equal(reconcileCalendarSchedules([{...call,confirmation:'extracted',validationWarnings:['Fiscal quarter is not supported by source evidence']},annual]).schedules.length,2);
 });
 

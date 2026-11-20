@@ -862,7 +862,6 @@ for(const zh of [false,true])test('grouped announcement shows one event, two sou
  await expect(row).toHaveCount(1);await expect(row).toContainText(zh?'2 份来源文档':'2 source documents');
  await expect(panel.getByText(zh?'2 份已加载来源文档':'2 loaded source documents',{exact:true})).toHaveCount(0);
  await expect(panel.getByText(zh?'文档':'Documents',{exact:true}).locator('..').locator('strong')).toHaveText('2');
- await expect(panel.locator('a[href*="event=scheduled_event_amd_call"]')).toHaveCount(1);
  await row.click();
  const card=page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true});
  await expect(card.locator('a[href="https://ir.amd.com/release"]').first()).toBeVisible();
@@ -993,7 +992,7 @@ for(const zh of [false,true])test('company selection scopes events and activity 
  const summary=page.getByLabel('Theme activity summary');await expect(summary.getByText(zh?'公司':'Companies',{exact:true})).toBeVisible();await expect(summary.getByText(zh?'文档':'Documents',{exact:true})).toBeVisible();await expect(summary.getByRole('button',{name:'Filter Exchange signals',exact:true})).toContainText(zh?'公告':'Filings');
  await expect(count).toHaveText('3');await expect(panel.getByText(zh?'公司':'Companies',{exact:true}).locator('..').locator('strong')).toHaveText('1');
  await expect(panel.getByRole('button',{name:/Company event /})).toHaveCount(2);await expect(panel.getByRole('button',{name:/Company event micron|Company event china/})).toHaveCount(0);
- await expect(panel.locator('a[href*="event=micron-calendar"]')).toHaveCount(0);await expect(panel.locator('a[href*="event=apple-calendar"]')).toHaveCount(1);
+ await expect(panel.locator('a[href*="event=micron-calendar"]')).toHaveCount(0);await expect(panel.locator('a[href*="event=apple-calendar"]')).toHaveCount(0);
  await panel.getByRole('button',{name:zh?'近 7 天':'7 days',exact:true}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event prior/})).toBeVisible();
  await panel.getByRole('button',{name:/Company event mixed/}).click();const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Apple');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).toContainText('+20.00%');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).not.toContainText('+10.00%');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
  await card.getByRole('button',{name:'Close company details',exact:true}).click();await expect(count).toHaveText('5');await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();await expect(apple).toHaveAttribute('aria-pressed','false');
@@ -1030,19 +1029,9 @@ test('first phone visit starts in Activity and explicit list links open Explore'
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
 });
 
-test('news calendar icon links only confirmed schedules and does not select the news',async({page},info)=>{
+test('news rows have no calendar links',async({page},info)=>{
   await open(page,info.project.name==='mobile');
-  const link=page.getByRole('link',{name:info.project.name==='mobile'?'查看日历活动 · 2026-10-28':'View calendar event · 2026-10-28',exact:true});
-  await expect(link).toHaveCount(1);
-  await expect(link).toBeVisible();
-  await expect(link).toHaveAttribute('href',/\/calendar\?date=2026-10-28&company=US%3AMU&event=scheduled_event_micron_release$/);
-  expect(await link.evaluate(element=>element.closest('button')===null)).toBe(true);
-  await link.locator('..').locator('..').screenshot({path:info.outputPath('news-calendar-link.png')});
-  await link.click();
-  await expect(page).toHaveURL(/calendar\?date=2026-10-28&company=US%3AMU&event=scheduled_event_micron_release$/);
-  // The fixture keeps Explore mounted on navigation; its calendar company
-  // query can select MU, but clicking the icon must not activate the news.
-  await expect(page.getByRole('button',{name:/Published company update 1 /,includeHidden:true})).toHaveAttribute('aria-pressed','false');
+  await expect(page.locator('a[href*="/calendar"]')).toHaveCount(0);
 });
 
 test('committed theme changes restart real chart and tree tours without replacing the workspace',async({page},info)=>{

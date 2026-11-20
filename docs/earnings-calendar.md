@@ -1,8 +1,4 @@
-# Earnings calendar
-
-`/calendar` (localized `/en/calendar` and `/zh-cn/calendar`) reads schedules extracted from original announcements from the existing `events` collection. It offers month/week views, a day agenda, theme/company filters and account following. Exact times are displayed in Eastern Time; date-only and unzoned times retain the original announcement's precision.
-
-Results releases and calls for the same company, fiscal period and displayed day share one earnings card and count as one calendar event. The card keeps separate results/call timing and status, and links to every distinct original announcement. Different dates or fiscal periods remain separate cards. Stored schedules retain their independent identities so a release or call can be updated or cancelled independently.
+# Earnings schedule collection
 
 The existing `collect-intelligence-news-production` job checks issuer IR and Chinese exchange announcements across the unique union of published AI, Robotics and Space companies. Its existing weekday hourly schedule is retained. Articles without an approved configured source or an original publication date cannot enter extraction. Missing sources are not estimated earnings dates.
 
@@ -21,5 +17,3 @@ The existing `collect-intelligence-news-production` job checks issuer IR and Chi
 The existing `openai_usage_events` ledger records returned token usage under `earnings_calendar_extraction`, including requests whose output failed validation. Failed requests without returned usage have unknown cost, rather than a zero-cost estimate. Model rates are estimated USD per million tokens: Luna input 0.10, cached input 0.01, output 0.50; environment rate overrides remain supported.
 
 `/admin/openai-usage` shows complete calendar totals for the last 30 days and current UTC quarter, independently of its recent table limit, with unknown-cost counts and validation warnings/errors. Cache hits do not create usage entries.
-
-The calendar date-range query uses scheduled dates, includes boundary days for source-time-zone conversion, and reports truncation if its 1,000-event safety limit is reached. No forecast data or fabricated dates are added to fill empty days.

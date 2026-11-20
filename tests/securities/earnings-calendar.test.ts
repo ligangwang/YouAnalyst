@@ -4,10 +4,7 @@ import assert from 'node:assert/strict';
 import { isCalendarCandidate } from '../../src/lib/calendar/candidates';
 import { extractSchedule, normalizeSchedules, normalizeExtractedSchedules, scheduleInstant, scheduleTimezone } from '../../src/lib/calendar/extraction';
 import { calendarArticleText, fetchCalendarArticle } from '../../src/lib/calendar/article';
-import { calendarRange } from '../../src/lib/calendar/service';
 import { processCalendarSource, collectCalendarSchedules } from '../../src/lib/calendar/worker';
-import { attachCalendarLinks } from '../../src/lib/calendar/intelligence-links';
-import type { IntelligenceEvent } from '../../src/lib/intelligence/model';
 import { buildOpenAiUsageEvent, listOpenAiUsageEvents } from '../../src/lib/openai/usage';
 import type { Firestore } from 'firebase-admin/firestore';
 import { earningsFirestore } from '../helpers/earnings-firestore';
@@ -115,7 +112,6 @@ test('rejects unsupported dates, quarters, time zones and archive dates; retains
   assert.equal(scheduleTimezone('CST'),null);assert.equal(scheduleTimezone('北京时间'),'Asia/Shanghai');
   assert.throws(()=>scheduleInstant('2026-03-08','02:30','America/New_York'),/nonexistent/);
   assert.throws(()=>scheduleInstant('2026-11-01','01:30','America/New_York'),/Ambiguous/);
-  assert.throws(()=>calendarRange('2026-01-01','2026-04-01'),/range/);
 });
 
 test('normalization defaults omitted Chinese time zones to Beijing and preserves explicit zones in both validation paths',()=>{
@@ -132,19 +128,6 @@ test('normalization defaults omitted Chinese time zones to Beijing and preserves
   assert.equal(run(cn,{...item,time:null,timeEvidence:''}).scheduled_at,null);
   const warned=normalizeExtractedSchedules({events:[{...item,period:null}]},cn,article,'hash','gpt-6-luna','2026-10-02T12:00:00Z').schedules[0];
   assert.equal(warned.scheduled_at,'2026-11-18T06:00:00.000Z');
-});
-
-test('legacy US-listed Chinese calendar links use the same converted day without rewriting stored schedules',async()=>{
-  const fake=earningsFirestore(),sourceId='company_news_cn_local',id='scheduled_event_'+'a'.repeat(64),receiptId='calendar_extraction_'+'b'.repeat(64);
-  fake.rows.set('events/'+sourceId,{...source,id:sourceId,companyIds:['US:BABA'],companyId:'US:BABA',calendarExtraction:{receiptId}});
-  fake.rows.set('events/'+receiptId,{status:'complete',eventIds:[id]});
-  fake.rows.set('events/'+id,{...normalize()[0],id,companyId:'US:BABA',companyIds:['US:BABA'],scheduled_date:'2026-11-18',scheduled_at:null,local_time:'09:00',timeEvidence:'09:00',source_timezone:null,timezone_text:null,time_precision:'local',sourceEventIds:[sourceId]});
-  fake.rows.set('companies/US:BABA',{country:'CN'});
-  const before=[...fake.rows.entries()].map(([path,row])=>[path,{...row}]);
-  const db=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
-  const event:IntelligenceEvent={id:'news-'+sourceId,origin:'US:BABA',companyIds:['US:BABA'],edgeIds:[],category:'BUSINESS',title:source.title,summary:'',published_at:source.published_at,publication_date:'2026-10-01',eventDate:null,planned:false,evidence:[{id:sourceId,url:source.url,title:source.title,sourceDate:'2026-10-01',channel:'IR'}]};
-  assert.equal((await attachCalendarLinks(db,[event]))[0].calendarEvents?.[0].day,'2026-11-17');
-  assert.deepEqual([...fake.rows.entries()],before);
 });
 
 test('ServiceNow close-of-market wording restores both schedules from the cached response without a paid retry',async()=>{
@@ -170,15 +153,6 @@ test('ServiceNow close-of-market wording restores both schedules from the cached
   assert.equal([...fake.rows.keys()].filter(path=>path.startsWith('openai_usage_events/')).length,1);
   assert.throws(()=>normalizeSchedules({events:[{...release,timeSlot:'before_market'}]},nowSource,article,'hash','gpt-6-luna','2026-10-07T16:00:00Z'),/Market session/);
 
-  const event:IntelligenceEvent={id:'news-'+nowSource.id,origin:'US:NOW',companyIds:['US:NOW'],edgeIds:[],category:'BUSINESS',title:nowSource.title,summary:'',published_at:nowSource.published_at,publication_date:'2026-10-07',eventDate:null,planned:false,
-    evidence:[{id:nowSource.id,url:nowSource.url,title:nowSource.title,sourceDate:'2026-10-07',channel:'IR'}]};
-  const readDb=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
-  const linked=await attachCalendarLinks(readDb,[event]);
-  assert.equal(linked[0].calendarEvents?.length,2);assert(linked[0].calendarEvents?.every(link=>link.day==='2026-10-28'&&link.companyId==='US:NOW'));
-  for(const [path,row] of fake.rows)if(row.type==='scheduled_event')fake.rows.set(path,{...row,type:'calendar_review'});
-  assert.equal((await attachCalendarLinks(readDb,[event]))[0].calendarEvents,undefined);
-  fake.rows.set(receipt[0],{...receipt[1],status:'review_required'});
-  assert.equal((await attachCalendarLinks(readDb,[event]))[0].calendarEvents,undefined);
 });
 
 test('AMD call referring to these results uses its verified fiscal-period context',()=>{
@@ -376,23 +350,6 @@ test('a failed changed-content request preserves the old schedule and carries it
   await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text+' Changed twice.',extract:async()=>({...response([{...draft,period:'FY2027'}]),id:'response_recovered'})});
   assert.equal(fake.rows.get('events/'+old.id)?.type,'calendar_review');
   assert.equal([...fake.rows.values()].filter(row=>row.type==='scheduled_event').length,1);
-});
-
-test('news links resolve both historical call IDs to a single canonical calendar activity',async()=>{
-  const fake=earningsFirestore(),sourceId='company_news_jbl_alias',receiptId='calendar_extraction_'+'c'.repeat(64);
-  const quarterId='scheduled_event_'+'a'.repeat(64),annualId='scheduled_event_'+'b'.repeat(64),releaseId='scheduled_event_'+'c'.repeat(64);
-  const jbl={...source,id:sourceId,companyId:'US:JBL',companyIds:['US:JBL'],title:'Jabil Announces Date for Fourth Quarter and Fiscal Year Earnings Call',calendarExtraction:{receiptId}};
-  fake.rows.set('events/'+sourceId,jbl);fake.rows.set('events/'+receiptId,{status:'complete',eventIds:[quarterId,annualId,releaseId]});
-  const base={...normalize()[0],id:quarterId,companyId:'US:JBL',companyIds:['US:JBL'],fiscalPeriod:'FY2026-Q4',sourceEventIds:[sourceId]};
-  fake.rows.set('events/'+quarterId,base);
-  fake.rows.set('events/'+annualId,{...base,id:annualId,fiscalPeriod:'FY2026'});
-  fake.rows.set('events/'+releaseId,{...base,id:releaseId,eventKind:'earnings_release',scheduled_at:null,local_time:null,timeSlot:'before_market'});
-  const before=structuredClone([...fake.rows.entries()]);
-  const db=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
-  const event:IntelligenceEvent={id:'news-jbl',origin:'US:JBL',companyIds:['US:JBL'],edgeIds:[],category:'BUSINESS',title:jbl.title,summary:'',published_at:source.published_at,publication_date:'2026-10-01',eventDate:null,planned:false,evidence:[{id:sourceId,url:source.url,title:jbl.title,sourceDate:'2026-10-01',channel:'IR'}]};
-  const linked=(await attachCalendarLinks(db,[event]))[0].calendarEvents!;
-  assert.equal(linked.length,2);assert(linked.some(link=>link.id===quarterId));assert(!linked.some(link=>link.id===annualId));
-  assert.deepEqual([...fake.rows.entries()],before);
 });
 
 test('a failed commit retries persistence only, never the provider call',async()=>{
