@@ -207,7 +207,7 @@ shared immutable image. `company-graph` deploys only graph delivery and its boun
 publisher. The collector is never deployed before both fan-out consumers exist.
 
 The collector is deployed with `--apply`, but still defaults to
-`SEC_FILINGS_COLLECTOR_ENABLED=0`. Its daily noon Eastern schedule is initially paused.
+`SEC_FILINGS_COLLECTOR_ENABLED=0`. Its daily 11 p.m. Eastern schedule is initially paused.
 The graph publisher runs every five minutes UTC, publishes one request by default,
 and caps `COMPANY_GRAPH_QUEUE_BATCH_SIZE` at 1–5 requests per invocation. Its initial
 schedule is also paused. `COMPANY_GRAPH_PROCESSING_ENABLED=0` blocks paid subscriber

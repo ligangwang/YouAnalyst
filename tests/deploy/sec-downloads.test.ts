@@ -70,7 +70,7 @@ test('setup grants only resource-scoped access and no existing collector is swit
 });
 test('incremental mode keeps daily discovery and routes only new events through downloads',()=>{
   const script=readFileSync('scripts/deploy-sec-filings.sh','utf8');
-  assert.match(script,/filing_topic=sec-filing-download-requests/);assert.match(script,/pipeline_schedule "\$job" "0 12 \* \* \*" America\/New_York/);
+  assert.match(script,/filing_topic=sec-filing-download-requests/);assert.match(script,/pipeline_schedule "\$job" "0 23 \* \* \*" America\/New_York/);
   assert(script.indexOf('bash scripts/deploy-sec-downloads.sh')<script.indexOf('gcloud run jobs deploy'));
   assert.match(script,/SEC_FILINGS_TOPIC=\$filing_topic/);
   assert.doesNotMatch(script,/submissions\.zip|companyfacts\.zip|bulkdata/);
