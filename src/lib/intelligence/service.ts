@@ -13,10 +13,8 @@ import { mergeIntelligenceEvents, projectResearchIntelligence } from './project'
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
 import {loadNewsSourceCompanies,graphNewsSources} from './collectors/source-service';
-import {isCalendarCandidate} from '../calendar/candidates';
 import {projectDisclosures} from '../events/disclosure-projection';
 import {attachPricePerformance} from './price-performance-service';
-import {attachCalendarLinks} from '../calendar/intelligence-links';
 import {groupCompanyAnnouncements} from './announcement-grouping';
 import {companySearchRank,companySearchText,matchesCompanySearch} from '../knowledge-graph/model';
 
@@ -68,15 +66,11 @@ function universeWork(theme:CompanyThemeId){
 
 /** Only IDs present in the published snapshot can request enrichment. No client
  * supplied event dates, evidence or company records are trusted. */
-export async function loadIntelligenceEnrichment(theme:CompanyThemeId,eventIds:string[],companyIds:string[],kind:'calendar'|'prices',snapshotAt:string,now=new Date()){
+export async function loadIntelligenceEnrichment(theme:CompanyThemeId,eventIds:string[],companyIds:string[],snapshotAt:string,now=new Date()){
   const cached=coreSnapshots.get(getAdminFirestore())?.get(theme);
   const base=cached?.generatedAt===snapshotAt?cached:await loadIntelligenceSnapshot(now,theme,undefined,undefined,true);
   const selected=new Set(eventIds),companies=new Set(companyIds);
   const events=base.events.filter(event=>selected.has(event.id)||event.relatedEventIds?.some(id=>selected.has(id)));
-  if(kind==='calendar'){
-    const loaded=await attachCalendarLinks(getAdminFirestore(),events);
-    return {calendar:Object.fromEntries(loaded.map(event=>[event.id,event.calendarEvents??[]]))};
-  }
   for(const event of events)for(const id of event.companyIds)companies.add(id);
   const graph={...base.graph,nodes:base.graph.nodes.filter(node=>node.kind==='COMPANY'&&companies.has(node.id))};
   if(graph.nodes.length>200)throw Error('Price enrichment scope is too large');
@@ -191,7 +185,6 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     }catch(error){statisticsComplete=false;console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
     const projected=projectResearchIntelligence(graph,theme==='ai'?curatedEvents:[],now);
     let disclosures:{events:ReturnType<typeof projectDisclosures>;truncated:boolean}|undefined;
-    let calendarAvailable=true;
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       if(feedError)throw feedError;
       disclosures={events:projectDisclosures(records.filter(row=>row.collection==='events').map(row=>row.data),graph,now),truncated:false};
@@ -199,12 +192,7 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     }catch(error){statisticsComplete=false;console.error('Map disclosure feed unavailable',error);warnings.push('Company disclosure arrivals are temporarily unavailable.');}
     // A discovery and a research citation of the same filing are one document.
     let ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date);
-    if(!core&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
-      // Resolve every candidate's schedules before grouping or limiting the feed.
-      ordered=await attachCalendarLinks(getAdminFirestore(),ordered);
-    }catch(error){calendarAvailable=false;console.error('Intelligence calendar links unavailable',error);warnings.push('Calendar event links are temporarily unavailable.');}
-    if(core)ordered=ordered.map(event=>({...event,calendarPending:event.category==='BUSINESS'&&isCalendarCandidate(event.title,event.summary)}));
-    ordered=calendarAvailable?groupCompanyAnnouncements(ordered):[...groupCompanyAnnouncements(ordered.filter(event=>event.eventType==='insider_trade')),...ordered.filter(event=>event.eventType!=='insider_trade')];
+    ordered=groupCompanyAnnouncements(ordered);
     ordered.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
     const events=ordered;
     let priced={graph:core?await universe.complete:graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};

@@ -33,11 +33,6 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
     priority: 0.8,
   },
   {
-    url: absoluteUrl("/calendar"),
-    changeFrequency: "daily",
-    priority: 0.8,
-  },
-  {
     url: absoluteUrl("/companies"),
     changeFrequency: "daily",
     priority: 0.8,

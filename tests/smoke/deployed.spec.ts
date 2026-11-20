@@ -55,7 +55,7 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
   const pageUrls = [...pagesXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
   expect(new Set(pageUrls).size).toBe(pageUrls.length);
   for (const locale of ["en", "zh-cn"]) {
-    expect(pageUrls.some(url => url.endsWith(`/${locale}/calendar`))).toBeTruthy();
+    expect(pageUrls.some(url => url.endsWith(`/${locale}/calendar`))).toBeFalsy();
     expect(pageUrls.some(url => url.endsWith(`/${locale}/daily/calls`))).toBeTruthy();
     expect(pageUrls.some(url => url.endsWith(`/${locale}/daily`) || url.endsWith(`/${locale}/watchlists`))).toBeFalsy();
   }

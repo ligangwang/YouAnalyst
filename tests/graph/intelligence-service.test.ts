@@ -16,8 +16,8 @@ function filing(index:number,day='2026-10-02',companyId='AMD'):FeedRecord{
   return {collection:'sec_filings',id:accessionNumber,data:{filingDate:day,published_at:null,discoveryEvents:{[event.eventId]:{event,state:'published'}}}};
 }
 function feed(records:FeedRecord[]=[],revision='one',loadedFrom='2026-10-02'):CachedFeed{return {days:{[loadedFrom]:records},revision,loadedFrom,hasMore:true};}
-async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>string;priceRead?:()=>void;priceAttach?:(graph:KnowledgeGraph,events:unknown[])=>void;graph?:()=>Promise<KnowledgeGraph>;valuations?:(graph:KnowledgeGraph)=>Promise<KnowledgeGraph>;calendar?:(events:unknown[])=>void;sources?:()=>Promise<[]>;freshness?:()=>void;collector?:Record<string,unknown>}={}){
-  const external=['../change-cache','./price-cache','./feed-cache-store','./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service','../calendar/intelligence-links','./collectors/source-service'];
+async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>string;priceRead?:()=>void;priceAttach?:(graph:KnowledgeGraph,events:unknown[])=>void;graph?:()=>Promise<KnowledgeGraph>;valuations?:(graph:KnowledgeGraph)=>Promise<KnowledgeGraph>;sources?:()=>Promise<[]>;freshness?:()=>void;collector?:Record<string,unknown>}={}){
+  const external=['../change-cache','./price-cache','./feed-cache-store','./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service','./collectors/source-service'];
   const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}},db={};
   const injected=(name:string)=>{
@@ -25,7 +25,6 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
     if(name==='./collectors/source-service')return {loadNewsSourceCompanies:options.sources??(async()=>[]),graphNewsSources:async()=>[],loadNewsSources:async()=>[]};
     if(name==='./feed-cache-store')return {loadCachedFeed:load};
     if(name==='./price-performance-service')return {attachPricePerformance:async(_db:unknown,graph:KnowledgeGraph,events:unknown[])=>{options.priceAttach?.(graph,events);return {graph,eventReturns:{}};}};
-    if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:unknown[])=>{options.calendar?.(events);return events;}};
     if(name==='../firebase/admin')return {getAdminFirestore:()=>db};
     if(name==='../change-cache')return {withCacheReadScope:(load:()=>Promise<unknown>)=>load(),changeCached:async(_db:unknown,_key:string,_scopes:string[],load:()=>Promise<unknown>)=>load()};
     if(name==='../company-themes/graph-service')return {loadThemeGraphStructure:options.graph??(async()=>graph),loadThemeGraph:async(_theme:string,structure:KnowledgeGraph)=>options.valuations?options.valuations(structure):structure};
@@ -76,13 +75,13 @@ test('a failed shared graph can retry and a pending theme does not block another
   assert.equal((await service.loadIntelligenceUniverse(now,'ai')).theme,'ai');assert.equal(calls,3);
 });
 
-test('event and calendar work overlaps valuation loading without dropping market caps',async()=>{
-  let release!:(graph:KnowledgeGraph)=>void,calendarStarted!:()=>void,finished=false;
+test('feed loading overlaps valuation loading without dropping market caps',async()=>{
+  let release!:(graph:KnowledgeGraph)=>void,feedStarted!:()=>void,finished=false;
   const valuations=new Promise<KnowledgeGraph>(resolve=>{release=resolve;});
-  const calendar=new Promise<void>(resolve=>{calendarStarted=resolve;});
-  const service=await isolated(async()=>feed([filing(1)]),{valuations:()=>valuations,calendar:calendarStarted});
+  const loadingFeed=new Promise<void>(resolve=>{feedStarted=resolve;});
+  const service=await isolated(async()=>{feedStarted();return feed([filing(1)]);},{valuations:()=>valuations});
   const pending=service.loadIntelligenceSnapshot(now);void pending.then(()=>{finished=true;});
-  await calendar;assert.equal(finished,false,'calendar must run while valuations are pending');
+  await loadingFeed;assert.equal(finished,false,'feed must load while valuations are pending');
   const enriched={...graph,nodes:graph.nodes.map(node=>({...node,marketCap:{value:123,currency:'USD' as const,priceDate:'2026-10-01'}}))};
   release(enriched);const result=await pending;assert.equal(result.graph.nodes[0].marketCap?.value,123);assert.equal(result.events.length,1);
 });
@@ -187,13 +186,13 @@ test('the events route negotiates compression and preserves filters and deferred
  });
 
 
-test('core initializes independent sources together and never reads optional calendar or prices',async()=>{
+test('core initializes independent sources together and never reads optional prices',async()=>{
   const previous=process.env.INTELLIGENCE_NEWS_ENABLED;process.env.INTELLIGENCE_NEWS_ENABLED='1';
   try{
     let release!:(value:CachedFeed)=>void;const started:string[]=[];
     const gate=new Promise<CachedFeed>(resolve=>{release=resolve;});
     const unexpected=()=>{throw Error('optional read on core path');};
-    const service=await isolated(()=>{started.push('feed');return gate;},{graph:async()=>{started.push('graph');return graph;},sources:async()=>{started.push('sources');return [];},freshness:()=>{started.push('freshness');},priceRead:unexpected,priceAttach:unexpected,calendar:unexpected});
+    const service=await isolated(()=>{started.push('feed');return gate;},{graph:async()=>{started.push('graph');return graph;},sources:async()=>{started.push('sources');return [];},freshness:()=>{started.push('freshness');},priceRead:unexpected,priceAttach:unexpected});
     const pending=service.loadIntelligenceSnapshot(now,'ai',undefined,undefined,true);
     assert.deepEqual(new Set(started),new Set(['feed','graph','sources','freshness']));
     release(feed([filing(1)]));const result=await pending;
@@ -202,14 +201,13 @@ test('core initializes independent sources together and never reads optional cal
 });
 
 test('demand enrichment reuses core data and scopes prices to requested companies and events',async()=>{
-  let feedReads=0;const priceScopes:string[][]=[],calendarScopes:unknown[][]=[];
-  const service=await isolated(async()=>{feedReads++;return feed([filing(1),filing(2,'2026-10-02','MU')]);},{priceRead:()=>{throw Error('whole price cache read');},priceAttach:graph=>{priceScopes.push(graph.nodes.map(node=>node.id));},calendar:events=>{calendarScopes.push(events);}});
+  let feedReads=0;const priceScopes:string[][]=[];
+  const service=await isolated(async()=>{feedReads++;return feed([filing(1),filing(2,'2026-10-02','MU')]);},{priceRead:()=>{throw Error('whole price cache read');},priceAttach:graph=>{priceScopes.push(graph.nodes.map(node=>node.id));}});
   const base=await service.loadIntelligenceSnapshot(now,'ai',undefined,undefined,true);
   const amd=base.events.find(event=>event.companyIds.includes('US:AMD'))!;
-  await service.loadIntelligenceEnrichment('ai',[amd.id],['US:UNKNOWN'],'prices',base.generatedAt,now);
-  assert.deepEqual(priceScopes,[['US:AMD']]);assert.equal(calendarScopes.length,0);
-  await service.loadIntelligenceEnrichment('ai',[amd.id],[],'calendar',base.generatedAt,now);
-  assert.deepEqual(calendarScopes,[[amd]]);assert.equal(priceScopes.length,1);assert.equal(feedReads,1);
+  await service.loadIntelligenceEnrichment('ai',[amd.id],['US:UNKNOWN'],base.generatedAt,now);
+  assert.deepEqual(priceScopes,[['US:AMD']]);
+  assert.equal(priceScopes.length,1);assert.equal(feedReads,1);
 });
 
 
@@ -218,19 +216,20 @@ test('enrichment endpoint rejects oversized or unknown scopes before reading dat
  const built=await build({entryPoints:['src/app/api/intelligence/enrichment/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:dependencies});
  const evaluated={exports:{}},calls:unknown[][]=[];
  new Function('require','module','exports',built.outputFiles[0].text)((name:string)=>{
-  if(name===dependencies[0])return {loadIntelligenceEnrichment:async(...args:unknown[])=>{calls.push(args);return {calendar:{chosen:[]}};}};
+  if(name===dependencies[0])return {loadIntelligenceEnrichment:async(...args:unknown[])=>{calls.push(args);return {eventReturns:{chosen:[]}};}};
   if(name===dependencies[1])return {loadThemeCatalog:async()=>[]};
   if(name===dependencies[2])return {resolveCatalogTheme:(_catalog:unknown,theme:string)=>theme==='ai'?'ai':undefined};
   if(name===dependencies[3])return {withCompanyPageReads:(load:()=>unknown)=>load()};
   throw Error(name);
  },evaluated,evaluated.exports);
  const route=evaluated.exports as typeof import('../../src/app/api/intelligence/enrichment/route');
- const body={theme:'ai',snapshotAt:now.toISOString(),kind:'calendar',eventIds:['chosen'],companyIds:[]};
+ const body={theme:'ai',snapshotAt:now.toISOString(),kind:'prices',eventIds:['chosen'],companyIds:[]};
  const request=(value:unknown)=>new Request('http://localhost/api/intelligence/enrichment',{method:'POST',body:JSON.stringify(value)});
+ assert.equal((await route.POST(request({...body,kind:'calendar'}))).status,400);
  assert.equal((await route.POST(request({...body,eventIds:Array(21).fill('chosen')}))).status,400);
  assert.equal((await route.POST(request({...body,theme:'private'}))).status,404);
  assert.equal((await route.POST(request({...body,eventIds:[]}))).status,200);assert.equal(calls.length,0);
  const response=await route.POST(request(body));assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
- assert.deepEqual(await response.json(),{calendar:{chosen:[]},snapshotAt:now.toISOString()});
- assert.deepEqual(calls,[['ai',['chosen'],[],'calendar',now.toISOString()]]);
+ assert.deepEqual(await response.json(),{eventReturns:{chosen:[]},snapshotAt:now.toISOString()});
+ assert.deepEqual(calls,[['ai',['chosen'],[],now.toISOString()]]);
 });

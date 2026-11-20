@@ -1,7 +1,7 @@
 // Local-only, read-only review proxy. Start the built Next app on port 3000 first.
 // Public GET payloads populate the existing app without database credentials.
 import {createServer} from 'node:http';import net from 'node:net';import fs from 'node:fs/promises';
-const allowed=['/api/compare','/api/calendar','/api/knowledge-graph','/api/industry-graph','/api/intelligence','/api/tickers/search','/api/features'];
+const allowed=['/api/compare','/api/knowledge-graph','/api/industry-graph','/api/intelligence','/api/tickers/search','/api/features'];
 const cache=new Map();const evidenceRoot=new URL('../../output/design-refresh/',import.meta.url);
 const server=createServer(async(req,res)=>{try{
  const u=new URL(req.url,'http://127.0.0.1:3002');
