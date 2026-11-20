@@ -12,14 +12,14 @@ import {retainedMode, RETAINED_CONTROL, retainedPath} from '../src/lib/market-st
 import {fundamentalsMode, FUNDAMENTALS_CONTROL} from '../src/lib/market-store/fundamentals-control';
 import {CleanupGate, migrationCapacity} from './market-migration-safety';
 
-type Collection = 'company_relationships' | 'company_fundamentals';
+type Collection = 'company_relationships' | 'company_fundamentals' | 'earnings_records';
 const project = 'ifindata-80905';
 
 export async function migrateMarketRecords(
     db: Firestore, files: MarketFiles, capacity: Pick<CleanupGate, 'before'>,
     {collection, start, end, apply}: {collection: Collection; start: number; end: number; apply: boolean},
 ) {
-    assert(collection === 'company_relationships' || collection === 'company_fundamentals');
+    assert(collection === 'company_relationships' || collection === 'company_fundamentals' || collection === 'earnings_records');
     assert(Number.isInteger(start) && Number.isInteger(end) && 0 <= start && start < end && end <= 256);
     try {
         for (let n = start; n < end; n++) {
