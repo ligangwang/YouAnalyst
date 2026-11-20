@@ -229,7 +229,10 @@ export class MarketRepository {
                 const current = { until: Date.now() + 1000, ready: read() };
                 this.predictionMarksControl = current;
                 void current.ready.then(ready => {
-                    if(this.predictionMarksControl===current)this.onMode?.(ready,collection);
+                    if(this.predictionMarksControl===current){
+                        if(ready)current.until=Date.now()+10000;
+                        this.onMode?.(ready,collection);
+                    }
                 }, () => { if (this.predictionMarksControl === current) this.predictionMarksControl = undefined; });
             }
             return this.predictionMarksControl.ready;
