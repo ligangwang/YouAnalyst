@@ -400,8 +400,7 @@ export class MarketRepository {
         return found;
     }
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
-        // Current earnings revision pointers are retained whole. Read them live
-        // without waiting for the immutable revision-file inventory.
+        // Resolve earnings pointers against the latest shard state without caching live heads.
         if(collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_')))return this.documentsUncached(collection,ids,context,fields);
         // Live reserved records must not wait for a collection-wide file watch
         // or serve cached leases/checkpoints. Completed history still joins Parquet.
@@ -471,13 +470,13 @@ export class MarketRepository {
     private async documentsWithRetained(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         const earningsHeads = collection === 'earnings_records' && !fields && ids.every(id => id.startsWith('head_'));
         const rawRefs = (keys: string[]) => keys.map(id => this.raw.collection(collection).doc(id));
-        const earnings = earningsHeads ? await this.rawDocuments(rawRefs(ids), context) : undefined;
-        if (earnings && [...earnings.values()].every(doc => doc.exists && doc.get('recordType') === 'head'))
-            return ids.map(id => {const doc = earnings.get(collection + '/' + id)!; return {id, data: doc.data()!, version: doc.updateTime!};});
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
         if(collection==='prediction_daily_marks'&&!heads.every(completeParquetHead))throw Error('Incomplete prediction marks catalog');
         const reservedFundamentals = collection === 'company_fundamentals' && !fields && ids.every(id => id.startsWith('_'));
         const completeShards = new Set(heads.filter(completeParquetHead).map(head => head.shard));
+        const earningsIds = earningsHeads ? ids.filter(id => !completeShards.has(shardFor(id))) : [];
+        const earnings = earningsIds.length ? await this.rawDocuments(rawRefs(earningsIds), context) : undefined;
+        const liveEarningsHeads = earnings && [...earnings.values()].every(doc => doc.exists && doc.get('recordType') === 'head');
         const reservedIds = reservedFundamentals ? ids.filter(id => !completeShards.has(shardFor(id))) : [];
         const reserved = earnings ?? (reservedIds.length
             ? await this.rawDocuments(rawRefs(reservedIds), context) : undefined);
@@ -492,11 +491,13 @@ export class MarketRepository {
         // the whole-record predicate to incomplete overlays in other collections.
         const native = reserved ?? (!fields && (collection === 'companies' || collection === 'company_fundamentals') ? await this.rawDocuments(ids.filter(id => retained.has(id)).map(id => this.raw.collection(collection).doc(id)), context) : undefined);
         const whole = new Set([...native?.values() ?? []].filter(doc => doc.exists && (collection==='companies' ? typeof doc.get('status') === 'string' && retainedWhole(collection,doc.id,doc.data()!) : doc.id.startsWith('_') && doc.get('completed')!==true)).map(doc => doc.id));
+        if (liveEarningsHeads) for (const id of earningsIds) whole.add(id);
         const externalIds = ids.filter(id => !whole.has(id));
         const result = new Map((externalIds.length ? await this.files.query(heads, [{ method: 'where', args: [FieldPath.documentId(), 'in', externalIds] }, ...(fields ? [{method:'select',args:fields}] : [])]) : []).map(row => [row.id, row]));
         // An external-only projection needs no live-state document read. Whole
         // authored records still come from Firestore when no external row exists.
-        const refs = ids.filter(id => retained.has(id) && (!fields || !result.has(id) || fields.some(field => isOperationalField(collection,field) || isRoutingField(field)))).map(id => this.raw.collection(collection).doc(id));
+        const refs = ids.filter(id => !(earningsHeads && completeShards.has(shardFor(id)))
+            && retained.has(id) && (!fields || !result.has(id) || fields.some(field => isOperationalField(collection,field) || isRoutingField(field)))).map(id => this.raw.collection(collection).doc(id));
         for (const doc of (native ?? await this.rawDocuments(refs, context, fields)).values())
             if (doc.exists) {
                 const previous = result.get(doc.id), overlay = previous ? splitRecord(collection, doc.id, doc.data()!, true).retained : doc.data();

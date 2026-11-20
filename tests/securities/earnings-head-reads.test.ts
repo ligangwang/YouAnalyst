@@ -27,7 +27,8 @@ test('earnings heads read current pointers in caller order without immutable fil
   assert.equal((await f.repo.documents('earnings_records',['head_a']))[0].data.revisionId,'r3');
   const context=f.context();assert.equal((await f.repo.documents('earnings_records',['head_a'],context))[0].data.revisionId,'r3');
   assert(context.documents.has('earnings_records/head_a'));
-  assert.deepEqual(f.counts(),{native:2,queries:0,watches:0,transactionReads:1});
+  // Choose the store from the shard catalog and reuse that watch across both calls.
+  assert.deepEqual(f.counts(),{native:2,queries:0,watches:1,transactionReads:1});
  }finally{await f.repo.close();}
 });
 

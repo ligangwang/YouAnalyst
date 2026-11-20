@@ -657,6 +657,61 @@ test('a cold subscription refreshes once for its initial head and once per later
         assert.equal(calls.length,2);
     }finally{await repo.close();}
 });
+test('earnings pointers skip Firestore payload reads for completed Parquet shards', async () => {
+    const files = fixture();
+    const collection = 'earnings_records';
+    const migrated = 'head_migrated';
+    let live = 'head_live';
+    while (shardFor(live) === shardFor(migrated)) live += '_';
+    const missing = 'head_missing';
+    const version = Timestamp.fromMillis(1700000000123);
+    const row = {id: migrated, version, data: {recordType: 'head', revision: 'parquet'}};
+    const liveData = {recordType: 'head', revision: 'live'};
+    const raw = {
+        collection: (name: string) => ({doc: (id: string) => ({path: name + '/' + id, id, parent: {id: name}})}),
+        doc: (path: string) => ({path, id: path.split('/').at(-1)}),
+    } as unknown as Firestore;
+    const repo = new MarketRepository(raw, files);
+    const nativeReads: string[][] = [];
+    try {
+        const context = repo.context({
+            get: async () => assert.fail('unexpected Firestore point read'),
+            getAll: async (...args) => {
+                const refs = args as Array<{path: string; id: string}>;
+                nativeReads.push(refs.map(ref => ref.id));
+                assert.deepEqual(refs.map(ref => ref.path), ['market_state/earnings_records/records/' + live]);
+                return refs.map(ref => ({ref, id: ref.id, exists: true, updateTime: version,
+                    data: () => liveData, get: (field: keyof typeof liveData) => liveData[field],
+                })) as unknown as FirebaseFirestore.DocumentSnapshot[];
+            },
+        });
+        context.retainedMode = {enabled: true, ready: true, cleanupAuthorized: true};
+        context.control = true;
+        context.cleanupAuthorized = true;
+        context.cleanedCollections = new Set([collection]);
+        context.heads.set(collection + '/' + shardFor(migrated), {
+            ...await files.write(collection, shardFor(migrated), [row], []),
+            recordStorage: 'parquet',
+        });
+        const missingShard = shardFor(missing);
+        if (missingShard !== shardFor(migrated)) context.heads.set(collection + '/' + missingShard, {
+            collection, shard: missingShard, rows: 0, retained: [], recordStorage: 'parquet',
+        });
+        assert.notEqual(shardFor(live), missingShard);
+        context.heads.set(collection + '/' + shardFor(live), {
+            collection, shard: shardFor(live), rows: 0, retained: [live],
+        });
+        assert.deepEqual(await repo.documents(collection, [migrated, missing], context), [row]);
+        assert.deepEqual(nativeReads, []);
+        assert.deepEqual(await repo.documents(collection, [live, migrated, missing], context), [
+            {id: live, data: liveData, version}, row,
+        ]);
+        assert.deepEqual(nativeReads, [[live]]);
+    } finally {
+        await repo.close();
+    }
+});
+
 for (const collection of ['companies','instruments','company_relationships','company_fundamentals','earnings_records','prediction_daily_marks'] as const) test(collection+' edits preserve complete Parquet rows and only publish catalog pointers', async () => {
     const files = fixture(), id = 'US:TEST', shard = shardFor(id);
     const row = {id, version: Timestamp.now(), data: {name:'Test', themeIds:['ai'], onboarding:{status:'READY'}}};
