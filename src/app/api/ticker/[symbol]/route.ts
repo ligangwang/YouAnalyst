@@ -67,6 +67,24 @@ function numberFromStats(stats: Record<string, unknown>, key: string): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function publicTickerPredictions(db: FirebaseFirestore.Firestore, ticker: string) {
+  return db.collection("predictions")
+    .where("ticker", "==", ticker)
+    .where("visibility", "==", "PUBLIC")
+    .orderBy("createdAt", "desc");
+}
+
+function predictionPage(docs: FirebaseFirestore.QueryDocumentSnapshot[], limit: number) {
+  const selected = docs.slice(0, limit);
+  const nextCursor = docs.length > limit ? selected.at(-1)?.get("createdAt") : null;
+  return {
+    items: selected
+      .filter((doc) => PUBLIC_PREDICTION_STATUSES.includes(doc.get("status") as (typeof PUBLIC_PREDICTION_STATUSES)[number]))
+      .map(mapPredictionDoc),
+    nextCursor: typeof nextCursor === "string" ? nextCursor : null,
+  };
+}
+
 async function listTickerPredictions(
   db: FirebaseFirestore.Firestore,
   ticker: string,
@@ -74,29 +92,12 @@ async function listTickerPredictions(
   cursorCreatedAt?: string,
 ) {
   try {
-    let query = db
-      .collection("predictions")
-      .where("ticker", "==", ticker)
-      .where("visibility", "==", "PUBLIC")
-      .orderBy("createdAt", "desc")
-      .limit(limit + 1);
-
+    let query = publicTickerPredictions(db, ticker).limit(limit + 1);
     if (cursorCreatedAt) {
       query = query.startAfter(cursorCreatedAt);
     }
-
     const snapshot = await query.get();
-    const docs = snapshot.docs;
-    const hasMore = docs.length > limit;
-    const selected = hasMore ? docs.slice(0, limit) : docs;
-    const nextCursor = hasMore && selected.length > 0 ? selected[selected.length - 1].get("createdAt") : null;
-
-    return {
-      items: selected
-        .filter((doc) => PUBLIC_PREDICTION_STATUSES.includes(doc.get("status") as (typeof PUBLIC_PREDICTION_STATUSES)[number]))
-        .map(mapPredictionDoc),
-      nextCursor: typeof nextCursor === "string" ? nextCursor : null,
-    };
+    return predictionPage(snapshot.docs, limit);
   } catch (error) {
     if (!isMissingIndexError(error)) {
       throw error;
@@ -224,10 +225,17 @@ async function readViewerPosition(
 }
 
 /** Who tracks the company and what research their active views cite. Uses the ticker/visibility index; a summary failure never hides the views. */
-async function readViewSummary(db: FirebaseFirestore.Firestore, ticker: string) {
+async function readSummaryDocs(db: FirebaseFirestore.Firestore, ticker: string) {
   try {
-    const snapshot = await db.collection("predictions").where("ticker", "==", ticker).where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(300).get();
-    return summarizeCompanyViews(snapshot.docs.map(doc => ({ ...doc.data(), status: canonicalPredictionStatus(doc.get("status")) })));
+    return (await publicTickerPredictions(db, ticker).limit(300).get()).docs;
+  } catch {
+    return undefined;
+  }
+}
+
+function readViewSummary(docs: FirebaseFirestore.QueryDocumentSnapshot[] | undefined) {
+  try {
+    return docs && summarizeCompanyViews(docs.map(doc => ({ ...doc.data(), status: canonicalPredictionStatus(doc.get("status")) })));
   } catch {
     return undefined;
   }
@@ -245,10 +253,15 @@ export async function GET(
 
   try {
     const decoded = await getDecodedUserFromRequest(request);
+    const summaryDocs = request.nextUrl.searchParams.get("summary") === "1"
+      ? readSummaryDocs(db, normalizedTicker)
+      : Promise.resolve(undefined);
     const [result, viewerPosition, summary] = await Promise.all([
-      listTickerPredictions(db, normalizedTicker, limit, cursorCreatedAt),
+      cursorCreatedAt
+        ? listTickerPredictions(db, normalizedTicker, limit, cursorCreatedAt)
+        : summaryDocs.then(docs => docs ? predictionPage(docs, limit) : listTickerPredictions(db, normalizedTicker, limit)),
       readViewerPosition(db, decoded?.uid, normalizedTicker),
-      request.nextUrl.searchParams.get("summary") === "1" ? readViewSummary(db, normalizedTicker) : Promise.resolve(undefined),
+      summaryDocs.then(readViewSummary),
     ]);
     const itemsWithPreferredNames = await applyAuthorInfo(db, result.items);
 
