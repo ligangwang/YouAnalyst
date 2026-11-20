@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {Firestore} from '@google-cloud/firestore';
-import {createRequire} from 'node:module';
+import {initializeApp, applicationDefault} from 'firebase-admin/app';
+import {getFirestore, type Firestore} from 'firebase-admin/firestore';
+import {pathToFileURL} from 'node:url';
 import {Storage} from '@google-cloud/storage';
 import {MarketFiles, shardFor, type MarketHead, type MarketRow} from '../src/lib/market-store/files';
 import {headId, CONTROL} from '../src/lib/market-store/repository';
@@ -12,23 +13,11 @@ import {CleanupGate, migrationCapacity} from './market-migration-safety';
 const collection = 'company_relationships';
 const project = 'ifindata-80905';
 
-async function main() {
-    assert.equal(process.env.GOOGLE_CLOUD_PROJECT, project);
-    assert(!process.env.FIRESTORE_EMULATOR_HOST);
-    const apply = process.argv.includes('--apply');
-    const start = Number(process.env.START_SHARD ?? 0), end = Number(process.env.END_SHARD ?? 256);
+export async function migrateRelationships(
+    db: Firestore, files: MarketFiles, capacity: Pick<CleanupGate, 'before'>,
+    {start, end, apply}: {start: number; end: number; apply: boolean},
+) {
     assert(Number.isInteger(start) && Number.isInteger(end) && 0 <= start && start < end && end <= 256);
-    const require = createRequire(import.meta.url);
-    // Use the same auth library instance as the Firestore transport.
-    const {GoogleAuth, OAuth2Client} = require(require.resolve('google-auth-library', {
-        paths: [require.resolve('google-gax')],
-    })) as typeof import('google-auth-library');
-    const token = process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
-    const auth = token ? new OAuth2Client() : undefined;
-    auth?.setCredentials({access_token: token});
-    const db = new Firestore({projectId: project, auth: auth && new GoogleAuth({projectId: project, authClient: auth})});
-    const files = new MarketFiles(new Storage({projectId: project, authClient: auth}).bucket('ifindata-80905-eodhd-bulk-eod'));
-    const capacity = new CleanupGate(migrationCapacity(project, auth), 20);
     try {
         for (let n = start; n < end; n++) {
             const shard = n.toString(16).padStart(2, '0');
@@ -93,4 +82,17 @@ async function main() {
     }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+async function main() {
+    assert.equal(process.env.GOOGLE_CLOUD_PROJECT, project);
+    assert(!process.env.FIRESTORE_EMULATOR_HOST);
+    initializeApp({projectId: project, credential: applicationDefault()});
+    const files = new MarketFiles(new Storage({projectId: project}).bucket('ifindata-80905-eodhd-bulk-eod'));
+    await migrateRelationships(getFirestore(), files, new CleanupGate(migrationCapacity(project), 20), {
+        start: Number(process.env.START_SHARD ?? 0),
+        end: Number(process.env.END_SHARD ?? 256),
+        apply: process.argv.includes('--apply'),
+    });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+    main().catch(error => { console.error(error); process.exitCode = 1; });
