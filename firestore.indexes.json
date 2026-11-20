@@ -1,5 +1,45 @@
 {
   "indexes": [
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sourceType",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "publication_date",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "headlineTranslationPending",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "companyId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "headlineTranslationDate",
+          "order": "DESCENDING"
+        }
+      ]
+    },
     {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"updatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"records","queryScope":"COLLECTION","fields":[{"fieldPath":"exchange_region","order":"ASCENDING"},{"fieldPath":"themeIds","arrayConfig":"CONTAINS"}]},

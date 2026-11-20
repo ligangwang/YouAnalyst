@@ -30,7 +30,7 @@ test('database-only company feeds reach collection, public news and calendar val
   const record={id:'announcement',version:1,type:'company_news',sourceType:'company_ir',sourceId:feed.id,companyId:feed.companyId,companyIds:[feed.companyId],title:'Company announces earnings call',url:'https://ir.newcompany.com/earnings',published_at:'2026-10-02T12:00:00Z',publication_date:'2026-10-02'};
   const graph:KnowledgeGraph={nodes:[{id:feed.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-06'};
   assert.equal(projectNews([record],graph,at,configs).length,1);
-  assert.equal(publicCompanyAnnouncement(record,feed.companyId,configs)?.channel,'IR');
+  assert.equal(publicCompanyAnnouncement(record,feed.companyId,configs),null);
   assert(approvedCalendarUrl(record.url,record as unknown as import('../../src/lib/calendar/model').CalendarSource,configs));
   assert.equal(projectNews([record],graph,at,[]).length,0);
   assert.equal(publicCompanyAnnouncement(record,feed.companyId,[]),null);

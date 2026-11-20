@@ -23,7 +23,6 @@ fi
 source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
 check_maintenance_job_iam "$job"
 # Deploy and wire the private subscriber before the scheduled job can publish.
-if [[ "$NEWS_SOURCE_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-news-pubsub.sh; fi
 if [[ "$CN_DISCOVERY_QUEUE_ENABLED" == 1 ]]; then bash scripts/deploy-cn-discovery.sh; fi
 if [[ "${NEWS_ENRICHMENT_QUEUE_ENABLED:-0}" == 1 ]]; then bash scripts/deploy-discovery-enrichment.sh article; fi
 env_file="$(mktemp)"
@@ -35,7 +34,7 @@ const env = {NODE_OPTIONS:"--max-old-space-size=1536",ENTITY_SNAPSHOT_BUCKET:pro
   SEC_USER_AGENT:process.env.SEC_USER_AGENT || '',
   INTELLIGENCE_NEWS_COLLECTOR_ENABLED:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED || '0',
   CN_DISCOVERY_REQUEST_TOPIC:process.env.CN_DISCOVERY_QUEUE_ENABLED === '1' ? 'cn-company-discovery-requests' : '',
-  NEWS_SOURCE_REQUEST_TOPIC:process.env.NEWS_SOURCE_QUEUE_ENABLED === '1' ? 'news-source-requests' : '',
+  NEWS_SOURCE_REQUEST_TOPIC:'',
   NEWS_ENRICHMENT_REQUEST_TOPIC:process.env.NEWS_ENRICHMENT_QUEUE_ENABLED === '1' ? 'news-article-enrichment-requests' : '',
   EARNINGS_COLLECTION_ENABLED:process.env.EARNINGS_COLLECTION_ENABLED || '0',
   NEWS_ANALYSIS_MONTHLY_BUDGET_USD:process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD || '5',

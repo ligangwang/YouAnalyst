@@ -8,7 +8,8 @@ export {ANNOUNCEMENT_EVENT_FIELDS} from './announcement-projection';
 
 // Shared with other cached event reads across server bundles.
 export function loadCompanyEventSnapshot(db: Firestore, companyId: string, limit: number, after?: QueryDocumentSnapshot): Promise<QuerySnapshot> {
-  const base = db.collection(EVENTS_COLLECTION).where('companyId', '==', companyId)
+  const company = db.collection(EVENTS_COLLECTION).where('companyId', '==', companyId);
+  const base = (companyId.startsWith('US:') ? company.where('sourceType','==','sec') : company)
     .orderBy('publication_date', 'desc');
   // Native Firestore listeners cannot use a field mask. Parquet uses projected
   // one-shot reads here; bootstrap keeps its original live query.

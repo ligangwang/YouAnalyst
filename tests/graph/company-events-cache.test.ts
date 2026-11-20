@@ -37,6 +37,7 @@ test('company events share loads, receive changes and remain bounded', async t =
     id,
     isEqual(other: { id: string }) { return id === other.id; },
     where(field: string, op: string, value: string) {
+      if(field==='sourceType'){assert.equal(value,'sec');return this;}
       assert.equal(field, 'companyId'); assert.equal(op, '=='); return query(value);
     },
     orderBy(field: string, direction: string) {

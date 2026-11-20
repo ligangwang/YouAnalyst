@@ -20,7 +20,7 @@ export async function translateHeadlines(items:Headline[],options:{key:string;re
   for(const item of output.translations){const original=items.find(input=>input.id===item.id);if(!original||typeof item.text!=='string'||!item.text.trim()||item.text.length>1000||(headlineTargetLocale(original.title)==='en'?/[\u4e00-\u9fff]/.test(item.text)||!/[A-Za-z]/.test(item.text):!/[\u4e00-\u9fff]/.test(item.text))||(original.title.replace(/&#(?:\d+|x[0-9a-f]+);/gi,'').match(/\b\d{4}\b/g)??[]).some(year=>!item.text.includes(year)))throw new Error('Invalid translated headline');}
   return {translations:output.translations,model:raw.model??model,responseId:raw.id??null,usage:raw.usage??null};
 }
-export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySet<string>,options:{deadline:number;now?:()=>number;records?:DocumentSnapshot[];translate?:(items:Headline[])=>Promise<HeadlineResponse>} ){
+export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySet<string>,options:{deadline:number;now?:()=>number;records?:DocumentSnapshot[];disclosuresOnly?:boolean;translate?:(items:Headline[])=>Promise<HeadlineResponse>} ){
   const now=options.now??Date.now,result={translated:0,failed:0,skipped:0};
   if(!options.translate&&!process.env.OPENAI_API_KEY)return {...result,disabled:true};
   if(now()+65_000>options.deadline)return result;
@@ -28,7 +28,8 @@ export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySe
   const readRecords=async()=>{
     const ids=[...mapped],records:DocumentSnapshot[]=[];
     for(let offset=0;offset<ids.length;offset+=30){
-      const page=await db.collection(EVENTS_COLLECTION)
+      const events=db.collection(EVENTS_COLLECTION);
+      const page=await (options.disclosuresOnly?events.where('type','==','company_disclosure'):events)
         .where('headlineTranslationPending','==',true)
         .where('companyId','in',ids.slice(offset,offset+30))
         .where('headlineTranslationDate','>=',earliest)

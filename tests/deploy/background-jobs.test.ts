@@ -163,11 +163,10 @@ test('official news deploy is isolated, bounded and disabled by default',()=>{
   assert.doesNotMatch(run('all').calls,/collect-intelligence-news-production/);
 });
 
-test('news queue deploys its subscriber before switching the scheduled publisher',()=>{
+test('retired issuer collector stays off when a former release flag is supplied',()=>{
   const result=run('intelligence-news',{NEWS_SOURCE_QUEUE_ENABLED:'1',INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',OPENAI_API_KEY:'existing-test-key'});
   assert.equal(result.status,0,result.stderr);
-  assert(result.calls.indexOf('run deploy news-source-subscriber')<result.calls.indexOf('run jobs deploy collect-intelligence-news-production'));
-  assert.match(result.calls,/newsTopic=news-source-requests/);
+  assert.doesNotMatch(result.calls,/run deploy news-source-subscriber|newsTopic=news-source-requests/);
   assert.doesNotMatch(result.calls,/existing-test-key|scheduler jobs (pause|resume)|run jobs execute/);
   const invalid=run('intelligence-news',{NEWS_SOURCE_QUEUE_ENABLED:'invalid'});
   assert.notEqual(invalid.status,0);assert.doesNotMatch(invalid.calls,/builds submit|run deploy|run jobs deploy/);
