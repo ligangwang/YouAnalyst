@@ -15,8 +15,11 @@ for (const locale of ["en", "zh-CN"]) {
       "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx"),
     }});
     const apiRequests: string[] = [];
+    const videoRequests: string[] = [];
     await page.route("**/*", route => {
-      if (new URL(route.request().url()).pathname.startsWith("/api/")) {
+      const pathname = new URL(route.request().url()).pathname;
+      if (pathname.endsWith(".mp4")) videoRequests.push(pathname);
+      if (pathname.startsWith("/api/")) {
         apiRequests.push(route.request().url());
         return route.fulfill({ json: { items: [], total: 0 } });
       }
@@ -26,6 +29,13 @@ for (const locale of ["en", "zh-CN"]) {
     await expect(page.getByRole("heading", {level:1})).toHaveText(locale === "en" ? "Start with a company." : "从一家公司开始。");
     await page.waitForTimeout(1500);
     expect(apiRequests).toEqual([]);
+    expect(videoRequests).toEqual([]);
+    const preview = page.getByRole("region", { name: locale === "en" ? "Turn your market view into a video" : "把你的投资观点做成视频" });
+    await expect(preview.locator("video")).toBeVisible();
+    const createLink = await preview.getByRole("link").first().getAttribute("href");
+    const destination = new URL(createLink!, "http://homepage.test");
+    expect(destination.pathname).toBe("/auth");
+    expect(destination.searchParams.get("next")).toBe(locale === "en" ? "/en/compare" : "/zh-cn/compare");
     await expect(page.getByRole("img")).toBeVisible();
     await page.getByRole("searchbox").fill("NVDA");
     await expect.poll(() => apiRequests.some(url => url.includes("q=NVDA"))).toBe(true);
