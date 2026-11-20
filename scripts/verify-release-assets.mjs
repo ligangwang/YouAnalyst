@@ -43,7 +43,7 @@ for(const [label,documentUrl,assetBackend] of [['new-document-old-backend',candi
     await navigateCandidatePage(page,new URL('/en?view=graph',documentUrl).href);
     // The predecessor has a known independent feed-version bug. This check
     // requires its rendered graph and late module, not a repaired old feed.
-    await page.waitForFunction(requireFeed=>window.__releaseGraphReadyAt!==null&&(!requireFeed||window.__releaseFeedReadyAt!==null),label==='new-document-old-backend',{timeout:45000});
+    await page.waitForFunction(requireFeed=>window.__releaseGraphReadyAt!==null&&(!requireFeed||window.__releaseFeedReadyAt!==null||window.__releaseFeedDisabled),label==='new-document-old-backend',{timeout:45000});
     // Exercise a late-imported module too, after the initial graph is usable.
     await page.getByRole('tab',{name:'Company list',exact:true}).click();
     await page.locator('[data-list-company]').first().waitFor({state:'visible',timeout:20000});

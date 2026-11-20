@@ -24,6 +24,7 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
   assert(Number.isInteger(samples)&&samples>=3&&samples%2===1);
   assert(Number.isFinite(maxGraphDelayMs)&&maxGraphDelayMs>=0);
   const urls={baseline:baselineUrl,candidate:candidateUrl},results={baseline:[],candidate:[]},feeds={baseline:[],candidate:[]},ready={baseline:[],candidate:[]},readyUpper={baseline:[],candidate:[]},feedsUpper={baseline:[],candidate:[]},timeouts={baseline:0,candidate:0};
+  const disabled={baseline:0,candidate:0};
   const timing=async(label)=>{
     const measured=await measure(urls[label],label),value=typeof measured==='number'?{graphMs:measured}:measured;
     assert(!(label==='candidate'&&value.feedTimedOut),'Candidate feed failed to settle; existing traffic stays unchanged');
@@ -32,7 +33,8 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
   for(const label of ['baseline','candidate']){const value=await timing(label);log(JSON.stringify({event:'candidate_browser_warmup',label,durationMs:value.graphMs,feedDurationMs:value.feedMs,...(value.feedTimedOut?{feedTimedOut:true,feedTimeIsLowerBound:true}:{})}));}
   for(let round=0;round<samples;round++) {
     for(const label of round%2?['candidate','baseline']:['baseline','candidate']) {
-      const {graphMs:durationMs,feedMs,feedTimedOut}=await timing(label);
+      const {graphMs:durationMs,feedMs,feedTimedOut,feedDisabled}=await timing(label);
+      if(feedDisabled)disabled[label]++;
       assert(Number.isFinite(durationMs)&&durationMs>0,'Invalid browser timing');
       results[label].push(durationMs);
       if(feedMs!==undefined){assert(Number.isFinite(feedMs)&&feedMs>0,'Invalid feed timing');feeds[label].push(feedMs);feedsUpper[label].push(feedTimedOut?Infinity:feedMs);}
@@ -44,7 +46,9 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
   }
   const summary={event:'candidate_browser_performance',baselineMedianMs:median(results.baseline),candidateMedianMs:median(results.candidate),baselineReadyMedianMs:median(ready.baseline),candidateReadyMedianMs:median(ready.candidate),baselineFeedTimeouts:timeouts.baseline,baselineReadyMedianIsLowerBound:median(ready.baseline)!==median(readyUpper.baseline),baselineFeedMedianIsLowerBound:feeds.baseline.length?median(feeds.baseline)!==median(feedsUpper.baseline):false,samples,maxRegressionRatio,maxGraphDelayMs};
   log(JSON.stringify(summary));
-  if(feeds.baseline.length||feeds.candidate.length){
+  assert(Object.values(disabled).every(count=>count===0||count===samples),'Inconsistent feed settings across samples');
+  const compareFeed=!disabled.baseline&&!disabled.candidate;
+  if(compareFeed&&(feeds.baseline.length||feeds.candidate.length)){
     assert(feeds.baseline.length===samples&&feeds.candidate.length===samples,'Incomplete feed performance samples');
     summary.baselineFeedMedianMs=median(feeds.baseline);summary.candidateFeedMedianMs=median(feeds.candidate);
     summary.baselineFeedMedianIsLowerBound=summary.baselineFeedMedianMs!==median(feedsUpper.baseline);
@@ -52,7 +56,7 @@ export async function verifyCandidatePerformance({candidateUrl,baselineUrl,measu
     assert(summary.candidateFeedMedianMs<=summary.baselineFeedMedianMs*maxRegressionRatio,
       `Candidate feed readiness regressed: ${Math.round(summary.candidateFeedMedianMs)}ms versus ${Math.round(summary.baselineFeedMedianMs)}ms; existing traffic stays unchanged`);
   }
-  assert(summary.candidateReadyMedianMs<=summary.baselineReadyMedianMs*maxRegressionRatio,
+  if(compareFeed)assert(summary.candidateReadyMedianMs<=summary.baselineReadyMedianMs*maxRegressionRatio,
     `Candidate page readiness regressed: ${Math.round(summary.candidateReadyMedianMs)}ms versus ${Math.round(summary.baselineReadyMedianMs)}ms; existing traffic stays unchanged`);
   assert(summary.candidateMedianMs<=summary.baselineMedianMs+maxGraphDelayMs,
     `Candidate graph delay exceeds ${maxGraphDelayMs}ms budget: ${Math.round(summary.candidateMedianMs)}ms versus ${Math.round(summary.baselineMedianMs)}ms; existing traffic stays unchanged`);
@@ -74,8 +78,8 @@ async function run() {
         page.on('requestfailed',request=>{if(errors.length<20)errors.push(`${new URL(request.url()).pathname}: ${request.failure()?.errorText??'request failed'}`.slice(0,180));});
         await page.addInitScript(installGraphReadinessProbe);
         navigationStatus=await navigateCandidatePage(page,new URL('/en?view=graph',url).href);
-        await page.waitForFunction(()=>window.__releaseGraphReadyAt!==null&&window.__releaseFeedReadyAt!==null,{},{timeout:45000});
-        const duration=await page.evaluate(()=>({graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt}));
+        await page.waitForFunction(()=>window.__releaseGraphReadyAt!==null&&(window.__releaseFeedReadyAt!==null||window.__releaseFeedDisabled),{},{timeout:45000});
+        const duration=await page.evaluate(()=>({graphMs:window.__releaseGraphReadyAt,feedMs:window.__releaseFeedReadyAt??undefined,feedDisabled:window.__releaseFeedDisabled}));
         await page.waitForTimeout(300);
         return duration;
       } catch(error) {

@@ -83,7 +83,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       // A cold initial feed can finish after the normal background polling budget.
       // Keep that request alive while the graph is visible and the feed is pending.
       const cachedFeed = themeSnapshots.current.get(theme);
-      const timeoutMs = cachedFeed && !cachedFeed.eventsPending ? 15_000 : 40_000;
+      const timeoutMs = cachedFeed && !cachedFeed.eventsPending && !cachedFeed.graphStructureOnly ? 15_000 : 40_000;
       const timeout = setTimeout(() => controller?.abort(), timeoutMs);
       try {
         const url=!showEvents ? `/api/intelligence?theme=${theme}&section=universe&graph=compact` : `/api/intelligence?theme=${theme}&graph=${firstGraphRequired.current?'compact':'omit'}${fullEvents||company||query||region||event||relationship||previousDay.current?'':'&payload=compact'}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;

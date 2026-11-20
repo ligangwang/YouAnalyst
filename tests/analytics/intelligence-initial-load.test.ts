@@ -60,7 +60,7 @@ test('a stalled snapshot finishes HTML with the existing API loader instead of h
   assert.match(rendered.html(),/Client API loader/);
 });
 
-test('unscoped homepage preloads the feed with valuations before the graph is ready without reading the feed on the server',async()=>{
+test('unscoped homepage renders its graph without preloading the disabled events feed',async()=>{
  let releaseGraph!:(value:unknown)=>void;
  const graph={asOf:'2026-11-07',nodes:[],relationships:[],sources:[]};
  const graphRead=new Promise(resolve=>{releaseGraph=resolve;});
@@ -69,7 +69,7 @@ test('unscoped homepage preloads the feed with valuations before the graph is re
  }));
  await rendered.shell;
  await new Promise(resolve=>setImmediate(resolve));
- assert.match(rendered.html(),/as="fetch"/);assert.match(rendered.html(),/theme=robotics/);assert.match(rendered.html(),/graph=compact/);
+ assert.doesNotMatch(rendered.html(),/as="fetch"/);
  releaseGraph({graph,graphVersion:'v1',events:[],eventsPending:true});
  await rendered.done;
  assert.match(rendered.html(),/Loaded snapshot/);
