@@ -4,8 +4,10 @@
 discovery behind the existing authenticated Pub/Sub subscriber pattern. It defaults
 to `0`; shipping this code alone does not activate collection or execute jobs.
 
-The scheduled news job publishes an `announcements` task for each due enrolled
-A-share company. The scheduled earnings job publishes `earnings-fallback` tasks
+The daily A-share announcement job runs at 11 a.m. Eastern and publishes
+an `announcements` task for each due enrolled company within a rotating
+batch. It attempts at most 264 submissions per run with 30 seconds between
+dispatches. The scheduled earnings job publishes `earnings-fallback` tasks
 when announcement coverage is missing, incomplete or stale. Both use
 `cn-company-discovery-requests`, subscription `cn-company-discovery-worker`, and
 the private `cn-company-discovery-subscriber` service. Each message identifies one
@@ -58,8 +60,8 @@ No AI key or SEC credential is passed to this discovery service.
 To return scheduled discovery to direct mode, set `CN_DISCOVERY_QUEUE_ENABLED=0`
 and redeploy the publishers. Do not delete the queue or discard pending deliveries.
 Keep collection flags consistent with operator intent. Existing schedules retain
-their enabled/paused state during ordinary releases; this pipeline creates no new
-schedule and requires no migration or company backfill.
+their enabled/paused state during ordinary releases. The daily announcement
+schedule mirrors the news schedule on first deployment.
 
 Monitor per-company `run_completed`/`run_failed` logs, partial checkpoints, request
 cooldowns, subscription backlog and dead-letter counts. A healthy subscriber alone
