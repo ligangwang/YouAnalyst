@@ -38,11 +38,11 @@ test("ticker predictions reuse the first-page summary query and keep cursor and 
       builder.onLoad({ filter: /[\\/]firebase[\\/]auth\.ts$/ }, () => ({ contents: "export const getDecodedUserFromRequest = async () => null;", loader: "js" }));
     } }],
   });
-  const module = { exports: {} as { GET: (req: { nextUrl: URL }, context: { params: Promise<{ symbol: string }> }) => Promise<Response> } };
-  new Function("db", "require", "module", bundle.outputFiles[0].text)(db, createRequire(import.meta.url), module);
+  const testModule = { exports: {} as { GET: (req: { nextUrl: URL }, context: { params: Promise<{ symbol: string }> }) => Promise<Response> } };
+  new Function("db", "require", "module", bundle.outputFiles[0].text)(db, createRequire(import.meta.url), testModule);
   async function request(query: string) {
     reads.length = 0;
-    const response = await module.exports.GET({ nextUrl: new URL("https://example.com/api/ticker/AMD?limit=3" + query) }, { params: Promise.resolve({ symbol: "AMD" }) });
+    const response = await testModule.exports.GET({ nextUrl: new URL("https://example.com/api/ticker/AMD?limit=3" + query) }, { params: Promise.resolve({ symbol: "AMD" }) });
     assert.equal(response.status, 200);
     return response.json();
   }
