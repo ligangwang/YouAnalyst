@@ -209,25 +209,27 @@ test('page cache scope does not change bulk readers, leak after rejection or cac
 
 test('announcement source approval reads only its company, shares the push cache and applies withdrawals',async t=>{
  t.after(closeLocalCaches);const f=fixture();
- const source={id:'small-ir',companyId:'US:SMALL',name:'Small IR',url:'https://ir.smallcompany.com/rss.xml',allowedHosts:['ir.smallcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+ const source={id:'small-ir',companyId:'XSHG:688981',name:'Small IR',url:'https://ir.smallcompany.com/rss.xml',allowedHosts:['ir.smallcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
  const company={name:'Small',status:'DIRECTORY',onboarding:{status:'SUPPORTED'},themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[source]};
  f.rows.set('investment_themes/technology',{status:'PUBLISHED',parentId:null,names:{en:'Technology','zh-CN':'Technology'},order:0});
  f.rows.set('investment_themes/ai',{status:'PUBLISHED',parentId:'technology',names:{en:'AI','zh-CN':'AI'},order:0});
- f.rows.set('companies/US:SMALL',company);
+ f.rows.set('companies/XSHG:688981',company);
  // An unrelated invalid source cannot block this company's announcements.
  f.rows.set('companies/US:OTHER',{...company,newsSources:[{...source,companyId:'US:OTHER',url:'http://unapproved.invalid'}]});
- const read=()=>loadCompanyAnnouncementSources(f.db,'US:SMALL');
+ const read=()=>loadCompanyAnnouncementSources(f.db,'XSHG:688981');
+ assert.deepEqual(await loadCompanyAnnouncementSources(f.db,'US:SMALL'),[]);
+ assert.deepEqual(f.counts(),{files:0,opens:0,gets:0});
  const results=await Promise.all(Array.from({length:20},read));
  assert.equal(results[0][0]?.id,'small-ir');
  assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
- f.rows.set('companies/US:SMALL',{...company,newsSources:[{...source,status:'WITHDRAWN'}]});f.push();
+ f.rows.set('companies/XSHG:688981',{...company,newsSources:[{...source,status:'WITHDRAWN'}]});f.push();
  assert.deepEqual(await read(),[]);
- f.rows.set('companies/US:SMALL',{...company,onboarding:{status:'BLOCKED'}});f.push();
+ f.rows.set('companies/XSHG:688981',{...company,onboarding:{status:'BLOCKED'}});f.push();
  assert.deepEqual(await read(),[]);
- f.rows.set('companies/US:SMALL',{...company,onboarding:{status:'QUEUED'}});f.push();
+ f.rows.set('companies/XSHG:688981',{...company,onboarding:{status:'QUEUED'}});f.push();
  assert.deepEqual(await read(),[],'queued onboarding cannot authorize a source');
- f.rows.set('companies/US:SMALL',{...company,isDeleted:true});f.push();assert.deepEqual(await read(),[]);
- f.rows.delete('companies/US:SMALL');f.push();assert.deepEqual(await read(),[]);
+ f.rows.set('companies/XSHG:688981',{...company,isDeleted:true});f.push();assert.deepEqual(await read(),[]);
+ f.rows.delete('companies/XSHG:688981');f.push();assert.deepEqual(await read(),[]);
  assert.deepEqual(f.counts(),{files:0,opens:1,gets:0});
 });
 
