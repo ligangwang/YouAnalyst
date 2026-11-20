@@ -136,7 +136,7 @@ try {
     }
     const hints=[response.headers.get('link')??'',...(html.match(/<link\b[^>]*>/g)??[])].join('\n');
     for(const file of graphScripts)assert.equal(hints.includes(file),expected,`Unexpected 3D preload for ${view}: ${file}`);
-    assert(hints.replaceAll('&amp;','&').includes('/api/intelligence?theme=ai&graph=compact&payload=compact'),`Missing early feed and valuation preload for ${view}`);
+    assert(!hints.includes('/api/intelligence?'),`Unexpected event feed preload for ${view}`);
   }
   const scopedHome=await memberRead(`${base}/en?company=US%3ANVDA`);
   const scopedHtml=await scopedHome.text();
