@@ -68,12 +68,16 @@ export async function publishQueuedCompanyGraphRequests(input: { limit?: number;
   const items: Array<{ ticker: string; requestId: string; source: "manual" | "filing"; status: string; error?: string }> = [];
   if (!budget.available && !input.preview) return { requestedLimit: limit, published: 0, failed: 0,
     mode: "pubsub", status: "budget_deferred", retryAtMs: budget.retryAtMs, items };
-  const [manual, filings] = await Promise.all([
-    listQueuedCompanyGraphRequests(limit, db, now, { unpublishedOnly: true, preview: input.preview }),
+  const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
+  const [dispatcher, filings] = await Promise.all([
+    cursorRef.get(),
     listDeferredCompanyGraphFilings(limit, db, now, input.preview),
   ]);
-  const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
-  const firstQueue = (await cursorRef.get()).data()?.nextQueue === "filing" ? "filing" : "manual";
+  const storedCursor = dispatcher.get("cursor");
+  const manual = await listQueuedCompanyGraphRequests(limit, db, now, {
+    unpublishedOnly: true, preview: input.preview, cursor: typeof storedCursor === "string" ? storedCursor : null,
+  });
+  const firstQueue = dispatcher.get("nextQueue") === "filing" ? "filing" : "manual";
   const manualWork = manual.map(candidate => ({ source: "manual" as const, request: requestForCompanyGraphItem(candidate) }));
   const filingWork = filings.map(candidate => ({ source: "filing" as const, request: candidate.event }));
   const queues = { manual: manualWork, filing: filingWork };

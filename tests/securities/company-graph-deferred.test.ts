@@ -18,15 +18,15 @@ function enableMockedAdmission(t: TestContext) {
 }
 function fixture() {
   const rows = new Map<string, Data>();
-  const writes: string[] = [], queries: number[] = [];
+  const writes: string[] = [], reads: string[] = [], queries: number[] = [];
   let failure: ((path: string, data: Data) => boolean) | undefined;
   let transactions = Promise.resolve();
-  const snapshot = (path: string) => ({ id: path.split("/").at(-1)!, data: () => structuredClone(rows.get(path)) });
+  const snapshot = (path: string) => ({ id: path.split("/").at(-1)!, data: () => structuredClone(rows.get(path)), get: (field: string) => structuredClone(rows.get(path)?.[field]) });
   const apply = (ops: Array<{ path: string; data: Data }>) => {
     if (ops.some(op => failure?.(op.path, op.data))) throw new Error("Durable write failed");
     for (const op of ops) { rows.set(op.path, { ...rows.get(op.path), ...structuredClone(op.data) }); writes.push(op.path); }
   };
-  const ref = (path: string) => ({ path, get: async () => snapshot(path), set: async (data: Data) => apply([{ path, data }]) });
+  const ref = (path: string) => ({ path, get: async () => { reads.push(path); return snapshot(path); }, set: async (data: Data) => apply([{ path, data }]) });
   const collection = (name: string) => {
     const clauses: Array<[string, string, unknown]> = [];
     let count = Infinity, cursor = "";
@@ -57,7 +57,7 @@ function fixture() {
     });
     transactions = result.then(() => undefined, () => undefined); return result;
   } } as unknown as Firestore;
-  return { db, rows, writes, queries, inject: (value?: typeof failure) => { failure = value; } };
+  return { db, rows, writes, reads, queries, inject: (value?: typeof failure) => { failure = value; } };
 }
 const now = Date.parse("2026-10-01T22:00:00Z");
 const retryAtMs = new GraphBudgetExceededError(now).retryAtMs;
@@ -164,6 +164,7 @@ test("preview is write-free and unavailable budget cannot publish or advance cur
   const deps = { db: f.db, now: retryAtMs, budgetAvailability: async () => ({ available: false, retryAtMs }),
     publish: async () => { throw Error("forbidden"); }, publishFiling: async () => { throw Error("forbidden"); } };
   const preview = await publishQueuedCompanyGraphRequests({ limit: 5, preview: true }, deps);
+  assert.equal(f.reads.filter(path => path === "company_research_requests/_graph_dispatcher").length, 1);
   assert.equal(preview.items.length, 2); assert.equal(preview.published, 0);
   assert.deepEqual([...f.rows], before); assert.equal(f.writes.length, writeCount);
   assert.equal((await publishQueuedCompanyGraphRequests({}, deps)).published, 0);
