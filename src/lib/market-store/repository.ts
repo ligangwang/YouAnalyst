@@ -444,10 +444,20 @@ export class MarketRepository {
         return this.documentsWithRetained(collection, ids, context, fields);
     }
     private async documentsWithRetained(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
-        const earningsHeads=collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_'));
-        const reserved=earningsHeads||collection==='company_fundamentals'&&!fields&&ids.every(id=>id.startsWith('_'))?await this.rawDocuments(ids.map(id=>this.raw.collection(collection).doc(id)),context):undefined;
-        if(reserved&&[...reserved.values()].every(doc=>doc.exists&&(earningsHeads?doc.get('recordType')==='head':doc.get('completed')!==true)))return ids.map(id=>{const doc=reserved.get(collection+'/'+id)!;return {id,data:doc.data()!,version:doc.updateTime!};});
+        const earningsHeads = collection === 'earnings_records' && !fields && ids.every(id => id.startsWith('head_'));
+        const rawRefs = (keys: string[]) => keys.map(id => this.raw.collection(collection).doc(id));
+        const earnings = earningsHeads ? await this.rawDocuments(rawRefs(ids), context) : undefined;
+        if (earnings && [...earnings.values()].every(doc => doc.exists && doc.get('recordType') === 'head'))
+            return ids.map(id => {const doc = earnings.get(collection + '/' + id)!; return {id, data: doc.data()!, version: doc.updateTime!};});
         const heads = await Promise.all([...new Set(ids.map(shardFor))].map(shard => this.head(collection, shard, context)));
+        const reservedFundamentals = collection === 'company_fundamentals' && !fields && ids.every(id => id.startsWith('_'));
+        const completeShards = new Set(heads.filter(completeParquetHead).map(head => head.shard));
+        const reservedIds = reservedFundamentals ? ids.filter(id => !completeShards.has(shardFor(id))) : [];
+        const reserved = earnings ?? (reservedIds.length
+            ? await this.rawDocuments(rawRefs(reservedIds), context) : undefined);
+        if (reservedFundamentals && reserved && reservedIds.length === ids.length
+            && [...reserved.values()].every(doc => doc.exists && doc.get('completed') !== true))
+            return ids.map(id => {const doc = reserved.get(collection + '/' + id)!; return {id, data: doc.data()!, version: doc.updateTime!};});
         const retained = this.retainedMembership(heads);
         // Full company reads already require these live records. A complete
         // editorial company has no external payload. Require its external status
@@ -537,7 +547,7 @@ export class MarketRepository {
         let heads = [...(await this.heads(collection, context)).values()];
         // A local committed-write notification may arrive before the atomic catalog
         // snapshot. Refresh one consistent catalog before choosing the query path.
-        if (collection !== 'company_relationships' && heads.some(completeParquetHead) && !heads.every(completeParquetHead)) {
+        if ((collection === 'companies' || collection === 'instruments') && heads.some(completeParquetHead) && !heads.every(completeParquetHead)) {
             const catalog = this.raw.collection('collectors').where('marketCollection', '==', collection);
             const snapshot = context ? await context.reader.get(catalog) as FirebaseFirestore.QuerySnapshot : await catalog.get();
             heads = snapshot.docs.map(doc => this.parseHead(collection, doc.get('marketHead.shard'), doc));
