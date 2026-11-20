@@ -1,6 +1,6 @@
 # News source queue
 
-The existing hourly `collect-intelligence-news-production` job can publish source
+The daily `collect-intelligence-news-production` job can publish source
 requests instead of fetching every publisher within its eight-minute window.
 `NEWS_SOURCE_QUEUE_ENABLED=1` in deployment sets `NEWS_SOURCE_REQUEST_TOPIC` to
 `news-source-requests`. With the flag unset, the existing direct path remains

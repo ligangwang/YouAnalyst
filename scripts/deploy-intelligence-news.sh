@@ -77,8 +77,8 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --command node --args dist/collect-intelligence-news.cjs,--apply,--skip-cn-announcements \
   --env-vars-file "$env_file" --quiet
 ensure_maintenance_job_iam "$job"
-# Preserve the hourly cadence of the remaining news work.
-args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '7 * * * 1-5' --time-zone America/New_York
+# Run general news processing once daily, just after announcement dispatch starts.
+args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '7 11 * * *' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$job:run"
   --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
   --attempt-deadline 180s --max-retry-attempts 0 --quiet)

@@ -8,7 +8,7 @@ Headline rules require explicit language. SEC Form 4 alone means ownership discl
 
 Insider facets are persisted on their existing source document in `insiderEventGroups`, with a strong grouping key: company, sorted reporting-owner identities, transaction date, subtype, normalized security and derivative flag. Matching facets merge at projection time and retain every reference URL. Different insiders, securities, dates and buy/sell types remain separate. Amendments update details while retaining the first publication date and original references. Exact matching company-news announcements retain the existing conservative grouping rules.
 
-The hourly news worker backfills a bounded batch, resumes through `collectors/event-classification-v1`, and retries unresolved ownership reads on later scans. No original content or source timestamps are overwritten. Documents with newer classification versions are skipped; transactions recheck original source identity before writing.
+The daily news worker backfills a bounded batch, resumes through `collectors/event-classification-v1`, and retries unresolved ownership reads on later scans. No original content or source timestamps are overwritten. Documents with newer classification versions are skipped; transactions recheck original source identity before writing.
 
 Manual migration uses the existing maintenance image and existing news worker service account:
 

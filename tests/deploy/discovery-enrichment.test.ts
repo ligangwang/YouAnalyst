@@ -80,16 +80,16 @@ test('publisher wiring deploys consumers first, drains old SEC work naturally an
  assert.match(drain,/completionTime/);assert.match(drain,/process\.env\.GIT_SHA/);
  const workflow=readFileSync('.github/workflows/deploy.yml','utf8');assert.match(workflow,/SEC_DISCOVERY_QUEUE_ENABLED: \$\{\{ vars.SEC_DISCOVERY_QUEUE_ENABLED/);assert.match(workflow,/NEWS_ENRICHMENT_QUEUE_ENABLED: \$\{\{ vars.NEWS_ENRICHMENT_QUEUE_ENABLED/);
 });
-test('A-share announcements have a daily job before the hourly publisher stops dispatching them',()=>{
+test('A-share announcements and general news have separate daily schedules',()=>{
  const deploy=readFileSync('scripts/deploy-intelligence-news.sh','utf8');
  const dailyJob=deploy.indexOf('gcloud run jobs deploy "$cn_job"');
  const dailySchedule=deploy.indexOf('gcloud scheduler jobs create http "$cn_job"');
- const hourlyJob=deploy.indexOf('gcloud run jobs deploy "$job"');
- assert(dailyJob>=0&&dailyJob<dailySchedule&&dailySchedule<hourlyJob);
+ const newsJob=deploy.indexOf('gcloud run jobs deploy "$job"');
+ assert(dailyJob>=0&&dailyJob<dailySchedule&&dailySchedule<newsJob);
  assert.match(deploy.slice(dailyJob,dailySchedule),/--cn-announcements-only/);
- assert.match(deploy.slice(dailyJob,hourlyJob),/--schedule '0 11 \* \* \*' --time-zone America\/New_York/);
- assert.match(deploy.slice(hourlyJob),/--skip-cn-announcements/);
- assert.match(deploy.slice(hourlyJob),/--schedule '7 \* \* \* 1-5'/);
+ assert.match(deploy.slice(dailyJob,newsJob),/--schedule '0 11 \* \* \*' --time-zone America\/New_York/);
+ assert.match(deploy.slice(newsJob),/--skip-cn-announcements/);
+ assert.match(deploy.slice(newsJob),/--schedule '7 11 \* \* \*' --time-zone America\/New_York/);
 });
 
 test('SEC activation waits for older executions but permits new fenced compatibility work without stopping either',()=>{
