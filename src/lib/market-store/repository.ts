@@ -624,8 +624,15 @@ export class MarketRepository {
         const viewFields=[...new Set(viewSteps.filter(step=>['where','orderBy'].includes(step.method)).map(step=>fieldName(step.args[0]).split('.')[0]))].filter(field=>field!=='__name__');
         const viewRows=companyView?await this.files.filter([...companyView.values()].map(doc=>({id:doc.id,
             data:Object.fromEntries(viewFields.map(field=>[field,doc.get(field)]).filter(([,value])=>value!==undefined)),version:doc.updateTime!})),viewSteps):undefined;
+        const nativeLimit = heads.some(completeParquetHead) && this.nativeQuerySteps(collection, steps, operational)
+            .find(step => step.method === 'limit' || step.method === 'limitToLast');
+        const retainedWindow = nativeLimit && Number(nativeLimit.args[0]) > 0 ? {
+            count: Number(nativeLimit.args[0]),
+            fromEnd: nativeLimit.method === 'limitToLast',
+            accepts: (id: string) => retainedIds.has(id),
+        } : undefined;
         const rawPage = {docs:viewRows?viewRows.map(row=>companyView!.get(row.id)!):heads.some(head=>head.retained.length||this.unknownRetained.has(head))
-            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context):[]};
+            ?await this.retainedStore.query(collection,path=>this.nativeQuery(collection,steps,operational,path),context,retainedWindow):[]};
         if(!companyView)reportNativeRead(collection,steps,rawPage.docs.length,!!context,rawPage.docs);
         if (!steps.some(s => s.method === 'select'))
             for (const doc of rawPage.docs)
@@ -637,7 +644,7 @@ export class MarketRepository {
         // cannot add payloads (and is expensive for the company directory).
         const completeExternalScan = !onlyRetained && !requiresOverlay && candidateSteps.every(step =>
             step.method === 'select' || step.method === 'orderBy' && fieldName(step.args[0]) === '__name__');
-        const missingExternal = completeExternalScan ? [] : rawPage.docs.filter(doc => !result.has(doc.id)).map(doc => doc.id);
+        const missingExternal = completeExternalScan ? [] : rawPage.docs.filter(doc => retainedIds.has(doc.id) && !result.has(doc.id)).map(doc => doc.id);
         if (missingExternal.length && !onlyRetained) {
             const selected = heads.filter(head => missingExternal.some(id => shardFor(id) === head.shard));
             for (const row of await this.files.query(selected, [{ method: 'where', args: [FieldPath.documentId(), 'in', missingExternal] }, ...candidateSteps.filter(step => step.method === 'select')]))

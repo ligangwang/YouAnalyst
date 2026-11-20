@@ -121,13 +121,27 @@ export class RetainedStore {
         if(roots.some(Boolean))return this.raw.runTransaction(tx=>read(batch=>tx.getAll(...batch,...options)),{readOnly:true});
         return read(batch=>this.raw.getAll(...batch,...options));
     }
-    async query(collection:MarketCollection,build:(path:string)=>Query,context?:RetainedContext):Promise<DocumentSnapshot[]>{
-        const mode=relocatesCollection(collection)?await this.mode(context):undefined;
-        const relocated=this.readsNew(mode,context);
-        const paths=relocated?['market_state','market_ugc'].map(root=>`${root}/${collection}/records`):[collection];
-        const read=(reader?:RetainedContext['reader'])=>Promise.all(paths.map(async path=>{
-            const query=build(path);
-            return reader?await reader.get(query) as FirebaseFirestore.QuerySnapshot:await query.get();
+    async query(collection: MarketCollection, build: (path: string) => Query, context?: RetainedContext,
+        window?: {count: number; fromEnd: boolean; accepts: (id: string) => boolean}): Promise<DocumentSnapshot[]> {
+        const mode = relocatesCollection(collection) ? await this.mode(context) : undefined;
+        const relocated = this.readsNew(mode, context);
+        const paths = relocated ? ['market_state','market_ugc'].map(root => `${root}/${collection}/records`) : [collection];
+        const read = (reader?: RetainedContext['reader']) => Promise.all(paths.map(async path => {
+            const query = build(path);
+            const get = async (page: Query) => (reader ? await reader.get(page) as FirebaseFirestore.QuerySnapshot : await page.get()).docs;
+            if (!window) return get(query);
+            // Migrated originals can remain until readback. Page past them
+            // within the same snapshot before applying the logical limit.
+            const matched: DocumentSnapshot[] = [];
+            let page = query;
+            for (;;) {
+                const docs = await get(page);
+                const accepted = docs.filter(doc => window.accepts(doc.id));
+                if (window.fromEnd) matched.unshift(...accepted); else matched.push(...accepted);
+                if (matched.length >= window.count || docs.length < window.count)
+                    return window.fromEnd ? matched.slice(-window.count) : matched.slice(0, window.count);
+                page = window.fromEnd ? query.endBefore(docs[0]) : query.startAfter(docs[docs.length - 1]);
+            }
         }));
         // A curated edit can move a record between the two roots. Both queries
         // must observe the same snapshot, or a valid move could omit/duplicate it.
@@ -135,7 +149,7 @@ export class RetainedStore {
             ?await this.raw.runTransaction(tx=>read({get:ref=>tx.get(ref as Query),getAll:(...refs)=>tx.getAll(...refs)}),{readOnly:true})
             :await read();
         const ids=new Set<string>();
-        return pages.flatMap(page=>page.docs.map(doc=>{
+        return pages.flatMap(page=>page.map(doc=>{
             if(ids.has(doc.id))throw Error('Retained record exists in both destinations');ids.add(doc.id);
             return relocated?this.logical(doc,this.raw.collection(collection).doc(doc.id)):doc;
         }));
