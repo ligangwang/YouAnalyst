@@ -1,130 +1,29 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { parseLocale } from "./lib/locale";
-import { parseMarket } from "./lib/preferences";
-import { isLocalizedPage, localizedPath, pathLocale, unlocalizedPath } from "./lib/ui/i18n/urls";
-import { publicCompanyPath } from "./lib/market-companies/slugs";
-import { COMPANY_SLUG_INVENTORY, inventoryCompanyId, inventoryCompanyPath } from './lib/market-companies/slug-inventory';
+import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
+import { routeRequest } from './lib/access/routing';
+import { MEMBER_COOKIE, requiresMembership } from './lib/access/policy';
+import { pathLocale, unlocalizedPath } from './lib/ui/i18n/urls';
+import { verifiedSearchCrawler } from './lib/access/crawlers';
 
-const REDIRECT_HOSTS = new Set([
-  "www.youanalyst.com",
-  "younalyst.com",
-  "www.younalyst.com",
-  "ifindata.com",
-  "www.ifindata.com",
-]);
-const CANONICAL_HOST = "youanalyst.com";
-
-export function proxy(request: NextRequest) {
-  const enteredAt=Date.now();
-  // Log at ingress so sitemap cache hits and redirects are recorded too.
-  const pathname = request.nextUrl.pathname;
-  if (pathname === "/sitemap.xml" || pathname.startsWith("/sitemaps/")) {
-    console.info(JSON.stringify({
-      severity: "INFO",
-      event: "sitemap_request",
-      timestamp: new Date().toISOString(),
-      path: pathname,
-      method: request.method,
-      userAgent: request.headers.get("user-agent"),
-      revision: process.env.K_REVISION ?? null,
-    }));
+export async function proxy(request: NextRequest) {
+  if (!requiresMembership(request.nextUrl)) return routeRequest(request);
+  const supplied = request.headers.get('x-ya-internal-token') ?? '';
+  const expected = process.env.INTERNAL_API_TOKEN ?? '';
+  const a = Buffer.from(supplied), b = Buffer.from(expected);
+  const service = !!expected && a.length === b.length && timingSafeEqual(a, b);
+  const bearer = request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1];
+  const cookie = request.cookies.get(MEMBER_COOKIE)?.value;
+  const member = service || !!(cookie && await (await import('./lib/access/member')).verifyMember(cookie)) || !!(bearer && await (await import('./lib/access/member')).verifyMember(bearer));
+  const crawler = !member && await verifiedSearchCrawler(request);
+  if (!member && !crawler) {
+    const headers = {'Cache-Control':'private, no-store', 'X-Robots-Tag':'noindex'};
+    if (unlocalizedPath(request.nextUrl.pathname).startsWith('/api/')) return NextResponse.json({error:'Sign in to access member content.'}, {status:401, headers});
+    const destination = new URL('/auth', request.url);
+    destination.searchParams.set('next', request.nextUrl.pathname + request.nextUrl.search);
+    destination.searchParams.set('lang', pathLocale(request.nextUrl.pathname) ?? 'en');
+    return NextResponse.redirect(destination, {status:307, headers});
   }
-  const hostHeader = request.headers.get("host");
-  const requestHost = hostHeader?.split(":")[0]?.toLowerCase() ?? "";
-
-  if (!REDIRECT_HOSTS.has(requestHost)) {
-    const explicit = parseLocale(request.nextUrl.searchParams.get("lang"));
-    const prefix = pathLocale(request.nextUrl.pathname);
-    const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
-    const plain = unlocalizedPath(request.nextUrl.pathname);
-    const oldTicker = /^\/ticker\/([A-Za-z0-9][A-Za-z0-9.-]{0,15})$/.exec(plain);
-    const companyTicker = /^\/company\/([A-Z0-9][A-Z0-9.-]{0,15})$/.exec(plain)?.[1];
-    const tickerId = companyTicker && `US:${companyTicker}`;
-    const inventorySlug = tickerId && COMPANY_SLUG_INVENTORY[tickerId];
-    // Known uppercase ticker aliases resolve before the company page opens its data store.
-    // The lowercase destination still resolves the current company record and custom slug.
-    const companyAlias = tickerId && inventorySlug && inventoryCompanyId(inventorySlug) === tickerId
-      ? inventoryCompanyPath(tickerId, inventorySlug) : null;
-    const oldTickerPath = oldTicker && !/^[036]\d{5}$/.test(oldTicker[1])
-      ? inventoryCompanyPath(`US:${oldTicker[1].toUpperCase()}`) ?? publicCompanyPath(oldTicker[1]) : null;
-    const redirectPath = companyAlias ?? oldTickerPath;
-    if (redirectPath?.startsWith('/company/') && redirectPath !== plain) {
-      const destination = new URL(request.url);
-      destination.pathname = localizedPath(redirectPath, locale);
-      destination.searchParams.delete("lang");
-      return NextResponse.redirect(destination, 308);
-    }
-    if (/^(?:\/institutions(?:\/|$)|\/daily\/(?:insider|insiders|institutional)(?:\/|$)|\/api\/(?:institutions|institutional-holdings|insider-transactions)(?:\/|$)|\/api\/daily-scores\/institutional-share-image$)/.test(plain)) {
-      return new NextResponse("Not found", { status: 404, headers: { "X-Robots-Tag": "noindex", "Cache-Control": "no-store" } });
-    }
-    const localizable = isLocalizedPage(plain);
-    const target = new URL(request.url);
-    const retiredResearch = (plain === "/" || plain === "/map") && target.searchParams.get("view") === "filings";
-    const feedAlias = plain === "/feed";
-    const followingFeedAlias = feedAlias && target.searchParams.getAll("scope").length === 1 && target.searchParams.get("scope") === "following";
-    const graphAlias = plain === "/map" || plain === "/intelligence";
-    if (localizable) {
-      target.pathname = localizedPath(followingFeedAlias ? "/watchlists/following" : retiredResearch || graphAlias || feedAlias ? "/" : plain, locale);
-      target.searchParams.delete("lang");
-      if (retiredResearch || (feedAlias && target.searchParams.get("view") === "filings")) target.searchParams.set("view", "graph");
-      if (followingFeedAlias) target.searchParams.set("view", "updates");
-      if ((graphAlias || (feedAlias && !followingFeedAlias)) && !target.searchParams.has("view")) {
-        target.searchParams.set("view", "graph");
-      }
-      if (feedAlias) {
-        const supported = new Set(["theme", "company", "q", "event", "relationship", "market", "view"]);
-        for (const key of [...target.searchParams.keys()]) if (!supported.has(key)) target.searchParams.delete(key);
-      }
-      if ((plain === "/" || graphAlias || feedAlias) && target.searchParams.get("market") === "ALL") target.searchParams.delete("market");
-      if (target.pathname !== request.nextUrl.pathname || target.search !== request.nextUrl.search) {
-        const response = NextResponse.redirect(target, prefix || explicit ? 308 : 307);
-        response.headers.set("Cache-Control", "private, no-store");
-        response.cookies.set("ya-language", locale, { path: "/", maxAge: 31536000, sameSite: "lax", secure: target.protocol === "https:" });
-        const selectedMarket = parseMarket(request.nextUrl.searchParams.get("market"));
-        if (selectedMarket) response.cookies.set("ya-market", selectedMarket, { path: "/", maxAge: 31536000, sameSite: "lax", secure: target.protocol === "https:" });
-        return response;
-      }
-    }
-    const headers = new Headers(request.headers);
-    // Overwrite these on every request so callers cannot forge startup timings.
-    headers.delete('x-ya-company-trace');headers.delete('x-ya-company-start');
-    const companyRequestId=/^\/company\/[^/]+$/.test(plain)?crypto.randomUUID():undefined;
-    if(companyRequestId){
-      headers.set('x-ya-company-trace',companyRequestId);
-      headers.set('x-ya-company-start',String(enteredAt));
-    }
-    headers.set("x-ya-language", locale);
-    headers.set("x-ya-pathname", localizable ? plain : "");
-    const explicitMarket = parseMarket(request.nextUrl.searchParams.get("market"));
-    const market = explicitMarket ?? parseMarket(request.cookies.get("ya-market")?.value) ?? "US";
-    headers.set("x-ya-market", market);
-    const rewrite = new URL(request.url);
-    // Keep shared research URLs while bundling the idle homepage separately.
-    const opensWorkspace = plain === "/" &&
-      ["theme", "preview", "event", "relationship", "company", "market", "q", "view", "type"]
-        .some(key => request.nextUrl.searchParams.getAll(key).some(value => value.length > 0));
-    rewrite.pathname = opensWorkspace ? "/intelligence" : plain;
-    const response = prefix && localizable ? NextResponse.rewrite(rewrite, { request: { headers } }) : NextResponse.next({ request: { headers } });
-    if(companyRequestId){
-      response.headers.set('x-ya-company-request-id',companyRequestId);
-      const cloudTraceId=request.headers.get('x-cloud-trace-context')?.split('/')[0];
-      console.info(JSON.stringify({event:'company_proxy_timing',requestId:companyRequestId,
-        cloudTraceId:cloudTraceId&&/^[a-f0-9]{32}$/.test(cloudTraceId)?cloudTraceId:undefined,
-        revision:process.env.K_REVISION,ingressAt:new Date(enteredAt).toISOString(),
-        proxyWorkMs:Date.now()-enteredAt,processUptimeMs:Math.round(process.uptime()*1000)}));
-    }
-    if ((explicit || prefix) && !request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.startsWith("/_next/")) {
-      response.cookies.set("ya-language", locale, { path: "/", maxAge: 31536000, sameSite: "lax", secure: request.nextUrl.protocol === "https:" });
-    }
-    if (explicitMarket && !request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.startsWith("/_next/")) response.cookies.set("ya-market", explicitMarket, { path: "/", maxAge: 31536000, sameSite: "lax", secure: request.nextUrl.protocol === "https:" });
-    return response;
-  }
-
-  const url = new URL(request.url);
-  url.protocol = "https";
-  url.hostname = CANONICAL_HOST;
-  url.port = "";
-
-  return NextResponse.redirect(url, 308);
+  const response = routeRequest(request);
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
 }

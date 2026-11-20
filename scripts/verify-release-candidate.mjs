@@ -1,9 +1,10 @@
+import {verifyPublicAccess} from './verify-public-access.mjs';
 import {taggedReleaseRequest,taggedUnauthenticatedProbe} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now(),warn=console.warn}) {
   const rawRequest=request;
-  request=(input,options)=>taggedReleaseRequest(input,options,{request:rawRequest});
+  request=(input,options)=>taggedReleaseRequest(input,{...options,headers:{...options?.headers,...(process.env.INTERNAL_API_TOKEN?{'x-ya-internal-token':process.env.INTERNAL_API_TOKEN}:{})}},{request:rawRequest});
   assert(url && revision && commit, 'Candidate URL, revision and commit required');
   const health = await request(`${url}/api/health`, {signal:AbortSignal.timeout(60000)});
   assert.equal(health.status, 200, 'Candidate health check failed; existing traffic stays unchanged');
@@ -88,6 +89,6 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
   console.log(`Candidate ${revision} verified before traffic promotion.`);
 }
 if(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  verifyCandidate({url:process.env.CANDIDATE_URL,revision:process.env.CANDIDATE_REVISION,commit:process.env.GIT_SHA})
+  verifyPublicAccess(process.env.CANDIDATE_URL).then(()=>verifyCandidate({url:process.env.CANDIDATE_URL,revision:process.env.CANDIDATE_REVISION,commit:process.env.GIT_SHA}))
     .catch(error => { console.error(error.message); process.exitCode = 1; });
 }

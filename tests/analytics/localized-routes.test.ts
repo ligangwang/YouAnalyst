@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { proxy } from "../../src/proxy";
+import { routeRequest as proxy } from "../../src/lib/access/routing";
 import { languageUrl } from "../../src/lib/ui/i18n/urls";
 
 const request = (path: string, cookie = "") => new NextRequest(`https://youanalyst.com${path}`, { headers: { host: "youanalyst.com", cookie } });

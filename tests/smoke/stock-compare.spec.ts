@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./member-fixture";
 
 async function mockPrices(page: Page) {
   await page.route("**/api/compare?*", async route => {

@@ -27,7 +27,7 @@ for(const [label,documentUrl,assetBackend] of [['new-document-old-backend',candi
         }});
         return route.fulfill({response:result.response});
       }
-      return route.continue({headers:{...request.headers(),Authorization:`Bearer ${token}`}});
+      return route.continue({headers:{...request.headers(),...(process.env.INTERNAL_API_TOKEN?{'x-ya-internal-token':process.env.INTERNAL_API_TOKEN}:{}),Authorization:`Bearer ${token}`}});
     });
     const page=await context.newPage();
     page.on('pageerror',error=>errors.push(error.message));

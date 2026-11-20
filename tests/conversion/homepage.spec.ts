@@ -23,12 +23,11 @@ for (const locale of ["en", "zh-CN"]) {
       return route.fulfill({ contentType: "text/html", body: html });
     });
     await page.goto("http://homepage.test");
-    await expect(page.getByRole("heading")).toHaveText(locale === "en" ? "Start with a company." : "从一家公司开始。");
+    await expect(page.getByRole("heading", {level:1})).toHaveText(locale === "en" ? "Start with a company." : "从一家公司开始。");
     await page.waitForTimeout(1500);
     expect(apiRequests).toEqual([]);
-    await page.getByRole("button").click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("combobox").fill("NVDA");
+    await expect(page.getByRole("img")).toBeVisible();
+    await page.getByRole("searchbox").fill("NVDA");
     await expect.poll(() => apiRequests.some(url => url.includes("q=NVDA"))).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });

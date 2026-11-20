@@ -1,5 +1,6 @@
 "use client";
 
+import { syncMemberSession } from '@/lib/access/browser-session';
 import { UiText } from "@/components/ui-text";
 
 import { useLocale } from "./providers/locale-provider";
@@ -66,6 +67,8 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   }
 
   async function finishAuth(account: { uid: string; getIdToken: () => Promise<string> }, shouldCompleteProfile = false) {
+    try { await syncMemberSession(await account.getIdToken()); }
+    catch { setLocalError(chinese ? "登录同步失败，请重试。" : "Unable to sync sign-in. Please try again."); return; }
     if (followIntent) {
       try { await persistCompanyFollow(followIntent.companyId, true, () => account.getIdToken()); }
       catch { setLocalError(chinese ? "已登录，但公司尚未加入自选股。请点击下方按钮重试。" : "Signed in, but the company was not added to your watchlist. Retry below."); return; }
@@ -81,6 +84,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
       }
     }
     router.push(destinationForAuth(account.uid, shouldCompleteProfile));
+    router.refresh();
   }
 
   if (user) {

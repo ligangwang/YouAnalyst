@@ -12,7 +12,7 @@ import {useOptionalAuth} from '@/components/providers/auth-provider';
 // Only cache public, supported-company suggestions. Onboarding eligibility stays live.
 const supportedSearches = new Map<string, {expires: number; items: SearchSuggestion[]}>();
 
-export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {
+export function CompanySearch({ publicPreview = false, enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { publicPreview?: boolean; enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
@@ -30,7 +30,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const searchPending = searched.length > 0 && results?.query !== searched;
   useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
   useEffect(()=>{
-    if(!enabled||(!inline&&!open)||featuredCount!==null||searchPending)return;
+    if(publicPreview||!enabled||(!inline&&!open)||featuredCount!==null||searchPending)return;
     const controller=new AbortController();
     // Coverage is secondary: do not start the graph-backed count while the user
     // is opening search or waiting for their first suggestions.
@@ -38,7 +38,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
       .then(async response=>{if(!response.ok)return;const data=await response.json();if(!controller.signal.aborted&&Number.isSafeInteger(data.total)&&data.total>=0)setFeaturedCount(data.total);})
       .catch(()=>{});},1000);
     return()=>{clearTimeout(timer);controller.abort();};
-  },[enabled,inline,open,featuredCount,searchPending]);
+  },[publicPreview,enabled,inline,open,featuredCount,searchPending]);
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
   const choose = useCallback((item: SearchSuggestion) => { close(); if (clearOnSelect) { setQuery(''); setResults(null); } const current = destination.current; if (current.onSelect && item.supportState === 'SUPPORTED' && (owner!=='workspace'||item.hasThemes!==false)) current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.companyId??(item.market === 'GLOBAL' ? item.id : item.symbol), item.market, item.slug), current.locale)); }, [close, clearOnSelect,owner]);
@@ -74,7 +74,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   useEffect(() => {
     if (!open || !searched) return;
     const controller = new AbortController();
-    const key = searched.toLowerCase();
+    const key = (publicPreview ? "preview:" : "member:") + searched.toLowerCase();
     const display = (items: SearchSuggestion[]) => {
       if (controller.signal.aborted) return;
       setBusy(false);
@@ -92,12 +92,12 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     }
     const timer = setTimeout(() => {
       setBusy(true); setError(false);
-      void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'directory' }), { signal: controller.signal })
+      void fetch((publicPreview ? '/api/public/companies?' : '/api/tickers/search?') + new URLSearchParams({ q: searched, limit: '8', scope: 'directory' }), { signal: controller.signal })
         .then(async response => {
           if (!response.ok) throw new Error();
           const data = await response.json();
           if (controller.signal.aborted) return;
-          const items: SearchSuggestion[] = data.items ?? [];
+          const items: SearchSuggestion[] = publicPreview ? (data.items ?? []).map((item: {id:string;symbol:string;name:string;path:string}) => ({...item,kind:'ticker',companyId:item.id,market:item.id.split(':')[0],slug:item.path.split('/').at(-1),supportState:'SUPPORTED'})) : data.items ?? [];
           if (items.length && items.every(item => item.supportState === 'SUPPORTED')) {
             supportedSearches.delete(key);
             if (supportedSearches.size >= 64) supportedSearches.delete(supportedSearches.keys().next().value!);
@@ -109,7 +109,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 180);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [open, searched, choose]);
+  }, [open, searched, choose, publicPreview]);
   useEffect(() => {
     if (!inline || !open) return;
     const dismiss = (event: PointerEvent) => { if (event.target instanceof Node && !panel.current?.contains(event.target)) close(); };
