@@ -68,9 +68,9 @@ test('setup grants only resource-scoped access and no existing collector is swit
   assert.match(result.calls,/storage buckets add-iam-policy-binding gs:\/\/private-sec-cache .*roles\/storage.objectUser/);
   assert.doesNotMatch(result.calls,/run jobs deploy collect-sec-filings-production|scheduler jobs .*collect-sec-filings-production|projects add-iam|allUsers/);
 });
-test('incremental mode sets hourly discovery and routes only new events through downloads',()=>{
+test('incremental mode keeps daily discovery and routes only new events through downloads',()=>{
   const script=readFileSync('scripts/deploy-sec-filings.sh','utf8');
-  assert.match(script,/filing_topic=sec-filing-download-requests/);assert.match(script,/schedule='0 \* \* \* \*'/);
+  assert.match(script,/filing_topic=sec-filing-download-requests/);assert.match(script,/pipeline_schedule "\$job" "0 23 \* \* \*" America\/New_York/);
   assert(script.indexOf('bash scripts/deploy-sec-downloads.sh')<script.indexOf('gcloud run jobs deploy'));
   assert.match(script,/SEC_FILINGS_TOPIC=\$filing_topic/);
   assert.doesNotMatch(script,/submissions\.zip|companyfacts\.zip|bulkdata/);
