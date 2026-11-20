@@ -4,7 +4,7 @@
 discovery behind the existing authenticated Pub/Sub subscriber pattern. It defaults
 to `0`; shipping this code alone does not activate collection or execute jobs.
 
-The daily A-share announcement job runs at noon Eastern and publishes
+The daily A-share announcement job runs at 11 a.m. Eastern and publishes
 an `announcements` task for each due enrolled company within a rotating
 batch. It attempts at most 264 submissions per run with 30 seconds between
 dispatches. The scheduled earnings job publishes `earnings-fallback` tasks

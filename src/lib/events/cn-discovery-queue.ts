@@ -64,7 +64,7 @@ export async function publishCnDiscoveryTasks(ids:readonly string[],mode:CnDisco
   const sorted=[...new Set(ids)].sort();
   // Use a step coprime to the scope size so every issuer eventually appears
   // at the front, even if every run exhausts its deadline. No schema change is
-  // needed. Noon Eastern is always on the same UTC calendar date, so daylight
+  // needed. 11 a.m. Eastern is always on the same UTC calendar date, so daylight
   // saving changes still advance the daily rotation by exactly one step.
   const gcd=(a:number,b:number):number=>b===0?a:gcd(b,a%b);
   let step=Math.min(options.daily?maxDispatches:10,Math.max(1,sorted.length-1));
