@@ -39,6 +39,7 @@ import {timeCompanyPhase} from '@/lib/company-page-timing';
 import {loadCompanySection} from '@/lib/company-page-sections';
 import type {CompanyFundamentals} from '@/lib/fundamentals/model';
 
+const showCompanyFilings = false;
 const loadCompanyEarnings=cache(loadLatestCompanyEarnings);
 const loadChinaCompany = cache((id: string) => withCompanyPageReads(async()=>{
   const db = getAdminFirestore();
@@ -114,7 +115,7 @@ export async function CompanyTickerContent({ params, resolved, pendingFundamenta
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
-    const [company, fundamentals,announcements,earningsSummary] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId),loadCompanyAnnouncements(chinaId),loadCompanyEarnings(chinaId)]);
+    const [company, fundamentals,announcements,earningsSummary] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId),showCompanyFilings ? loadCompanyAnnouncements(chinaId) : undefined,loadCompanyEarnings(chinaId)]);
     const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A",company.slug), locale));
     const schema = { "@context": "https://schema.org", ...companyOrganizationSchema(company, locale, url, chinaId.split(":")[1], chinaId.startsWith("XSHG:") ? "SSE" : "SZSE") };
     return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage classifications={<Suspense fallback={null}><CompanyClassifications companyId={chinaId}/></Suspense>} company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={announcements} earningsSummary={earningsSummary} comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={chinaId}/></Suspense>} /></>;
@@ -128,7 +129,9 @@ export async function CompanyTickerContent({ params, resolved, pendingFundamenta
   const [company,canonicalPath,earningsSummary,announcements]=await Promise.all([research,
     resolved?.path ?? canonicalCompanyPath(`US:${ticker}`),
     loadCompanySection(`US:${ticker}`,resolved,research,()=>timeCompanyPhase('earnings',()=>loadCompanyEarnings(`US:${ticker}`)),null),
-    loadCompanySection(`US:${ticker}`,resolved,research,()=>timeCompanyPhase('announcements',()=>loadCompanyAnnouncements(`US:${ticker}`)),[]),
+    showCompanyFilings
+      ? loadCompanySection(`US:${ticker}`,resolved,research,()=>timeCompanyPhase('announcements',()=>loadCompanyAnnouncements(`US:${ticker}`)),[])
+      : undefined,
   ]);
   const canonical = canonicalPath ?? companyPageUrl(ticker,'US',company.slug);
   const content = { earnings: Boolean(earningsSummary) };

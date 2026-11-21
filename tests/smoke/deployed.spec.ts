@@ -6,6 +6,7 @@ test("listed A-share pages offer calls in both languages while private companies
     await page.goto(`/${locale}/ticker/XSHG:600584`);
     await expect(page.getByRole("link", { name: bullish, exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: bearish, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^(Latest company announcements|最新公司公告)$/ })).toHaveCount(0);
   }
   await page.goto("/en/company/ORG:OPENAI");
   await expect(page).toHaveURL(/\/en\/company\/openai$/);
@@ -376,6 +377,7 @@ test("company name URLs preserve legacy links and advertise the canonical profil
   expect(destination.searchParams.get("source")).toBe("url-migration");
   await page.goto("/en/company/microsoft");
   await expect(page.getByRole("heading", {level: 1})).toContainText(/Microsoft/i);
+  await expect(page.getByRole("heading", { name: "Latest company announcements", exact: true })).toHaveCount(0);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/en\/company\/microsoft$/);
   const sitemap = await request.get("/sitemaps/companies/US-M.xml");
   expect(sitemap.ok()).toBeTruthy();

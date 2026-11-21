@@ -20,7 +20,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function ChinaCompanyPage({ company, classifications, marketCap = null, annual=null, stale=false,announcements=[],earningsSummary=null,comparison }: { company: ChinaCompany; classifications?:ReactNode; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null;comparison?:ReactNode }) {
+export function ChinaCompanyPage({ company, classifications, marketCap = null, annual=null, stale=false,announcements,earningsSummary=null,comparison }: { company: ChinaCompany; classifications?:ReactNode; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null;comparison?:ReactNode }) {
   const { text, locale } = useLocale();
   return <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
     <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>

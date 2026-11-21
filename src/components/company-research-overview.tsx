@@ -15,7 +15,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graphContent, graph, timeline, announcements=[], earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graphContent?:ReactNode; timeline?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
+export function CompanyResearchOverview({ company, classifications, fundamentals, comparison, graphContent, graph, timeline, announcements, earningsSummary=null }: { company: CompanyResearch; classifications?: ReactNode; fundamentals?: ReactNode; comparison?:ReactNode; graphContent?:ReactNode; timeline?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
