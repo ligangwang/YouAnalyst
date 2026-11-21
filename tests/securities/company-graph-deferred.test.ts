@@ -173,6 +173,27 @@ test("preview is write-free and unavailable budget cannot publish or advance cur
   assert.deepEqual([...f.rows], before);
 });
 
+test("empty scheduled graph sweeps only save cursors when they wrap to the start", async () => {
+  const f = fixture();
+  const manual = "company_research_requests/_graph_dispatcher";
+  const filings = "company_research_runs/_graph_deferred_dispatch_cursor";
+  const deps = { db: f.db, now: retryAtMs, budgetAvailability: async () => ({ available: true, retryAtMs }),
+    publish: async () => assert.fail("no manual work"), publishFiling: async () => assert.fail("no filing work") };
+  assert.equal((await publishQueuedCompanyGraphRequests({}, deps)).published, 0);
+  assert.deepEqual(f.writes, [], "a new empty sweep does not create cursor documents");
+
+  f.rows.set(manual, { cursor: "ZZZ", nextQueue: "filing" });
+  f.rows.set(filings, { cursor: "_graph_deferred_sec_previous" });
+  assert.equal((await publishQueuedCompanyGraphRequests({}, deps)).published, 0);
+  assert.deepEqual(f.rows.get(manual), { cursor: null, nextQueue: "filing" });
+  assert.deepEqual(f.rows.get(filings), { cursor: null });
+  assert.deepEqual(f.writes.sort(), [manual, filings].sort());
+
+  f.writes.length = 0;
+  assert.equal((await publishQueuedCompanyGraphRequests({}, deps)).published, 0);
+  assert.deepEqual(f.writes, [], "a completed rotation stays at the start without a write");
+});
+
 test("bounded filing cursor reaches due work beyond a thousand records", async () => {
   const f = fixture(), event = filing();
   for (let i = 0; i < 1005; i++) f.rows.set(`company_research_runs/_graph_deferred_sec_000_${String(i).padStart(4, "0")}`, { deferredStatus: "PENDING", nextAttemptAtMs: retryAtMs + 1 });

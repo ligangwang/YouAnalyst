@@ -66,7 +66,8 @@ export async function completeCompanyGraphFilingDeferral(event: SecFilingDiscove
 export async function listDeferredCompanyGraphFilings(limit: number, db: Firestore, now = Date.now(), preview = false) {
   const cursorRef = db.collection("company_research_runs").doc("_graph_deferred_dispatch_cursor");
   const saved = (await cursorRef.get()).data()?.cursor;
-  let cursor = typeof saved === "string" && saved.startsWith(PREFIX) ? saved : null;
+  const startCursor = typeof saved === "string" && saved.startsWith(PREFIX) ? saved : null;
+  let cursor = startCursor;
   const candidates: DeferredCompanyGraphFiling[] = [];
   const max = Math.max(1, Math.min(5, Math.trunc(limit)));
   // Filter completed history in Firestore using the single-field status index.
@@ -90,7 +91,7 @@ export async function listDeferredCompanyGraphFilings(limit: number, db: Firesto
     }
     if (snapshot.docs.length < 100 && candidates.length < max) { cursor = null; break; }
   }
-  if (!preview) await cursorRef.set({ cursor }, { merge: true });
+  if (!preview && cursor !== startCursor) await cursorRef.set({ cursor }, { merge: true });
   return candidates;
 }
 

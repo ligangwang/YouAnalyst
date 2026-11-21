@@ -89,8 +89,9 @@ export async function listCompanyGraphRequests(db = getAdminFirestore()): Promis
 }
 export async function listQueuedCompanyGraphRequests(limit: number, db = getAdminFirestore(), now = Date.now(), options: { unpublishedOnly?: boolean; preview?: boolean; cursor?: string | null } = {}) {
   const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
-  let cursor = options.cursor ?? null;
-  if (options.unpublishedOnly && options.cursor === undefined) cursor = str((await cursorRef.get()).data()?.cursor);
+  const startCursor = options.unpublishedOnly && options.cursor === undefined
+    ? str((await cursorRef.get()).data()?.cursor) : options.cursor ?? null;
+  let cursor = startCursor;
   const candidates: CompanyGraphRequestListItem[] = [];
   const max = Math.max(1, Math.min(25, Math.trunc(limit)));
   // A persisted cursor bounds each scan while ensuring stuck/published records
@@ -108,7 +109,7 @@ export async function listQueuedCompanyGraphRequests(limit: number, db = getAdmi
     }
     if (snapshot.docs.length < 100 && candidates.length < max) { cursor = null; break; }
   }
-  if (options.unpublishedOnly && !options.preview) await cursorRef.set({ cursor }, { merge: true });
+  if (options.unpublishedOnly && !options.preview && cursor !== startCursor) await cursorRef.set({ cursor }, { merge: true });
   return candidates;
 }
 export async function claimCompanyGraphRequest(request: CompanyGraphRequest, owner: string, db = getAdminFirestore(), now = Date.now()) {
