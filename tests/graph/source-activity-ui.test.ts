@@ -24,6 +24,11 @@ test('latest earnings link and sourced quarter figures stay separate from annual
  const summary={companyId:'US:MU',title:'SEC results exhibit',url:'https://www.sec.gov/results',publishedDate:'2026-09-30',period:{start:'2026-05-29',end:'2026-09-03',type:'quarter' as const,fiscalYear:2026,fiscalQuarter:4},metrics:[{name:'revenue' as const,value:54_229_000_000,unit:'USD',basis:'US_GAAP' as const}]};
  const html=renderToStaticMarkup(createElement(CompanyAnnouncements,{items,earningsSummary:summary}));
  assert(html.includes('Latest earnings'));assert(html.includes('FY2026 Q4'));assert(html.includes('54.23B'));assert(html.includes('2026-09-03'));assert(html.includes('US GAAP'));assert(html.includes('Financial figures source'));
+ const earningsOnly=renderToStaticMarkup(createElement(CompanyAnnouncements,{earningsSummary:summary}));
+ assert(earningsOnly.includes('Latest earnings'));
+ assert(earningsOnly.includes(summary.url));
+ assert(!earningsOnly.includes('Latest company announcements'));
+ assert(!earningsOnly.includes('aria-label="Company announcements"'));
  const newer=renderToStaticMarkup(createElement(CompanyAnnouncements,{items:[{...items[0],date:'2026-12-30'}],earningsSummary:summary}));
  assert(newer.includes('2026-12-30'));assert(!newer.includes('54.23B'));
  const undated={...summary,publishedDate:null,url:'https://www.sec.gov/Archives/edgar/data/723125/000072312526000018/ex991.htm'};
