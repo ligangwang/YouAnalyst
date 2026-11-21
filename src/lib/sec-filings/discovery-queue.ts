@@ -3,7 +3,8 @@ import {createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 import type {Firestore} from 'firebase-admin/firestore';
 import {readSecCollectionCompany} from '../company-support/collection-reader';
-import {supportedCompanyUniverse} from '../company-support/model';
+import {isSupportedCompany} from '../company-support/model';
+import type {ThemedCompany} from '../company-themes/model';
 import {secCollectorMetadata} from './store';
 
 export const SEC_DISCOVERY_TOPIC='sec-company-discovery-requests';
@@ -17,7 +18,7 @@ export function parseSecDiscoveryTask(input:unknown):SecDiscoveryTask{
     ||typeof task.requestedAt!=='string'||!Number.isFinite(Date.parse(task.requestedAt)))throw new Error('Invalid SEC company discovery task');
   return {version:1,type:task.type,batchId:task.batchId,companyId:task.companyId,requestedAt:task.requestedAt};
 }
-/** The hourly job reads checkpoints and publishes; it never contacts SEC. */
+/** The scheduled job reads checkpoints and publishes; it never contacts SEC. */
 export async function publishSecDiscoveryTasks(ids:readonly string[],publish:(task:SecDiscoveryTask)=>Promise<unknown>,options:{
   execution:string;deadline:number;now?:()=>number;maxCompanies?:number;after?:string;
   intervalMs?:number;sleep?:(ms:number)=>Promise<void>;
@@ -46,25 +47,24 @@ export async function publishSecDiscoveryTasks(ids:readonly string[],publish:(ta
   }
   return result;
 }
-export async function processSecDiscoveryTask(input:unknown,db:Firestore,options:{enabled:boolean;run:(ticker:string)=>Promise<Record<string,unknown>>;now?:()=>number;checkCooldown?:()=>void}){
+export async function processSecDiscoveryTask(input:unknown,db:Firestore,options:{enabled:boolean;run:(ticker:string,company:ThemedCompany)=>Promise<Record<string,unknown>>;now?:()=>number;checkCooldown?:()=>void}){
   const task=parseSecDiscoveryTask(input);
   if(!options.enabled)throw new Error('SEC discovery worker disabled; retain task');
   // Keep the message for retry without reading companies or touching checkpoints
   // while this process already knows that the shared provider gate denies work.
   options.checkCooldown?.();
   const doc=await readSecCollectionCompany(db,task.companyId);
-  const graph=supportedCompanyUniverse(doc?[doc]:[]);
-  if(!graph.nodes.some(node=>node.id===task.companyId))return {status:'ineligible',companyId:task.companyId};
+  if(!doc||!isSupportedCompany(doc))return {status:'ineligible',companyId:task.companyId};
   const ref=secDiscoveryCompanyState(db,task.companyId.slice(3));
   const checkpoint=(await ref.get()).data(),now=options.now?.()??Date.now();
-  // Pub/Sub retries bypass the hourly due-query. Acknowledge only a saved
+  // Pub/Sub retries bypass the scheduler's due query. Acknowledge only a saved
   // partial retry: the scheduler will republish it when due. Never alter its
   // cursor, failure status or an active owner's lease.
   if(checkpoint?.discoveryStatus==='partial'&&Number(checkpoint.discoveryNextPollAtMs)>now
     &&!(Number(checkpoint.leaseExpiresAtMs)>now)){
     return {status:'deferred',companyId:task.companyId,retryAtMs:Number(checkpoint.discoveryNextPollAtMs)};
   }
-  try{return await options.run(task.companyId.slice(3));}
+  try{return await options.run(task.companyId.slice(3),doc);}
   catch(error){
     // Failures before the collector acquires its lease still need a retry time.
     // Do not overwrite a current lease or the completion already saved by it.

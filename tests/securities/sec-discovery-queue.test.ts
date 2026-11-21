@@ -57,9 +57,11 @@ test('company fencing excludes duplicate tasks and old global collectors without
  f.rows.set('sec_collector_state/_sec_filings_collector',{leaseExpiresAtMs:now()+60000});
  assert.equal(await acquireSecDiscoveryCompanyLease(f.db,'INTC','d',now()),false);
 });
-test('live company discovery loads only its issuer snapshot and shares the ticker directory across tasks',async()=>{
+test('live company discovery reads its issuer snapshot once and shares the ticker directory across tasks',async()=>{
  const f=earningsFirestore(),originalFetch=globalThis.fetch,gate=secBudget.run,agent=process.env.SEC_USER_AGENT,earnings=process.env.EARNINGS_COLLECTION_ENABLED;
+ const companyReads:string[]=[];
  Object.assign(f.db,{getAll:async(ref:DocumentReference,options:{fieldMask:string[]})=>{
+  companyReads.push(ref.path);
   assert(options.fieldMask.includes('classificationMetadata'));assert(!options.fieldMask.includes('searchPrefixes'));
   return [await ref.get()];
  }});
@@ -76,9 +78,11 @@ test('live company discovery loads only its issuer snapshot and shares the ticke
    return new Response(JSON.stringify({cik:Number(cik),filings:{files:[],recent:{form:[],accessionNumber:[],filingDate:[],primaryDocument:[],isXBRL:[]}}}));
   };
   const db=withThemeCatalog(f.db);
-  assert.equal((await discoverSecCompany(db,'AMD')).status,'verified');
+  const options={enabled:true,run:(ticker:string,company:Parameters<typeof discoverSecCompany>[2])=>discoverSecCompany(db,ticker,company)};
+  assert.equal((await processSecDiscoveryTask(task,db,options)).status,'verified');
   assert(!calls.some(url=>url.includes('1045810')),'AMD task must not fetch another company');
-  assert.equal((await discoverSecCompany(db,'NVDA')).status,'verified');
+  assert.equal((await processSecDiscoveryTask({...task,companyId:'US:NVDA'},db,options)).status,'verified');
+  assert.deepEqual(companyReads,['companies/US:AMD','companies/US:NVDA']);
   assert.equal(calls.filter(url=>url.endsWith('company_tickers_exchange.json')).length,1);
   assert.equal(calls.filter(url=>url.includes('/submissions/')).length,2,'raw observers and financial scan reuse one snapshot per task');
  }finally{
