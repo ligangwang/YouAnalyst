@@ -416,6 +416,10 @@ export class MarketRepository {
         return found;
     }
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
+        if (!context && collection === 'company_research_runs' && ids.length
+            && ids.every(id => id === '_graph_daily_budget' || id === '_graph_deferred_dispatch_cursor')) {
+            return this.readSnapshot(snapshot => this.documentsUncached(collection, ids, snapshot, fields));
+        }
         // Resolve earnings pointers against the latest shard state without caching live heads.
         if(collection==='earnings_records'&&!fields&&ids.every(id=>id.startsWith('head_')))return this.documentsUncached(collection,ids,context,fields);
         // Live reserved records must not wait for a collection-wide file watch
@@ -571,7 +575,43 @@ export class MarketRepository {
             query=(query[step.method as 'where'] as (...args:unknown[])=>Query).apply(query,step.args);
         return query;
     }
+    private readSnapshot<T>(read: (context: MarketContext) => Promise<T>): Promise<T> {
+        return this.raw.runTransaction(tx => read(this.context({
+            get: ref => tx.get(ref as DocumentReference), getAll: (...refs) => tx.getAll(...refs),
+        })), {readOnly:true});
+    }
+    private async pendingGraphFilings(steps: Step[]): Promise<MarketRow[] | undefined> {
+        const collection = 'company_research_runs';
+        return this.readSnapshot(async context => {
+            if (!(await this.retainedStore.mode(context)).cleanupAuthorized) return undefined;
+            const docs = await this.retainedStore.query(collection, path => this.nativeQuery(collection, steps, false, path), context);
+            // Legacy and split rows still use the general query when encountered.
+            // A current pending filing is a whole live record; validate its
+            // membership on just the shard heads touched by this page.
+            if (docs.some(doc => !doc.id.startsWith('_graph_deferred_') || doc.get('completed') === true)) return undefined;
+            const shards = [...new Set(docs.map(doc => shardFor(doc.id)))];
+            const heads = shards.length
+                ? await context.reader.getAll(...shards.map(shard => this.raw.doc('collectors/' + headId(collection, shard)))) : [];
+            const retained = this.retainedMembership(heads.map((doc, i) => this.parseHead(collection, shards[i], doc)));
+            if (docs.some(doc => !retained.has(doc.id))) return undefined;
+            reportNativeRead(collection, steps, docs.length, true, docs);
+            return this.files.filter(docs.map(doc => ({id:doc.id, data:doc.data()!, version:doc.updateTime!})), steps);
+        });
+    }
     async query(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
+        // Only the deferred filing writer uses this pending status. The whole
+        // record stays live and has no archived payload to merge.
+        if (!context && collection === 'company_research_runs'
+            && steps.some(step => step.method === 'where' && step.args[0] === 'deferredStatus'
+                && step.args[1] === '==' && step.args[2] === 'PENDING')
+            && steps.filter(step => step.method === 'where').length === 1
+            && steps.every(step => step.method === 'where'
+                || step.method === 'orderBy' && fieldName(step.args[0]) === '__name__'
+                || step.method === 'startAfter' && typeof step.args[0] === 'string'
+                || step.method === 'limit')) {
+            const pending = await this.pendingGraphFilings(steps);
+            if (pending) return pending;
+        }
         const predicate=steps.filter(step=>step.method==='where'), selection=steps.find(step=>step.method==='select');
         if(predicate.length===1&&steps.every(step=>step.method==='where'||step.method==='select')&&fieldName(predicate[0].args[0])==='__name__'){
             const [,op,value]=predicate[0].args;

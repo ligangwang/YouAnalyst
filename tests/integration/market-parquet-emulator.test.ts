@@ -26,6 +26,29 @@ const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
 const check = host ? test : test.skip;
+check('graph dispatcher reads only touched shard heads and preserves pending filing pagination', async t => {
+    const f = fixture();
+    t.after(() => f.db.terminate());
+    await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:['company_research_runs']});
+    await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
+    const collection = f.db.collection('company_research_runs');
+    await collection.doc('_graph_daily_budget').set({limitMicros:12});
+    await collection.doc('_graph_deferred_dispatch_cursor').set({cursor:null});
+    const first = '_graph_deferred_a', second = '_graph_deferred_b';
+    await collection.doc(first).set({deferredStatus:'PENDING',nextAttemptAtMs:123});
+    await collection.doc(second).set({deferredStatus:'PENDING',nextAttemptAtMs:456,reviewedBy:'reviewer'});
+    await collection.doc('_graph_deferred_c').set({deferredStatus:'COMPLETED',nextAttemptAtMs:0});
+    let catalogReads = 0;
+    const heads = f.repository.heads.bind(f.repository);
+    f.repository.heads = (...args) => { catalogReads++; return heads(...args); };
+    const pending = collection.where('deferredStatus','==','PENDING').orderBy('__name__').limit(1);
+    assert.equal((await collection.doc('_graph_daily_budget').get()).get('limitMicros'),12);
+    assert.equal((await collection.doc('_graph_deferred_dispatch_cursor').get()).get('cursor'),null);
+    assert.deepEqual((await pending.get()).docs.map(doc => doc.id),[first]);
+    assert.deepEqual((await pending.startAfter(first).get()).docs.map(doc => doc.id),[second]);
+    assert.equal((await pending.startAfter(second).get()).size,0);
+    assert.equal(catalogReads,0);
+});
 check('web company queries and overlays reuse the incremental view after cache invalidation',async t=>{
     const prior=process.env.K_SERVICE;process.env.K_SERVICE='ifindata-web';
     const f=fixture();
