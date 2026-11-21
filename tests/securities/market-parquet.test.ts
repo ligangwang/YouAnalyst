@@ -5,7 +5,7 @@ import type { Bucket } from '@google-cloud/storage';
 import { Timestamp, FieldValue, FieldPath, type Firestore } from 'firebase-admin/firestore';
 import {MarketRepository,headId} from '../../src/lib/market-store/repository';
 import {CleanupGate,capacityRegression} from '../../scripts/market-migration-safety';
-import { MarketFiles, shardFor, calendarIndexFile, type MarketRow } from '../../src/lib/market-store/files';
+import { MarketFiles, shardFor, calendarIndexFile, type MarketHead, type MarketRow } from '../../src/lib/market-store/files';
 import { MarketBlob } from '../../src/lib/market-store/blobs';
 import {announcementBucket,announcementIndexFile} from '../../src/lib/market-store/announcement-sidecar';
 import {collectMarketGarbage} from '../../src/lib/market-store/maintenance';
@@ -655,6 +655,41 @@ test('a cold subscription refreshes once for its initial head and once per later
         stop();
         publish(3);
         assert.equal(calls.length,2);
+    }finally{await repo.close();}
+});
+test('relationship subscribers skip index repacks and still see row and overlay changes',async()=>{
+    const files=fixture(),collection='company_relationships',calls:string[]=[];
+    let emit!:(snapshot:FirebaseFirestore.QuerySnapshot)=>void;
+    const source={where:()=>source,onSnapshot:(next:typeof emit)=>{emit=next;return()=>{};}};
+    const prior=process.env.MARKET_PARQUET_HEAD_POINTERS;
+    process.env.MARKET_PARQUET_HEAD_POINTERS='1';
+    const repo=new MarketRepository({collection:()=>source} as unknown as Firestore,files);
+    if(prior===undefined)delete process.env.MARKET_PARQUET_HEAD_POINTERS;
+    else process.env.MARKET_PARQUET_HEAD_POINTERS=prior;
+    const doc=(head:MarketHead)=>({exists:true,get:(field:string)=>field==='marketHead'?head:head.shard});
+    const docs=Array.from({length:256},(_,i)=>doc({collection,shard:i.toString(16).padStart(2,'0'),rows:0,retained:[]}));
+    function publish(head:MarketHead,at:number){
+        const next=doc(head);
+        docs[parseInt(head.shard,16)]=next;
+        const changes=at===1?docs.map(doc=>({type:'added',doc})):[{type:'modified',doc:next}];
+        emit({size:docs.length,docs,docChanges:()=>changes,readTime:Timestamp.fromMillis(at)} as unknown as FirebaseFirestore.QuerySnapshot);
+    }
+    try{
+        const original={collection,shard:'01',rows:1,retained:[],recordStorage:'parquet',file:'rows-v1',indexFile:'standalone',format:7,revision:'before'} satisfies MarketHead;
+        const stop=repo.subscribe(collection,undefined,()=>calls.push('refresh'),err=>{throw err;});
+        publish(original,1);
+        await new Promise<void>(resolve=>setImmediate(resolve));
+        assert.equal(calls.length,1);
+        const bundled={...original,format:107,indexFile:'bundle-v2',revision:'after'};
+        publish(bundled,2);
+        assert.equal((await repo.heads(collection)).get('01')?.indexFile,'bundle-v2');
+        assert.equal(calls.length,1,'index-only changes do not reload an initialized relationship cache');
+        const updated={...bundled,file:'rows-v2',indexFile:'index-v3',revision:'data changed'};
+        publish(updated,3);
+        assert.equal(calls.length,2);
+        publish({...updated,retained:['live-v1'],indexFile:'index-v4',revision:'overlay added'},4);
+        assert.equal(calls.length,3);
+        stop();
     }finally{await repo.close();}
 });
 test('earnings pointers skip Firestore payload reads for completed Parquet shards', async () => {

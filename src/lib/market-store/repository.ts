@@ -16,6 +16,7 @@ import {DocumentBatcher} from './document-batcher';
 import {EVENTS_CONTROL,EventsControl,eventsMode,type EventsMode} from './events-control';
 import {FUNDAMENTALS_CONTROL,FundamentalsControl,fundamentalsMode,type FundamentalsMode} from './fundamentals-control';
 import {compactHead,pointerCollection,pointerId,pointerHasRetained} from './head-pointer';
+import {marketIndexBundled,marketIndexFormat} from './index-fields';
 export const PREDICTION_MARKS_CONTROL = 'collectors/_market_parquet_prediction_marks_control';
 export const CONTROL = 'collectors/_market_parquet_control';
 export const headId = (collection: MarketCollection, shard: string) => `_market_parquet_${collection}_${shard}`;
@@ -41,6 +42,19 @@ export type MarketContext = {
     documents: Map<string, DocumentSnapshot>;
     writes: Mutation[];
 };
+function relationshipIndexRepack(prior: MarketHead | undefined, next: MarketHead): boolean {
+    if (!prior || next.collection !== 'company_relationships' || !prior.file
+        || !completeParquetHead(prior) || !completeParquetHead(next)
+        || prior.retained.length || next.retained.length || !next.indexFile
+        || prior.indexFile === next.indexFile || !marketIndexBundled(next.format)) return false;
+    // Bundling changes the index pointers and their revision while preserving the
+    // immutable row file. Only complete shards with no live overlays can skip.
+    const data = (head: MarketHead) => ({
+        ...head, format: marketIndexFormat(head.format), revision: undefined,
+        indexFile: undefined, indexBytes: undefined, prefixFile: undefined, prefixBytes: undefined,
+    });
+    return isDeepStrictEqual(data(prior), data(next));
+}
 export class MarketRepository {
     private retainedStore:RetainedStore;
     private readonly bootstrapHeads=['ifindata-web','market-parquet-ui-probe'].includes(process.env.K_SERVICE??'');
@@ -314,7 +328,7 @@ export class MarketRepository {
                 if(this.compactHeads&&(snapshot.size!==256||new Set(snapshot.docs.map(doc=>doc.get('marketHead.shard'))).size!==256||snapshot.docs.some(doc=>!/^[a-f0-9]{2}$/.test(doc.get('marketHead.shard'))))){
                     throw Error('Incomplete compact market head inventory');
                 }
-                const changed=new Set<string>();
+                const changed=new Set<string>(), repacked=new Set<string>();
                 const newer=(shard:string)=>{const time=through.get(shard);return time&&(time.seconds>snapshot.readTime.seconds||time.seconds===snapshot.readTime.seconds&&time.nanoseconds>snapshot.readTime.nanoseconds);};
                 // A head can contain thousands of retained IDs. Firestore's
                 // snapshot includes every head, but only changed documents need
@@ -336,7 +350,8 @@ export class MarketRepository {
                     const head=this.parseHead(collection,shard,doc);
                     if(this.compactHeads&&pointerHasRetained(head))this.unknownRetained.add(head);
                     const prior=heads.get(shard);
-                    if(!(prior&&this.unknownRetained.has(prior)&&sameMetadata(prior,head))&&!isDeepStrictEqual(prior,head))changed.add(shard);
+                    if(relationshipIndexRepack(prior,head))repacked.add(shard);
+                    else if(!(prior&&this.unknownRetained.has(prior)&&sameMetadata(prior,head))&&!isDeepStrictEqual(prior,head))changed.add(shard);
                     heads.set(shard,head);through.set(shard,snapshot.readTime);
                 }
                 // A local commit can install a head while the initial listener
@@ -349,7 +364,8 @@ export class MarketRepository {
                 }
                 if(collection==='companies' && heads.size===256 && [...heads.values()].every(head=>head.companyStorage==='parquet'))
                     this.retainedStore.closeCompanyView();
-                if(changed.size){this.invalidate(collection,changed);this.changed(collection,changed);}
+                if(changed.size||repacked.size)this.invalidate(collection,new Set([...changed,...repacked]));
+                if(changed.size)this.changed(collection,changed);
                 resolve(heads);
             }catch(error){fail(error);}},fail);
             watch = { ready, heads, stop, through };
