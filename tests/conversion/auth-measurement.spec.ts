@@ -158,8 +158,10 @@ test("analytics opt-out suppresses auth diagnostics and follow completion", asyn
 
 test("repeated activation stays disabled during pending profile bootstrap", async ({ page }) => {
   let release!: () => void;
+  let bootstrapRequests = 0;
   const pending = new Promise<void>(resolve => { release = resolve; });
   await page.route(origin + "/api/users/bootstrap", async route => {
+    bootstrapRequests++;
     await pending;
     await route.fulfill({ json: { created: true } });
   });
@@ -177,4 +179,5 @@ test("repeated activation stays disabled during pending profile bootstrap", asyn
   release();
   await expect(page).toHaveURL(origin + "/en/ticker/AMD");
   expect((await events(page)).filter(event => event[1] === "company_follow")).toHaveLength(1);
+  expect(bootstrapRequests).toBe(1);
 });
