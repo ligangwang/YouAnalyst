@@ -18,6 +18,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -47,6 +48,8 @@ type AuthActionResult = {
   user: User;
   shouldCompleteProfile: boolean;
 };
+
+type BootstrapProfile = { created: boolean; features?: AppFeatures; photoURL: string | null };
 
 type AuthProviderProps = {
   children: ReactNode;
@@ -113,33 +116,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState<boolean>(() => configured);
   const [error, setError] = useState<string | null>(null);
   const [features, setFeatures] = useState<AppFeatures>(DEFAULT_FEATURES);
+  const pendingBootstrap = useRef<{ token: string; request: Promise<BootstrapProfile> } | null>(null);
 
   const bootstrapUserProfile = useCallback(async (nextUser: User) => {
     const token = await nextUser.getIdToken();
     if (getFirebaseServices().auth.currentUser?.uid !== nextUser.uid) throw new Error("Authentication changed. Please sign in again.");
-    await syncMemberSession(token);
-    const response = await fetch("/api/users/bootstrap", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        displayName: nextUser.displayName,
-        email: nextUser.email,
-        photoURL: nextUser.photoURL,
-      }),
+    // Token notifications and the sign-in action can arrive together.
+    if (pendingBootstrap.current?.token === token) return pendingBootstrap.current.request;
+
+    const request = syncMemberSession(token).then(async () => {
+      const response = await fetch("/api/users/bootstrap", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          displayName: nextUser.displayName,
+          email: nextUser.email,
+          photoURL: nextUser.photoURL,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to create user profile.");
+      }
+
+      const payload = (await response.json()) as BootstrapProfile;
+      if (getFirebaseServices().auth.currentUser?.uid === nextUser.uid) {
+        setProfilePhotoURL(payload.photoURL);
+      }
+      return payload;
     });
-
-    if (!response.ok) {
-      throw new Error("Unable to create user profile.");
+    pendingBootstrap.current = { token, request };
+    try {
+      return await request;
+    } finally {
+      if (pendingBootstrap.current?.request === request) pendingBootstrap.current = null;
     }
-
-    const payload = (await response.json()) as { created: boolean; features?: AppFeatures; photoURL: string | null };
-    if (getFirebaseServices().auth.currentUser?.uid === nextUser.uid) {
-      setProfilePhotoURL(payload.photoURL);
-    }
-    return payload;
   }, []);
 
   useEffect(() => {
