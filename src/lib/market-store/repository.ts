@@ -416,7 +416,7 @@ export class MarketRepository {
         return found;
     }
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
-        if (!context && collection === 'company_research_runs' && ids.length
+        if (!context && !this.bootstrapHeads && collection === 'company_research_runs' && ids.length
             && ids.every(id => id === '_graph_daily_budget' || id === '_graph_deferred_dispatch_cursor')) {
             return this.readSnapshot(snapshot => this.documentsUncached(collection, ids, snapshot, fields));
         }
@@ -601,7 +601,7 @@ export class MarketRepository {
     async query(collection: MarketCollection, steps: Step[], context?: MarketContext): Promise<MarketRow[]> {
         // Only the deferred filing writer uses this pending status. The whole
         // record stays live and has no archived payload to merge.
-        if (!context && collection === 'company_research_runs'
+        if (!context && !this.bootstrapHeads && collection === 'company_research_runs'
             && steps.some(step => step.method === 'where' && step.args[0] === 'deferredStatus'
                 && step.args[1] === '==' && step.args[2] === 'PENDING')
             && steps.filter(step => step.method === 'where').length === 1
