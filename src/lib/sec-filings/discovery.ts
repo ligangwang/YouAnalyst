@@ -1,5 +1,5 @@
 import type {Firestore,DocumentData} from 'firebase-admin/firestore';
-import {readSecCollectionCompany} from '../company-support/collection-reader';
+import type {ThemedCompany} from '../company-themes/model';
 import {supportedCompanyUniverse} from '../company-support/model';
 import {createSecCompanySync} from '../industry-classification/sec-sync';
 import {createMaintenanceLog} from '../maintenance-log';
@@ -26,13 +26,12 @@ async function resolveDiscoveryCik(ticker:string,agent:string){
 
 /** One issuer snapshot feeds financial filings, disclosures and earnings. Every
  * network request, including archives, still passes through the global SEC gate. */
-export async function discoverSecCompany(db:Firestore,ticker:string){
+export async function discoverSecCompany(db:Firestore,ticker:string,company:ThemedCompany){
   if(!process.env.SEC_USER_AGENT)throw new Error('SEC_USER_AGENT required');
-  const id=`US:${ticker}`,doc=await readSecCollectionCompany(db,id);
-  const companies=supportedCompanyUniverse(doc?[doc]:[]);
-  if(!companies.nodes.length)return {status:'ineligible',companyId:id};
+  const id=`US:${ticker}`,companies=supportedCompanyUniverse([company]);
+  if(company.id!==id||!companies.nodes.length)return {status:'ineligible',companyId:id};
   const log=createMaintenanceLog('sec-company-discovery'),startedAt=Date.now(),deadline=startedAt+8*60000;
-  const sync=createSecCompanySync(db,new Map([[id,doc!]]));
+  const sync=createSecCompanySync(db,new Map([[id,company]]));
   const initialStates=new Map<string,DocumentData|undefined>();
   await loadEarningsMap(db,companies,initialStates);
   const byCik=new Map<string,string[]>();

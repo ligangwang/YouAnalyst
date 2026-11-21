@@ -11,5 +11,5 @@ initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT
 const db=getFirestore();
 const admit=createSerialAdmission({maxWaiting:9,waitMs:90_000});
 createJobSubscriber({project:process.env.GCP_PROJECT_ID,subscription:SEC_DISCOVERY_SUBSCRIPTION,job:'sec-company-discovery',parse:parseSecDiscoveryTask,
-  process:(task,_log,signal)=>admit(()=>processSecDiscoveryTask(task,db,{enabled:process.env.SEC_DISCOVERY_QUEUE_ENABLED==='1',checkCooldown:()=>secBudget.throwIfCoolingDown(),run:ticker=>discoverSecCompany(db,ticker)}),signal)
+  process:(task,_log,signal)=>admit(()=>processSecDiscoveryTask(task,db,{enabled:process.env.SEC_DISCOVERY_QUEUE_ENABLED==='1',checkCooldown:()=>secBudget.throwIfCoolingDown(),run:(ticker,company)=>discoverSecCompany(db,ticker,company)}),signal)
 }).listen(Number(process.env.PORT||8080),'0.0.0.0');
