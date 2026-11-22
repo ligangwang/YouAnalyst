@@ -417,7 +417,7 @@ export class MarketRepository {
     }
     async documents(collection: MarketCollection, ids: string[], context?: MarketContext, fields?: string[]): Promise<MarketRow[]> {
         if (!context && !this.bootstrapHeads && collection === 'company_research_runs' && ids.length
-            && ids.every(id => id === '_graph_daily_budget' || id === '_graph_deferred_dispatch_cursor')) {
+            && ids.every(id => id === '_graph_daily_budget')) {
             return this.readSnapshot(snapshot => this.documentsUncached(collection, ids, snapshot, fields));
         }
         // Resolve earnings pointers against the latest shard state without caching live heads.
@@ -602,13 +602,14 @@ export class MarketRepository {
         // Only the deferred filing writer uses this pending status. The whole
         // record stays live and has no archived payload to merge.
         if (!context && !this.bootstrapHeads && collection === 'company_research_runs'
-            && steps.some(step => step.method === 'where' && step.args[0] === 'deferredStatus'
-                && step.args[1] === '==' && step.args[2] === 'PENDING')
-            && steps.filter(step => step.method === 'where').length === 1
-            && steps.every(step => step.method === 'where'
-                || step.method === 'orderBy' && fieldName(step.args[0]) === '__name__'
-                || step.method === 'startAfter' && typeof step.args[0] === 'string'
-                || step.method === 'limit')) {
+            && steps.length === 6
+            && steps[0].method === 'where' && steps[0].args[0] === 'deferredStatus'
+            && steps[0].args[1] === '==' && steps[0].args[2] === 'PENDING'
+            && steps[1].method === 'where' && steps[1].args[0] === 'nextAttemptAtMs' && steps[1].args[1] === '<='
+            && steps[2].method === 'where' && steps[2].args[0] === 'publishLeaseExpiresAtMs' && steps[2].args[1] === '<='
+            && steps[3].method === 'orderBy' && steps[3].args[0] === 'nextAttemptAtMs'
+            && steps[4].method === 'orderBy' && steps[4].args[0] === 'publishLeaseExpiresAtMs'
+            && steps[5].method === 'limit') {
             const pending = await this.pendingGraphFilings(steps);
             if (pending) return pending;
         }

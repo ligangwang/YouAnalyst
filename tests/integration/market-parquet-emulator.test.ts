@@ -21,32 +21,41 @@ import { shardFor } from '../../src/lib/market-store/files';
 import {loadCompanyEventSnapshot} from '../../src/lib/events/company-events-cache';
 import {closeLocalCaches} from '../../src/lib/local-cache/watch';
 import {compactHead,pointerId,pointerCollection,pointerHasRetained} from '../../src/lib/market-store/head-pointer';
+import {deferCompanyGraphFiling,listDeferredCompanyGraphFilings} from '../../src/lib/company-graph/deferred-work';
+import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
 const marketFirestore:typeof routeMarketFirestore=(raw,repository)=>routeMarketFirestore(raw,repository,MARKET_COLLECTIONS);
 const host = process.env.FIRESTORE_EMULATOR_HOST;
 if (host && !/^(127\.0\.0\.1|localhost):\d+$/.test(host))
     throw Error('Local emulator required');
 const check = host ? test : test.skip;
-check('graph dispatcher reads only touched shard heads and preserves pending filing pagination', async t => {
+check('graph dispatcher reads only due unleased filings across retained roots', async t => {
     const f = fixture();
     t.after(() => f.db.terminate());
     await f.raw.doc(CONTROL).set({version:1,ready:true,cleanupAuthorized:true,cleanedCollections:['company_research_runs']});
     await f.raw.doc(RETAINED_CONTROL).set({version:1,ready:true,cleanupAuthorized:true});
     const collection = f.db.collection('company_research_runs');
     await collection.doc('_graph_daily_budget').set({limitMicros:12});
-    await collection.doc('_graph_deferred_dispatch_cursor').set({cursor:null});
-    const first = '_graph_deferred_a', second = '_graph_deferred_b';
-    await collection.doc(first).set({deferredStatus:'PENDING',nextAttemptAtMs:123});
-    await collection.doc(second).set({deferredStatus:'PENDING',nextAttemptAtMs:456,reviewedBy:'reviewer'});
-    await collection.doc('_graph_deferred_c').set({deferredStatus:'COMPLETED',nextAttemptAtMs:0});
+    const filing = (n: number) => createSecFilingDiscovered({companyId:'AMD',cik:'0000002488',
+        accessionNumber:`0000002488-26-00000${n}`,form:'10-K',filingDate:'2026-01-01',
+        primaryDocument:'amd-10k.htm',isXbrl:true,discoveredAt:'2026-01-02T00:00:00Z'});
+    const [older,later,future,leased,completed] = [1,2,3,4,5].map(filing);
+    const ref = (event: ReturnType<typeof filing>) => collection.doc(`_graph_deferred_${event.eventId}`);
+    await deferCompanyGraphFiling(older,123,f.db);
+    await deferCompanyGraphFiling(later,456,f.db);
+    await ref(later).set({reviewedBy:'reviewer'},{merge:true});
+    await deferCompanyGraphFiling(future,458,f.db);
+    await deferCompanyGraphFiling(leased,100,f.db);
+    await ref(leased).set({publishLeaseExpiresAtMs:458},{merge:true});
+    await deferCompanyGraphFiling(completed,100,f.db);
+    await ref(completed).set({deferredStatus:'COMPLETED'},{merge:true});
     let catalogReads = 0;
     const heads = f.repository.heads.bind(f.repository);
     f.repository.heads = (...args) => { catalogReads++; return heads(...args); };
-    const pending = collection.where('deferredStatus','==','PENDING').orderBy('__name__').limit(1);
     assert.equal((await collection.doc('_graph_daily_budget').get()).get('limitMicros'),12);
-    assert.equal((await collection.doc('_graph_deferred_dispatch_cursor').get()).get('cursor'),null);
-    assert.deepEqual((await pending.get()).docs.map(doc => doc.id),[first]);
-    assert.deepEqual((await pending.startAfter(first).get()).docs.map(doc => doc.id),[second]);
-    assert.equal((await pending.startAfter(second).get()).size,0);
+    assert.deepEqual(await listDeferredCompanyGraphFilings(5,f.db,99),[]);
+    assert.deepEqual((await listDeferredCompanyGraphFilings(1,f.db,456)).map(row => row.event),[older]);
+    assert.deepEqual((await listDeferredCompanyGraphFilings(5,f.db,456)).map(row => row.event),[older,later]);
+    assert.deepEqual((await listDeferredCompanyGraphFilings(5,f.db,458)).map(row => row.event),[leased,older,later,future]);
     assert.equal(catalogReads,0);
 });
 check('web company queries and overlays reuse the incremental view after cache invalidation',async t=>{

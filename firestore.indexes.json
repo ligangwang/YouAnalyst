@@ -1,6 +1,24 @@
 {
   "indexes": [
     {
+      "collectionGroup": "company_research_runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "deferredStatus", "order": "ASCENDING" },
+        { "fieldPath": "nextAttemptAtMs", "order": "ASCENDING" },
+        { "fieldPath": "publishLeaseExpiresAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "records",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "deferredStatus", "order": "ASCENDING" },
+        { "fieldPath": "nextAttemptAtMs", "order": "ASCENDING" },
+        { "fieldPath": "publishLeaseExpiresAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
