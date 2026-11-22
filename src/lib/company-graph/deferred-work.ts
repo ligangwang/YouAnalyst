@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { FieldPath, type Firestore } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import { parseSecFilingDiscovered, type SecFilingDiscovered } from "../sec-filings/event";
 
 const PREFIX = "_graph_deferred_";
@@ -63,36 +63,22 @@ export async function completeCompanyGraphFilingDeferral(event: SecFilingDiscove
   });
 }
 
-export async function listDeferredCompanyGraphFilings(limit: number, db: Firestore, now = Date.now(), preview = false) {
-  const cursorRef = db.collection("company_research_runs").doc("_graph_deferred_dispatch_cursor");
-  const saved = (await cursorRef.get()).data()?.cursor;
-  const startCursor = typeof saved === "string" && saved.startsWith(PREFIX) ? saved : null;
-  let cursor = startCursor;
-  const candidates: DeferredCompanyGraphFiling[] = [];
+export async function listDeferredCompanyGraphFilings(limit: number, db: Firestore, now = Date.now()): Promise<DeferredCompanyGraphFiling[]> {
   const max = Math.max(1, Math.min(5, Math.trunc(limit)));
-  // Filter completed history in Firestore using the single-field status index.
-  // The persisted cursor still moves past pending but not-yet-due records.
-  for (let page = 0; page < 10 && candidates.length < max; page++) {
-    let query = db.collection("company_research_runs")
-      .where("deferredStatus", "==", "PENDING")
-      .orderBy(FieldPath.documentId()).limit(100);
-    if (cursor) query = query.startAfter(cursor);
-    const snapshot = await query.get();
-    for (const doc of snapshot.docs) {
-      cursor = doc.id;
-      const data = doc.data();
-      if (data.deferredStatus === "PENDING" && Number(data.nextAttemptAtMs) <= now
-        && Number(data.publishLeaseExpiresAtMs ?? 0) <= now) {
-        const event = parseSecFilingDiscovered(data.event);
-        if (doc.id !== `${PREFIX}${event.eventId}` || event.form !== "10-K") throw new Error("Invalid deferred graph filing record");
-        candidates.push({ id: doc.id, event });
-      }
-      if (candidates.length >= max) break;
-    }
-    if (snapshot.docs.length < 100 && candidates.length < max) { cursor = null; break; }
-  }
-  if (!preview && cursor !== startCursor) await cursorRef.set({ cursor }, { merge: true });
-  return candidates;
+  // Publication either advances the retry time or changes status. Revisit the
+  // oldest eligible work each time, keeping the transactional lease check.
+  const snapshot = await db.collection("company_research_runs")
+    .where("deferredStatus", "==", "PENDING")
+    .where("nextAttemptAtMs", "<=", now)
+    .where("publishLeaseExpiresAtMs", "<=", now)
+    .orderBy("nextAttemptAtMs")
+    .orderBy("publishLeaseExpiresAtMs")
+    .limit(max).get();
+  return snapshot.docs.map(doc => {
+    const event = parseSecFilingDiscovered(doc.get("event"));
+    if (doc.id !== `${PREFIX}${event.eventId}` || event.form !== "10-K") throw new Error("Invalid deferred graph filing record");
+    return { id: doc.id, event };
+  });
 }
 
 export async function dispatchDeferredCompanyGraphFiling(event: SecFilingDiscovered, db: Firestore,

@@ -71,7 +71,7 @@ export async function publishQueuedCompanyGraphRequests(input: { limit?: number;
   const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
   const [dispatcher, filings] = await Promise.all([
     cursorRef.get(),
-    listDeferredCompanyGraphFilings(limit, db, now, input.preview),
+    listDeferredCompanyGraphFilings(limit, db, now),
   ]);
   const storedCursor = dispatcher.get("cursor");
   const manual = await listQueuedCompanyGraphRequests(limit, db, now, {

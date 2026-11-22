@@ -42,6 +42,7 @@ function fixture() {
           && clauses.every(([field, op, value]) => {
             const actual = field === "__name__" ? path.slice(name.length + 1) : data[field];
             return op === "==" ? actual === value : op === "in" ? (value as unknown[]).includes(actual)
+              : op === "<=" ? typeof actual === "number" && typeof value === "number" && actual <= value
               : op === ">=" ? String(actual) >= String(value) : op === "<" ? String(actual) < String(value) : false;
           })).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).slice(0, count).map(([path]) => snapshot(path));
         return { docs };
@@ -173,7 +174,7 @@ test("preview is write-free and unavailable budget cannot publish or advance cur
   assert.deepEqual([...f.rows], before);
 });
 
-test("empty scheduled graph sweeps only save cursors when they wrap to the start", async () => {
+test("empty scheduled graph sweeps only reset the manual cursor", async () => {
   const f = fixture();
   const manual = "company_research_requests/_graph_dispatcher";
   const filings = "company_research_runs/_graph_deferred_dispatch_cursor";
@@ -186,21 +187,24 @@ test("empty scheduled graph sweeps only save cursors when they wrap to the start
   f.rows.set(filings, { cursor: "_graph_deferred_sec_previous" });
   assert.equal((await publishQueuedCompanyGraphRequests({}, deps)).published, 0);
   assert.deepEqual(f.rows.get(manual), { cursor: null, nextQueue: "filing" });
-  assert.deepEqual(f.rows.get(filings), { cursor: null });
-  assert.deepEqual(f.writes.sort(), [manual, filings].sort());
+  assert.deepEqual(f.rows.get(filings), { cursor: "_graph_deferred_sec_previous" });
+  assert.deepEqual(f.writes, [manual]);
+  assert(!f.reads.includes(filings));
 
   f.writes.length = 0;
   assert.equal((await publishQueuedCompanyGraphRequests({}, deps)).published, 0);
   assert.deepEqual(f.writes, [], "a completed rotation stays at the start without a write");
 });
 
-test("bounded filing cursor reaches due work beyond a thousand records", async () => {
+test("one bounded query reaches due work beyond a thousand future or leased records", async () => {
   const f = fixture(), event = filing();
-  for (let i = 0; i < 1005; i++) f.rows.set(`company_research_runs/_graph_deferred_sec_000_${String(i).padStart(4, "0")}`, { deferredStatus: "PENDING", nextAttemptAtMs: retryAtMs + 1 });
+  for (let i = 0; i < 1005; i++) f.rows.set(`company_research_runs/_graph_deferred_sec_000_${String(i).padStart(4, "0")}`, {
+    deferredStatus: "PENDING", nextAttemptAtMs: i % 2 ? retryAtMs + 1 : retryAtMs,
+    publishLeaseExpiresAtMs: i % 2 ? 0 : retryAtMs + 1,
+  });
   await deferCompanyGraphFiling(event, retryAtMs, f.db, now);
-  assert.equal((await listDeferredCompanyGraphFilings(1, f.db, retryAtMs)).length, 0);
-  assert.equal(f.queries.length, 10); assert.ok(f.queries.every(limit => limit === 100));
   assert.deepEqual((await listDeferredCompanyGraphFilings(1, f.db, retryAtMs)).map(row => row.event), [event]);
+  assert.deepEqual(f.queries, [1]);
 });
 
 test("uncertain replay publication retries unchanged after backoff and concurrent publishers share one lease", async () => {
