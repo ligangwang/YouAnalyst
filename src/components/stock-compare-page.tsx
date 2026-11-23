@@ -11,7 +11,7 @@ import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart"
 import { companyCompareColor, type CompareAppearance } from "@/lib/compare-appearance";
 import { CompanyColorControl, CompareCustomization, useCompareAppearance } from "./compare-customization";
 import { ComparisonCommunity, ComparisonCredit } from "./compare-community";
-import type { CommunityComparison } from "@/lib/compare-community";
+import type { CommunityComparison, InitialCommunityComparisonPage } from "@/lib/compare-community";
 import { useMarket } from "./providers/preferences-context";
 import { CompanySearch } from "./company-search";
 import { ComparisonVideoExport } from "./comparison-video-export";
@@ -34,7 +34,7 @@ function ChartLoading() {
 }
 const Chart = dynamic(() => import("./stock-comparison-chart").then(module => module.StockComparisonChart), { ssr: false, loading: ChartLoading });
 
-export function StockComparePage({ initial, embedded = false, embedTheme = "dark", featured = null }: { initial: CompareConfig; embedded?: boolean; embedTheme?: CompareEmbedTheme; featured?: CommunityComparison | null }) {
+export function StockComparePage({ initial, embedded = false, embedTheme = "dark", featured = null, initialCommunityPage }: { initial: CompareConfig; embedded?: boolean; embedTheme?: CompareEmbedTheme; featured?: CommunityComparison | null; initialCommunityPage?: InitialCommunityComparisonPage }) {
   const { text, locale } = useLocale();
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
@@ -293,7 +293,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     </section>}
     {shareUrl && <input className={styles.shareInput} aria-label={text("Shareable comparison link", "对比分享链接")} readOnly value={shareUrl} onFocus={e => e.target.select()}/>}
     {embedded ? <><div className={styles.embedFooter}><span>YouAnalyst</span><Link href={comparePath(styledConfig())} target="_blank" rel="noopener noreferrer">{text("Open in YouAnalyst", "在 YouAnalyst 中打开")} ↗</Link></div>{results && <details className={styles.embedResults} open={chartUnavailable || undefined}><summary>{text("View returns table", "查看收益表")}</summary>{results}</details>}</> : chartUnavailable && results}
-    {!embedded && <ComparisonCommunity comparison={{ config: styledConfig(), theme: displayTheme }} ready={!!data && !loading && !error}/>}
+    {!embedded && <ComparisonCommunity initialPage={initialCommunityPage} comparison={{ config: styledConfig(), theme: displayTheme }} ready={!!data && !loading && !error}/>}
     {!embedded && <section className="mt-6 space-y-2 text-sm text-slate-400" aria-labelledby="comparison-introduction">
       <h2 id="comparison-introduction" className="font-semibold text-slate-200">{text("Animated Stock Performance Comparison", "股票表现动态对比")}</h2>
       <p>{text("Compare stock returns over time with animated line and bar charts. Choose companies and dates to see how their performance differs.", "通过动态折线图和条形图，对比股票在不同时期的收益表现。选择公司和日期范围，直观了解它们的表现差异。")}</p>

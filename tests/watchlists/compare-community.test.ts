@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
-import { addComparisonComment, listComparisonComments, listCommunityComparisons, publishComparison, readCommunityComparison, resolveCompareLanding, voteOnComparison } from "../../src/lib/compare-community-service";
+import { addComparisonComment, createFeaturedCommunityLoader, listComparisonComments, listCommunityComparisons, publishComparison, readCommunityComparison, resolveCompareLanding, voteOnComparison } from "../../src/lib/compare-community-service";
 import { validateComparisonSubmission, comparisonVoteTotals, type CommunityComparison } from "../../src/lib/compare-community";
 import { DEFAULT_COMPARE_APPEARANCE, companyCompareColor } from "../../src/lib/compare-appearance";
 import { GET as getDetail } from "../../src/app/api/compare/community/[id]/route";
@@ -131,13 +131,33 @@ test("the highest net score becomes the default with author credit, explicit lin
   await voteOnComparison(first.id, "user2", -1, f.db);
   await voteOnComparison(second.id, "user2", 1, f.db);
   const winner = (await listCommunityComparisons(null, undefined, f.db)).items[0];
-  const result = await resolveCompareLanding(new URLSearchParams(), async () => winner);
+  const result = await resolveCompareLanding(new URLSearchParams(), async () => ({ featured: winner }));
   assert.equal(result.featured?.id, second.id); assert.equal(result.featured?.authorName, "Analyst 1"); assert.deepEqual(result.config, input.comparison.config);
   let requested = false;
-  const explicit = await resolveCompareLanding(new URLSearchParams({ symbols: "AAPL,MSFT", style: "line" }), async () => { requested = true; return winner; });
+  const explicit = await resolveCompareLanding(new URLSearchParams({ symbols: "AAPL,MSFT", style: "line" }), async () => { requested = true; return { featured: winner }; });
   assert.equal(requested, false); assert.equal(explicit.featured, null); assert.deepEqual(explicit.config.symbols, ["AAPL", "MSFT"]);
   const fallback = await resolveCompareLanding(new URLSearchParams(), async () => { throw new Error("index not ready"); });
   assert.equal(fallback.featured, null); assert.deepEqual(fallback.config.symbols, ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]);
+});
+
+test("the originating guest render can reuse its list while later requests check privacy afresh", async () => {
+  const f = fixture();
+  const { id } = await publishComparison(input, { uid: "user0" }, f.db);
+  let loads = 0;
+  const load = createFeaturedCommunityLoader(async cursor => {
+    loads++;
+    return listCommunityComparisons(cursor, undefined, f.db);
+  });
+  const [first, concurrent] = await Promise.all([resolveCompareLanding(new URLSearchParams(), load), load()]);
+  assert.equal(loads, 1);
+  assert.equal(first.featured?.id, id);
+  assert.equal(first.initialPage?.items[0].id, id);
+  assert.equal(concurrent.featured?.id, id);
+  assert.equal(concurrent.initialPage, undefined);
+
+  f.records.set("users/user0", { settings: { isPublic: false } });
+  assert.equal((await load()).initialPage, undefined);
+  assert.deepEqual((await listCommunityComparisons(null, undefined, f.db)).items, []);
 });
 
 test("private authors' comparisons, comments and votes cannot be accessed", async () => {
