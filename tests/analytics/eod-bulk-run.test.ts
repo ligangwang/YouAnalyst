@@ -5,10 +5,10 @@ import type {EodCompanyRunRequest} from '../../src/lib/predictions/eod-company-q
 import {pubsubFirestore} from '../helpers/pubsub-firestore';
 import {retireExpiredEodRun,EOD_COMPANY_RECOVERY_MS} from '../../src/lib/predictions/eod-recovery';
 
-function fixture(count=2005){
- const f=pubsubFirestore(),request:EodCompanyRunRequest={version:2,type:'eod.company-run.requested',batchId:'bulk-test',requestedAt:'2026-11-06T21:30:00Z',input:{market:'US',runDate:'2026-11-06'}};
+function fixture(count=2005,market:'US'|'CN_A'='US'){
+ const f=pubsubFirestore(),request:EodCompanyRunRequest={version:2,type:'eod.company-run.requested',batchId:'bulk-test',requestedAt:'2026-11-06T21:30:00Z',input:{market,runDate:'2026-11-06'}};
  const path='eod_runs/_request_bulk-test';f.rows.set(path,{request});
- const ids=Array.from({length:count},(_,i)=>`US:T${String(i).padStart(4,'0')}`);
+ const ids=Array.from({length:count},(_,i)=>market==='CN_A'?String(600000+i):`US:T${String(i).padStart(4,'0')}`);
  const pages:Array<{ids:string[];retry:boolean}>=[],stages:string[]=[],messages:EodCompanyRunRequest[]=[];
  const options:BulkOptions={db:f.db,owner:f.log.runId,plan:async()=>ids,publish:async r=>{messages.push(r);},
   prices:async(ids,retry)=>{pages.push({ids,retry});stages.push('prices');return [];},
@@ -34,6 +34,28 @@ test('an interrupted price batch resumes at its last committed boundary',async()
  assert.equal(f.rows.get('eod_runs/_latest_US'),undefined);
  broken=false;await f.run();
  assert.deepEqual(f.pages.map(p=>p.ids[0]),[f.ids[0],f.ids[1000],f.ids[1000],f.ids[2000]]);
+});
+
+test('A-share bulk delivery checkpoints smaller pages and resumes without reading its leased manifest again',async()=>{
+ const f=fixture(751,'CN_A');
+ let clock=0;f.options.now=()=>clock;f.options.budgetMs=240_000;
+ f.rows.set(f.path,{request:f.request,batchVersion:2,companyIds:f.ids,phase:'bulk-prices',
+   dispatchCursor:250,completedCompanies:250,retryCompanyIds:[]});
+ f.options.prices=async(ids,retry)=>{
+   if(!f.pages.length)assert.equal(f.reads.filter(path=>path===f.path).length,1);
+   f.pages.push({ids,retry});clock+=130_000;return [];
+ };
+ await f.run();
+ assert.deepEqual(f.pages.map(p=>p.ids.length),[250,250]);
+ assert.equal(f.pages[0].ids[0],f.ids[250]);
+ assert.equal(f.rows.get(f.path)?.dispatchCursor,750);
+ assert.deepEqual(f.messages,[f.request]);
+ assert.equal(f.rows.get('eod_runs/_latest_CN_A'),undefined);
+ await f.run();
+ assert.deepEqual(f.pages.map(p=>p.ids.length),[250,250,1]);
+ assert.equal(f.pages.at(-1)?.ids[0],f.ids[750]);
+ assert.equal(f.rows.get(f.path)?.completedCompanies,751);
+ assert.equal(f.rows.get('eod_runs/_latest_CN_A')?.runDate,'2026-11-06');
 });
 
 test('missing-only cleanup cannot finalize when a prediction needs a missing close',async()=>{
