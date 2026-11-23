@@ -1,3 +1,4 @@
+import { setTimeout as wait } from "node:timers/promises";
 import type { Metadata } from "next";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
@@ -24,19 +25,19 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 export default async function Page(props: Props) {
   const { config: initial, featured, initialPage } = await landingFrom(props);
-  let initialCommunityPage;
+  let initialCommunityPage: typeof initialPage;
   if (initialPage) {
     const token = (await cookies()).get(MEMBER_COOKIE)?.value;
     const member = token ? await verifyMember(token) : null;
     if (member) {
-      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const timer = new AbortController();
       try {
         initialCommunityPage = await Promise.race([
           withCommunityViewerVotes(initialPage, member.uid),
-          new Promise<undefined>(resolve => { timeout = setTimeout(resolve, 500); }),
+          wait(500, undefined, { signal: timer.signal }),
         ]);
       } catch { /* The browser can retry through the existing list API. */ }
-      finally { clearTimeout(timeout); }
+      finally { timer.abort(); }
     } else {
       const requestHeaders = await headers();
       const origin = new URL(requestHeaders.get("x-forwarded-proto") === "http" ? "http://localhost" : "https://localhost");
