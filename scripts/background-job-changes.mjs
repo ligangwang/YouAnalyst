@@ -6,7 +6,15 @@ import {pathToFileURL} from 'node:url';
 // Website presentation modules live behind a boundary checked against every
 // maintenance/worker entry point from both Dockerfiles. Shared data libraries
 // outside this directory still conservatively rebuild workers.
-export const UI_LIBRARY_ROOT = 'src/lib/ui/';
+const UI_LIBRARY_ROOT = 'src/lib/ui/';
+const WEBSITE_ONLY_LIBRARIES = new Set([
+  'src/lib/compare-community-service.ts',
+  'src/lib/compare-community.ts',
+]);
+
+export function isWebsiteOnlyLibrary(path) {
+  return path.startsWith(UI_LIBRARY_ROOT) || WEBSITE_ONLY_LIBRARIES.has(path);
+}
 // Old locations are excluded only after removal. Reintroducing a module at a
 // shared path makes it subject to the normal worker-dependency rules again.
 const retiredUiPaths = new Set([
@@ -20,7 +28,7 @@ export function backgroundJobTarget(paths) {
     if (['scripts/deploy-instrument-onboarding.sh','scripts/onboarding-worker-capacity.mjs','scripts/onboard-instruments.ts','scripts/serve-instrument-onboarding.ts','scripts/migrate-instrument-onboarding.ts'].includes(path)) {financial=true;continue;}
     if (['scripts/serve-sec-downloads.ts','scripts/cleanup-sec-downloads.ts','scripts/deploy-sec-downloads.sh','scripts/serve-sec-discovery.ts','scripts/serve-news-enrichment.ts','scripts/deploy-discovery-enrichment.sh'].includes(path)) {financial=true;continue;}
     if (['scripts/sync-price-snapshots.ts','scripts/deploy-price-snapshots.sh','Dockerfile.price-sync','cloudbuild.price-sync.yaml'].includes(path)) {financial=true;continue;}
-    if (path.startsWith(UI_LIBRARY_ROOT)) continue;
+    if (isWebsiteOnlyLibrary(path)) continue;
     if (retiredUiPaths.has(path) && !existsSync(path)) continue;
     if (['scripts/sync-entity-snapshots.ts', 'scripts/deploy-entity-snapshots.sh', 'scripts/collect-intelligence-news.ts', 'scripts/serve-intelligence-news.ts', 'scripts/serve-cn-discovery.ts', 'scripts/deploy-cn-discovery.sh', 'scripts/deploy-news-pubsub.sh', 'scripts/deploy-intelligence-news.sh', 'scripts/collect-earnings.ts', 'scripts/serve-earnings.ts', 'scripts/deploy-earnings.sh'].includes(path)) { financial = true; continue; }
     if (['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh','scripts/deploy-directory-release.sh'].includes(path)) { directory = true; continue; }
