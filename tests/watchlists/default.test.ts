@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
-import { getOrCreateDefaultWatchlistForUser } from "../../src/lib/watchlists/service";
+import { getOrCreateDefaultWatchlistForUser, withDefaultWatchlist } from "../../src/lib/watchlists/service";
 
 type Data = Record<string, unknown>;
 function fixture(initial: Record<string, Data> = {}, profileExists = true) {
   const records = new Map(Object.entries(initial));
   const writes: Data[] = [];
+  let profiles = profileExists;
+  let profileReads = 0;
   let nextId = 0;
   let tail: Promise<unknown> = Promise.resolve();
   const db = {
@@ -17,17 +19,25 @@ function fixture(initial: Record<string, Data> = {}, profileExists = true) {
     runTransaction: (fn: (tx: unknown) => Promise<unknown>) => {
       // Model serializable transactions, including concurrent initialization calls.
       const result = tail.then(() => fn({
-        get: async (ref: { collection: string; userId?: string }) => ref.collection === "users"
-          ? { exists: profileExists }
-          : { docs: [...records].filter(([, data]) => data.userId === ref.userId).map(([id, data]) => ({ id, data: () => data })) },
-        set: (ref: { id: string }, data: Data) => { records.set(ref.id, data); writes.push(data); },
+        get: async (ref: { collection: string; userId?: string }) => {
+          if (ref.collection === "users") {
+            profileReads++;
+            return { exists: profiles };
+          }
+          return { docs: [...records].filter(([, data]) => data.userId === ref.userId).map(([id, data]) => ({ id, data: () => data })) };
+        },
+        set: (ref: { collection: string; id: string }, data: Data) => {
+          if (ref.collection === "users") profiles = true;
+          else records.set(ref.id, data);
+          writes.push(data);
+        },
         update: (_ref: unknown, data: Data) => writes.push(data),
       }));
       tail = result.catch(() => {});
       return result;
     },
   } as unknown as Firestore;
-  return { db, records, writes };
+  return { db, records, writes, get profileReads() { return profileReads; } };
 }
 
 test("concurrent and repeated initialization creates one default with one active count", async () => {
@@ -60,4 +70,18 @@ test("archived lists remain archived and users without profiles cannot create de
   const missing = fixture({}, false);
   await assert.rejects(getOrCreateDefaultWatchlistForUser("alice", undefined, missing.db), /profile not found/);
   assert.equal(missing.writes.length, 0);
+});
+
+test("bootstrap shares a single profile read per transaction and initializes one watchlist", async () => {
+  const f = fixture({}, false);
+  const results = await Promise.all(Array.from({ length: 2 }, () => withDefaultWatchlist("alice", f.db, (tx, user) => {
+    if (!user.exists) tx.set(f.db.collection("users").doc("alice"), { role: "user" });
+    return { created: !user.exists };
+  })));
+  assert.equal(f.profileReads, 2);
+  assert.deepEqual(results.map(result => result.profile.created), [true, false]);
+  assert.equal(results[0].watchlistId, results[1].watchlistId);
+  assert.equal(f.records.size, 1);
+  assert.deepEqual(f.writes[0], { role: "user" });
+  assert.equal(f.writes[2]["stats.watchlistCount"], 1);
 });

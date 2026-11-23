@@ -1,4 +1,4 @@
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type DocumentSnapshot, type Transaction } from "firebase-admin/firestore";
 import { areProFeaturesEnabled, canUseProFeaturesForUserData } from "@/lib/features";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import {
@@ -574,24 +574,37 @@ export async function getOrCreateDefaultWatchlistForUser(
   name = "My Watchlist",
   db = getAdminFirestore(),
 ): Promise<string> {
+  const result = await withDefaultWatchlist(userId, db, (_tx, user) => {
+    if (!user.exists) throw new Error("User profile not found. Complete bootstrap first.");
+  }, name);
+  return result.watchlistId;
+}
+
+/** Share the profile snapshot between bootstrap and default watchlist initialization. */
+export function withDefaultWatchlist<Profile>(
+  userId: string,
+  db: ReturnType<typeof getAdminFirestore>,
+  updateProfile: (tx: Transaction, user: DocumentSnapshot) => Profile,
+  name = "My Watchlist",
+): Promise<{ profile: Profile; watchlistId: string }> {
   const userRef = db.collection("users").doc(userId);
   const watchlists = db.collection("watchlists");
   const newWatchlistRef = watchlists.doc();
   return db.runTransaction(async tx => {
-    const [userSnapshot, existing] = await Promise.all([
+    const [user, existing] = await Promise.all([
       tx.get(userRef), tx.get(watchlists.where("userId", "==", userId)),
     ]);
-    if (!userSnapshot.exists) throw new Error("User profile not found. Complete bootstrap first.");
     const active = existing.docs.map(mapWatchlistDoc).filter(item => !item.archivedAt)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    if (active[0]) return active[0].id;
+    const profile = updateProfile(tx, user);
+    if (active[0]) return { profile, watchlistId: active[0].id };
     const now = new Date().toISOString();
     tx.set(newWatchlistRef, {
       userId, name, description: null, isPublic: true, archivedAt: null, createdAt: now, updatedAt: now,
     });
     // Serialize concurrent initialization and ordinary watchlist creation on the user.
     tx.update(userRef, { updatedAt: now, "stats.watchlistCount": 1 });
-    return newWatchlistRef.id;
+    return { profile, watchlistId: newWatchlistRef.id };
   });
 }
 

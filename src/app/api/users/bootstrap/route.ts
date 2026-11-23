@@ -1,7 +1,7 @@
 import { resolveProfilePhoto } from "@/lib/users/photo";
 import { getAdminAuth, getAdminFirestore, verifyIdToken } from "@/lib/firebase/admin";
 import { canUseProFeaturesForUserData, getAppFeatures } from "@/lib/features";
-import { getOrCreateDefaultWatchlistForUser } from "@/lib/watchlists/service";
+import { withDefaultWatchlist } from "@/lib/watchlists/service";
 import { NextRequest, NextResponse } from "next/server";
 
 type BootstrapRequest = {
@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     const payload = (await request.json().catch(() => ({}))) as BootstrapRequest;
     const features = getAppFeatures();
     const db = getAdminFirestore();
-    const userRef = db.collection("users").doc(decoded.uid);
     const account = await getAdminAuth().getUser(decoded.uid);
     const google = account.providerData.find((provider) => provider.providerId === "google.com");
     const googlePhotoURL = google?.photoURL ?? null;
@@ -74,20 +73,18 @@ export async function POST(request: NextRequest) {
 
     // Auth restoration and explicit signup may bootstrap concurrently. Never
     // overwrite a profile or its watchlist counters created by the other request.
-    const result = await db.runTransaction(async tx => {
-      const current = await tx.get(userRef);
+    const { profile: result } = await withDefaultWatchlist(decoded.uid, db, (tx, current) => {
       if (current.exists) {
         const data = current.data() as Record<string, unknown>;
         const photoURL = google || data.photoSource === "google"
           ? resolveProfilePhoto(data, googlePhotoURL)
           : typeof data.photoURL === "string" ? data.photoURL : null;
-        if (photoURL !== (data.photoURL ?? null)) tx.update(userRef, { photoURL, updatedAt: new Date().toISOString() });
+        if (photoURL !== (data.photoURL ?? null)) tx.update(current.ref, { photoURL, updatedAt: new Date().toISOString() });
         return { created: false, photoURL, data };
       }
-      tx.set(userRef, userProfile);
+      tx.set(current.ref, userProfile);
       return { created: true, photoURL: userProfile.photoURL, data: userProfile };
     });
-    await getOrCreateDefaultWatchlistForUser(decoded.uid);
 
     return NextResponse.json({
       created: result.created,
