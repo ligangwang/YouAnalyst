@@ -1,5 +1,5 @@
 import type {Firestore} from 'firebase-admin/firestore';
-import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
+import {acquireMaintenanceLeaseState,releaseMaintenanceLease} from '../maintenance-lease';
 import {digest} from '../fundamentals/pubsub';
 import type {EodCompanyRunRequest} from './eod-company-queue';
 import {completeMarketEodRun} from './latest-eod-run';
@@ -7,6 +7,7 @@ import {withEodWorkScope} from './eod-work-scope';
 import {EOD_COMPANY_RECOVERY_MS} from './eod-recovery';
 
 export const EOD_BULK_SIZE=1000;
+const CN_A_PRICE_PAGE_SIZE=250;
 type Run={request:EodCompanyRunRequest;batchVersion?:number;companyIds?:string[];phase?:string;dispatchCursor?:number;
   retryCompanyIds?:string[];completedCompanies?:number;cursor?:string|null;finalizeCursor?:string|null;completed?:boolean;error?:string|null;startedAt?:string};
 export type BulkOptions={db:Firestore;owner:string;publish:(request:EodCompanyRunRequest)=>Promise<unknown>;
@@ -21,7 +22,8 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
  return withEodWorkScope(async()=>{
   const {db,owner}=options,now=options.now??Date.now,deadline=now()+(options.budgetMs??240_000);
   const ref=db.collection('eod_runs').doc(`_request_${request.batchId}`),state=db.collection('eod_runs').doc('_company_pipeline');
-  if(!await acquireMaintenanceLease(ref,owner))throw Error('EOD bulk run is busy');
+  const lease=await acquireMaintenanceLeaseState(ref,owner);
+  if(!lease)throw Error('EOD bulk run is busy');
   let wake=false;
   const checkpoint=async(patch:Partial<Run>)=>db.runTransaction(async tx=>{
     const saved=await tx.get(ref),pipeline=await tx.get(state);
@@ -29,7 +31,7 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
     tx.set(ref,{...patch,error:null,failedAt:null},{merge:true});
   });
   try {
-   const stored=(await ref.get()).data() as Run|undefined;
+   const stored=lease.checkpoint as Run|undefined;
    if(!stored||digest(stored.request)!==digest(request))throw Error('Unknown EOD bulk request');
    let run:Run=stored;
    if(run.completed)return {batchId:request.batchId,duplicate:true};
@@ -63,9 +65,10 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
     if(run.phase==='bulk-prices'||run.phase==='bulk-retry'){
      const retry=run.phase==='bulk-retry',ids=retry?run.retryCompanyIds!:run.companyIds!,offset=run.dispatchCursor??0;
      if(offset<ids.length){
-      // Individual-provider cleanup is separately bounded; the bulk import
-      // still uses 1000. Checkpoint gaps often enough to survive slow providers.
-      const page=ids.slice(offset,offset+(retry?32:EOD_BULK_SIZE)),missing=await options.prices(page,retry);
+      // A-share imports can exceed the push deadline with 1,000 symbols.
+      // Checkpoint smaller pages while keeping the delivery's bulk file shared.
+      const pricePageSize=request.input.market==='CN_A'?CN_A_PRICE_PAGE_SIZE:EOD_BULK_SIZE;
+      const page=ids.slice(offset,offset+(retry?32:pricePageSize)),missing=await options.prices(page,retry);
       if(new Set(missing).size!==missing.length||missing.some(id=>!page.includes(id)))throw Error('Invalid EOD missing-price result');
       const patch:Partial<Run>={dispatchCursor:offset+page.length,completedCompanies:(run.completedCompanies??0)+page.length-missing.length};
       if(!retry)patch.retryCompanyIds=[...run.retryCompanyIds!,...missing];
