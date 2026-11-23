@@ -9,16 +9,16 @@ function fixture(count=2005,market:'US'|'CN_A'='US'){
  const f=pubsubFirestore(),request:EodCompanyRunRequest={version:2,type:'eod.company-run.requested',batchId:'bulk-test',requestedAt:'2026-11-06T21:30:00Z',input:{market,runDate:'2026-11-06'}};
  const path='eod_runs/_request_bulk-test';f.rows.set(path,{request});
  const ids=Array.from({length:count},(_,i)=>market==='CN_A'?String(600000+i):`US:T${String(i).padStart(4,'0')}`);
- const pages:Array<{ids:string[];retry:boolean}>=[],stages:string[]=[],messages:EodCompanyRunRequest[]=[];
+ const pages:string[][]=[],stages:string[]=[],messages:EodCompanyRunRequest[]=[];
  const options:BulkOptions={db:f.db,owner:f.log.runId,plan:async()=>ids,publish:async r=>{messages.push(r);},
-  prices:async(ids,retry)=>{pages.push({ids,retry});stages.push('prices');return [];},
-  predictions:async()=>{stages.push('predictions');return null;},finalize:async()=>{stages.push('finalize');return null;}};
+  prices:async ids=>{pages.push(ids);stages.push('prices');return [];},
+  missingPrices:async ids=>ids,predictions:async()=>{stages.push('predictions');return null;},finalize:async()=>{stages.push('finalize');return null;}};
  return {...f,path,request,options,ids,pages,stages,messages,run:()=>processBulkEodRun(request,options)};
 }
 
 test('1000-symbol batches finish before predictions and one finalization, without company receipts',async()=>{
  const f=fixture();await f.run();
- assert.deepEqual(f.pages.map(p=>p.ids.length),[1000,1000,5]);
+ assert.deepEqual(f.pages.map(page=>page.length),[1000,1000,5]);
  assert.deepEqual(f.stages,['prices','prices','prices','predictions','finalize']);
  assert.equal(f.rows.get(f.path)?.completedCompanies,2005);
  assert.equal(f.rows.get('eod_runs/_latest_US')?.runDate,'2026-11-06');
@@ -28,12 +28,12 @@ test('1000-symbol batches finish before predictions and one finalization, withou
 
 test('an interrupted price batch resumes at its last committed boundary',async()=>{
  const f=fixture();let broken=true;
- f.options.prices=async(ids,retry)=>{f.pages.push({ids,retry});if(ids[0]===f.ids[1000]&&broken)throw Error('partial commit');return [];};
+ f.options.prices=async ids=>{f.pages.push(ids);if(ids[0]===f.ids[1000]&&broken)throw Error('partial commit');return [];};
  await assert.rejects(f.run(),/partial commit/);
  assert.equal(f.rows.get(f.path)?.dispatchCursor,1000);
  assert.equal(f.rows.get('eod_runs/_latest_US'),undefined);
  broken=false;await f.run();
- assert.deepEqual(f.pages.map(p=>p.ids[0]),[f.ids[0],f.ids[1000],f.ids[1000],f.ids[2000]]);
+ assert.deepEqual(f.pages.map(page=>page[0]),[f.ids[0],f.ids[1000],f.ids[1000],f.ids[2000]]);
 });
 
 test('A-share bulk delivery checkpoints smaller pages and resumes without reading its leased manifest again',async()=>{
@@ -41,34 +41,55 @@ test('A-share bulk delivery checkpoints smaller pages and resumes without readin
  let clock=0;f.options.now=()=>clock;f.options.budgetMs=240_000;
  f.rows.set(f.path,{request:f.request,batchVersion:2,companyIds:f.ids,phase:'bulk-prices',
    dispatchCursor:250,completedCompanies:250,retryCompanyIds:[]});
- f.options.prices=async(ids,retry)=>{
+ f.options.prices=async ids=>{
    if(!f.pages.length)assert.equal(f.reads.filter(path=>path===f.path).length,1);
-   f.pages.push({ids,retry});clock+=130_000;return [];
+   f.pages.push(ids);clock+=130_000;return [];
  };
  await f.run();
- assert.deepEqual(f.pages.map(p=>p.ids.length),[250,250]);
- assert.equal(f.pages[0].ids[0],f.ids[250]);
+ assert.deepEqual(f.pages.map(page=>page.length),[250,250]);
+ assert.equal(f.pages[0][0],f.ids[250]);
  assert.equal(f.rows.get(f.path)?.dispatchCursor,750);
  assert.deepEqual(f.messages,[f.request]);
  assert.equal(f.rows.get('eod_runs/_latest_CN_A'),undefined);
  await f.run();
- assert.deepEqual(f.pages.map(p=>p.ids.length),[250,250,1]);
- assert.equal(f.pages.at(-1)?.ids[0],f.ids[750]);
+ assert.deepEqual(f.pages.map(page=>page.length),[250,250,1]);
+ assert.equal(f.pages.at(-1)?.[0],f.ids[750]);
  assert.equal(f.rows.get(f.path)?.completedCompanies,751);
  assert.equal(f.rows.get('eod_runs/_latest_CN_A')?.runDate,'2026-11-06');
 });
 
-test('missing-only cleanup cannot finalize when a prediction needs a missing close',async()=>{
+test('coverage is checked only after required prediction prices succeed',async()=>{
  const f=fixture(3);
- f.options.prices=async(ids,retry)=>{f.pages.push({ids,retry});return [f.ids[1]];};
+ f.options.prices=async ids=>{f.pages.push(ids);return [f.ids[1]];};
+ const coverage:string[][]=[];
+ f.options.missingPrices=async ids=>{coverage.push(ids);return ids;};
  f.options.predictions=async()=>{throw Error('Required prediction EOD prices are missing');};
  await assert.rejects(f.run(),/Required prediction/);
- assert.deepEqual(f.pages.map(p=>p.ids),[f.ids,[f.ids[1]]]);
+ assert.deepEqual(f.pages,[f.ids]);
+ assert.deepEqual(coverage,[]);
  assert.equal(f.rows.get(f.path)?.completedCompanies,2);
  assert.equal(f.rows.get('eod_runs/_latest_US'),undefined);
  assert.ok(!f.stages.includes('finalize'));
  f.options.predictions=async()=>null;await f.run();
+ assert.deepEqual(coverage,[[f.ids[1]]]);
  assert.equal(f.rows.get('eod_runs/US_2026-11-06')?.status,'COMPLETED_WITH_ERRORS');
+});
+
+test('a saved bulk-retry checkpoint verifies the full missing list after predictions',async()=>{
+ const f=fixture(4);
+ const missing=[f.ids[1],f.ids[2],f.ids[3]];
+ f.rows.set(f.path,{request:f.request,batchVersion:2,companyIds:f.ids,phase:'bulk-retry',
+  dispatchCursor:1,completedCompanies:1,retryCompanyIds:missing});
+ f.options.missingPrices=async ids=>{
+  assert.deepEqual(f.stages,['predictions']);
+  assert.deepEqual(ids,missing);
+  f.stages.push('coverage');
+  return [f.ids[3]];
+ };
+ await f.run();
+ assert.deepEqual(f.pages,[]);
+ assert.deepEqual(f.stages,['predictions','coverage','finalize']);
+ assert.equal(f.rows.get(f.path)?.completedCompanies,3);
 });
 
 test('prediction pages resume after failure and finalization is withheld',async()=>{
@@ -81,11 +102,11 @@ test('prediction pages resume after failure and finalization is withheld',async(
 
 test('budget continuation and failed publication preserve the price cursor',async()=>{
  const f=fixture(1001);let clock=0;f.options.now=()=>clock;f.options.budgetMs=1;
- f.options.prices=async(ids,retry)=>{f.pages.push({ids,retry});clock+=2;return [];};
+ f.options.prices=async ids=>{f.pages.push(ids);clock+=2;return [];};
  f.options.publish=async()=>{throw Error('publish failed');};
  await assert.rejects(f.run(),/publish failed/);assert.equal(f.rows.get(f.path)?.dispatchCursor,1000);
  f.options.publish=async()=>{};f.options.budgetMs=100;await f.run();
- assert.deepEqual(f.pages.map(p=>p.ids.length),[1000,1]);
+ assert.deepEqual(f.pages.map(page=>page.length),[1000,1]);
 });
 
 test('in-flight legacy manifests and a competing pipeline are not adopted',async()=>{
@@ -109,7 +130,7 @@ test('explicit version 1 upgrade preserves the frozen manifest and fences a live
  f.options.upgradeBatchedRun=true;f.options.plan=async()=>{throw Error('Must preserve manifest');};
  await assert.rejects(f.run(),/busy/);assert.equal(f.pages.length,0);
  f.rows.set(f.path,{...f.rows.get(f.path),leaseExpiresAtMs:0});await f.run();
- assert.deepEqual(f.pages.map(p=>p.ids),[f.ids]);
+ assert.deepEqual(f.pages,[f.ids]);
  assert.equal(f.rows.get(f.path)?.batchVersion,2);assert.equal(f.rows.get(f.path)?.completedCompanies,3);
 });
 

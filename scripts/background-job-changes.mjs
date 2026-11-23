@@ -22,13 +22,19 @@ const retiredUiPaths = new Set([
   'src/lib/compare-video.ts',
   ...['vertical-tree','vertical-tree-geometry','tree-tour','tour-motion','label-fade','intro-orbit','industry-tree','hierarchy-tour','layout-galaxy'].map(name=>`src/lib/knowledge-graph/${name}.ts`),
 ]);
+export const EOD_WORKER_LIBRARIES = new Set([
+  'src/lib/predictions/eod-bulk-run.ts',
+  'src/lib/predictions/eod-company-queue.ts',
+]);
+
 export function backgroundJobTarget(paths) {
-  let financial = false, directory = false;
+  let financial = false, directory = false, eod = false;
   for (const path of paths) {
     if (['scripts/deploy-instrument-onboarding.sh','scripts/onboarding-worker-capacity.mjs','scripts/onboard-instruments.ts','scripts/serve-instrument-onboarding.ts','scripts/migrate-instrument-onboarding.ts'].includes(path)) {financial=true;continue;}
     if (['scripts/serve-sec-downloads.ts','scripts/cleanup-sec-downloads.ts','scripts/deploy-sec-downloads.sh','scripts/serve-sec-discovery.ts','scripts/serve-news-enrichment.ts','scripts/deploy-discovery-enrichment.sh'].includes(path)) {financial=true;continue;}
     if (['scripts/sync-price-snapshots.ts','scripts/deploy-price-snapshots.sh','Dockerfile.price-sync','cloudbuild.price-sync.yaml'].includes(path)) {financial=true;continue;}
     if (isWebsiteOnlyLibrary(path)) continue;
+    if (EOD_WORKER_LIBRARIES.has(path)) { eod = true; continue; }
     if (retiredUiPaths.has(path) && !existsSync(path)) continue;
     if (['scripts/sync-entity-snapshots.ts', 'scripts/deploy-entity-snapshots.sh', 'scripts/collect-intelligence-news.ts', 'scripts/serve-intelligence-news.ts', 'scripts/serve-cn-discovery.ts', 'scripts/deploy-cn-discovery.sh', 'scripts/deploy-news-pubsub.sh', 'scripts/deploy-intelligence-news.sh', 'scripts/collect-earnings.ts', 'scripts/serve-earnings.ts', 'scripts/deploy-earnings.sh'].includes(path)) { financial = true; continue; }
     if (['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh','scripts/deploy-directory-release.sh'].includes(path)) { directory = true; continue; }
@@ -42,7 +48,7 @@ export function backgroundJobTarget(paths) {
       directory = true;
     }
   }
-  return financial && directory ? 'all' : financial ? 'fundamentals' : directory ? 'directory' : 'none';
+  return (financial || eod) && directory ? 'all' : financial ? 'fundamentals' : directory ? 'directory' : eod ? 'eod-maintenance' : 'none';
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

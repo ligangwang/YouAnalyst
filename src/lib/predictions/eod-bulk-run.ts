@@ -11,9 +11,9 @@ const CN_A_PRICE_PAGE_SIZE=250;
 type Run={request:EodCompanyRunRequest;batchVersion?:number;companyIds?:string[];phase?:string;dispatchCursor?:number;
   retryCompanyIds?:string[];completedCompanies?:number;cursor?:string|null;finalizeCursor?:string|null;completed?:boolean;error?:string|null;startedAt?:string};
 export type BulkOptions={db:Firestore;owner:string;publish:(request:EodCompanyRunRequest)=>Promise<unknown>;
-  plan:()=>Promise<string[]>;prices:(ids:string[],retry:boolean)=>Promise<string[]>;
+  plan:()=>Promise<string[]>;prices:(ids:string[])=>Promise<string[]>;
   predictions:(cursor:string|null)=>Promise<string|null>;finalize:(cursor:string|null)=>Promise<string|null>;
-  missingPrices?:(ids:string[])=>Promise<string[]>;
+  missingPrices:(ids:string[])=>Promise<string[]>;
   budgetMs?:number;now?:()=>number;upgradeBatchedRun?:boolean};
 
 /** New daily runs use stage checkpoints, not one workflow per company. Existing
@@ -63,25 +63,27 @@ export async function processBulkEodRun(request:EodCompanyRunRequest,options:Bul
    }
    while(now()<deadline){
     if(run.phase==='bulk-prices'||run.phase==='bulk-retry'){
-     const retry=run.phase==='bulk-retry',ids=retry?run.retryCompanyIds!:run.companyIds!,offset=run.dispatchCursor??0;
-     if(offset<ids.length){
+     const ids=run.companyIds!,offset=run.dispatchCursor??0;
+     if(run.phase==='bulk-prices'&&offset<ids.length){
       // A-share imports can exceed the push deadline with 1,000 symbols.
       // Checkpoint smaller pages while keeping the delivery's bulk file shared.
       const pricePageSize=request.input.market==='CN_A'?CN_A_PRICE_PAGE_SIZE:EOD_BULK_SIZE;
-      const page=ids.slice(offset,offset+(retry?32:pricePageSize)),missing=await options.prices(page,retry);
+      const page=ids.slice(offset,offset+pricePageSize),missing=await options.prices(page);
       if(new Set(missing).size!==missing.length||missing.some(id=>!page.includes(id)))throw Error('Invalid EOD missing-price result');
-      const patch:Partial<Run>={dispatchCursor:offset+page.length,completedCompanies:(run.completedCompanies??0)+page.length-missing.length};
-      if(!retry)patch.retryCompanyIds=[...run.retryCompanyIds!,...missing];
+      const patch:Partial<Run>={dispatchCursor:offset+page.length,completedCompanies:(run.completedCompanies??0)+page.length-missing.length,
+        retryCompanyIds:[...run.retryCompanyIds!,...missing]};
       await checkpoint(patch);run={...run,...patch};continue;
      }
-     const patch=retry?{phase:'bulk-predictions',cursor:null}:{phase:'bulk-retry',dispatchCursor:0};
+     // The old bulk-retry phase only checked storage. Prediction pricing can
+     // still fill gaps, so verify the saved list once after all predictions.
+     const patch={phase:'bulk-predictions',cursor:null};
      await checkpoint(patch);run={...run,...patch};continue;
     }
     if(run.phase==='bulk-predictions'){
      const cursor=await options.predictions(run.cursor??null);
      if(cursor!==null&&cursor===run.cursor)throw Error('EOD prediction cursor did not advance');
      const patch:Partial<Run>={cursor,...(cursor===null?{phase:'bulk-finalizing'}:{})};
-     if(cursor===null&&options.missingPrices&&run.retryCompanyIds!.length){
+     if(cursor===null&&run.retryCompanyIds!.length){
        const missing=await options.missingPrices(run.retryCompanyIds!);
        if(missing.some(id=>!run.retryCompanyIds!.includes(id))||new Set(missing).size!==missing.length)throw Error('Invalid EOD coverage result');
        patch.completedCompanies=run.companyIds!.length-missing.length;
