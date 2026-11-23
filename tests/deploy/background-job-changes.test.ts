@@ -2,7 +2,7 @@ import {deliveryTasks} from '../../scripts/verify-worker-delivery.mjs';
 import {runInNewContext} from 'node:vm';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {backgroundJobTarget,isWebsiteOnlyLibrary} from '../../scripts/background-job-changes.mjs';
+import {backgroundJobTarget,EOD_WORKER_LIBRARIES,isWebsiteOnlyLibrary} from '../../scripts/background-job-changes.mjs';
 import {build} from 'esbuild';
 import {readFileSync,existsSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -21,6 +21,9 @@ test('UI library boundary cannot hide dependencies of any bundled worker',async(
   const result=await build({entryPoints,bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
   const inputs=new Set(Object.keys(result.metafile!.inputs).map(p=>p.replaceAll('\\','/')));
   assert.deepEqual([...inputs].filter(isWebsiteOnlyLibrary),[], 'Workers must not import website-only libraries');
+  const eodConsumers=Object.values(result.metafile!.outputs).filter(output=>
+    Object.keys(output.inputs).some(path=>EOD_WORKER_LIBRARIES.has(path.replaceAll('\\','/'))));
+  assert.deepEqual(eodConsumers.map(output=>output.entryPoint),['scripts/serve-eod-maintenance.ts']);
 });
 
 test('website-only changes skip workers and worker inputs select their images',()=>{
@@ -44,6 +47,9 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['scripts/serve-cn-fundamentals.ts','scripts/deploy-cn-pubsub.sh']),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh']),'directory');
   assert.equal(backgroundJobTarget(['scripts/download-cni-directory.py']),'directory');
+  assert.equal(backgroundJobTarget([...EOD_WORKER_LIBRARIES]),'eod-maintenance');
+  assert.equal(backgroundJobTarget([...EOD_WORKER_LIBRARIES,'scripts/serve-sec-fundamentals.ts']),'fundamentals');
+  assert.equal(backgroundJobTarget([...EOD_WORKER_LIBRARIES,'scripts/download-cni-directory.py']),'all');
   assert.equal(backgroundJobTarget(['Dockerfile.directory-sync','scripts/refresh-sec-fundamentals.ts']),'all');
   assert.equal(backgroundJobTarget(['.github/workflows/deploy.yml']),'all');
   for(const p of ['src/lib/maintenance-lease.ts','package-lock.json','.dockerignore','.gcloudignore','scripts/lib/maintenance-job-iam.sh','scripts/build-fundamentals.sh']) assert.equal(backgroundJobTarget([p]),'all');
