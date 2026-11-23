@@ -2,7 +2,7 @@ import {deliveryTasks} from '../../scripts/verify-worker-delivery.mjs';
 import {runInNewContext} from 'node:vm';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {backgroundJobTarget,UI_LIBRARY_ROOT} from '../../scripts/background-job-changes.mjs';
+import {backgroundJobTarget,isWebsiteOnlyLibrary} from '../../scripts/background-job-changes.mjs';
 import {build} from 'esbuild';
 import {readFileSync,existsSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -20,7 +20,7 @@ test('UI library boundary cannot hide dependencies of any bundled worker',async(
   assert.ok(entryPoints.includes('scripts/sync-cni-directory.ts'));
   const result=await build({entryPoints,bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
   const inputs=new Set(Object.keys(result.metafile!.inputs).map(p=>p.replaceAll('\\','/')));
-  assert.deepEqual([...inputs].filter(path=>path.startsWith(UI_LIBRARY_ROOT)),[], 'Workers must not import website presentation libraries');
+  assert.deepEqual([...inputs].filter(isWebsiteOnlyLibrary),[], 'Workers must not import website-only libraries');
 });
 
 test('website-only changes skip workers and worker inputs select their images',()=>{
@@ -30,6 +30,7 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['src/app/api/admin/fundamentals-errors/route.ts','src/app/api/admin/fundamentals-errors/list.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/ui/knowledge-graph/tree-tour.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/future-chart-helper.ts']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/compare-community-service.ts','src/lib/compare-community.ts','src/app/compare/page.tsx']),'none');
   assert.equal(backgroundJobTarget(['src/lib/compare-video.ts','src/lib/ui/compare-video.ts','src/components/comparison-video-export.tsx','scripts/background-job-changes.mjs']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/compare-video.ts','src/lib/events/classification.ts']),'all');
   assert.equal(backgroundJobTarget(['src/lib/company-timeline.ts','src/lib/knowledge-graph/tree-tour.ts','src/lib/ui/company-timeline.ts','scripts/background-job-changes.mjs']),'none');
