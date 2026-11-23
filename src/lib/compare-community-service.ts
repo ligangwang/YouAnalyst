@@ -3,7 +3,7 @@ import { getAdminFirestore } from "./firebase/admin";
 import { postId } from "./posts/model";
 import { predictionInstrument } from "./predictions/instrument";
 import { parseCompareConfig } from "./compare";
-import { sameComparisonSubmission, validCommunityId, validateComparisonComment, validateComparisonSubmission, validateComparisonVote, comparisonVoteTotals, type CommunityComparison, type ComparisonComment, type ComparisonSubmission } from "./compare-community";
+import { sameComparisonSubmission, validCommunityId, validateComparisonComment, validateComparisonSubmission, validateComparisonVote, comparisonVoteTotals, type CommunityComparison, type CommunityComparisonPage, type InitialCommunityComparisonPage, type ComparisonComment, type ComparisonSubmission } from "./compare-community";
 
 type StoredComparison = Omit<CommunityComparison, "id" | "viewerVote"> & { kind: "COMPARISON"; visibility: "PUBLIC" };
 const authorName = (data: Record<string, unknown>, fallback?: string | null) => String(data.nickname || data.displayName || fallback || "Community member").slice(0, 100);
@@ -51,7 +51,7 @@ export async function readCommunityComparison(id: string, viewerId?: string, db 
   return publicRow(post, id, vote?.get("value") === 1 ? 1 : vote?.get("value") === -1 ? -1 : 0);
 }
 
-export async function listCommunityComparisons(cursor?: string | null, viewerId?: string, db = getAdminFirestore()) {
+export async function listCommunityComparisons(cursor?: string | null, viewerId?: string, db = getAdminFirestore()): Promise<CommunityComparisonPage> {
   let query = db.collection("posts").where("kind", "==", "COMPARISON").orderBy("netLikes", "desc").orderBy("createdAt", "desc").orderBy(FieldPath.documentId(), "desc");
   if (cursor) {
     if (cursor.length > 500) throw new Error("Invalid cursor");
@@ -125,29 +125,59 @@ export async function listComparisonComments(id: string, cursor?: string | null,
   return { items: page.map(doc => ({ ...doc.data(), id: doc.id }) as ComparisonComment), nextCursor: snapshot.docs.length > 20 && last ? Buffer.from(JSON.stringify({ createdAt: last.get("createdAt"), id: last.id })).toString("base64url") : null };
 }
 
-let featuredCache: { expires: number; promise: Promise<CommunityComparison | null> } | null = null;
-export async function featuredCommunityComparison(): Promise<CommunityComparison | null> {
-  if (!featuredCache || featuredCache.expires < Date.now()) {
-    const promise = (async () => {
-      let cursor: string | null = null;
-      // Bound reads even if authors have made many previously public posts private.
-      for (let page = 0; page < 5; page++) {
-        const result = await listCommunityComparisons(cursor);
-        if (result.items[0]) return result.items[0];
-        if (!result.nextCursor) break;
-        cursor = result.nextCursor;
-      }
-      return null;
-    })().catch(() => null);
-    featuredCache = { expires: Date.now() + 30000, promise };
-  }
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try { return await Promise.race([featuredCache.promise, new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 1500); })]); }
-  finally { clearTimeout(timer); }
+export async function withCommunityViewerVotes(page: InitialCommunityComparisonPage, viewerId: string,
+  db = getAdminFirestore()): Promise<InitialCommunityComparisonPage> {
+  const posts = db.collection("posts");
+  const refs = page.items.map(post => posts.doc(post.id).collection("votes").doc(viewerId));
+  const votes = refs.length ? await db.getAll(...refs) : [];
+  return {
+    ...page,
+    viewerId,
+    items: page.items.map((post, index) => {
+      const value = votes[index]?.get("value");
+      return { ...post, viewerVote: value === 1 || value === -1 ? value : 0 };
+    }),
+  };
 }
 
-export async function resolveCompareLanding(params: URLSearchParams, getFeatured = featuredCommunityComparison) {
+type CommunityLanding = { featured: CommunityComparison | null; initialPage?: InitialCommunityComparisonPage };
+
+export function createFeaturedCommunityLoader(list = listCommunityComparisons) {
+  let cached: { expiresAt: number; featured: Promise<CommunityComparison | null> } | undefined;
+  return async (): Promise<CommunityLanding> => {
+    let loading: Promise<CommunityLanding>;
+    if (cached && cached.expiresAt >= Date.now()) {
+      loading = cached.featured.then(featured => ({ featured }));
+    } else {
+      const expiresAt = Date.now() + 30_000;
+      loading = (async () => {
+        const initialPage = { ...await list(), expiresAt };
+        let page = initialPage;
+        // Bound reads when previously public posts are now private.
+        for (let remaining = 4; !page.items.length && page.nextCursor && remaining > 0; remaining--) {
+          page = { ...await list(page.nextCursor), expiresAt };
+        }
+        return { featured: page.items[0] ?? null, initialPage };
+      })().catch(() => ({ featured: null }));
+      // Only the page that starts the read may reuse the privacy-checked list.
+      // Subsequent visitors still check current privacy in the list API.
+      cached = { expiresAt, featured: loading.then(result => result.featured) };
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([loading, new Promise<CommunityLanding>(resolve => {
+        timer = setTimeout(() => resolve({ featured: null }), 1500);
+      })]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
+const loadFeaturedCommunity = createFeaturedCommunityLoader();
+
+export async function resolveCompareLanding(params: URLSearchParams, getFeatured = loadFeaturedCommunity) {
   const explicit = ["symbols", "start", "end", "style", "colors"].some(key => params.has(key));
-  const featured = explicit ? null : await getFeatured().catch(() => null);
-  return { config: featured?.comparison.config ?? parseCompareConfig(params), featured };
+  const landing: CommunityLanding = explicit ? { featured: null } : await getFeatured().catch(() => ({ featured: null }));
+  return { ...landing, config: landing.featured?.comparison.config ?? parseCompareConfig(params) };
 }

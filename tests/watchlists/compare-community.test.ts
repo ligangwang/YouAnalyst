@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
-import { addComparisonComment, listComparisonComments, listCommunityComparisons, publishComparison, readCommunityComparison, resolveCompareLanding, voteOnComparison } from "../../src/lib/compare-community-service";
+import { addComparisonComment, createFeaturedCommunityLoader, listComparisonComments, listCommunityComparisons, publishComparison, readCommunityComparison, resolveCompareLanding, voteOnComparison, withCommunityViewerVotes } from "../../src/lib/compare-community-service";
 import { validateComparisonSubmission, comparisonVoteTotals, type CommunityComparison } from "../../src/lib/compare-community";
 import { DEFAULT_COMPARE_APPEARANCE, companyCompareColor } from "../../src/lib/compare-appearance";
 import { GET as getDetail } from "../../src/app/api/compare/community/[id]/route";
@@ -42,7 +42,7 @@ function fixture() {
     return query;
   }
   let tail: Promise<unknown> = Promise.resolve();
-  const db = { collection, runTransaction: (fn: (tx: unknown) => Promise<unknown>) => {
+  const db = { collection, getAll: async (...refs: { path: string }[]) => refs.map(ref => snapshot(ref.path, records)), runTransaction: (fn: (tx: unknown) => Promise<unknown>) => {
     const result = tail.then(async () => {
       const working = new Map(records);
       let wrote = false;
@@ -131,13 +131,41 @@ test("the highest net score becomes the default with author credit, explicit lin
   await voteOnComparison(first.id, "user2", -1, f.db);
   await voteOnComparison(second.id, "user2", 1, f.db);
   const winner = (await listCommunityComparisons(null, undefined, f.db)).items[0];
-  const result = await resolveCompareLanding(new URLSearchParams(), async () => winner);
+  const result = await resolveCompareLanding(new URLSearchParams(), async () => ({ featured: winner }));
   assert.equal(result.featured?.id, second.id); assert.equal(result.featured?.authorName, "Analyst 1"); assert.deepEqual(result.config, input.comparison.config);
   let requested = false;
-  const explicit = await resolveCompareLanding(new URLSearchParams({ symbols: "AAPL,MSFT", style: "line" }), async () => { requested = true; return winner; });
+  const explicit = await resolveCompareLanding(new URLSearchParams({ symbols: "AAPL,MSFT", style: "line" }), async () => { requested = true; return { featured: winner }; });
   assert.equal(requested, false); assert.equal(explicit.featured, null); assert.deepEqual(explicit.config.symbols, ["AAPL", "MSFT"]);
   const fallback = await resolveCompareLanding(new URLSearchParams(), async () => { throw new Error("index not ready"); });
   assert.equal(fallback.featured, null); assert.deepEqual(fallback.config.symbols, ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]);
+});
+
+test("the originating guest render can reuse its list while later requests check privacy afresh", async () => {
+  const f = fixture();
+  const { id } = await publishComparison(input, { uid: "user0" }, f.db);
+  let loads = 0;
+  const load = createFeaturedCommunityLoader(async cursor => {
+    loads++;
+    return listCommunityComparisons(cursor, undefined, f.db);
+  });
+  const [first, concurrent] = await Promise.all([resolveCompareLanding(new URLSearchParams(), load), load()]);
+  assert.equal(loads, 1);
+  assert.equal(first.featured?.id, id);
+  assert.equal(first.initialPage?.items[0].id, id);
+  assert.equal(concurrent.featured?.id, id);
+  assert.equal(concurrent.initialPage, undefined);
+
+  await voteOnComparison(id, "user1", 1, f.db);
+  assert.ok(first.initialPage);
+  const memberPage = await withCommunityViewerVotes(first.initialPage, "user1", f.db);
+  assert.equal(memberPage.viewerId, "user1");
+  assert.equal(memberPage.items[0].viewerVote, 1);
+  assert.equal(first.initialPage.items[0].viewerVote, 0);
+  assert.equal(loads, 1);
+
+  f.records.set("users/user0", { settings: { isPublic: false } });
+  assert.equal((await load()).initialPage, undefined);
+  assert.deepEqual((await listCommunityComparisons(null, undefined, f.db)).items, []);
 });
 
 test("private authors' comparisons, comments and votes cannot be accessed", async () => {

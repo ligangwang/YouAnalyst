@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { comparePath } from "@/lib/compare";
-import type { CommunityComparison, ComparisonComment, SharedComparison } from "@/lib/compare-community";
+import type { CommunityComparison, ComparisonComment, InitialCommunityComparisonPage, SharedComparison } from "@/lib/compare-community";
 import { compareEmbedPath, comparisonEmbedHeight } from "@/lib/compare-embed";
 import { localizedPath } from "@/lib/ui/i18n/urls";
 import { useOptionalAuth } from "@/components/providers/auth-provider";
@@ -66,11 +66,13 @@ export function ComparisonPostCard({ post, onChange, full = false }: { post: Com
   </article>;
 }
 
-export function ComparisonCommunity({ comparison, ready }: { comparison: SharedComparison; ready: boolean }) {
+type BoardProps = { comparison: SharedComparison; ready: boolean; initialPage?: InitialCommunityComparisonPage };
+
+export function ComparisonCommunity(props: BoardProps) {
   const auth = useOptionalAuth();
-  return <CommunityBoard key={auth?.user?.uid ?? "guest"} comparison={comparison} ready={ready}/>;
+  return <CommunityBoard key={auth?.user?.uid ?? "guest"} {...props}/>;
 }
-function CommunityBoard({ comparison, ready }: { comparison: SharedComparison; ready: boolean }) {
+function CommunityBoard({ comparison, ready, initialPage }: BoardProps) {
   const auth = useOptionalAuth(), { text, locale } = useLocale();
   const [posts, setPosts] = useState<CommunityComparison[]>([]), [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true), [error, setError] = useState("");
@@ -78,6 +80,7 @@ function CommunityBoard({ comparison, ready }: { comparison: SharedComparison; r
   const [busy, setBusy] = useState(false), [publishError, setPublishError] = useState(""), [published, setPublished] = useState("");
   const submission = useRef<{ fingerprint: string; requestId: string } | null>(null), publishing = useRef(false), paging = useRef(false);
   const getIdToken = auth?.getIdToken;
+  const viewerId = auth?.user?.uid;
   useEffect(() => {
     if (auth?.loading) return;
     const controller = new AbortController();
@@ -85,7 +88,9 @@ function CommunityBoard({ comparison, ready }: { comparison: SharedComparison; r
       setLoading(true); setError("");
       try {
         const token = await getIdToken?.();
-        const result = await fetch("/api/compare/community", { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), cache: "no-store" }).then(payload);
+        const result = attempt === 0 && initialPage && initialPage.viewerId === viewerId && initialPage.expiresAt > Date.now()
+          ? initialPage
+          : await fetch("/api/compare/community", { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), cache: "no-store" }).then(payload);
         if (!controller.signal.aborted) { setPosts(result.items); setNextCursor(result.nextCursor); }
       } catch { if (!controller.signal.aborted) setError(text("Community comparisons could not be loaded. Please retry.", "社区对比加载失败，请重试。")); }
       finally { if (!controller.signal.aborted) setLoading(false); }
@@ -93,7 +98,7 @@ function CommunityBoard({ comparison, ready }: { comparison: SharedComparison; r
     return () => controller.abort();
     // Locale changes remount the localized page; loading depends on the account.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.loading, getIdToken, attempt]);
+  }, [auth?.loading, viewerId, getIdToken, attempt, initialPage]);
   async function more() {
     if (!nextCursor || paging.current) return;
     paging.current = true; setLoading(true); setError("");
