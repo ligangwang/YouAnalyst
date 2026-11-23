@@ -9,7 +9,7 @@ export type CommunityComparison = ComparisonSubmission & {
   likes: number; dislikes: number; netLikes: number; commentCount: number; viewerVote: -1 | 0 | 1;
 };
 export type CommunityComparisonPage = { items: CommunityComparison[]; nextCursor: string | null };
-export type InitialCommunityComparisonPage = CommunityComparisonPage & { expiresAt: number };
+export type InitialCommunityComparisonPage = CommunityComparisonPage & { expiresAt: number; viewerId?: string };
 export type ComparisonComment = { id: string; userId: string; authorName: string; content: string; createdAt: string };
 
 /** Only expose known validation messages; infrastructure errors can contain project details. */

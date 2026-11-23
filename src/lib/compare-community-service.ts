@@ -125,6 +125,21 @@ export async function listComparisonComments(id: string, cursor?: string | null,
   return { items: page.map(doc => ({ ...doc.data(), id: doc.id }) as ComparisonComment), nextCursor: snapshot.docs.length > 20 && last ? Buffer.from(JSON.stringify({ createdAt: last.get("createdAt"), id: last.id })).toString("base64url") : null };
 }
 
+export async function withCommunityViewerVotes(page: InitialCommunityComparisonPage, viewerId: string,
+  db = getAdminFirestore()): Promise<InitialCommunityComparisonPage> {
+  const posts = db.collection("posts");
+  const refs = page.items.map(post => posts.doc(post.id).collection("votes").doc(viewerId));
+  const votes = refs.length ? await db.getAll(...refs) : [];
+  return {
+    ...page,
+    viewerId,
+    items: page.items.map((post, index) => {
+      const value = votes[index]?.get("value");
+      return { ...post, viewerVote: value === 1 || value === -1 ? value : 0 };
+    }),
+  };
+}
+
 type CommunityLanding = { featured: CommunityComparison | null; initialPage?: InitialCommunityComparisonPage };
 
 export function createFeaturedCommunityLoader(list = listCommunityComparisons) {

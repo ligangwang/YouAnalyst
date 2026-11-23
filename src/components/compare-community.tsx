@@ -80,7 +80,7 @@ function CommunityBoard({ comparison, ready, initialPage }: BoardProps) {
   const [busy, setBusy] = useState(false), [publishError, setPublishError] = useState(""), [published, setPublished] = useState("");
   const submission = useRef<{ fingerprint: string; requestId: string } | null>(null), publishing = useRef(false), paging = useRef(false);
   const getIdToken = auth?.getIdToken;
-  const signedIn = !!auth?.user;
+  const viewerId = auth?.user?.uid;
   useEffect(() => {
     if (auth?.loading) return;
     const controller = new AbortController();
@@ -88,7 +88,7 @@ function CommunityBoard({ comparison, ready, initialPage }: BoardProps) {
       setLoading(true); setError("");
       try {
         const token = await getIdToken?.();
-        const result = !signedIn && !token && attempt === 0 && initialPage && initialPage.expiresAt > Date.now()
+        const result = attempt === 0 && initialPage && initialPage.viewerId === viewerId && initialPage.expiresAt > Date.now()
           ? initialPage
           : await fetch("/api/compare/community", { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]), cache: "no-store" }).then(payload);
         if (!controller.signal.aborted) { setPosts(result.items); setNextCursor(result.nextCursor); }
@@ -98,7 +98,7 @@ function CommunityBoard({ comparison, ready, initialPage }: BoardProps) {
     return () => controller.abort();
     // Locale changes remount the localized page; loading depends on the account.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth?.loading, signedIn, getIdToken, attempt, initialPage]);
+  }, [auth?.loading, viewerId, getIdToken, attempt, initialPage]);
   async function more() {
     if (!nextCursor || paging.current) return;
     paging.current = true; setLoading(true); setError("");

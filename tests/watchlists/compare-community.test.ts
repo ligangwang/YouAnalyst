@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
-import { addComparisonComment, createFeaturedCommunityLoader, listComparisonComments, listCommunityComparisons, publishComparison, readCommunityComparison, resolveCompareLanding, voteOnComparison } from "../../src/lib/compare-community-service";
+import { addComparisonComment, createFeaturedCommunityLoader, listComparisonComments, listCommunityComparisons, publishComparison, readCommunityComparison, resolveCompareLanding, voteOnComparison, withCommunityViewerVotes } from "../../src/lib/compare-community-service";
 import { validateComparisonSubmission, comparisonVoteTotals, type CommunityComparison } from "../../src/lib/compare-community";
 import { DEFAULT_COMPARE_APPEARANCE, companyCompareColor } from "../../src/lib/compare-appearance";
 import { GET as getDetail } from "../../src/app/api/compare/community/[id]/route";
@@ -42,7 +42,7 @@ function fixture() {
     return query;
   }
   let tail: Promise<unknown> = Promise.resolve();
-  const db = { collection, runTransaction: (fn: (tx: unknown) => Promise<unknown>) => {
+  const db = { collection, getAll: async (...refs: { path: string }[]) => refs.map(ref => snapshot(ref.path, records)), runTransaction: (fn: (tx: unknown) => Promise<unknown>) => {
     const result = tail.then(async () => {
       const working = new Map(records);
       let wrote = false;
@@ -154,6 +154,14 @@ test("the originating guest render can reuse its list while later requests check
   assert.equal(first.initialPage?.items[0].id, id);
   assert.equal(concurrent.featured?.id, id);
   assert.equal(concurrent.initialPage, undefined);
+
+  await voteOnComparison(id, "user1", 1, f.db);
+  assert.ok(first.initialPage);
+  const memberPage = await withCommunityViewerVotes(first.initialPage, "user1", f.db);
+  assert.equal(memberPage.viewerId, "user1");
+  assert.equal(memberPage.items[0].viewerVote, 1);
+  assert.equal(first.initialPage.items[0].viewerVote, 0);
+  assert.equal(loads, 1);
 
   f.records.set("users/user0", { settings: { isPublic: false } });
   assert.equal((await load()).initialPage, undefined);
