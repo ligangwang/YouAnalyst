@@ -7,7 +7,7 @@ import type {ThemedCompany} from './model';
 
 export class ThemeEditConflict extends Error{}
 export async function readThemeEditor(db:Firestore,id:string){
-  const [doc,catalog]=await Promise.all([db.collection('companies').doc(id).get(),loadThemeCatalog(db)]);
+  const [doc,catalog]=await Promise.all([db.collection('companies').doc(id).get(),loadThemeCatalog()]);
   if(!doc.exists||doc.get('isDeleted')||!['DIRECTORY','PUBLISHED'].includes(doc.get('status')))throw Error('Company unavailable');
   const company=doc.data()!;
   const assignments=Object.entries(company.themeMemberships??{}).filter(([,v])=>(v as {status:string}).status==='PUBLISHED').map(([theme,value])=>{const m=value as ThemeAssignment;return {theme,primarySector:m.primarySector,secondaryRoles:m.secondaryRoles??[],sources:m.sources??[],...(theme==='ai'?{aiStageIds:(company.inGraph as {stageIds?:string[]})?.stageIds??[]}:{} )};});
@@ -26,7 +26,7 @@ export async function readThemeEditor(db:Firestore,id:string){
   }),assignments};
 }
 export async function editCompanyThemes(db:Firestore,id:string,version:string,assignments:ThemeAssignment[]){
-  const catalog=await loadThemeCatalog(db);
+  const catalog=await loadThemeCatalog();
   return db.runTransaction(async tx=>{
     const ref=db.collection('companies').doc(id),doc=await tx.get(ref),company=doc.data();
     if(!company||company.isDeleted||company.supersededByCompanyId||!['DIRECTORY','PUBLISHED'].includes(company.status))throw Error('Company unavailable');

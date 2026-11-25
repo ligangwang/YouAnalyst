@@ -2,6 +2,7 @@ import {releaseProbeHeaders} from './release-probe.mjs';
 import {verifyPublicAccess} from './verify-public-access.mjs';
 import {taggedReleaseRequest,taggedUnauthenticatedProbe} from './tagged-release-request.mjs';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 export async function verifyCandidate({url, revision, commit, request=fetch,now=()=>performance.now(),warn=console.warn}) {
   const rawRequest=request;
@@ -82,6 +83,15 @@ export async function verifyCandidate({url, revision, commit, request=fetch,now=
     const html = await response.text();
     assert(html.includes(text) && html.includes('category-title'), `Candidate hierarchy ${path} missing selected category`);
   }
+  const catalog = JSON.parse(await readFile(new URL('../data/investment-themes/catalog-v1.json', import.meta.url), 'utf8'));
+  const expectedThemes = catalog.nodes.filter(node => node.status === 'PUBLISHED' && node.isDeleted !== true)
+    .map(({id, parentId, names, order, descriptions}) => ({id, parentId, names, order, ...(descriptions ? {descriptions} : {})}))
+    .sort((a,b) => a.order - b.order || a.id.localeCompare(b.id));
+  const themeResponse = await request(`${url}/api/investment-themes`, {signal:AbortSignal.timeout(30000)});
+  assert.equal(themeResponse.status, 200, 'Candidate theme catalog failed');
+  const {nodes} = await themeResponse.json();
+  assert.deepEqual(nodes, expectedThemes, 'Candidate theme catalog differs from the release catalog');
+  console.log(JSON.stringify({event:'candidate_theme_catalog_verified', revision, nodes:nodes.length}));
   console.log(`Candidate ${revision} verified before traffic promotion.`);
 }
 if(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
