@@ -20,6 +20,12 @@ test('UI library boundary cannot hide dependencies of any bundled worker',async(
   assert.ok(entryPoints.includes('scripts/sync-cni-directory.ts'));
   const result=await build({entryPoints,bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
   const inputs=new Set(Object.keys(result.metafile!.inputs).map(p=>p.replaceAll('\\','/')));
+  const catalogPath='data/investment-themes/catalog-v1.json';
+  assert(inputs.has(catalogPath));
+  for (const file of ['Dockerfile.fundamentals','Dockerfile.directory-sync']) {
+    assert(readFileSync(file,'utf8').includes(`COPY ${catalogPath} ./${catalogPath}`));
+  }
+  assert.equal(backgroundJobTarget([catalogPath]),'all');
   assert.deepEqual([...inputs].filter(isWebsiteOnlyLibrary),[], 'Workers must not import website-only libraries');
   const eodConsumers=Object.values(result.metafile!.outputs).filter(output=>
     Object.keys(output.inputs).some(path=>EOD_WORKER_LIBRARIES.has(path.replaceAll('\\','/'))));

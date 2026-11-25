@@ -10,6 +10,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY data/ai-supply-chain/company-names.json ./data/ai-supply-chain/company-names.json
 COPY data/company-link-slugs.json ./data/company-link-slugs.json
+COPY data/investment-themes/catalog-v1.json ./data/investment-themes/catalog-v1.json
 RUN node_modules/.bin/esbuild scripts/sync-cni-directory.ts --bundle --platform=node --packages=external --outfile=dist/sync-cni-directory.cjs --metafile=dist/sync-cni-directory.meta.json \
   && node_modules/.bin/esbuild scripts/serve-cni-directory.ts --bundle --platform=node --packages=external --outfile=dist/serve-cni-directory.cjs --metafile=dist/serve-cni-directory.meta.json && npm prune --omit=dev --ignore-scripts --no-audit --no-fund && node scripts/prune-worker-dependencies.mjs
 
