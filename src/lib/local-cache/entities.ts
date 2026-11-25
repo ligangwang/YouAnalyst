@@ -184,7 +184,7 @@ export async function localDocuments(db:Firestore,collection:Collection,ids?:str
  if(typeof db.collection(collection).onSnapshot!=='function')return undefined;
  if(ids)return documents(db,collection,ids);
  if(collection==='companies'){
-  const batches=await themeIdBatches(db),keys=new Set(batches.flatMap(ids=>[`companies:themes:${ids.join(',')}`,`companies:themes:${ids.join(',')}:graph`]));
+  const batches=await themeIdBatches(),keys=new Set(batches.flatMap(ids=>[`companies:themes:${ids.join(',')}`,`companies:themes:${ids.join(',')}:graph`]));
   // Catalog edits replace subscriptions; never close an active initial read.
   const cached=store(db);
   for(const [key,watch] of cached.queries)if(key.startsWith('companies:themes:')&&!keys.has(key)&&!cached.queryUsers?.get(key))watch.close();

@@ -125,7 +125,7 @@ export async function publicationPlan(db: Firestore, tx: Transaction, input: Pub
   if (!candidate.evidence.length || candidate.evidence.some(e => !e.url || !e.title.trim() || e.title.length > 500 || !e.quote.trim() || e.quote.length > 20_000 || e.sourceDate && e.sourceDate > at.slice(0, 10))) fail(409, 'Candidate needs valid source evidence before publication');
   const context = await sourceContext(db, tx, data!);
   const docs = await tx.getAll(...[input.sourceId, input.targetId].map(id => db.collection('companies').doc(id)));
-  const allowedThemes=new Set(catalogThemeIds(await loadThemeCatalog(db)));
+  const allowedThemes=new Set(catalogThemeIds(await loadThemeCatalog()));
   if(input.themeIds.some(id=>!allowedThemes.has(id)))fail(400,'Unknown or unpublished investment theme');
   const endpoints = docs.map(d => company(d.id, d.data() ?? {}));
   for (const theme of input.themeIds) if (endpoints.some(c => !c.themes.includes(theme))) fail(409, `Both companies must have published ${theme} memberships before publishing to that theme`);

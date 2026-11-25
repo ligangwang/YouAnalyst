@@ -40,7 +40,7 @@ export async function loadSingleThemeCompanies(db: Firestore, theme: string) {
 }
 export async function loadThemeEnrolledCompanies(db: Firestore,targeted=false) {
   if(targeted)return withCompanyPageReads(async()=>{
-    const [batches,docs]=await Promise.all([themeIdBatches(db),loadPublishedGraphCompanies(db)]),themes=new Set(batches.flat());
+    const [batches,docs]=await Promise.all([themeIdBatches(),loadPublishedGraphCompanies(db)]),themes=new Set(batches.flat());
     return {docs:docs.filter(doc=>{const ids=doc.get('themeIds');return Array.isArray(ids)&&ids.some(id=>themes.has(id));})};
   });
   const local = await localDocuments(db, 'companies', undefined, undefined, 'graph');

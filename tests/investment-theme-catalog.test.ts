@@ -9,11 +9,8 @@ import { themedGraph } from '../src/lib/company-themes/presentation';
 import { queryThemeCompanies } from '../src/lib/company-themes/company-query';
 import { companyThemeNodeIds } from '../src/lib/hierarchy/company-memberships';
 import { hierarchyPath } from '../src/lib/hierarchy/model';
-import { planThemeCatalog, publishInvestmentThemes } from '../scripts/publish-investment-themes';
-import { company, encode, type Document } from '../scripts/lib/firestore-rest';
 import { companySector, graphSectors } from '../src/lib/knowledge-graph/sectors';
 import { industryTree, industryRootLabel } from '../src/lib/ui/knowledge-graph/industry-tree';
-import { withThemeCatalog } from './helpers/theme-catalog';
 import { firestoreSource } from '../src/lib/central-cache/source';
 import { isCollectionCompany, collectionUniverse } from '../src/lib/company-themes/model';
 import { localDocuments } from '../src/lib/local-cache/entities';
@@ -22,7 +19,7 @@ import {loadThemeCoverage} from '../src/lib/company-themes/coverage';
 
 const catalog=validateThemeCatalog(seed.nodes);
 
-test('article publication covers every Firestore theme, deduplicates companies and bounds graph reads',async()=>{
+test('article publication covers every published theme, deduplicates companies and bounds graph reads',async()=>{
   let active=0,maxActive=0;
   const calls:string[]=[];
   const graph=await loadThemeCoverage(async()=>catalog,async theme=>{
@@ -71,16 +68,14 @@ test('mixed broad and detailed AI roles remain visible in the data-driven tree',
   assert.deepEqual(graphSectors('unreviewed-empty-theme'),[]);
 });
 
-test('catalog changes leave existing process subscriptions stable until restart',async(t)=>{
+test('the released catalog keeps existing subscriptions stable',async(t)=>{
   t.after(closeLocalCaches);let clock=1000;
   t.mock.method(Date,'now',()=>clock);
-  const nodes:ThemeCatalog=[{id:'family',parentId:null,names:{en:'Family','zh-CN':'大类'},order:0},{id:'ai',parentId:'family',names:{en:'AI','zh-CN':'人工智能'},order:0}];
   const subscriptions:{closed:boolean}[]=[];
-  const catalogQuery={where:()=>catalogQuery,select:()=>catalogQuery,limit:()=>catalogQuery,get:async()=>({docs:nodes.map(node=>({id:node.id,data:()=>node}))})};
   const companyQuery={where:()=>companyQuery,onSnapshot:(next:(snapshot:unknown)=>void)=>{const item={closed:false};subscriptions.push(item);next({docs:[]});return ()=>{item.closed=true;};}};
-  const db={collection:(name:string)=>name==='investment_themes'?catalogQuery:companyQuery} as unknown as Firestore;
+  const db={collection:(name:string)=>{assert.equal(name,'companies');return companyQuery;}} as unknown as Firestore;
   await localDocuments(db,'companies');
-  nodes.push({id:'fusion',parentId:'family',names:{en:'Fusion','zh-CN':'聚变'},order:1});clock+=60_001;
+  clock+=60_001;
   await localDocuments(db,'companies');
   assert.equal(subscriptions.length,1);assert.equal(subscriptions.filter(item=>!item.closed).length,1);
 });
@@ -93,29 +88,28 @@ test('theme resolution uses published catalog ordering, not a fixed default or a
   assert.equal(resolveCatalogTheme(nodes,'../ai'),undefined);
 });
 
-test('central cache keeps its catalog until restart',async(t)=>{
+test('company cache scope uses the same release catalog after restart',async(t)=>{
   let clock=1000;
   t.mock.method(Date,'now',()=>clock);
-  const definitions:ThemeCatalog=[{id:'family',parentId:null,names:{en:'Family','zh-CN':'大类'},order:0},{id:'ai',parentId:'family',names:{en:'AI','zh-CN':'人工智能'},order:0}];
   const companies=[{id:'US:AI',themeIds:['ai'],updatedAt:0},{id:'US:FUSION',themeIds:['fusion'],updatedAt:0}];
   type Filter={field:string;op:string;value:unknown};
   function query(collection:string,filters:Filter[]=[]) {
     const q={where:(field:string,op:string,value:unknown)=>query(collection,[...filters,{field,op,value}]),orderBy:()=>q,select:()=>q,limit:()=>q,
-      get:async()=>({docs:(collection==='investment_themes'?definitions.map(node=>({...node,status:'PUBLISHED'})):collection==='companies'?companies:[]).filter(row=>filters.every(filter=>{
+      get:async()=>({docs:(collection==='companies'?companies:[]).filter(row=>filters.every(filter=>{
         const value=(row as Record<string,unknown>)[filter.field];
         if(filter.op==='array-contains-any')return (filter.value as string[]).some(id=>(value as string[]).includes(id));
         if(filter.field==='updatedAt')return filter.op==='>='?Number(value)>=(filter.value as {seconds:number}).seconds:Number(value)<=(filter.value as {seconds:number}).seconds;
         return value===filter.value;
       })).map(row=>({id:row.id,data:()=>row})),size:companies.length})};return q;
   }
-  const db={collection:(name:string)=>query(name),getAll:async()=>[]} as unknown as Firestore;
+  const db={collection:(name:string)=>{assert(['companies','collectors'].includes(name));return query(name);},getAll:async()=>[]} as unknown as Firestore;
   const source=firestoreSource(db);
   assert.deepEqual((await source.initial('companies',[])).map(row=>row.id),['US:AI']);
-  definitions.push({id:'fusion',parentId:'family',names:{en:'Fusion','zh-CN':'聚变'},order:1});clock+=60_001;
+  clock+=60_001;
   const rows=await source.changes('companies',{seconds:1,nanoseconds:0},{seconds:2,nanoseconds:0},[]);
   assert.deepEqual(rows.map(row=>row.id),[]);
-  const restarted=firestoreSource({collection:(name:string)=>query(name),getAll:async()=>[]} as unknown as Firestore);
-  assert.deepEqual((await restarted.initial('companies',[])).map(row=>row.id),['US:AI','US:FUSION']);
+  const restarted=firestoreSource(db);
+  assert.deepEqual((await restarted.initial('companies',[])).map(row=>row.id),['US:AI']);
 });
 test('four families preserve every legacy ID and aggregate existing memberships without company writes',()=>{
   assert.equal(themeFamilies(catalog).length,4);
@@ -142,53 +136,20 @@ test('a new theme and its nested business roles render from data without source 
   assert.deepEqual(companies,before);
 });
 
-test('catalog reads are coalesced and never expire during the process lifetime',async(t)=>{
-  let reads=0,clock=1000,nodes:ThemeCatalog=catalog;
-  t.mock.method(Date,'now',()=>clock);
-  const query={where:()=>query,select:()=>query,limit:()=>query,get:async()=>{reads++;return {docs:nodes.map(node=>({id:node.id,data:()=>node}))};}};
-  const db={collection:()=>query} as unknown as Firestore;
-  const results=await Promise.all([loadThemeCatalog(db),loadThemeCatalog(db)]);assert.equal(reads,1);assert.equal(results[0],results[1]);
-  nodes=[...catalog,{id:'fusion',parentId:'environment-resources',names:{en:'Fusion','zh-CN':'聚变'},order:10}];clock+=60_001;
-  assert(!catalogThemeIds(await loadThemeCatalog(db)).includes('fusion'));assert.equal(reads,1);
-  nodes=[{...nodes[0],parentId:'missing'}];clock+=60_001;
-  t.mock.method(console,'error',()=>{});
-  assert(!catalogThemeIds(await loadThemeCatalog(db)).includes('fusion'));assert.equal(reads,1);
-  const cold={collection:()=>query} as unknown as Firestore;
-  await assert.rejects(loadThemeCatalog(cold),/Missing hierarchy parent/);
+test('the runtime catalog matches the reviewed release data without Firestore',async()=>{
+  const released=await loadThemeCatalog();
+  assert.deepEqual(released,catalog.map(({id,parentId,names,order,descriptions})=>({id,parentId,names,order,...(descriptions?{descriptions}:{})})));
+  assert.equal(await loadThemeCatalog(),released);
 });
 
 test('company queries chunk catalogs larger than 30 themes and deduplicate cross-theme companies',async()=>{
   const themes=Array.from({length:65},(_,index)=>({id:`theme-${index}`,parentId:'family',names:{en:`Theme ${index}`,'zh-CN':`主题${index}`},order:index}));
   const nodes=[{id:'family',parentId:null,names:{en:'Family','zh-CN':'大类'},order:0},...themes];
   const batches:string[][]=[];
-  const db=withThemeCatalog({collection:()=>({where:(_key:string,_op:string,ids:string[])=>({get:async()=>{batches.push(ids);return {docs:[{id:'US:COMMON'},{id:`US:${ids[0]}`}]};}})})} as unknown as Firestore,nodes as typeof seed.nodes);
-  const result=await queryThemeCompanies(db);
+  const db={collection:()=>({where:(_key:string,_op:string,ids:string[])=>({get:async()=>{batches.push(ids);return {docs:[{id:'US:COMMON'},{id:`US:${ids[0]}`}]};}})})} as unknown as Firestore;
+  const result=await queryThemeCompanies(db,undefined,false,nodes);
   assert.deepEqual(batches.map(batch=>batch.length),[30,30,5]);assert.equal(result.docs.length,4);
   assert.deepEqual(new Set(batches.flat()),new Set(themes.map(theme=>theme.id)));
-});
-
-test('catalog publication is additive, fenced, atomic and idempotent; never writes companies',async()=>{
-  const originals:Document[]=['ai','robotics','space'].map((id,index)=>({name:`projects/example/databases/(default)/documents/investment_themes/${id}`,updateTime:'2026-10-22T00:00:00Z',fields:Object.fromEntries(Object.entries({parentId:null,names:{en:`Custom ${id}`,'zh-CN':`定制${id}`},order:index,status:'PUBLISHED'}).map(([key,value])=>[key,encode(value)]))}));
-  originals[0].fields.descriptions=encode({en:'Existing reviewed description','zh-CN':'已有审核说明'});
-  const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const backupDir=await mkdtemp(`${tmpdir()}/theme-catalog-`);
-  let commits=0;
-  try{
-    const result=await publishInvestmentThemes({project:'example',seed:seed.nodes,write:true,backupDir,request:async(url,_method,raw)=>{
-      if(url.endsWith(':runQuery'))return originals.map(document=>({document}));
-      assert(url.endsWith(':commit'));commits++;
-      for(const write of (raw as {writes:{update:Document;updateMask?:unknown;currentDocument:unknown}[]}).writes){
-        assert(write.update.name.includes('/investment_themes/'));assert(!write.update.name.includes('/companies/'));
-        const old=originals.find(doc=>doc.name===write.update.name);
-        if(old){assert.deepEqual(write.currentDocument,{updateTime:old.updateTime});assert.deepEqual(Object.keys(write.update.fields),old.fields.descriptions?['parentId']:['parentId','descriptions']);Object.assign(old.fields,write.update.fields);}
-        else {assert.deepEqual(write.currentDocument,{exists:false});originals.push(write.update);}
-      }return {};
-    }});
-    assert.equal(commits,1);assert.equal(result.companyWrites,0);
-    assert.equal(company(originals[0]).names && (company(originals[0]).names as {en:string}).en,'Custom ai');
-    assert.deepEqual(company(originals[0]).descriptions,{en:'Existing reviewed description','zh-CN':'已有审核说明'});
-    assert.ok((company(originals[1]).descriptions as {en:string;'zh-CN':string})['zh-CN']);
-    assert.equal(planThemeCatalog(originals.map(company) as unknown as Parameters<typeof planThemeCatalog>[0],seed.nodes).length,0);
-  }finally{await rm(backupDir,{recursive:true,force:true});}
 });
 
 test('every family, theme and AI layer has a nonempty English and Chinese description',()=>{

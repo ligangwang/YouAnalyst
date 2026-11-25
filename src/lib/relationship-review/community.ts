@@ -48,7 +48,7 @@ export async function communityRelationship(db: Firestore, id: string) {
 }
 export async function submitContribution(db: Firestore, raw: unknown, uid: string, at = new Date().toISOString()) {
   const input = parseContribution(raw);
-  if(input.correction){const allowed=new Set(catalogThemeIds(await loadThemeCatalog(db)));if(input.correction.themeIds.some(id=>!allowed.has(id)))fail(400,'Unknown or unpublished theme');}
+  if(input.correction){const allowed=new Set(catalogThemeIds(await loadThemeCatalog()));if(input.correction.themeIds.some(id=>!allowed.has(id)))fail(400,'Unknown or unpublished theme');}
   return db.runTransaction(async tx => {
     const edge = await published(db, tx, input.relationshipId), r = edge.data()!;
     if (relationshipVersion(r) !== input.version) fail(409, 'Relationship changed. Reload its evidence before submitting.');
@@ -114,7 +114,7 @@ export async function resolveContribution(db: Firestore, raw: unknown, admin: st
       if (neighborhoods.some(page => page.size > 500)) fail(409, 'Correction requires reconciliation of a large company neighborhood');
       if (neighborhoods.flatMap(page => page.docs).some(doc => { const row = doc.data(); return doc.id !== edge.id && !['NEWS_OBSERVATION', 'FILING_OBSERVATION'].includes(String(row.recordKind)) && canonical(String(row.source), String(row.target), String(row.type)).id === n.id; })) fail(409, 'Corrected relationship already exists under another key; reconcile before accepting');
       const batch: ComputeBatch = { batchId: `community-${c!.id}`, asOf: at.slice(0, 10), sources: [{ id: 'evidence', url: c!.evidenceUrl, title: 'Community correction evidence', summary: c!.evidenceQuote, sourceDate: null, retrievedAt: at.slice(0, 10) }], relationships: [{ ...n, facts: [{ state: correction.state === 'ANNOUNCED' ? 'ANNOUNCED' : 'DOCUMENTED', verificationStatus: correction.state === 'TERMINATED' ? 'TERMINATED' : correction.state === 'ANNOUNCED' ? 'PENDING' : 'CONFIRMED', scope: correction.summary, limitation: correction.limitation, sourceIds: ['evidence'] }] }] };
-      const allowed=new Set(catalogThemeIds(await loadThemeCatalog(db)));
+      const allowed=new Set(catalogThemeIds(await loadThemeCatalog()));
       if(correction.themeIds.some(id=>!allowed.has(id)))fail(409,'Proposed theme is no longer published');
       replacement = { ...mergeEdge(batch, batch.relationships[0], null), id: replacementId, themeIds: correction.themeIds, commercialStatus: correction.state, publicationOrigin: 'COMMUNITY', communityReviewedAt: at, correctionEvidenceQuote: c!.evidenceQuote };
     }

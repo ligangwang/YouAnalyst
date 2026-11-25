@@ -26,13 +26,9 @@ test('request-loaded bundles reuse the startup background scope',async()=>{
  });
 });
 
-test('independent route bundles share a pending theme catalog and its published value',async()=>{
- const load=bundle('src/lib/company-themes/catalog.ts'),first=load(),second=load();let reads=0;
- let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
- const query={where:()=>query,select:()=>query,limit:()=>query,get:async()=>{reads++;await gate;return {docs:[{id:'family',data:()=>({parentId:null,names:{en:'Family','zh-CN':'Family'},order:0})}]};}};
- const db={collection:()=>query};
- const a=first.loadThemeCatalog(db),b=second.loadThemeCatalog(db);assert.equal(reads,1);
- release();assert.deepEqual(await a,await b);await second.loadThemeCatalog(db);assert.equal(reads,1);
+test('independent route bundles use the same catalog shipped in the release',async()=>{
+ const load=bundle('src/lib/company-themes/catalog.ts'),first=load(),second=load();
+ assert.deepEqual(await first.loadThemeCatalog(),await second.loadThemeCatalog());
 });
 
 test('separately bundled sitemap routes share one file load across buckets', async () => {

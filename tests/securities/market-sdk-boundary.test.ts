@@ -21,7 +21,6 @@ const rawClients=new Set([
 test('direct REST market access requires an explicitly reviewed boundary',()=>{
     const reviewed=new Set([
         'scripts/lib/retained-firestore-paths.mjs','scripts/wait-feed-producers.mjs','scripts/firestore/verify-exchange-region.mjs',
-        'scripts/publish-investment-themes.ts', // UGC catalog, not a migrated collection.
         'scripts/backfill-news-headlines.ts','scripts/backfill-relationship-sources.ts','scripts/backfill-relationship-summaries.ts',
         'scripts/enroll-theme-companies.ts','scripts/migrate-company-onboarding.ts','scripts/monitor-onboarding-capacity.ts',
         'scripts/publish-news-sources.ts','scripts/publish-company-summaries.ts', // Retired CLI paths; offline helper tests remain.

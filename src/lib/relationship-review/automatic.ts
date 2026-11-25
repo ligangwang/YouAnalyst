@@ -19,7 +19,7 @@ function themes(d: Row): CompanyThemeId[] {
 export async function autoPublishRelationship(db: Firestore, id: string, at = new Date().toISOString()) {
   try {
     candidateId(id);
-    const catalog=await loadThemeCatalog(db), allowed=new Set(catalogThemeIds(catalog));
+    const catalog=await loadThemeCatalog(), allowed=new Set(catalogThemeIds(catalog));
     const themeTerms=Object.fromEntries(catalog.filter(node=>allowed.has(node.id)).map(node=>[node.id,[node.names.en,node.names['zh-CN'],node.id.replaceAll('-',' ')]]));
     return await db.runTransaction(async tx => {
       const ref = db.collection('company_relationships').doc(id), snapshot = await tx.get(ref), d = snapshot.data();

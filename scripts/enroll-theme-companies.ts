@@ -7,12 +7,12 @@ import {readFile, mkdir, writeFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
 import {company, encode, type Document, type Request} from './lib/firestore-rest';
-import {readThemeCatalog} from './lib/theme-catalog';
+import {loadThemeCatalog} from '../src/lib/company-themes/catalog';
 
 export async function enrollCompanies({project,batch,request,write=false,backupDir='output/company-theme-backups'}:{project:string;batch:EnrollmentBatch;request:Request;write?:boolean;backupDir?:string}){
   assert(/^[a-z][a-z0-9-]+$/.test(project),'Explicit project required');
   const root=`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
-  const catalog=await readThemeCatalog(root,request);
+  const catalog=await loadThemeCatalog();
   const docs=await Promise.all(batch.companies.map(row=>request(`${root}/companies/${encodeURIComponent(row.id)}`) as Promise<Document|null>));
   assert(docs.every(Boolean),'All companies must exist in the canonical directory');
   const originals=docs as Document[],patches=planEnrollment(originals.map(company),batch,catalog);

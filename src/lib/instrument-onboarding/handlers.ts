@@ -22,7 +22,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
   const {db,bucket,log}=options;
   const current=async(id:string)=>(await db.collection('companies').doc(id).get()).data()??{};
   const themes=async(id:string)=>{
-    const company=await current(id),catalog=await loadThemeCatalog(db),allowed=catalogThemeIds(catalog);
+    const company=await current(id),catalog=await loadThemeCatalog(),allowed=catalogThemeIds(catalog);
     const ids=activeThemeIds(company).filter(id=>allowed.includes(id));
     if(options.requireTheme&&!ids.length&&!(allowed.includes('ai')&&isCollectionCompany({...company,id},['ai'])))throw new OnboardingBlocked('At least one closest existing theme is required');
     for(const id of ids){
@@ -61,7 +61,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
     themes:async({request,guard})=>{
       const saved=await current(request.companyId);
       if(isSupportedCompany(saved)&&(!options.requireTheme||isCollectionCompany({...saved,id:request.companyId})))return;
-      const catalog=await loadThemeCatalog(db);
+      const catalog=await loadThemeCatalog();
       for(const batch of options.themeBatches??[]){
         const companies=batch.companies.filter(row=>row.id===request.companyId);if(!companies.length)continue;
         await guard();
@@ -82,7 +82,7 @@ export function createOnboardingHandlers(options:{db:Firestore;bucket:Bucket;tok
         await guard();
         const result=priorNoMatch?{assignments:[],description:''}:await options.classify!({...before,id:request.companyId},catalog);
         await guard();
-        const latestCatalog=await loadThemeCatalog(db);
+        const latestCatalog=await loadThemeCatalog();
         await db.runTransaction(async tx=>{
           const ref=db.collection('companies').doc(request.companyId),doc=await tx.get(ref),fresh=doc.data()??{};
           const lease=await tx.get(db.collection('instrument_onboarding_requests').doc(request.instrumentId));

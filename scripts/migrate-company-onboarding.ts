@@ -5,7 +5,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
 import {company,type Document,type Request} from './lib/firestore-rest';
-import {readThemeCatalog} from './lib/theme-catalog';
+import {loadThemeCatalog} from '../src/lib/company-themes/catalog';
 import {catalogThemeIds} from '../src/lib/company-themes/catalog-model';
 import {planSupportedMigration} from '../src/lib/company-support/migration';
 import {onboardingMigrationGuard} from './lib/onboarding-migration-safety';
@@ -15,7 +15,7 @@ export async function migrateCompanyOnboarding({project,request,write=false,back
 }) {
   assert(/^[a-z][a-z0-9-]+$/.test(project),'Explicit project required');
   const root=`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
-  const catalog=await readThemeCatalog(root,request),originals:Document[]=[];
+  const catalog=await loadThemeCatalog(),originals:Document[]=[];
   let pageToken:string|undefined;
   const seen=new Set<string>();
   do {

@@ -26,7 +26,7 @@ export async function loadPeerComparison(companyId:string,options:{company?:Reco
  const dateKey=[marketDate('US'),marketDate('CN_A')].join(':');
  try{return await withCompanyPageReads(()=>changeCached(db,`peers:${companyId}:${dateKey}:${demand?.join(",")??"financials"}`,['companies','company_relationships','company_fundamentals','eod_prices'],async()=>{
   options.signal?.throwIfAborted();
-  const [catalog,documents]=await Promise.all([loadThemeCatalog(db),options.company?Promise.resolve([{data:()=>options.company}]):loadCompanyDocuments(db,'companies',[companyId])]);
+  const [catalog,documents]=await Promise.all([loadThemeCatalog(),options.company?Promise.resolve([{data:()=>options.company}]):loadCompanyDocuments(db,'companies',[companyId])]);
   const selected=await findPeerThemeGroup(companyId,documents[0]?.data() as Partial<ThemedCompany>|undefined,
    catalogThemeIds(catalog).filter(theme=>theme!=='ai'||options.aiEligible!==false),theme=>loadPeerStructure(db,theme).catch(error=>{if(options.strict)throw error;complete=false;return null;}));
   if(selected){

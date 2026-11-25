@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
 import {validateCompanyNewsSource,type CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
 import {company,encode,type Request,type Document} from './lib/firestore-rest';
-import {readThemeCatalog} from './lib/theme-catalog';
+import {loadThemeCatalog} from '../src/lib/company-themes/catalog';
 import {catalogThemeIds} from '../src/lib/company-themes/catalog-model';
 
 export async function publishNewsSources({project,sources,request,write=false,backupDir='output/company-theme-backups'}:{project:string;sources:CompanyNewsSource[];request:Request;write?:boolean;backupDir?:string}){
@@ -19,7 +19,7 @@ export async function publishNewsSources({project,sources,request,write=false,ba
   const guardUrl=`${root}/collectors/news-source-registry`;
   const guard=await request(guardUrl) as Document|null;
   const owners=structuredClone(guard?company(guard).sourceOwners??{}:{}) as Record<string,string>;
-  const themes=catalogThemeIds(await readThemeCatalog(root,request));
+  const themes=catalogThemeIds(await loadThemeCatalog());
   const queries=[];
   for(let offset=0;offset<themes.length;offset+=30)queries.push({fieldFilter:{field:{fieldPath:'themeIds'},op:'ARRAY_CONTAINS_ANY',value:{arrayValue:{values:themes.slice(offset,offset+30).map(stringValue=>({stringValue}))}}}});
   for(const where of queries){
