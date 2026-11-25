@@ -1,15 +1,28 @@
 import { FirebaseError } from "firebase/app";
 
-type MockUser = { uid: string; getIdToken: () => Promise<string>; displayName: string; email: string; photoURL: null };
+type MockUser = {
+  uid: string;
+  getIdToken: () => Promise<string>;
+  getIdTokenResult: () => Promise<{ token: string; authTime: string; signInProvider: string }>;
+  displayName: string;
+  email: string;
+  photoURL: null;
+};
 declare global {
   interface Window {
     authMeasurementScenario?: { errorCode?: string; googleNew?: boolean };
     authMeasurementAttempts?: string[];
+    renewAuthMeasurementToken?: (token: string) => void;
   }
 }
 
 let user: MockUser | null = null;
+let token = "measurement-token";
 const observers = new Set<(user: MockUser | null) => void>();
+window.renewAuthMeasurementToken = nextToken => {
+  token = nextToken;
+  observers.forEach(callback => callback(user));
+};
 export const browserLocalPersistence = {};
 export const browserPopupRedirectResolver = {};
 export const isFirebaseConfigured = () => true;
@@ -24,7 +37,16 @@ async function authenticate(method: string, isNewUser: boolean) {
   (window.authMeasurementAttempts ??= []).push(method);
   const code = window.authMeasurementScenario?.errorCode;
   if (code) throw new FirebaseError(code, "Private test detail: private@example.invalid");
-  user = { uid: "measurement-user", getIdToken: async () => "measurement-token", displayName: "Private Name", email: "private@example.invalid", photoURL: null };
+  token = "measurement-token";
+  const authTime = new Date().toISOString();
+  user = {
+    uid: "measurement-user",
+    getIdToken: async () => token,
+    getIdTokenResult: async () => ({ token, authTime, signInProvider: method === "google" ? "google.com" : "password" }),
+    displayName: "Private Name",
+    email: "private@example.invalid",
+    photoURL: null,
+  };
   observers.forEach(callback => callback(user));
   return { user, isNewUser };
 }
