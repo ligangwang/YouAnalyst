@@ -50,6 +50,7 @@ type AuthActionResult = {
 };
 
 type BootstrapProfile = { created: boolean; features?: AppFeatures; photoURL: string | null };
+const BOOTSTRAP_REUSE_MS = 5_000;
 
 type AuthProviderProps = {
   children: ReactNode;
@@ -117,25 +118,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [features, setFeatures] = useState<AppFeatures>(DEFAULT_FEATURES);
   const pendingBootstrap = useRef<{ token: string; request: Promise<BootstrapProfile> } | null>(null);
+  const completedBootstrap = useRef<{ key: string; at: number; profile: BootstrapProfile } | null>(null);
 
   const bootstrapUserProfile = useCallback(async (nextUser: User) => {
-    const token = await nextUser.getIdToken();
+    const { token, authTime, signInProvider } = await nextUser.getIdTokenResult();
     if (getFirebaseServices().auth.currentUser?.uid !== nextUser.uid) throw new Error("Authentication changed. Please sign in again.");
     // Token notifications and the sign-in action can arrive together.
     if (pendingBootstrap.current?.token === token) return pendingBootstrap.current.request;
 
+    const profile = { displayName: nextUser.displayName, email: nextUser.email, photoURL: nextUser.photoURL };
+    const key = JSON.stringify([nextUser.uid, authTime, signInProvider, profile]);
     const request = syncMemberSession(token).then(async () => {
+      if (getFirebaseServices().auth.currentUser?.uid !== nextUser.uid) throw new Error("Authentication changed. Please sign in again.");
+      // A freshly issued token still needs its session cookie. Reuse a recent
+      // profile result for the same sign-in and unchanged profile inputs.
+      const completed = completedBootstrap.current;
+      if (completed?.key === key && Date.now() - completed.at < BOOTSTRAP_REUSE_MS) {
+        setProfilePhotoURL(completed.profile.photoURL);
+        return completed.profile;
+      }
       const response = await fetch("/api/users/bootstrap", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          displayName: nextUser.displayName,
-          email: nextUser.email,
-          photoURL: nextUser.photoURL,
-        }),
+        body: JSON.stringify(profile),
       });
 
       if (!response.ok) {
@@ -144,6 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const payload = (await response.json()) as BootstrapProfile;
       if (getFirebaseServices().auth.currentUser?.uid === nextUser.uid) {
+        completedBootstrap.current = { key, at: Date.now(), profile: payload };
         setProfilePhotoURL(payload.photoURL);
       }
       return payload;
@@ -167,6 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setProfilePhotoURL(nextUser?.photoURL ?? null);
 
       if (!nextUser) {
+        completedBootstrap.current = null;
         setFeatures(DEFAULT_FEATURES);
         setLoading(false);
         void syncMemberSession(null).catch(() => {});

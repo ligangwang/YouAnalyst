@@ -181,3 +181,35 @@ test("repeated activation stays disabled during pending profile bootstrap", asyn
   expect((await events(page)).filter(event => event[1] === "company_follow")).toHaveLength(1);
   expect(bootstrapRequests).toBe(1);
 });
+
+test("a nearby Firebase token renewal refreshes the cookie and reuses bootstrap", async ({ page }) => {
+  const profiles: Array<string | undefined> = [];
+  await page.route(origin + "/api/users/bootstrap", route => {
+    profiles.push(route.request().headers().authorization);
+    return route.fulfill({ json: { created: false, photoURL: null } });
+  });
+  await page.route(origin + "/api/auth/session", route => route.fulfill({ status: 204 }));
+  await page.clock.setFixedTime(new Date("2026-11-25T02:37:30Z"));
+  await page.goto(origin + "/auth?next=%2Fen%2Fticker%2FAMD");
+  await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
+  await expect(page).toHaveURL(origin + "/en/ticker/AMD");
+  expect(profiles).toEqual(["Bearer measurement-token"]);
+
+  await page.clock.setFixedTime(new Date("2026-11-25T02:37:32Z"));
+  const renewed = page.waitForResponse(response =>
+    new URL(response.url()).pathname === "/api/auth/session"
+    && response.request().headers().authorization === "Bearer renewed-token" && response.status() === 204,
+  );
+  await page.evaluate(() => window.renewAuthMeasurementToken?.("renewed-token"));
+  await renewed;
+
+  // CDP's response event can precede the browser's fetch continuation.
+  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 0)));
+  expect(profiles).toEqual(["Bearer measurement-token"]);
+
+  await page.clock.setFixedTime(new Date("2026-11-25T02:37:36Z"));
+  const fresh = page.waitForResponse(response => new URL(response.url()).pathname === "/api/users/bootstrap");
+  await page.evaluate(() => window.renewAuthMeasurementToken?.("fresh-token"));
+  await fresh;
+  expect(profiles).toEqual(["Bearer measurement-token", "Bearer fresh-token"]);
+});
