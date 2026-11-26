@@ -19,6 +19,22 @@ const ledgerRef = (db: Firestore, id: string) => db.collection("eod_runs").doc(`
 const busy = () => Object.assign(Error("EOD maintenance is already queued or running for this market"), { code: "EOD_ALREADY_RUNNING" });
 const invalid = () => Object.assign(Error("Invalid EOD request"), { code: "INVALID_EOD_REQUEST" });
 
+// Full-day closures published by NYSE through 2028. Early closes still have a bar.
+const US_MARKET_CLOSURES = new Set([
+  "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+  "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+  "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31",
+  "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
+  "2028-01-17", "2028-02-21", "2028-04-14", "2028-05-29", "2028-06-19",
+  "2028-07-04", "2028-09-04", "2028-11-23", "2028-12-25",
+]);
+
+export function isScheduledUsMarketHoliday(input: Input): boolean {
+  return input.market === "US" && input.scheduledBatch !== undefined
+    && !input.tickers?.length && !input.recompute && input.loadPrices !== false
+    && US_MARKET_CLOSURES.has(input.runDate);
+}
+
 export function eodQueueInput(value: DailyEodMaintenanceInput): Input {
   const market = value.market ?? "US", runDate = value.runDate ?? marketDate(market);
   const date = new Date(`${runDate}T00:00:00Z`);
@@ -47,25 +63,29 @@ export function parseEodRequest(value: unknown): EodRequest {
   return { version: 1, type: v.type, batchId: v.batchId, requestedAt: v.requestedAt, input: eodQueueInput(v.input) };
 }
 
-export async function queueEodMaintenance(value: DailyEodMaintenanceInput = {}, db = getAdminFirestore(),
+export async function queueEodMaintenance(value: DailyEodMaintenanceInput = {}, db?: Firestore,
   publish: (request: EodRequest) => Promise<unknown> = request => publishJobMessage(process.env.EOD_REQUEST_TOPIC || "eod-maintenance-requests", request), now = Date.now()) {
   const input = eodQueueInput(value);
+  if (isScheduledUsMarketHoliday(input)) {
+    return { queued: false as const, skipped: "MARKET_CLOSED" as const, market: input.market, runDate: input.runDate };
+  }
+  const firestore = db ?? getAdminFirestore();
   // Scheduler retries after an ambiguous HTTP response reuse the same daily request.
   const batchId = input.trigger === "admin" ? randomUUID() : digest(input);
   const proposed = parseEodRequest({ version: 1, type: "eod.maintenance.requested", batchId, requestedAt: new Date(now).toISOString(), input });
-  const state = dispatchRef(db, input);
-  const request = await db.runTransaction(async tx => {
+  const state = dispatchRef(firestore, input);
+  const request = await firestore.runTransaction(async tx => {
     const data = (await tx.get(state)).data();
-    const existing = (await tx.get(ledgerRef(db, batchId))).data() as Ledger | undefined;
+    const existing = (await tx.get(ledgerRef(firestore, batchId))).data() as Ledger | undefined;
     // Freeze the EOD cutoff atomically with acceptance, not when a delayed worker starts.
-    const cutoff = db.collection("eod_runs").doc(`${input.market}_${input.runDate}`);
+    const cutoff = firestore.collection("eod_runs").doc(`${input.market}_${input.runDate}`);
     const priorCutoff = (await tx.get(cutoff)).data();
     let request = existing?.request ?? proposed;
     if (data?.activeRequest) {
       const active = parseEodRequest(data.activeRequest);
       if (digest(active.input) !== digest(input)) throw busy();
       request = active;
-    } else if (!existing) tx.create(ledgerRef(db, batchId), { request });
+    } else if (!existing) tx.create(ledgerRef(firestore, batchId), { request });
     if (!existing?.completed) tx.set(state, { activeRequest: request }, { merge: true });
     if (!priorCutoff?.status) tx.set(cutoff, { market: input.market, runDate: input.runDate,
       status: "QUEUED", queuedAt: request.requestedAt }, { merge: true });

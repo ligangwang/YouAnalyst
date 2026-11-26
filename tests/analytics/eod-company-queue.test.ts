@@ -1,3 +1,4 @@
+import {digest} from '../../src/lib/fundamentals/pubsub';
 import {memoryControl} from '../helpers/worker-control';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
@@ -7,6 +8,37 @@ import {parseEodMessage,processEodCompanyMessage,type EodMessage} from '../../sr
 import type {DailyEodMaintenanceResult,EodCompanyExecution,EodPrice} from '../../src/lib/predictions/eod-prices';
 import {companyWorkRequest,type CompanyWorkRequest} from '../../src/lib/company-work-queue';
 import {queueMarketCapRefresh,processMarketCapMessage,parseMarketCapMessage,type MarketCapMessage} from '../../src/lib/fundamentals/market-cap-queue';
+
+test('holiday bulk retries retire only their own expired state and keep previous prices', async () => {
+  const f=pubsubFirestore();
+  const message={version:2 as const,type:'eod.company-run.requested' as const,batchId:'holiday-batch',
+    requestedAt:'2026-07-03T21:30:00Z',input:{market:'US' as const,runDate:'2026-07-03',scheduledBatch:'1630' as const,
+      limit:50,rollForwardBatchSize:5}};
+  const parent='eod_runs/_request_holiday-batch', pipeline='eod_runs/_company_pipeline';
+  const previous={runDate:'2026-07-02',status:'COMPLETED'};
+  const dispatch='eod_runs/_dispatch_'+digest(message.input);
+  f.rows.set(parent,{request:message,batchVersion:2,companyIds:['US:AMD'],dispatchCursor:1,
+    leaseExpiresAtMs:Date.now()+60000});
+  f.rows.set(pipeline,{activeRequest:message});
+  f.rows.set(dispatch,{activeRequest:message});
+  f.rows.set('eod_runs/_latest_US',previous);
+  const deliver=()=>processEodCompanyMessage(message,f.db,f.log,async()=>assert.fail('Holiday retry must not publish'));
+  await assert.rejects(deliver(),/still active/);
+  assert.deepEqual(f.writes,[]);
+  f.rows.get(parent)!.leaseExpiresAtMs=0;
+  await deliver();
+  assert.equal(f.rows.get(parent)?.status,'SKIPPED');
+  assert.deepEqual(f.rows.get(parent)?.companyIds,['US:AMD']);
+  assert.equal(f.rows.get(parent)?.dispatchCursor,1);
+  assert.equal(f.rows.get(dispatch)?.activeRequest,null);
+  assert.equal(f.rows.get(pipeline)?.activeRequest,null);
+  f.rows.set(pipeline,{activeRequest:{batchId:'another-run'},leaseExpiresAtMs:Date.now()+60000});
+  assert.deepEqual(f.rows.get('eod_runs/_latest_US'),previous);
+  const writes=f.writes.length;
+  assert.deepEqual(await deliver(),{batchId:'holiday-batch',skipped:'MARKET_CLOSED'});
+  assert.equal(f.writes.length,writes);
+  assert.equal((f.rows.get(pipeline)?.activeRequest as {batchId:string}).batchId,'another-run');
+});
 
 test('historical replay orders dates and finishes each company barrier before advancing',async()=>{
   const f=pubsubFirestore();

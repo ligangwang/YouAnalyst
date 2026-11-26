@@ -5,9 +5,9 @@ import {publishEodMessage} from './eod-publisher';
 import {digest} from '../fundamentals/pubsub';
 import {acquireMaintenanceLease,releaseMaintenanceLease} from '../maintenance-lease';
 import type {MaintenanceLog} from '../maintenance-log';
-import {parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsub';
+import {isScheduledUsMarketHoliday,parseEodRequest,processEodMaintenance,type EodRequest} from './eod-pubsub';
 import {planEodCompanyWork,prepareEodCompanyPrices,finalizeEodCompanyScores,runDailyEodMaintenance,readRollForwardDates,type EodPrice} from './eod-prices';
-import {retireExpiredEodRun} from './eod-recovery';
+import {retireExpiredEodRun,retireScheduledHolidayDelivery} from './eod-recovery';
 import {processBulkEodRun,EOD_BULK_SIZE} from './eod-bulk-run';
 import {planBulkEodWork,persistDailyBulkEodPrices,finalizeBulkEodScores} from './eod-prices';
 import {parseEodBatchRequest,processEodBatchedRun,processEodCompanyBatch,type EodBatchRequest} from './eod-batch-queue';
@@ -71,6 +71,10 @@ export async function processEodCompanyMessage(value:EodMessage,db:Firestore,log
     return processCompanyWork<EodCompanyRunRequest>(message,{
       db,parent:parentRef(db,message.parentBatchId),state,collection:'eod_runs',owner:log.runId,publish,work:work(message),
     });
+  }
+  if(isScheduledUsMarketHoliday(message.input) && await retireScheduledHolidayDelivery(db,message)){
+    log.emit('INFO','market_closed',{batchId:message.batchId,market:message.input.market,runDate:message.input.runDate});
+    return {batchId:message.batchId,skipped:'MARKET_CLOSED' as const};
   }
   const retired=await retireExpiredEodRun(db,Date.now(),publish);
   if(retired)log.emit('ERROR','company_run_retired',{batchId:retired,status:'FAILED',reason:'Company recovery window expired; receipts retained'});
