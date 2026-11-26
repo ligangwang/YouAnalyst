@@ -2,11 +2,39 @@ import type {Firestore} from 'firebase-admin/firestore';
 import {companyWorkRef,companyWorkRequest,type CompanyRun,type CompanyWorkRequest} from '../company-work-queue';
 import {digest} from '../fundamentals/pubsub';
 import type {EodCompanyRunRequest} from './eod-company-queue';
+import type {EodRequest} from './eod-pubsub';
 
 // An incomplete date must remain visibly failed, not hold every later date forever.
 // Keep the receipts for an explicit repair; never manufacture prices or finalize
 // portfolios from a partial company set. Existing status/error fields suffice.
 export const EOD_COMPANY_RECOVERY_MS=60*60_000;
+
+/** Retire holiday requests queued before the calendar guard was deployed. */
+export async function retireScheduledHolidayDelivery(db:Firestore,request:EodCompanyRunRequest|EodRequest,now=Date.now()):Promise<boolean>{
+  const runs=db.collection('eod_runs');
+  const ref=runs.doc(`_request_${request.batchId}`);
+  const state=runs.doc('_company_pipeline');
+  const dispatch=runs.doc(`_dispatch_${digest(request.input)}`);
+  return db.runTransaction(async tx=>{
+    const saved=await tx.get(ref);
+    if(!saved.exists)throw Error('Unknown holiday EOD request');
+    const stored=saved.get('request');
+    if(stored?.batchId!==request.batchId||digest(stored.input)!==digest(request.input))
+      throw Error('Conflicting holiday EOD request');
+    if(saved.get('completed')===true)return true;
+    // Older per-company or paged runs can own receipts and use their existing recovery path.
+    if((saved.get('companyIds')&&saved.get('batchVersion')!==2)||saved.get('dates'))return false;
+    const [pipeline,queued,legacy]=await tx.getAll(state,dispatch,runs.doc('_queue_US'));
+    const ownsPipeline=pipeline.get('activeRequest')?.batchId===request.batchId;
+    if(Number(saved.get('leaseExpiresAtMs'))>now||Number(legacy.get('leaseExpiresAtMs'))>now
+      ||(ownsPipeline&&Number(pipeline.get('leaseExpiresAtMs'))>now))throw Error('Holiday EOD delivery is still active');
+    tx.set(ref,{completed:true,phase:'completed',status:'SKIPPED',error:null,failedAt:null,
+      completedAt:new Date(now).toISOString()},{merge:true});
+    if(ownsPipeline)tx.set(state,{activeRequest:null},{merge:true});
+    if(queued.get('activeRequest')?.batchId===request.batchId)tx.set(dispatch,{activeRequest:null},{merge:true});
+    return true;
+  });
+}
 export async function retireExpiredEodRun(db:Firestore,now=Date.now(),retryUnstarted?:(task:CompanyWorkRequest)=>Promise<unknown>):Promise<string|null>{
   const state=db.collection('eod_runs').doc('_company_pipeline');
   const outcome=await db.runTransaction(async tx=>{

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { targetDateFromRunStatus } from "../../src/lib/predictions/service";
 import { pubsubFirestore } from "../helpers/pubsub-firestore";
-import { eodQueueInput, queueEodMaintenance, processEodMaintenance, type EodRequest } from "../../src/lib/predictions/eod-pubsub";
+import { eodQueueInput, isScheduledUsMarketHoliday, queueEodMaintenance, processEodMaintenance, type EodRequest } from "../../src/lib/predictions/eod-pubsub";
 import type { DailyEodMaintenanceInput, DailyEodMaintenanceResult } from "../../src/lib/predictions/eod-prices";
 const input = { market: "US" as const, runDate: "2026-01-02" };
 const result = (more = false, cursor = "b") => ({ runDate: input.runDate, hasMoreCandidatePredictions: more, nextPredictionId: cursor,
@@ -21,6 +21,27 @@ test("publication failures preserve the original request and confirmed retries r
   await queueEodMaintenance(input, f.db, async r => { sent.push(r); });
   assert.deepEqual(sent[0], sent[1]);
   await queueEodMaintenance({ ...input, runDate: "2026-01-03" }, f.db, async () => {});
+});
+
+test("scheduled U.S. full-day closures skip Firestore and publication", async () => {
+  const f = pubsubFirestore();
+  const closed = { ...input, runDate: "2026-07-03" };
+  for (const scheduledBatch of ["1630", "2000"] as const) {
+    const outcome = await queueEodMaintenance({ ...closed, scheduledBatch }, f.db, async () => {
+      assert.fail("Holiday request must not publish");
+    });
+    assert.deepEqual(outcome, { queued: false, skipped: "MARKET_CLOSED", ...closed });
+  }
+  assert.deepEqual(f.reads, []);
+  assert.deepEqual(f.writes, []);
+  assert.equal(isScheduledUsMarketHoliday({ ...eodQueueInput(closed), scheduledBatch: "2000", runDate: "2026-11-27" }), false);
+  for (const request of [
+    { ...closed, trigger: "admin" as const },
+    { ...closed, market: "CN_A" as const },
+    { ...closed, scheduledBatch: "1630" as const, tickers: ["AMD"] },
+  ]) {
+    assert.equal((await queueEodMaintenance(request, f.db, async () => {})).queued, true);
+  }
 });
 
 test("US scheduled deliveries have distinct identities and deduplicate completed retries", async () => {

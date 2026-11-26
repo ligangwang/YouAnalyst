@@ -25,6 +25,8 @@ const retiredUiPaths = new Set([
 export const EOD_WORKER_LIBRARIES = new Set([
   'src/lib/predictions/eod-bulk-run.ts',
   'src/lib/predictions/eod-company-queue.ts',
+  'src/lib/predictions/eod-pubsub.ts',
+  'src/lib/predictions/eod-recovery.ts',
 ]);
 
 export function backgroundJobTarget(paths) {
