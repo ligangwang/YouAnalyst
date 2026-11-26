@@ -17,7 +17,7 @@ case "$target" in
   production)
     service_name="${CLOUD_RUN_SERVICE_PRODUCTION:-ifindata-web}"
     app_environment="${APP_ENVIRONMENT:-production}"
-    web_memory=3Gi
+    web_memory=2560Mi
     ;;
   *)
     echo "Unsupported target: $target"
